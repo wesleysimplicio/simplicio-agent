@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.1] - 2026-07-01
+
+### Fixed
+
+- **`hermes_cli/main.py`**: added the `daemon` subcommand (registered in
+  0.21.0's warm-daemon port) to `_BUILTIN_SUBCOMMANDS`. Without it, `hermes
+  daemon` was paying the eager plugin-discovery cost on every invocation
+  instead of taking the fast path every other built-in subcommand gets.
+  Caught by `test_startup_plugin_gating.py::test_builtin_set_covers_every_registered_subcommand`.
+
 ## [0.21.0] - 2026-07-01
 
 ### Added
