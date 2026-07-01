@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-07-01
+
+### Added
+
+- **Ecosystem sync pipeline tooling** (`scripts/sync/ecosystem-sync.sh`,
+  `.github/workflows/ecosystem-sync.yml`, `docs/SYNC_PIPELINE.md`): repeatable
+  orchestrator for the Hermes -> Hermes Turbo -> Simplicio sync flow.
+  - Subcommands: `turbo-absorb-hermes` (Turbo fetches NousResearch/hermes-agent
+    and stops for human review; `--apply` stages a non-destructive merge),
+    `simplicio-pull-perf` (copies the additive perf module set from Turbo,
+    skipping any file newer in Simplicio, then runs the validation gate),
+    `ecosystem-update` (parameterizable pull of other `Projetos/ai` repos),
+    `asolaria-absorb` (read-only placeholder listing pending items from
+    `docs/ASOLARIA_ABSORPTION_PLAN.md`), and `validate` (perf import smoke +
+    targeted pytest gate).
+  - **Ordering guard**: enforces that Turbo absorbs the latest Hermes BEFORE
+    Simplicio pulls, because Simplicio is newer than Turbo; the perf delta is
+    pulled additively (never wholesale-overwriting newer Simplicio files).
+  - Every destructive step is guarded behind `--apply`; `--dry-run` is the
+    default. All actions are logged as copied / would-copy / skipped-newer /
+    skipped-identical / needs-human-review — never a silent overwrite.
+  - CI workflow is dry-run by default and never auto-pushes synced content; a
+    human opts into `--apply` via a `workflow_dispatch` input.
+
 ## [0.18.0] - 2026-07-01
 
 ### Added
