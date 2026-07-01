@@ -8,6 +8,14 @@ functions that take the parent ``AIAgent`` as their first argument.
 that patch ``run_agent._set_interrupt`` are honored because the
 extracted functions reach back through the ``run_agent`` module via
 ``_ra()`` for that symbol.
+
+``execute_tool_calls_concurrent`` below parallelizes independent tool
+calls with a thread pool but has no notion of *dependencies* between
+calls — every tool in a batch is assumed independent. ``run_dag_tool_batch``
+is an additive, opt-in alternative for callers that need to express a
+genuine dependency chain (e.g. "call B with the output of A") — it
+delegates to ``agent.async_dag.DagExecutor`` and does not touch or
+replace the existing thread-pool path.
 """
 
 from __future__ import annotations
@@ -19,7 +27,7 @@ import os
 import random
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from agent.display import (
     KawaiiSpinner,
@@ -1531,9 +1539,60 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
         agent._apply_pending_steer_to_tool_results(messages, num_tools_seq)
 
 
+async def run_dag_tool_batch(
+    agent,
+    nodes: Sequence[Any],
+    effective_task_id: str,
+    *,
+    max_concurrency: int = 16,
+):
+    """Run a batch of *dependent* tool calls through ``DagExecutor``.
+
+    Additive alternative to ``execute_tool_calls_concurrent``: that function
+    fans out independent tool calls across a thread pool with no ordering
+    guarantees between them. This helper is for the opposite case — a caller
+    that has already planned a chain of tool calls where some depend on the
+    output of others (``DagNode(depends_on=(...))``) and wants them resolved
+    and executed with maximum safe parallelism (topological levels run
+    concurrently; a node only starts once every upstream dependency has
+    produced output).
+
+    Each ``DagNode.tool``/``DagNode.args`` pair is dispatched through the
+    same ``agent._invoke_tool`` used by the sequential/concurrent paths —
+    behavior (guardrails, middleware, checkpoints) is unchanged, this just
+    adds dependency-aware scheduling on top. ``_invoke_tool`` is synchronous,
+    so each call is run via ``asyncio.to_thread`` to avoid blocking the event
+    loop, mirroring the thread-based concurrency already used by
+    ``execute_tool_calls_concurrent``.
+
+    This does not append anything to ``messages`` or run any of the
+    display/guardrail/checkpoint bookkeeping ``execute_tool_calls_concurrent``
+    does — it is a lower-level primitive a caller can build that bookkeeping
+    on top of if/when a real dependency-aware tool-batch caller exists.
+    Nothing in the existing sequential/concurrent code paths calls this;
+    it is purely additive.
+
+    Returns the ``DagResult`` from ``agent.async_dag`` (``.outputs``,
+    ``.errors``, ``.levels``, ``.elapsed_s``, ``.ok``).
+    """
+    import asyncio
+
+    from agent.async_dag import DagExecutor
+
+    async def _dispatch(tool: str, args) -> Any:
+        return await asyncio.to_thread(
+            agent._invoke_tool,
+            tool,
+            dict(args),
+            effective_task_id,
+        )
+
+    executor = DagExecutor(dispatch=_dispatch, max_concurrency=max_concurrency)
+    return await executor.run(nodes)
 
 
 __all__ = [
     "execute_tool_calls_concurrent",
     "execute_tool_calls_sequential",
+    "run_dag_tool_batch",
 ]

@@ -245,3 +245,107 @@ class TestGatewayQuickCommands:
         event = self._make_event("limits")
         result = await runner._handle_message(event)
         assert result == "ok"
+
+
+# ── Deterministic router fast-path tests ────────────────────────────────────
+
+class TestGatewayDeterministicRouterFastPath:
+    """Test the no-LLM deterministic router wired into GatewayRunner._handle_message.
+
+    The router only runs when ``event.get_command()`` is ``None`` — i.e. the
+    input is NOT a slash command — so it can never shadow /help, /whoami,
+    /version, quick_commands, plugin commands, or skill commands (all of
+    which require a leading slash and are dispatched earlier in
+    ``_handle_message``).
+    """
+
+    def _make_bare_event(self, text):
+        """A plain-text (non-slash) inbound message, as real chat input looks."""
+        event = MagicMock()
+        event.get_command.return_value = None
+        event.get_command_args.return_value = text
+        event.text = text
+        event.internal = False
+        event.source = MagicMock()
+        event.source.user_id = "test_user"
+        event.source.user_name = "Test User"
+        event.source.platform.value = "telegram"
+        event.source.chat_type = "dm"
+        event.source.chat_id = "123"
+        return event
+
+    def _make_runner(self):
+        from gateway.run import GatewayRunner
+        runner = GatewayRunner.__new__(GatewayRunner)
+        runner.config = {"quick_commands": {}}
+        runner._running_agents = {}
+        runner._pending_messages = {}
+        runner._is_user_authorized = MagicMock(return_value=True)
+        return runner
+
+    @pytest.mark.asyncio
+    async def test_trivial_ping_answers_without_reaching_agent(self):
+        """A bare 'ping' is answered instantly by the deterministic router —
+        the agent/LLM turn (guarded by _is_telegram_topic_root_lobby, the
+        first async call after the router fast path) must never be reached.
+        """
+        runner = self._make_runner()
+        runner._is_telegram_topic_root_lobby = MagicMock(
+            side_effect=AssertionError("LLM/agent path reached for a trivial router hit")
+        )
+
+        event = self._make_bare_event("ping")
+        result = await runner._handle_message(event)
+
+        assert result == "pong"
+        runner._is_telegram_topic_root_lobby.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_conversational_message_falls_through_to_existing_path_unchanged(self):
+        """A normal conversational message is not a router match, so it must
+        flow through to the existing (pre-existing, unmodified) code path —
+        proven here by observing that the next real step after the router
+        check (_is_telegram_topic_root_lobby) is reached.
+        """
+        runner = self._make_runner()
+        runner._is_telegram_topic_root_lobby = MagicMock(
+            side_effect=AssertionError("reached-existing-path")
+        )
+
+        async def _to_thread_stub(fn, *args, **kwargs):
+            # asyncio.to_thread(self._is_telegram_topic_root_lobby, source)
+            # Call the mock synchronously here to surface its side_effect
+            # as proof execution reached this pre-existing gate.
+            return fn(*args, **kwargs)
+
+        with patch("asyncio.to_thread", side_effect=_to_thread_stub):
+            with pytest.raises(AssertionError, match="reached-existing-path"):
+                await runner._handle_message(
+                    self._make_bare_event("Can you help me plan my trip to Lisbon next week?")
+                )
+
+    @pytest.mark.asyncio
+    async def test_slash_ping_does_not_collide_with_router(self):
+        """/ping (a slash command) must NOT be intercepted by the router —
+        get_command() returns 'ping' (truthy), so the `command is None`
+        guard skips the router entirely and the existing unknown-command
+        handling for slash input applies instead.
+        """
+        runner = self._make_runner()
+
+        event = MagicMock()
+        event.get_command.return_value = "ping"
+        event.get_command_args.return_value = ""
+        event.text = "/ping"
+        event.internal = False
+        event.source = MagicMock()
+        event.source.user_id = "test_user"
+        event.source.user_name = "Test User"
+        event.source.platform.value = "telegram"
+        event.source.chat_type = "dm"
+        event.source.chat_id = "123"
+
+        result = await runner._handle_message(event)
+
+        assert result != "pong"
+        assert "unknown command" in (result or "").lower()

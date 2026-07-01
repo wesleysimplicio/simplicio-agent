@@ -27,6 +27,7 @@ from typing import Any, Dict, Optional
 
 from hermes_cli.timeouts import get_provider_request_timeout, get_provider_stale_timeout
 from hermes_constants import PARTIAL_STREAM_STUB_ID, FINISH_REASON_LENGTH
+import agent.tracing as agent_tracing
 from agent.error_classifier import FailoverReason
 from agent.gemini_native_adapter import is_native_gemini_base_url
 from agent.model_metadata import is_local_endpoint
@@ -2425,11 +2426,24 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 if agent._interrupt_requested:
                     raise InterruptedError("Agent interrupted before stream retry")
                 try:
-                    if agent.api_mode == "anthropic_messages":
-                        agent._try_refresh_anthropic_client_credentials()
-                        result["response"] = _call_anthropic()
-                    else:
-                        result["response"] = _call_chat_completions()
+                    with agent_tracing.span(
+                        "llm.stream_call",
+                        attributes={
+                            "provider": agent.provider,
+                            "model": agent.model,
+                            "attempt": _stream_attempt,
+                        },
+                    ) as _span:
+                        if agent.api_mode == "anthropic_messages":
+                            agent._try_refresh_anthropic_client_credentials()
+                            result["response"] = _call_anthropic()
+                        else:
+                            result["response"] = _call_chat_completions()
+                        _diag = request_client_holder.get("diag") or {}
+                        if _diag.get("chunks") is not None:
+                            _span.set_attribute("chunks", _diag["chunks"])
+                        if _diag.get("bytes") is not None:
+                            _span.set_attribute("bytes", _diag["bytes"])
                     return  # success
                 except Exception as e:
                     # If the main poll loop force-closed this request because

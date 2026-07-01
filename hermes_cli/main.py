@@ -267,6 +267,7 @@ from typing import Optional
 
 from hermes_cli.subcommands._shared import add_accept_hooks_flag as _add_accept_hooks_flag
 from hermes_cli.subcommands.cron import build_cron_parser
+from hermes_cli.subcommands.daemon import build_daemon_parser
 from hermes_cli.subcommands.gateway import build_gateway_parser
 from hermes_cli.subcommands.profile import build_profile_parser
 from hermes_cli.subcommands.model import build_model_parser
@@ -4212,6 +4213,34 @@ def cmd_cron(args):
     from hermes_cli.cron import cron_command
 
     cron_command(args)
+
+
+def cmd_daemon(args):
+    """Warm daemon management (start/stop/status/invalidate)."""
+    import json as _json
+
+    from hermes_cli.daemon import _client_request, _serve, _socket_path
+
+    sub = getattr(args, "daemon_command", None)
+    sock = _socket_path(getattr(args, "socket", None))
+
+    if sub == "start":
+        return _serve(sock, getattr(args, "profile", "desktop"))
+    if sub == "stop":
+        resp = _client_request(sock, {"op": "shutdown"})
+        print(_json.dumps(resp))
+        return 0 if resp.get("ok") else 1
+    if sub == "status":
+        resp = _client_request(sock, {"op": "status"})
+        print(_json.dumps(resp, indent=2))
+        return 0 if resp.get("ok") else 1
+    if sub == "invalidate":
+        resp = _client_request(sock, {"op": "invalidate", "cache": args.cache})
+        print(_json.dumps(resp))
+        return 0 if resp.get("ok") else 1
+
+    print("usage: hermes daemon {start,stop,status,invalidate}")
+    return 2
 
 
 def cmd_webhook(args):
@@ -11922,7 +11951,7 @@ _BUILTIN_SUBCOMMANDS = frozenset(
     {
         "acp", "auth", "backup", "bundles", "checkpoints", "claw", "completion",
         "computer-use",
-        "config", "cron", "curator", "dashboard", "serve", "debug", "doctor",
+        "config", "cron", "curator", "daemon", "dashboard", "serve", "debug", "doctor",
         "dump", "fallback", "gateway", "hooks", "import", "insights",
         "gui", "desktop", "kanban", "login", "logout", "logs", "lsp", "mcp", "memory", "migrate", "moa",
         "journey", "memory-graph", "learning",
@@ -12669,6 +12698,11 @@ def main():
     # cron command  (parser built in hermes_cli/subcommands/cron.py)
     # =========================================================================
     build_cron_parser(subparsers, cmd_cron=cmd_cron)
+
+    # =========================================================================
+    # daemon command  (parser built in hermes_cli/subcommands/daemon.py)
+    # =========================================================================
+    build_daemon_parser(subparsers, cmd_daemon=cmd_daemon)
 
     # =========================================================================
     # webhook command  (parser built in hermes_cli/subcommands/webhook.py)

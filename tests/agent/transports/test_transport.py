@@ -87,6 +87,65 @@ class TestTransportRegistry:
         _REGISTRY.pop("dummy_test", None)
 
 
+# ── simplicio-prompt wiring (off by default) ────────────────────────────
+
+class TestSimplicioPromptWiring:
+    """register_transport wraps build_kwargs to route messages through
+    apply_simplicio_prompt. Off by default; only active when
+    HERMES_SIMPLICIO_PROMPT / SIMPLICIO_PROMPT is truthy."""
+
+    @pytest.fixture
+    def dummy_transport_cls(self):
+        class DummyTransport(ProviderTransport):
+            @property
+            def api_mode(self):
+                return "dummy_simplicio_test"
+            def convert_messages(self, messages, **kw):
+                return messages
+            def convert_tools(self, tools):
+                return tools
+            def build_kwargs(self, model, messages, tools=None, **params):
+                return {"model": model, "messages": messages, "tools": tools, **params}
+            def normalize_response(self, response, **kw):
+                return NormalizedResponse(content=None, tool_calls=None, finish_reason="stop")
+
+        yield DummyTransport
+        _REGISTRY.pop("dummy_simplicio_test", None)
+
+    def test_enabled_injects_simplicio_prompt_marker(self, dummy_transport_cls, monkeypatch):
+        monkeypatch.setenv("HERMES_SIMPLICIO_PROMPT", "1")
+        register_transport("dummy_simplicio_test", dummy_transport_cls)
+        t = get_transport("dummy_simplicio_test")
+
+        messages = [{"role": "user", "content": "Hello"}]
+        kw = t.build_kwargs(model="test-model", messages=messages)
+
+        from agent.simplicio_prompt import MARKER
+        assert kw["messages"][0]["role"] == "system"
+        assert MARKER in kw["messages"][0]["content"]
+        # Original messages list must not be mutated in place.
+        assert messages == [{"role": "user", "content": "Hello"}]
+
+    def test_disabled_by_default_leaves_messages_unchanged(self, dummy_transport_cls, monkeypatch):
+        monkeypatch.delenv("HERMES_SIMPLICIO_PROMPT", raising=False)
+        monkeypatch.delenv("SIMPLICIO_PROMPT", raising=False)
+        monkeypatch.delenv("YOOL_TUPLE_FULL_RUNTIME", raising=False)
+        register_transport("dummy_simplicio_test", dummy_transport_cls)
+        t = get_transport("dummy_simplicio_test")
+
+        messages = [{"role": "user", "content": "Hello"}]
+        kw = t.build_kwargs(model="test-model", messages=messages, max_tokens=1024)
+
+        # Byte-identical to a hand-built expected dict that contains no
+        # simplicio-prompt content: off by default means truly unchanged.
+        assert kw == {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "tools": None,
+            "max_tokens": 1024,
+        }
+
+
 # ── AnthropicTransport tests ────────────────────────────────────────────
 
 class TestAnthropicTransport:

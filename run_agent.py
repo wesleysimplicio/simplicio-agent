@@ -39,6 +39,7 @@ import json
 import logging
 logger = logging.getLogger(__name__)
 import os
+from agent._fastjson import loads as _fast_loads, dumps as _fast_dumps
 import re
 import sys
 import tempfile
@@ -1953,7 +1954,7 @@ class AIAgent:
                     if nested_detail:
                         return nested_detail
             try:
-                return json.dumps(value, ensure_ascii=False, sort_keys=True)
+                return _fast_dumps(value, ensure_ascii=False, sort_keys=True)
             except TypeError:
                 return str(value)
         if isinstance(value, (list, tuple)):
@@ -2020,7 +2021,7 @@ class AIAgent:
                 status_code = getattr(error, "status_code", None)
                 prefix = f"HTTP {status_code}: " if status_code else ""
                 try:
-                    payload = json.loads(snippet)
+                    payload = _fast_loads(snippet)
                 except (json.JSONDecodeError, TypeError):
                     payload = None
                 if isinstance(payload, dict):
@@ -2228,14 +2229,14 @@ class AIAgent:
         payload = cls._hook_jsonable(value)
         limit = cls._hook_payload_max_chars()
         try:
-            encoded = json.dumps(payload, ensure_ascii=False, default=str)
+            encoded = _fast_dumps(payload, ensure_ascii=False, default=str)
         except Exception:
             return str(payload)[:limit]
         if len(encoded) <= limit:
             return payload
         payload = cls._hook_jsonable(value, max_string=1000, max_sequence=50)
         try:
-            encoded = json.dumps(payload, ensure_ascii=False, default=str)
+            encoded = _fast_dumps(payload, ensure_ascii=False, default=str)
         except Exception:
             return str(payload)[:limit]
         if len(encoded) <= limit:
@@ -2448,7 +2449,7 @@ class AIAgent:
             # partial history and would otherwise clobber the full JSON log.
             if log_file.exists():
                 try:
-                    existing = json.loads(log_file.read_text(encoding="utf-8"))
+                    existing = _fast_loads(log_file.read_text(encoding="utf-8"))
                     existing_count = existing.get("message_count", len(existing.get("messages", [])))
                     if existing_count > len(cleaned):
                         logging.debug(
@@ -3399,7 +3400,7 @@ class AIAgent:
             if '"todos"' not in content:
                 continue
             try:
-                data = json.loads(content)
+                data = _fast_loads(content)
                 if "todos" in data and isinstance(data["todos"], list):
                     last_todo_response = data["todos"]
                     break
@@ -4556,7 +4557,7 @@ class AIAgent:
             result_json = asyncio.run(
                 vision_analyze_tool(image_url=vision_source, user_prompt=analysis_prompt)
             )
-            result = json.loads(result_json) if isinstance(result_json, str) else {}
+            result = _fast_loads(result_json) if isinstance(result_json, str) else {}
             description = (result.get("analysis") or "").strip()
         except Exception as e:
             description = f"Image analysis failed: {e}"
@@ -4786,7 +4787,7 @@ class AIAgent:
 
         summary = _multimodal_text_summary(result)
         if tool_name == "computer_use":
-            return json.dumps({
+            return _fast_dumps({
                 "error": (
                     "computer_use returned screenshot/image content, but the active "
                     "model/provider does not support image input. Switch to a "
@@ -5696,7 +5697,7 @@ def main(
         try:
             with open(sample_filename, "w", encoding="utf-8") as f:
                 # Pretty-print JSON with indent for readability
-                f.write(json.dumps(entry, ensure_ascii=False, indent=2))
+                f.write(_fast_dumps(entry, ensure_ascii=False, indent=2))
             print(f"\n💾 Sample trajectory saved to: {sample_filename}")
         except Exception as e:
             print(f"\n⚠️ Failed to save sample: {e}")
