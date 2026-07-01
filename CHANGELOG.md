@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.19.0] - 2026-07-01
+## [0.20.0] - 2026-07-01
 
 ### Added
 
@@ -27,6 +27,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     skipped-identical / needs-human-review — never a silent overwrite.
   - CI workflow is dry-run by default and never auto-pushes synced content; a
     human opts into `--apply` via a `workflow_dispatch` input.
+
+## [0.19.0] - 2026-07-01
+
+### Changed
+
+Deep hot-path performance integration ported from the hermes-turbo-agent fork's
+`perf: cut hot-path allocations in caching, streaming, scrubber, state` pass,
+adapted to this newer baseline — semantics preserved, 124 hot-path tests pass:
+
+- **`agent/chat_completion_helpers.py`**: replace `len(repr(chunk))` /
+  `len(repr(event))` per streamed token with a cheap delta-length byte proxy
+  (content + reasoning + tool-arg, or text + thinking + partial_json). Avoids
+  rendering the whole pydantic chunk/event into a throwaway string on every token.
+- **`agent/prompt_caching.py`**: `apply_anthropic_cache_control` shallow-copies
+  the message list and deep-copies only the ≤4 cache-marked messages instead of
+  deep-copying the entire transcript on every Anthropic send. Never-mutate-the-
+  caller contract preserved (verified).
+- **`agent/think_scrubber.py`**: precompute lowercased tag tuples
+  (`_OPEN_TAGS_LOWER` / `_CLOSE_TAGS_LOWER`); drop per-delta `tag.lower()` across
+  all five scan helpers.
+
+### Notes
+
+Intentionally not ported from the same fork pass: the `run_agent.py` repr-proxy
+sites (this newer baseline's streaming code already differs / lacks them), the
+`hermes_state.py` fast-json `tool_calls` read (no `_json_loads` helper here plus
+unrelated pending local edits), and the streamed tool-call `arg_parts`
+accumulation (this baseline has multiple argument read-sites; converting all
+safely is out of scope for this focused pass — the `+=` path stays correct).
 
 ## [0.18.0] - 2026-07-01
 
