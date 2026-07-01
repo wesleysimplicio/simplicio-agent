@@ -23,6 +23,8 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
 
+from tools._fastjson import json as fastjson
+
 logger = logging.getLogger(__name__)
 
 
@@ -522,7 +524,7 @@ class ToolRegistry:
         """
         entry = self.get_entry(name)
         if not entry:
-            return json.dumps({"error": f"Unknown tool: {name}"})
+            return fastjson.dumps({"error": f"Unknown tool: {name}"})
         try:
             if entry.is_async:
                 from model_tools import _run_async
@@ -539,7 +541,7 @@ class ToolRegistry:
                 sanitized = _sanitize_tool_error(raw)
             except Exception:
                 sanitized = raw  # defensive: never let the sanitizer block error propagation
-            return json.dumps({"error": sanitized})
+            return fastjson.dumps({"error": sanitized})
 
     # ------------------------------------------------------------------
     # Query helpers  (replace redundant dicts in model_tools.py)
@@ -667,7 +669,7 @@ registry = ToolRegistry()
 # Helpers for tool response serialization
 # ---------------------------------------------------------------------------
 # Every tool handler must return a JSON string.  These helpers eliminate the
-# boilerplate ``json.dumps({"error": msg}, ensure_ascii=False)`` that appears
+# boilerplate ``fastjson.dumps({"error": msg}, ensure_ascii=False)`` that appears
 # hundreds of times across tool files.
 #
 # Usage:
@@ -690,7 +692,7 @@ def tool_error(message, **extra) -> str:
     result = {"error": str(message)}
     if extra:
         result.update(extra)
-    return json.dumps(result, ensure_ascii=False)
+    return fastjson.dumps(result, ensure_ascii=False)
 
 
 def tool_result(data=None, **kwargs) -> str:
@@ -704,5 +706,5 @@ def tool_result(data=None, **kwargs) -> str:
     '{"key": "value"}'
     """
     if data is not None:
-        return json.dumps(data, ensure_ascii=False)
-    return json.dumps(kwargs, ensure_ascii=False)
+        return fastjson.dumps(data, ensure_ascii=False)
+    return fastjson.dumps(kwargs, ensure_ascii=False)

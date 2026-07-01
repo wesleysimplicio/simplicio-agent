@@ -42,6 +42,8 @@ import os
 import re
 import asyncio
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
+
+from tools._fastjson import json as fastjson
 import httpx  # noqa: F401 — kept at module top so tests can patch tools.web_tools.httpx
 # After the web-provider plugin migration (PR #25182), the Firecrawl SDK
 # proxy, client construction, and response-shape normalizers all live in
@@ -592,7 +594,7 @@ def web_search_tool(query: str, limit: int = 5) -> str:
             response_data = provider.search(query, limit)
 
         debug_call_data["results_count"] = len(response_data.get("data", {}).get("web", []))
-        result_json = json.dumps(response_data, indent=2, ensure_ascii=False)
+        result_json = fastjson.dumps(response_data, indent=2, ensure_ascii=False)
         debug_call_data["final_response_size"] = len(result_json)
         _debug.log_call("web_search_tool", debug_call_data)
         _debug.save()
@@ -654,7 +656,7 @@ async def web_extract_tool(
             or _PREFIX_RE.search(normalized_url)
             or _PREFIX_RE.search(unquote(normalized_url))
         ):
-            return json.dumps({
+            return fastjson.dumps({
                 "success": False,
                 "error": "Blocked: URL contains what appears to be an API key or token. "
                          "Secrets must not be sent in URLs.",
@@ -719,7 +721,7 @@ async def web_extract_tool(
                 # isn't registered at all (typo / uninstalled plugin), fall
                 # through to the active-provider walk.
                 if provider is not None and not provider.supports_extract():
-                    return json.dumps(
+                    return fastjson.dumps(
                         {
                             "success": False,
                             "error": (
@@ -733,7 +735,7 @@ async def web_extract_tool(
                     )
                 provider = get_active_extract_provider()
                 if provider is None:
-                    return json.dumps(
+                    return fastjson.dumps(
                         {
                             "success": False,
                             "error": (
@@ -771,7 +773,7 @@ async def web_extract_tool(
         logger.info("Extracted content from %d pages", pages_extracted)
         
         debug_call_data["pages_extracted"] = pages_extracted
-        debug_call_data["original_response_size"] = len(json.dumps(response))
+        debug_call_data["original_response_size"] = len(fastjson.dumps(response))
 
         effective_char_limit = char_limit if char_limit is not None else _get_extract_char_limit()
         try:
@@ -821,7 +823,7 @@ async def web_extract_tool(
         if trimmed_response.get("results") == []:
             result_json = tool_error("Content was inaccessible or not found")
         else:
-            result_json = json.dumps(trimmed_response, indent=2, ensure_ascii=False)
+            result_json = fastjson.dumps(trimmed_response, indent=2, ensure_ascii=False)
 
         # base64 images were already converted to placeholders per-result above;
         # this is a belt-and-suspenders sweep over the serialized JSON in case a

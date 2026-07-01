@@ -53,6 +53,8 @@ from typing import Callable, Dict, Optional, Any, List, Union
 # gateway is a long-running daemon, so its boot cost matters less than
 # preserving the established test-patch surface.
 from agent.account_usage import fetch_account_usage, render_account_usage_lines
+
+from tools._fastjson import json as fastjson
 from agent.async_utils import safe_schedule_threadsafe
 from agent.i18n import t
 from hermes_cli.config import cfg_get
@@ -1085,7 +1087,7 @@ def _collect_auto_append_media_tags(
         # deterministic even when the model omits the path from its reply.
         if tool_name == "image_generate" and "MEDIA:" not in content:
             try:
-                payload = json.loads(content)
+                payload = fastjson.loads(content)
             except Exception:
                 payload = None
             if isinstance(payload, dict) and payload.get("success"):
@@ -1146,7 +1148,7 @@ def _collect_history_media_paths(agent_history: List[Dict[str, Any]]) -> set:
         cid = str(msg.get("tool_call_id") or msg.get("call_id") or "")
         if tool_name_by_call_id.get(cid) == "image_generate":
             try:
-                payload = json.loads(content)
+                payload = fastjson.loads(content)
             except Exception:
                 payload = None
             if isinstance(payload, dict) and payload.get("success"):
@@ -1479,7 +1481,7 @@ if _config_path.exists():
                     if _cfg_key == "cwd" and isinstance(_val, str):
                         _val = os.path.expanduser(_val)
                     if isinstance(_val, (list, dict)):
-                        os.environ[_env_var] = json.dumps(_val)
+                        os.environ[_env_var] = fastjson.dumps(_val)
                     else:
                         os.environ[_env_var] = str(_val)
         # Compression config is read directly from config.yaml by run_agent.py
@@ -2920,7 +2922,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         volumes: List[str] = []
         if raw_volumes:
             try:
-                parsed = json.loads(raw_volumes)
+                parsed = fastjson.loads(raw_volumes)
                 if isinstance(parsed, list):
                     volumes = [str(v) for v in parsed if isinstance(v, str)]
             except Exception:
@@ -2968,8 +2970,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
     def _load_voice_modes(self) -> Dict[str, str]:
         try:
-            data = json.loads(self._VOICE_MODE_PATH.read_text())
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            data = fastjson.loads(self._VOICE_MODE_PATH.read_text())
+        except (FileNotFoundError, fastjson.JSONDecodeError, OSError):
             return {}
 
         if not isinstance(data, dict):
@@ -2996,7 +2998,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         try:
             self._VOICE_MODE_PATH.parent.mkdir(parents=True, exist_ok=True)
             self._VOICE_MODE_PATH.write_text(
-                json.dumps(self._voice_mode, indent=2)
+                fastjson.dumps(self._voice_mode, indent=2)
             )
         except OSError as e:
             logger.warning("Failed to save voice modes: %s", e)
@@ -5461,7 +5463,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
         path = _hermes_home / self._STUCK_LOOP_FILE
         try:
-            counts = json.loads(path.read_text()) if path.exists() else {}
+            counts = fastjson.loads(path.read_text()) if path.exists() else {}
         except Exception:
             counts = {}
 
@@ -5491,7 +5493,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             return 0
 
         try:
-            counts = json.loads(path.read_text())
+            counts = fastjson.loads(path.read_text())
         except Exception:
             return 0
 
@@ -5537,7 +5539,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if not path.exists():
             return
         try:
-            counts = json.loads(path.read_text())
+            counts = fastjson.loads(path.read_text())
             if session_key in counts:
                 del counts[session_key]
                 if counts:
@@ -11432,7 +11434,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             marker_path = _hermes_home / ".restart_last_processed.json"
             if not marker_path.exists():
                 return False
-            data = json.loads(marker_path.read_text())
+            data = fastjson.loads(marker_path.read_text())
         except Exception:
             return False
 
@@ -12007,8 +12009,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 text_to_speech_tool, text=tts_text, output_path=audio_path
             )
             try:
-                result = json.loads(result_json)
-            except (json.JSONDecodeError, TypeError):
+                result = fastjson.loads(result_json)
+            except (fastjson.JSONDecodeError, TypeError):
                 logger.warning("Auto voice reply TTS returned invalid JSON: %s", result_json[:200] if result_json else result_json)
                 return
 
@@ -13263,7 +13265,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         for path in (claimed_path, pending_path):
             if path.exists():
                 try:
-                    pending = json.loads(path.read_text())
+                    pending = fastjson.loads(path.read_text())
                     platform_str = pending.get("platform")
                     chat_id = pending.get("chat_id")
                     chat_type = pending.get("chat_type")
@@ -13401,7 +13403,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             if (prompt_path.exists() and session_key
                     and not self._update_prompt_pending.get(session_key)):
                 try:
-                    prompt_data = json.loads(prompt_path.read_text())
+                    prompt_data = fastjson.loads(prompt_path.read_text())
                     prompt_text = prompt_data.get("prompt", "")
                     default = prompt_data.get("default", "")
                     if prompt_text:
@@ -13441,7 +13443,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         self._update_prompt_pending[session_key] = True
                         # .update_response to continue — it doesn't re-check
                         logger.info("Forwarded update prompt to %s: %s", session_key, prompt_text[:80])
-                except (json.JSONDecodeError, OSError) as e:
+                except (fastjson.JSONDecodeError, OSError) as e:
                     logger.debug("Failed to read update prompt: %s", e)
 
             await asyncio.sleep(poll_interval)
@@ -13495,7 +13497,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             elif not claimed_path.exists():
                 return True
 
-            pending = json.loads(claimed_path.read_text())
+            pending = fastjson.loads(claimed_path.read_text())
             platform_str = pending.get("platform")
             chat_id = pending.get("chat_id")
             chat_type = pending.get("chat_type")
@@ -13590,7 +13592,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             return None
 
         try:
-            data = json.loads(notify_path.read_text())
+            data = fastjson.loads(notify_path.read_text())
             platform_str = data.get("platform")
             chat_id = data.get("chat_id")
             chat_type = data.get("chat_type")
@@ -13882,7 +13884,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     image_url=path,
                     user_prompt=analysis_prompt,
                 )
-                result = json.loads(result_json)
+                result = fastjson.loads(result_json)
                 if result.get("success"):
                     description = result.get("analysis", "")
                     description = sanitize_context(description)
@@ -15348,7 +15350,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                 if data.strip() == "[DONE]":
                                     break
                                 try:
-                                    obj = json.loads(data)
+                                    obj = fastjson.loads(data)
                                     choices = obj.get("choices", [])
                                     if choices:
                                         delta = choices[0].get("delta", {})
@@ -15357,7 +15359,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                             full_response += content
                                             if _stream_consumer:
                                                 _stream_consumer.on_delta(content)
-                                except json.JSONDecodeError:
+                                except fastjson.JSONDecodeError:
                                     pass
 
         except asyncio.CancelledError:
@@ -15831,7 +15833,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 if args:
                     from agent.display import get_tool_preview_max_len
                     _pl = get_tool_preview_max_len()
-                    args_str = json.dumps(args, ensure_ascii=False, default=str)
+                    args_str = fastjson.dumps(args, ensure_ascii=False, default=str)
                     # When tool_preview_length is 0 (default), don't truncate
                     # in verbose mode — the user explicitly asked for full
                     # detail.  Platform message-length limits handle the rest.

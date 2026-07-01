@@ -33,6 +33,7 @@ from pathlib import Path
 from hermes_constants import get_hermes_home
 from typing import Dict, Any, List, Optional
 
+from tools._fastjson import json as fastjson
 from utils import atomic_replace
 
 # fcntl is Unix-only; on Windows use msvcrt for file locking
@@ -870,7 +871,7 @@ def _apply_write_gate(action: str, target: str, content: Optional[str],
         summary=f"{summary}: {detail[:120]}",
         origin=wa.current_origin(),
     )
-    return json.dumps(
+    return fastjson.dumps(
         {"success": True, "staged": True, "pending_id": record["id"],
          "message": decision.message},
         ensure_ascii=False,
@@ -917,7 +918,7 @@ def _apply_batch_write_gate(target: str, operations: List[Dict[str, Any]]) -> Op
         summary=f"{summary}: {detail[:120]}",
         origin=wa.current_origin(),
     )
-    return json.dumps(
+    return fastjson.dumps(
         {"success": True, "staged": True, "pending_id": record["id"],
          "message": decision.message},
         ensure_ascii=False,
@@ -941,7 +942,7 @@ def _missing_old_text_error(store: "MemoryStore", target: str, action: str) -> s
     entries = store._entries_for(target)
     current = store._char_count(target)
     limit = store._char_limit(target)
-    return json.dumps(
+    return fastjson.dumps(
         {
             "success": False,
             "error": (
@@ -988,7 +989,7 @@ def memory_tool(
         if gate_result is not None:
             return gate_result
         result = store.apply_batch(target, operations)
-        return json.dumps(result, ensure_ascii=False)
+        return fastjson.dumps(result, ensure_ascii=False)
 
     # --- Single-op path ---------------------------------------------------
     # Validate required params BEFORE the gate so an invalid write is rejected
@@ -1025,7 +1026,7 @@ def memory_tool(
     else:
         return tool_error(f"Unknown action '{action}'. Use: add, replace, remove", success=False)
 
-    return json.dumps(result, ensure_ascii=False)
+    return fastjson.dumps(result, ensure_ascii=False)
 
 
 def check_memory_requirements() -> bool:

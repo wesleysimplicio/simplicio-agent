@@ -33,6 +33,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Union
 
+from tools._fastjson import json as fastjson
+
 # Sources that are excluded from session browsing/searching by default.
 # Third-party integrations tag their sessions with HERMES_SESSION_SOURCE=tool;
 # delegate subagent runs are tagged "subagent" — neither belongs in the
@@ -254,7 +256,7 @@ def _read_session(db, session_id: str, head: int = 20, tail: int = 10) -> str:
             f"Session has {total} messages; showing first {head} + last {tail}. "
             "Pass around_message_id (any id above) to scroll the middle."
         )
-    return json.dumps(response, ensure_ascii=False)
+    return fastjson.dumps(response, ensure_ascii=False)
 
 
 def _list_recent_sessions(db, limit: int, current_session_id: str = None) -> str:
@@ -288,7 +290,7 @@ def _list_recent_sessions(db, limit: int, current_session_id: str = None) -> str
             if len(results) >= limit:
                 break
 
-        return json.dumps({
+        return fastjson.dumps({
             "success": True,
             "mode": "browse",
             "results": results,
@@ -421,7 +423,7 @@ def _scroll(
     }
     if rebind_warning:
         response["warning"] = rebind_warning
-    return json.dumps(response, ensure_ascii=False)
+    return fastjson.dumps(response, ensure_ascii=False)
 
 
 def _normalize_title_query(query: str) -> str:
@@ -531,7 +533,7 @@ def _discover(
     raw_results = _order_for_recall(raw_results)
 
     if not raw_results and not title_result:
-        return json.dumps({
+        return fastjson.dumps({
             "success": True,
             "mode": "discover",
             "query": query,
@@ -606,7 +608,7 @@ def _discover(
             entry["parent_session_id"] = lineage_root
         results.append(entry)
 
-    return json.dumps({
+    return fastjson.dumps({
         "success": True,
         "mode": "discover",
         "query": query,
@@ -689,7 +691,7 @@ def session_search(
     if isinstance(session_id, str) and session_id.strip():
         sid = session_id.strip()
         result = _read_session(db, sid)
-        if json.loads(result).get("success"):
+        if fastjson.loads(result).get("success"):
             return result
 
         # Miss in the target profile — the model may have dropped the owning
@@ -698,12 +700,12 @@ def session_search(
         located, owner = _locate_session_db(sid)
         if located is not None:
             try:
-                found = json.loads(_read_session(located, sid))
+                found = fastjson.loads(_read_session(located, sid))
             finally:
                 located.close()
             if found.get("success"):
                 found["profile"] = owner
-                return json.dumps(found, ensure_ascii=False)
+                return fastjson.dumps(found, ensure_ascii=False)
         return result
 
     # Limit clamp [1, 10]
