@@ -57,8 +57,15 @@ from agent.account_usage import fetch_account_usage, render_account_usage_lines
 from tools._fastjson import json as fastjson
 from agent.async_utils import safe_schedule_threadsafe
 from agent.i18n import t
+from agent.uvloop_utils import install_uvloop_policy
 from hermes_cli.config import cfg_get
 from hermes_cli.fallback_config import get_fallback_chain
+
+# Install the uvloop event-loop policy when available (no-op on Windows or
+# when the optional ``uvloop`` dep is not installed — see agent/uvloop_utils.py).
+# The gateway is a long-running async daemon, so a faster loop policy pays off
+# across every platform poll, tool dispatch and provider call.
+install_uvloop_policy()
 
 # --- Agent cache tuning ---------------------------------------------------
 # Bounds the per-session AIAgent cache to prevent unbounded growth in

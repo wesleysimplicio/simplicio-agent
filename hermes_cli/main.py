@@ -12405,6 +12405,16 @@ def main():
     # in ps/top/htop.  Non-fatal — just a nicer UX.
     _set_process_title()
 
+    # Install the faster uvloop event-loop policy when available. No-op on
+    # Windows or when the optional ``uvloop`` dep isn't installed (graceful
+    # fallback in agent/uvloop_utils.py). Must run before any asyncio loop is
+    # created, so it lives at the very top of the CLI entry point.
+    try:
+        from agent.uvloop_utils import install_uvloop_policy
+        install_uvloop_policy()
+    except Exception:
+        pass
+
     # Force UTF-8 stdio on Windows before anything prints.  No-op elsewhere.
     try:
         from hermes_cli.stdio import configure_windows_stdio
