@@ -15321,8 +15321,12 @@ def main(
     # Handle gateway mode (messaging + cron)
     if gateway:
         import asyncio
+        from agent.uvloop_utils import install_uvloop_policy
         from gateway.run import start_gateway
         print("Starting Hermes Gateway (messaging platforms)...")
+        # Install right before the real event loop starts — see the note in
+        # gateway/run.py's main() on why this isn't done at module import time.
+        install_uvloop_policy()
         asyncio.run(start_gateway())
         return
 

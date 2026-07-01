@@ -4553,6 +4553,10 @@ def run_gateway(verbose: int = 0, quiet: bool = False, replace: bool = False, fo
 
     success = False
     try:
+        # Install right before the real event loop starts — see the note in
+        # gateway/run.py's main() on why this isn't done at module import time.
+        from agent.uvloop_utils import install_uvloop_policy
+        install_uvloop_policy()
         success = asyncio.run(start_gateway(replace=replace, verbosity=verbosity))
         _exit_diag("asyncio.run.returned", success=success)
     except KeyboardInterrupt:

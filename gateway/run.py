@@ -57,15 +57,9 @@ from agent.account_usage import fetch_account_usage, render_account_usage_lines
 from tools._fastjson import json as fastjson
 from agent.async_utils import safe_schedule_threadsafe
 from agent.i18n import t
-from agent.uvloop_utils import install_uvloop_policy
+from agent.uvloop_utils import install_uvloop_policy  # noqa: F401 — re-exported; installed at each real asyncio.run(start_gateway(...)) call site, not at import time (module import must stay side-effect-free for tests/tooling)
 from hermes_cli.config import cfg_get
 from hermes_cli.fallback_config import get_fallback_chain
-
-# Install the uvloop event-loop policy when available (no-op on Windows or
-# when the optional ``uvloop`` dep is not installed — see agent/uvloop_utils.py).
-# The gateway is a long-running async daemon, so a faster loop policy pays off
-# across every platform poll, tool dispatch and provider call.
-install_uvloop_policy()
 
 # --- Agent cache tuning ---------------------------------------------------
 # Bounds the per-session AIAgent cache to prevent unbounded growth in
@@ -19102,6 +19096,16 @@ def main():
             data = yaml.safe_load(f) or {}
             config = GatewayConfig.from_dict(data)
     
+    # Install the uvloop event-loop policy right before starting the real
+    # event loop (no-op on Windows or when uvloop isn't installed — see
+    # agent/uvloop_utils.py). Deliberately NOT called at module import time:
+    # this module is imported by tests/tooling that never start a gateway,
+    # and a module-level asyncio.set_event_loop_policy() call would leak a
+    # stricter event-loop policy process-wide and break unrelated tests that
+    # call asyncio.get_event_loop() expecting the default policy's
+    # auto-create behavior.
+    install_uvloop_policy()
+
     # start_gateway() already performs graceful teardown before returning.
     # Force-exit afterwards so a wedged non-daemon worker thread cannot block
     # interpreter finalization and strand the gateway half-shut down.
