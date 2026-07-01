@@ -20,6 +20,7 @@ import json
 import logging
 import random
 import re
+from agent._fastjson import loads as _fast_loads, dumps as _fast_dumps
 import sqlite3
 import sys
 import threading
@@ -59,7 +60,7 @@ def _render_handoff_content_markdown(content: Any) -> str:
         text = content.strip()
         return text or "_(empty)_"
     try:
-        rendered = json.dumps(content, ensure_ascii=False, indent=2)
+        rendered = _fast_dumps(content, ensure_ascii=False, indent=2)
     except (TypeError, ValueError):
         rendered = str(content)
     return f"```json\n{rendered}\n```"
@@ -1553,7 +1554,7 @@ class SessionDB:
                     chat_type,
                     thread_id,
                     model,
-                    json.dumps(model_config) if model_config else None,
+                    _fast_dumps(model_config) if model_config else None,
                     system_prompt,
                     parent_session_id,
                     cwd,
@@ -3003,7 +3004,7 @@ class SessionDB:
         if content is None or isinstance(content, (str, bytes, int, float)):
             return content
         try:
-            return cls._CONTENT_JSON_PREFIX + json.dumps(content)
+            return cls._CONTENT_JSON_PREFIX + _fast_dumps(content)
         except (TypeError, ValueError):
             # Last-resort fallback: stringify so persistence never fails.
             return str(content)
@@ -3013,7 +3014,7 @@ class SessionDB:
         """Reverse :meth:`_encode_content`; returns scalars unchanged."""
         if isinstance(content, str) and content.startswith(cls._CONTENT_JSON_PREFIX):
             try:
-                return json.loads(content[len(cls._CONTENT_JSON_PREFIX):])
+                return _fast_loads(content[len(cls._CONTENT_JSON_PREFIX):])
             except (json.JSONDecodeError, TypeError):
                 logger.warning(
                     "Failed to decode JSON-encoded message content; "
@@ -3055,18 +3056,18 @@ class SessionDB:
         """
         # Serialize structured fields to JSON before entering the write txn
         reasoning_details_json = (
-            json.dumps(reasoning_details)
+            _fast_dumps(reasoning_details)
             if reasoning_details else None
         )
         codex_items_json = (
-            json.dumps(codex_reasoning_items)
+            _fast_dumps(codex_reasoning_items)
             if codex_reasoning_items else None
         )
         codex_message_items_json = (
-            json.dumps(codex_message_items)
+            _fast_dumps(codex_message_items)
             if codex_message_items else None
         )
-        tool_calls_json = json.dumps(tool_calls) if tool_calls else None
+        tool_calls_json = _fast_dumps(tool_calls) if tool_calls else None
         # Multimodal content (list of parts) must be JSON-encoded: sqlite3
         # cannot bind list/dict parameters directly.
         stored_content = self._encode_content(content)
@@ -3163,15 +3164,15 @@ class SessionDB:
                 msg.get("codex_message_items") if role == "assistant" else None
             )
             reasoning_details_json = (
-                json.dumps(reasoning_details) if reasoning_details else None
+                _fast_dumps(reasoning_details) if reasoning_details else None
             )
             codex_items_json = (
-                json.dumps(codex_reasoning_items) if codex_reasoning_items else None
+                _fast_dumps(codex_reasoning_items) if codex_reasoning_items else None
             )
             codex_message_items_json = (
-                json.dumps(codex_message_items) if codex_message_items else None
+                _fast_dumps(codex_message_items) if codex_message_items else None
             )
-            tool_calls_json = json.dumps(tool_calls) if tool_calls else None
+            tool_calls_json = _fast_dumps(tool_calls) if tool_calls else None
             # Accept either `platform_message_id` (new explicit name) or
             # `message_id` (yuanbao's existing convention on message dicts).
             platform_msg_id = (
@@ -3322,7 +3323,7 @@ class SessionDB:
                 msg["content"] = self._decode_content(msg["content"])
             if msg.get("tool_calls"):
                 try:
-                    msg["tool_calls"] = json.loads(msg["tool_calls"])
+                    msg["tool_calls"] = _fast_loads(msg["tool_calls"])
                 except (json.JSONDecodeError, TypeError):
                     logger.warning("Failed to deserialize tool_calls in get_messages, falling back to []")
                     msg["tool_calls"] = []
@@ -3389,7 +3390,7 @@ class SessionDB:
                 msg["content"] = self._decode_content(msg["content"])
             if msg.get("tool_calls"):
                 try:
-                    msg["tool_calls"] = json.loads(msg["tool_calls"])
+                    msg["tool_calls"] = _fast_loads(msg["tool_calls"])
                 except (json.JSONDecodeError, TypeError):
                     logger.warning(
                         "Failed to deserialize tool_calls in get_messages_around, falling back to []"
@@ -3511,7 +3512,7 @@ class SessionDB:
                 msg["content"] = self._decode_content(msg["content"])
             if msg.get("tool_calls"):
                 try:
-                    msg["tool_calls"] = json.loads(msg["tool_calls"])
+                    msg["tool_calls"] = _fast_loads(msg["tool_calls"])
                 except (json.JSONDecodeError, TypeError):
                     logger.warning(
                         "Failed to deserialize tool_calls in get_anchored_view, falling back to []"
@@ -3660,7 +3661,7 @@ class SessionDB:
                 msg["tool_name"] = row["tool_name"]
             if row["tool_calls"]:
                 try:
-                    msg["tool_calls"] = json.loads(row["tool_calls"])
+                    msg["tool_calls"] = _fast_loads(row["tool_calls"])
                 except (json.JSONDecodeError, TypeError):
                     logger.warning("Failed to deserialize tool_calls in conversation replay, falling back to []")
                     msg["tool_calls"] = []
@@ -3685,19 +3686,19 @@ class SessionDB:
                     msg["reasoning_content"] = row["reasoning_content"]
                 if row["reasoning_details"]:
                     try:
-                        msg["reasoning_details"] = json.loads(row["reasoning_details"])
+                        msg["reasoning_details"] = _fast_loads(row["reasoning_details"])
                     except (json.JSONDecodeError, TypeError):
                         logger.warning("Failed to deserialize reasoning_details, falling back to None")
                         msg["reasoning_details"] = None
                 if row["codex_reasoning_items"]:
                     try:
-                        msg["codex_reasoning_items"] = json.loads(row["codex_reasoning_items"])
+                        msg["codex_reasoning_items"] = _fast_loads(row["codex_reasoning_items"])
                     except (json.JSONDecodeError, TypeError):
                         logger.warning("Failed to deserialize codex_reasoning_items, falling back to None")
                         msg["codex_reasoning_items"] = None
                 if row["codex_message_items"]:
                     try:
-                        msg["codex_message_items"] = json.loads(row["codex_message_items"])
+                        msg["codex_message_items"] = _fast_loads(row["codex_message_items"])
                     except (json.JSONDecodeError, TypeError):
                         logger.warning("Failed to deserialize codex_message_items, falling back to None")
                         msg["codex_message_items"] = None
@@ -3785,7 +3786,7 @@ class SessionDB:
             if tool_calls:
                 lines.append("- Tool calls:")
                 lines.append("```json")
-                lines.append(json.dumps(tool_calls, ensure_ascii=False, indent=2))
+                lines.append(_fast_dumps(tool_calls, ensure_ascii=False, indent=2))
                 lines.append("```")
             lines.append(_render_handoff_content_markdown(msg.get("content")))
             lines.append("")
