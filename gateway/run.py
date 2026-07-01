@@ -9381,6 +9381,29 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # No bare text matching — "yes" in normal conversation must not trigger
         # execution of a dangerous command.
 
+        # Deterministic no-LLM fast path (last resort, additive only).
+        # Only runs when the input is NOT a slash command (command is None
+        # here — every slash-command / quick-command / plugin-command /
+        # skill-command dispatch above already had its chance and found no
+        # match). This guarantees zero collision with /help, /whoami,
+        # /version, /status, quick_commands, plugin commands, or skill
+        # commands, since none of those ever reach this point with
+        # ``command`` set. On any router miss the code falls through
+        # unchanged to the normal agent/LLM path below.
+        if command is None and not is_internal:
+            try:
+                from agent.router import default_router
+                _router_decision = default_router().route(event.text or "")
+                if _router_decision.is_match:
+                    if _router_decision.answer is not None:
+                        return _router_decision.answer
+                    # tool_call-style decisions (version/list_files/pwd/whoami/
+                    # clear/exit) have no wired executor on this path yet —
+                    # skip them rather than half-answer, so the request falls
+                    # through to the normal agent path unchanged.
+            except Exception as _router_exc:
+                logger.debug("Deterministic router check failed (non-fatal): %s", _router_exc)
+
         if await asyncio.to_thread(self._is_telegram_topic_root_lobby, source):
             # Debounce the lobby reminder so a user who forgets about
             # topic mode and fires ten prompts doesn't get ten copies.

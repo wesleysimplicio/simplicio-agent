@@ -43,7 +43,7 @@ from agent.prompt_builder import (
     TOOL_USE_ENFORCEMENT_MODELS,
     drain_truncation_warnings,
 )
-from agent.runtime_cwd import resolve_context_cwd
+from agent.runtime_cwd import resolve_agent_cwd, resolve_context_cwd
 
 
 def _ra():
@@ -59,6 +59,36 @@ def _ra():
     """
     import run_agent
     return run_agent
+
+
+def _build_project_fingerprint_hint() -> str:
+    """One-line project fingerprint summary for the system prompt's context tier.
+
+    Detects the working directory's stack via manifest heuristics
+    (``agent.project_mapper.detect_fingerprint``) — stdlib-only, no network,
+    a few hundred KB of I/O at most. Best-effort: any failure (empty dir,
+    permission error, malformed manifest) must never break system-prompt
+    assembly, so callers get an empty string on error instead of a raised
+    exception.
+    """
+    try:
+        from agent.project_mapper.fingerprint import detect_fingerprint
+
+        fp = detect_fingerprint(resolve_agent_cwd())
+        bits: List[str] = []
+        if fp.primary_language:
+            bits.append(fp.primary_language)
+        if fp.frameworks:
+            bits.append("frameworks: " + ", ".join(fp.frameworks))
+        if fp.package_managers:
+            bits.append("package managers: " + ", ".join(fp.package_managers))
+        if fp.is_monorepo:
+            bits.append("monorepo")
+        if not bits:
+            return ""
+        return "Detected project stack: " + "; ".join(bits)
+    except Exception:
+        return ""
 
 
 def _resolve_platform_hint(agent: Any, platform_key: str, default_hint: str) -> str:
@@ -419,6 +449,10 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
             context_length=_ctx_len)
         if context_files_prompt:
             context_parts.append(context_files_prompt)
+
+        fingerprint_hint = _build_project_fingerprint_hint()
+        if fingerprint_hint:
+            context_parts.append(fingerprint_hint)
 
     # ── Volatile tier (changes per session/turn — never cached) ───
     volatile_parts: List[str] = []

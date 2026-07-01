@@ -25,12 +25,13 @@ delete or rotate existing rows in either store.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
+
+from agent.serde import dumps as _serde_dumps, loads as _serde_loads
 
 _DIR_ENV = "HERMES_RECEIPTS_DIR"
 _DEFAULT_REL = Path(".receipts")
@@ -120,7 +121,7 @@ def record_receipt(
 
     if target.exists():
         try:
-            data = json.loads(target.read_text(encoding="utf-8"))
+            data = _serde_loads(target.read_text(encoding="utf-8"))
             cost = data.get("cost", {}) or {}
             return Receipt(
                 sha=data.get("sha", sha),
@@ -135,7 +136,7 @@ def record_receipt(
                 ts=data.get("ts", _utc_now()),
                 meta=data.get("meta", {}) or {},
             )
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             pass  # corrupt — fall through and overwrite below
 
     receipt = Receipt(
@@ -149,10 +150,7 @@ def record_receipt(
 
     try:
         base.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            json.dumps(receipt.to_dict(), separators=(",", ":"), ensure_ascii=False),
-            encoding="utf-8",
-        )
+        target.write_bytes(_serde_dumps(receipt.to_dict()))
     except OSError:
         # silent like token_savings: telemetry must never break the agent
         pass
@@ -170,8 +168,8 @@ def lookup_receipt(
     if not target.is_file():
         return None
     try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = _serde_loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return None
     cost = data.get("cost", {}) or {}
     return Receipt(
