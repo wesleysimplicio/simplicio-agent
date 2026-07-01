@@ -52,11 +52,10 @@ class TestHandoffStateDB:
         assert db.request_handoff(sid, "telegram") is True
 
         state = db.get_handoff_state(sid)
-        assert state == {
-            "state": "pending",
-            "platform": "telegram",
-            "error": None,
-        }
+        assert state["state"] == "pending"
+        assert state["platform"] == "telegram"
+        assert state["error"] is None
+        assert isinstance(state["updated_at"], float)
 
     def test_request_handoff_rejects_in_flight(self, db):
         sid = "sess-2"

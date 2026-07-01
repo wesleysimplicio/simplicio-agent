@@ -6109,7 +6109,7 @@ def _(rid, params: dict) -> dict:
 def _(rid, params: dict) -> dict:
     """Poll the handoff state for a session.
 
-    Returns ``{state, platform, error}`` where ``state`` is one of
+    Returns ``{state, platform, error, updated_at, age_seconds}`` where ``state`` is one of
     ``pending|running|completed|failed`` (or empty when no handoff record
     exists). Desktop polls this after ``handoff.request``.
     """
@@ -6122,12 +6122,18 @@ def _(rid, params: dict) -> dict:
         record = db.get_handoff_state(session["session_key"])
 
     record = record or {}
+    updated_at = record.get("updated_at")
+    age_seconds = None
+    if isinstance(updated_at, (int, float)):
+        age_seconds = max(0.0, time.time() - float(updated_at))
     return _ok(
         rid,
         {
             "state": record.get("state") or "",
             "platform": record.get("platform") or "",
             "error": record.get("error") or "",
+            "updated_at": updated_at,
+            "age_seconds": age_seconds,
         },
     )
 

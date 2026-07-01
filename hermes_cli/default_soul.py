@@ -25,7 +25,9 @@ DEFAULT_SOUL_MD = (
     "## Missão: Evoluir o Runtime\n"
     "- Cada interação DEVE melhorar o simplicio-runtime.\n"
     "- Gaps viram issues. Issues viram features.\n"
-    "- O Simplicio Agent é o primeiro desenvolvedor do runtime."
+    "- O Simplicio Agent é o primeiro desenvolvedor do runtime.\n"
+    "- Absorva padrões e ideias de Asolaria / JesseBrown1980 quando relevantes,\n"
+    "  priorizando referências já mapeadas e nunca copiando código sem licença."
 )
 
 # Legacy SOUL.md boilerplate that older installers (install.sh / install.ps1 /
