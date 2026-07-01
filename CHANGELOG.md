@@ -4,6 +4,51 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-07-01
+
+### Added
+
+Connected every remaining orphaned performance module (ported earlier from
+the hermes-turbo-agent fork) to a real production code path. Each was
+previously a library exercised only by its own unit tests.
+
+- **`agent.tracing`**: wraps the real per-attempt streaming API call in
+  `interruptible_streaming_api_call` (`agent/chat_completion_helpers.py`)
+  with `span("llm.stream_call", ...)`, recording provider/model/attempt and
+  chunk/byte counts. Side-effect only; re-raises unchanged on error.
+- **`agent.router`** (deterministic, no-LLM): wired into
+  `GatewayRunner._handle_message` (`gateway/run.py`) as a last-resort fast
+  path — only runs when no slash/quick/plugin/skill command already
+  matched, so trivial inputs (help/date/time/ping/echo) answer instantly
+  without an LLM round-trip, with zero collision with existing dispatch.
+- **`agent.async_dag`**: `run_dag_tool_batch` added alongside the existing
+  thread-pool parallel batch in `agent/tool_executor.py` — an opt-in
+  primitive for genuinely dependent tool-call chains.
+- **`agent.providers`** (`ProviderChain`): `is_transient_fallback_error` +
+  `build_fallback_provider_chain` added to `hermes_cli/fallback_config.py`
+  as additive helpers layered on the existing config-merge fallback.
+- **`agent.project_mapper`**: `detect_fingerprint` wired into
+  `build_system_prompt_parts` (`agent/system_prompt.py`) — surfaces the
+  detected stack as one context-tier line, best-effort.
+- **`agent.simplicio_prompt`**: mirrored the sister fork's exact
+  `agent/transports/__init__.py` wiring. Env-gated
+  (`HERMES_SIMPLICIO_PROMPT`), off by default.
+- **`agent.serde`**: wired into `agent/telemetry/receipts.py`'s
+  read/write paths in place of stdlib `json`.
+- **`hermes_cli/daemon.py`** (warm daemon): ported from the sister fork
+  and made real — every preloader stub replaced with a genuine query
+  against this repo's actual tool registry, skills index, provider
+  metadata, MCP catalog, and recent session summaries. Registered as a
+  `hermes daemon` subcommand.
+
+### Notes
+
+- **`agent.net` (`HttpPool`)**: investigated every raw-HTTP call site in
+  the repo; none is a safe, repeated-same-base-url candidate that isn't
+  already SDK-managed — left unwired rather than forced.
+- **`agent/metrics.py`**: not ported. No real hit/miss/TTL cache exists in
+  this repo to attach its four Prometheus gauges to.
+
 ## [0.20.0] - 2026-07-01
 
 ### Added
