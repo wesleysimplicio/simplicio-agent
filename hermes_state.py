@@ -15,6 +15,7 @@ Key design decisions:
 """
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import logging
 import random
@@ -38,6 +39,30 @@ def _delegate_from_json(col: str = "model_config") -> str:
 def _cwd_prefix_clause(cwd_prefix: str) -> Tuple[str, List[str]]:
     prefix = cwd_prefix.rstrip("/\\") or cwd_prefix
     return "(s.cwd = ? OR s.cwd LIKE ? OR s.cwd LIKE ?)", [prefix, f"{prefix}/%", f"{prefix}\\%"]
+
+
+def _format_handoff_timestamp(ts: Any) -> Optional[str]:
+    """Render a UNIX timestamp as an ISO-8601 UTC string for markdown exports."""
+    if ts is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(ts), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def _render_handoff_content_markdown(content: Any) -> str:
+    """Render a persisted message content payload as markdown."""
+    if content is None:
+        return "_(no content)_"
+    if isinstance(content, str):
+        text = content.strip()
+        return text or "_(empty)_"
+    try:
+        rendered = json.dumps(content, ensure_ascii=False, indent=2)
+    except (TypeError, ValueError):
+        rendered = str(content)
+    return f"```json\n{rendered}\n```"
 
 
 # A child session counts as a /branch (kept visible, never cascade-deleted) if
@@ -675,6 +700,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     handoff_state TEXT,
     handoff_platform TEXT,
     handoff_error TEXT,
+    handoff_updated_at REAL,
     compression_failure_cooldown_until REAL,
     compression_failure_error TEXT,
     rewind_count INTEGER NOT NULL DEFAULT 0,
@@ -3680,6 +3706,92 @@ class SessionDB:
             messages.append(msg)
         return messages
 
+    def export_handoff_markdown(
+        self,
+        session_id: str,
+        *,
+        include_ancestors: bool = True,
+        max_messages: int = 12,
+    ) -> str:
+        """Render a vendor-neutral markdown handoff note for a persisted session.
+
+        This is a low-risk interop layer for cross-agent/session handoff work:
+        it turns the already-persisted SQLite transcript into a plain-markdown
+        artifact that can be opened in Obsidian, committed to git, or handed to
+        another agent implementation without any Hermes-specific storage.
+        """
+        if max_messages < 1:
+            raise ValueError("max_messages must be >= 1")
+
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"session not found: {session_id}")
+
+        transcript = self.get_messages_as_conversation(
+            session_id,
+            include_ancestors=include_ancestors,
+        )
+        transcript = [
+            msg for msg in transcript
+            if msg.get("content") is not None or msg.get("tool_calls") or msg.get("tool_name")
+        ]
+        recent = transcript[-max_messages:]
+        handoff = self.get_handoff_state(session_id) or {}
+
+        title = session.get("title") or session_id
+        started_at = _format_handoff_timestamp(session.get("started_at"))
+        last_updated = None
+        if recent:
+            last_updated = _format_handoff_timestamp(recent[-1].get("timestamp"))
+        last_updated = last_updated or _format_handoff_timestamp(session.get("ended_at"))
+        handoff_updated = _format_handoff_timestamp(handoff.get("updated_at"))
+
+        lines = [
+            "# Session handoff",
+            "",
+            f"- Title: {title}",
+            f"- Session ID: `{session_id}`",
+            f"- Source: `{session.get('source') or 'unknown'}`",
+        ]
+        if started_at:
+            lines.append(f"- Started at: {started_at}")
+        if last_updated:
+            lines.append(f"- Last transcript event: {last_updated}")
+        if handoff.get("state"):
+            platform = handoff.get("platform") or "unknown"
+            lines.append(f"- Handoff state: `{handoff['state']}` via `{platform}`")
+        if handoff_updated:
+            lines.append(f"- Handoff status updated: {handoff_updated}")
+        if session.get("cwd"):
+            lines.append(f"- Working directory: `{session['cwd']}`")
+
+        lines.extend(["", "## Recent transcript", ""])
+        if not recent:
+            lines.append("_(No persisted messages yet.)_")
+            return "\n".join(lines)
+
+        for idx, msg in enumerate(recent, start=1):
+            role = str(msg.get("role") or "unknown")
+            lines.append(f"### {idx}. {role}")
+            if msg.get("timestamp") is not None:
+                rendered_ts = _format_handoff_timestamp(msg.get("timestamp"))
+                if rendered_ts:
+                    lines.append(f"- Timestamp: {rendered_ts}")
+            if msg.get("tool_name"):
+                lines.append(f"- Tool: `{msg['tool_name']}`")
+            if msg.get("tool_call_id"):
+                lines.append(f"- Tool call ID: `{msg['tool_call_id']}`")
+            tool_calls = msg.get("tool_calls")
+            if tool_calls:
+                lines.append("- Tool calls:")
+                lines.append("```json")
+                lines.append(json.dumps(tool_calls, ensure_ascii=False, indent=2))
+                lines.append("```")
+            lines.append(_render_handoff_content_markdown(msg.get("content")))
+            lines.append("")
+
+        return "\n".join(lines).rstrip()
+
     def _session_lineage_root_to_tip(self, session_id: str) -> List[str]:
         if not session_id:
             return [session_id]
@@ -5558,15 +5670,17 @@ class SessionDB:
         Returns True if the row was found and not already in flight; False if
         the session is already in a non-terminal handoff state.
         """
+        updated_at = time.time()
         def _do(conn):
             cur = conn.execute(
                 "UPDATE sessions "
                 "SET handoff_state = 'pending', "
                 "    handoff_platform = ?, "
-                "    handoff_error = NULL "
+                "    handoff_error = NULL, "
+                "    handoff_updated_at = ? "
                 "WHERE id = ? AND (handoff_state IS NULL "
                 "                  OR handoff_state IN ('completed', 'failed'))",
-                (platform, session_id),
+                (platform, updated_at, session_id),
             )
             return cur.rowcount > 0
         return self._execute_write(_do)
@@ -5574,12 +5688,12 @@ class SessionDB:
     def get_handoff_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Read the current handoff state for a session.
 
-        Returns ``{"state", "platform", "error"}`` or None if the session has
-        no handoff record.
+        Returns ``{"state", "platform", "error", "updated_at"}`` or None if the
+        session has no handoff record.
         """
         try:
             cur = self._conn.execute(
-                "SELECT handoff_state, handoff_platform, handoff_error "
+                "SELECT handoff_state, handoff_platform, handoff_error, handoff_updated_at "
                 "FROM sessions WHERE id = ?",
                 (session_id,),
             )
@@ -5590,6 +5704,7 @@ class SessionDB:
                 "state": row["handoff_state"],
                 "platform": row["handoff_platform"],
                 "error": row["handoff_error"],
+                "updated_at": row["handoff_updated_at"],
             }
         except Exception:
             return None
@@ -5611,32 +5726,35 @@ class SessionDB:
 
     def claim_handoff(self, session_id: str) -> bool:
         """Atomically transition pending → running. Returns True if claimed."""
+        updated_at = time.time()
         def _do(conn):
             cur = conn.execute(
-                "UPDATE sessions SET handoff_state = 'running' "
+                "UPDATE sessions SET handoff_state = 'running', handoff_updated_at = ? "
                 "WHERE id = ? AND handoff_state = 'pending'",
-                (session_id,),
+                (updated_at, session_id),
             )
             return cur.rowcount > 0
         return self._execute_write(_do)
 
     def complete_handoff(self, session_id: str) -> None:
         """Mark a handoff as completed."""
+        updated_at = time.time()
         def _do(conn):
             conn.execute(
                 "UPDATE sessions SET handoff_state = 'completed', "
-                "handoff_error = NULL WHERE id = ?",
-                (session_id,),
+                "handoff_error = NULL, handoff_updated_at = ? WHERE id = ?",
+                (updated_at, session_id),
             )
         self._execute_write(_do)
 
     def fail_handoff(self, session_id: str, error: str) -> None:
         """Mark a handoff as failed and record the reason."""
+        updated_at = time.time()
         def _do(conn):
             conn.execute(
                 "UPDATE sessions SET handoff_state = 'failed', "
-                "handoff_error = ? WHERE id = ?",
-                (error[:500], session_id),
+                "handoff_error = ?, handoff_updated_at = ? WHERE id = ?",
+                (error[:500], updated_at, session_id),
             )
         self._execute_write(_do)
 

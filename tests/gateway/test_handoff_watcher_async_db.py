@@ -105,8 +105,7 @@ async def _run_one_tick(fake, monkeypatch):
     await asyncio.wait_for(coro, timeout=5)
 
 
-@pytest.mark.asyncio
-async def test_watcher_offloads_db_calls_to_threads(monkeypatch):
+def test_watcher_offloads_db_calls_to_threads(monkeypatch):
     """The success path must run list_pending/claim/complete off the loop."""
     import threading
 
@@ -114,7 +113,7 @@ async def test_watcher_offloads_db_calls_to_threads(monkeypatch):
     db = _RecordingSessionDB(loop_ident)
     fake = _make_fake_runner(db, fail_process=False)
 
-    await _run_one_tick(fake, monkeypatch)
+    asyncio.run(_run_one_tick(fake, monkeypatch))
 
     # Sanity: the watcher actually exercised the calls this tick.
     assert "list_pending_handoffs" in db.calls
@@ -129,8 +128,7 @@ async def test_watcher_offloads_db_calls_to_threads(monkeypatch):
     assert db.ran_off_loop("complete_handoff")
 
 
-@pytest.mark.asyncio
-async def test_watcher_offloads_fail_handoff_to_thread(monkeypatch):
+def test_watcher_offloads_fail_handoff_to_thread(monkeypatch):
     """The error path must run fail_handoff off the loop too."""
     import threading
 
@@ -138,14 +136,13 @@ async def test_watcher_offloads_fail_handoff_to_thread(monkeypatch):
     db = _RecordingSessionDB(loop_ident)
     fake = _make_fake_runner(db, fail_process=True)
 
-    await _run_one_tick(fake, monkeypatch)
+    asyncio.run(_run_one_tick(fake, monkeypatch))
 
     assert "fail_handoff" in db.calls
     assert db.ran_off_loop("fail_handoff")
 
 
-@pytest.mark.asyncio
-async def test_watcher_wraps_calls_via_asyncio_to_thread(monkeypatch):
+def test_watcher_wraps_calls_via_asyncio_to_thread(monkeypatch):
     """Explicitly assert the offload goes through asyncio.to_thread.
 
     Patches the AsyncSessionDB facade's ``asyncio.to_thread`` (it lives in
@@ -166,8 +163,95 @@ async def test_watcher_wraps_calls_via_asyncio_to_thread(monkeypatch):
 
     monkeypatch.setattr(hermes_state.asyncio, "to_thread", _spy_to_thread)
 
-    await _run_one_tick(fake, monkeypatch)
+    asyncio.run(_run_one_tick(fake, monkeypatch))
 
     assert "list_pending_handoffs" in wrapped
     assert "claim_handoff" in wrapped
     assert "complete_handoff" in wrapped
+
+
+def test_process_handoff_posts_exported_markdown_before_agent_reply(monkeypatch):
+    import gateway.mirror as mirror_mod
+    from gateway.config import Platform
+
+    sent = []
+    mirrored = []
+    seen = {}
+
+    class _FakeAsyncDB:
+        async def export_handoff_markdown(self, session_id):
+            assert session_id == "sess-1"
+            return "# Session handoff\n\n- Title: Demo"
+
+    class _FakeAdapter:
+        async def create_handoff_thread(self, parent_chat_id, name):
+            assert parent_chat_id == "chat-1"
+            assert name == "Hermes — CLI title"
+            return "thread-1"
+
+        async def send(self, chat_id, content, metadata=None):
+            sent.append((chat_id, content, metadata))
+            return types.SimpleNamespace(success=True)
+
+    class _FakeConfig:
+        def __init__(self):
+            self.platforms = {Platform.TELEGRAM: types.SimpleNamespace(extra={})}
+
+        def get_home_channel(self, platform):
+            assert platform is Platform.TELEGRAM
+            return types.SimpleNamespace(chat_id="chat-1", thread_id=None, name="Home")
+
+    class _FakeSessionStore:
+        def __init__(self):
+            self.switched = None
+
+        def get_or_create_session(self, source):
+            self.source = source
+            return object()
+
+        def switch_session(self, session_key, target_session_id):
+            self.switched = (session_key, target_session_id)
+            return object()
+
+    async def _handle_message(event):
+        seen["event"] = event
+        return "assistant reply"
+
+    fake = types.SimpleNamespace(
+        adapters={Platform.TELEGRAM: _FakeAdapter()},
+        config=_FakeConfig(),
+        session_store=_FakeSessionStore(),
+        _session_db=_FakeAsyncDB(),
+        _evict_cached_agent=lambda session_key: seen.setdefault("evicted", session_key),
+        _release_running_agent_state=lambda session_key: seen.setdefault("released", session_key),
+        _handle_message=_handle_message,
+    )
+
+    monkeypatch.setattr(
+        mirror_mod,
+        "mirror_to_session",
+        lambda *args, **kwargs: mirrored.append((args, kwargs)) or True,
+    )
+
+    asyncio.run(
+        run.GatewayRunner._process_handoff(
+            fake,
+            {"id": "sess-1", "handoff_platform": "telegram", "title": "CLI title"},
+        )
+    )
+
+    assert len(sent) == 2
+    assert sent[0] == ("chat-1", "# Session handoff\n\n- Title: Demo", {"thread_id": "thread-1"})
+    assert sent[1] == ("chat-1", "assistant reply", {"thread_id": "thread-1"})
+    assert mirrored == [
+        (
+            ("telegram", "chat-1", "# Session handoff\n\n- Title: Demo"),
+            {
+                "source_label": "handoff",
+                "thread_id": "thread-1",
+                "user_id": "system:handoff",
+                "role": "assistant",
+            },
+        )
+    ]
+    assert "A markdown handoff note was just posted here." in seen["event"].text

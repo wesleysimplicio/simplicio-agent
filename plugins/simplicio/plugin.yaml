@@ -1,0 +1,6 @@
+name: simplicio
+version: "0.1.0"
+description: "Force Simplicio-managed repos through the Simplicio runtime by blocking native Hermes file/search/edit tools inside simplicio-agent and simplicio-runtime."
+author: "NousResearch / WesleySimplicio"
+hooks:
+  - pre_tool_call

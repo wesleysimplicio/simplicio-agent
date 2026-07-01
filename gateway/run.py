@@ -6860,11 +6860,58 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # so the synthetic turn isn't queued behind a stale running flag.
         self._release_running_agent_state(session_key)
 
+        send_metadata: Dict[str, Any] = {}
+        if effective_thread_id:
+            send_metadata["thread_id"] = effective_thread_id
+
+        handoff_markdown = ""
+        if self._session_db is not None:
+            try:
+                handoff_markdown = await self._session_db.export_handoff_markdown(cli_session_id)
+            except Exception as exc:
+                logger.debug(
+                    "Handoff: export_handoff_markdown failed for %s: %s",
+                    cli_session_id, exc, exc_info=True,
+                )
+
+        if handoff_markdown:
+            try:
+                note_result = await adapter.send(
+                    chat_id=str(home.chat_id),
+                    content=handoff_markdown,
+                    metadata=send_metadata or None,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"adapter.send handoff note failed: {exc}") from exc
+
+            if not getattr(note_result, "success", True):
+                err = getattr(note_result, "error", "send returned success=False")
+                raise RuntimeError(f"adapter.send handoff note failed: {err}")
+
+            try:
+                from gateway.mirror import mirror_to_session
+
+                mirror_to_session(
+                    platform_name,
+                    str(home.chat_id),
+                    handoff_markdown,
+                    source_label="handoff",
+                    thread_id=effective_thread_id,
+                    user_id="system:handoff",
+                    role="assistant",
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Handoff: mirror_to_session failed for %s: %s",
+                    cli_session_id, exc, exc_info=True,
+                )
+
         synthetic_text = (
             f"[Session was just handed off from CLI (\"{cli_title}\") to this "
-            f"channel. The full prior conversation history is loaded above. "
-            f"Briefly confirm you're working here and summarize what we were "
-            f"working on, so the user can continue from this device.]"
+            f"channel. {'A markdown handoff note was just posted here. ' if handoff_markdown else ''}"
+            f"The full prior conversation history is loaded above. Briefly confirm "
+            f"you're working here and summarize what we were working on, so the "
+            f"user can continue from this device.]"
         )
 
         synthetic_event = MessageEvent(
@@ -6875,9 +6922,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
         logger.info(
             "Handoff: dispatching synthetic turn for CLI session %s → %s "
-            "(home=%s, thread=%s, session_key=%s)",
+            "(home=%s, thread=%s, session_key=%s, markdown_note=%s)",
             cli_session_id, platform_name, home.chat_id, effective_thread_id,
-            session_key,
+            session_key, bool(handoff_markdown),
         )
 
         # Dispatch through the runner directly. Going through
@@ -6893,9 +6940,6 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Send the agent's reply to the destination. Route to the new
         # thread if we created one; otherwise the configured home channel
         # (which may itself carry a thread_id).
-        send_metadata: Dict[str, Any] = {}
-        if effective_thread_id:
-            send_metadata["thread_id"] = effective_thread_id
         try:
             result = await adapter.send(
                 chat_id=str(home.chat_id),

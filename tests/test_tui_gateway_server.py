@@ -127,6 +127,43 @@ def test_handoff_fail_marks_only_inflight_rows(monkeypatch):
         server._sessions.pop(sid, None)
 
 
+def test_handoff_state_reports_observed_age(monkeypatch):
+    class DbContext:
+        def __init__(self, db):
+            self.db = db
+
+        def __enter__(self):
+            return self.db
+
+        def __exit__(self, *_args):
+            return False
+
+    class FakeDb:
+        def get_handoff_state(self, _key):
+            return {
+                "state": "running",
+                "platform": "telegram",
+                "error": None,
+                "updated_at": 100.0,
+            }
+
+    sid = "rt-handoff-state"
+    server._sessions[sid] = {"session_key": "stored-handoff-state"}
+    try:
+        monkeypatch.setattr(server, "_session_db", lambda _session: DbContext(FakeDb()))
+        monkeypatch.setattr(server.time, "time", lambda: 108.5)
+        result = server._methods["handoff.state"]("r1", {"session_id": sid})
+        assert result["result"] == {
+            "state": "running",
+            "platform": "telegram",
+            "error": "",
+            "updated_at": 100.0,
+            "age_seconds": 8.5,
+        }
+    finally:
+        server._sessions.pop(sid, None)
+
+
 def test_session_context_explicit_cwd_for_ephemeral_task(monkeypatch, tmp_path):
     """Background/preview tasks use ephemeral ids absent from `_sessions`, so the
     parent workspace is passed explicitly; it must pin instead of clearing back
