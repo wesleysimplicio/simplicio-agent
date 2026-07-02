@@ -107,7 +107,7 @@ scripts/sync/ecosystem-sync.sh <subcommand> [--dry-run|--apply] [options]
 | `turbo-absorb-hermes` | In the Turbo repo: ensure the `upstream` remote, fetch `NousResearch/hermes-agent`, print the ahead/behind + diff summary, and **stop for human review**. `--apply` stages a **non-destructive** (`--no-commit`) merge; a human reviews, commits, pushes. |
 | `simplicio-pull-perf` | Copy the additive perf set from Turbo into Simplicio, skipping any file newer in Simplicio, then run `validate`. Enforces the ordering guard. |
 | `ecosystem-update` | Fetch/report (and with `--apply`, fast-forward) other `Projetos/ai` repos. Parameterizable via `ECOSYSTEM_REPOS` or positional paths. |
-| `asolaria-absorb` | Read `docs/ASOLARIA_ABSORPTION_PLAN.md` and list pending (unchecked) items. Placeholder — no auto-apply yet. |
+| `asolaria-absorb` | Read `docs/ASOLARIA_ABSORPTION_PLAN.md`'s "Status tracking" checkboxes and list pending items with their license class (`mit-safe` vs `reimplement-only`). `--apply --complete <id>` checks off one item after a human has done the (re)implementation work; `reimplement-only` items additionally require `--confirm-reimplemented`. Never copies source files itself — see below. |
 | `validate` | The gate: python import smoke of the perf modules + targeted `pytest` on the ported perf suites. Exits non-zero on regression. |
 
 ### Flags & environment
@@ -158,9 +158,23 @@ The `ecosystem-sync` workflow (`.github/workflows/ecosystem-sync.yml`):
 
 ## How Asolaria plugs in
 
-`asolaria-absorb` reads `docs/ASOLARIA_ABSORPTION_PLAN.md` and lists every
-unchecked `- [ ]` item as pending. Absorption of the Asolaria / JesseBrown1980
-line follows the **same additive, newer-file-safe discipline** as the Turbo perf
-pull. Today the subcommand is a read-only placeholder: define the canonical
-Asolaria copy list in the plan, then wire it behind `--apply` (mirroring
-`PERF_PATHS`) when the modules are ready.
+`asolaria-absorb` reads `docs/ASOLARIA_ABSORPTION_PLAN.md`'s "Status tracking"
+section and lists every unchecked `- [ ] N.` item as pending, cross-referenced
+against a canonical `ASOLARIA_ITEMS` table in the script (id, priority,
+license class, title — kept in sync with the plan by hand).
+
+Unlike `simplicio-pull-perf`, this subcommand does **not** copy files from a
+single upstream checkout: Asolaria is ~9 disparate external repos, most with
+**no license file** (all-rights-reserved by default) or an unresolved
+`NOASSERTION`, and the plan itself says to reimplement those from the public
+README/spec rather than vendor the code. Auto-copying unreviewed,
+all-rights-reserved source would be the opposite of "additive and safe."
+
+So `--apply` has narrower, safer teeth: `--apply --complete <id>` flips one
+item's checkbox after a human confirms the (re)implementation actually
+landed elsewhere in the codebase. Items classed `reimplement-only` refuse to
+complete without an explicit `--confirm-reimplemented`; items classed
+`mit-safe` (currently `ai-memory` and `scala-critical-path-planner`, both
+MIT) can be marked complete once vendored/ported, but this script still never
+performs that vendoring itself — only the checkbox update, followed by the
+same `validate` gate `simplicio-pull-perf` runs.

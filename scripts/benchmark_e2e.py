@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""End-to-end-ish benchmark harness for the perf modules ported from
+hermes-turbo-agent (see docs/performance.md and docs/SYNC_PIPELINE.md).
+
+Existing numbers in CHANGELOG.md ("2-10x faster JSON") are microbenchmarks
+of a single operation. This script measures each perf module against its
+own documented fallback, using representative synthetic payloads and no
+network calls — so it runs offline and reproducibly in CI.
+
+For modules that expose both a fast path and an explicit fallback function
+(fast JSON, fast token estimator), this script calls BOTH the
+currently-installed backend AND the fallback implementation directly in the
+same process, so you get a real "with extras vs baseline" comparison without
+needing two separate virtualenvs. When no fast backend is installed, both
+rows measure the same stdlib/naive code path.
+
+Usage:
+    python scripts/benchmark_e2e.py                  # human-readable table
+    python scripts/benchmark_e2e.py --json            # machine-readable
+    python scripts/benchmark_e2e.py --iterations 5000 # more samples
+"""
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import statistics
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+
+@dataclass
+class Result:
+    scenario: str
+    variant: str
+    ops: int
+    total_s: float
+    notes: str = ""
+
+    @property
+    def per_op_us(self) -> float:
+        return (self.total_s / self.ops) * 1_000_000 if self.ops else float("nan")
+
+
+@dataclass
+class Report:
+    results: list = field(default_factory=list)
+
+    def add(self, r: Result) -> None:
+        self.results.append(r)
+
+
+def _timeit(fn: Callable[[], Any], iterations: int) -> float:
+    start = time.perf_counter()
+    for _ in range(iterations):
+        fn()
+    return time.perf_counter() - start
+
+
+# ---------------------------------------------------------------------------
+# Synthetic payloads
+# ---------------------------------------------------------------------------
+
+def _synthetic_transcript(n_messages: int = 24) -> list[dict]:
+    """A representative multi-turn transcript: system + alternating
+    user/assistant turns, some with tool calls and a large tool result
+    (simulating a file read / grep output), roughly what a real agent
+    session looks like after a dozen turns."""
+    messages = [{"role": "system", "content": "You are a helpful coding assistant." * 20}]
+    big_tool_result = json.dumps({"path": "agent/chat_completion_helpers.py", "lines": ["line " + str(i) * 3 for i in range(200)]})
+    for i in range(n_messages):
+        if i % 4 == 0:
+            messages.append({"role": "user", "content": f"Please look at file_{i}.py and explain function {i}."})
+        elif i % 4 == 1:
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"id": f"call_{i}", "type": "function", "function": {"name": "read_file", "arguments": json.dumps({"path": f"file_{i}.py"})}}],
+            })
+        elif i % 4 == 2:
+            messages.append({"role": "tool", "tool_call_id": f"call_{i}", "content": big_tool_result})
+        else:
+            messages.append({"role": "assistant", "content": f"Function {i} does X, Y, and Z. Here is a longer explanation. " * 10})
+    return messages
+
+
+def _synthetic_stream_deltas(n: int = 500) -> list[str]:
+    """Streamed token-ish chunks, interleaving visible prose with
+    reasoning blocks, split at arbitrary boundaries (as a real streaming
+    API would deliver them)."""
+    chunks: list[str] = []
+    pattern = (
+        "Let me think about this. <think>Internal reasoning that should "
+        "never reach the user, spanning several tokens of chain-of-thought "
+        "content that a real model would produce.</think> Here is the "
+        "visible answer for the user to read. "
+    )
+    text = pattern * (n // 20 + 1)
+    step = max(1, len(text) // n)
+    for i in range(0, len(text), step):
+        chunks.append(text[i:i + step])
+    return chunks
+
+
+# ---------------------------------------------------------------------------
+# Scenario: fast JSON serde (agent.serde) vs stdlib json
+# ---------------------------------------------------------------------------
+
+def bench_serde(report: Report, iterations: int) -> None:
+    from agent.serde import fast_json as fj
+
+    payload = {"messages": _synthetic_transcript(), "usage": {"input_tokens": 12345, "output_tokens": 678}}
+    encoded_stdlib = json.dumps(payload).encode()
+
+    def run_dumps():
+        fj.dumps(payload)
+
+    def run_loads():
+        fj.loads(encoded_stdlib)
+
+    def run_stdlib_dumps():
+        json.dumps(payload).encode()
+
+    def run_stdlib_loads():
+        json.loads(encoded_stdlib)
+
+    backend = "orjson" if fj.has_orjson() else ("msgspec" if fj.has_msgspec() else "stdlib (no fast backend installed)")
+    report.add(Result("serde.dumps", f"current ({backend})", iterations, _timeit(run_dumps, iterations)))
+    report.add(Result("serde.loads", f"current ({backend})", iterations, _timeit(run_loads, iterations)))
+    report.add(Result("serde.dumps", "forced-fallback (stdlib json)", iterations, _timeit(run_stdlib_dumps, iterations)))
+    report.add(Result("serde.loads", "forced-fallback (stdlib json)", iterations, _timeit(run_stdlib_loads, iterations)))
+
+
+# ---------------------------------------------------------------------------
+# Scenario: fast token estimator (agent.tokens) vs naive len // 4
+# ---------------------------------------------------------------------------
+
+def bench_tokens(report: Report, iterations: int) -> None:
+    from agent.tokens import fast_estimator as fe
+
+    text = ("The quick brown fox jumps over the lazy dog. " * 40)
+    backend = "tiktoken" if fe.has_tiktoken() else "naive len//4 (tiktoken not installed)"
+
+    def run_estimate():
+        fe.estimate(text)
+
+    def run_naive():
+        fe.naive_estimate(text)
+
+    report.add(Result("tokens.estimate", f"current ({backend})", iterations, _timeit(run_estimate, iterations)))
+    report.add(Result("tokens.estimate", "forced-fallback (naive len//4)", iterations, _timeit(run_naive, iterations)))
+
+
+# ---------------------------------------------------------------------------
+# Scenario: think-tag scrubbing throughput (no fallback branch exists;
+# this is a regression baseline, not a before/after comparison)
+# ---------------------------------------------------------------------------
+
+def bench_think_scrubber(report: Report, iterations: int) -> None:
+    from agent.think_scrubber import StreamingThinkScrubber
+
+    deltas = _synthetic_stream_deltas()
+
+    def run_once():
+        scrubber = StreamingThinkScrubber()
+        for d in deltas:
+            scrubber.feed(d)
+        scrubber.flush()
+
+    # `iterations` full-stream replays would be excessive; scale down since
+    # each "op" already processes hundreds of deltas.
+    reps = max(1, iterations // 20)
+    total = _timeit(run_once, reps)
+    report.add(Result(
+        "think_scrubber.feed (full stream)",
+        "current (precomputed lowercase tag tuples)",
+        reps,
+        total,
+        notes=f"{len(deltas)} deltas/stream, {reps} streams — no legacy baseline retained in-repo to compare against",
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Scenario: Anthropic prompt-cache marker injection — shallow-copy-of-4
+# (current) vs full-transcript deepcopy (pre-0.19.0 baseline, reimplemented
+# here from the same messages for a direct comparison)
+# ---------------------------------------------------------------------------
+
+def _legacy_apply_anthropic_cache_control(api_messages, cache_ttl="5m", native_anthropic=False):
+    """Pre-0.19.0 baseline: deep-copy the ENTIRE transcript on every call,
+    then apply the same markers via the current (shared) marker logic."""
+    from agent.prompt_caching import _apply_cache_marker, _build_marker
+
+    if not api_messages:
+        return list(api_messages)
+    messages = copy.deepcopy(api_messages)
+    marker = _build_marker(cache_ttl)
+    system_indices = [i for i, m in enumerate(messages) if m.get("role") == "system"]
+    non_system_indices = [i for i, m in enumerate(messages) if m.get("role") != "system"]
+    for i in system_indices:
+        _apply_cache_marker(messages[i], marker, native_anthropic=native_anthropic)
+    for i in non_system_indices[-3:]:
+        _apply_cache_marker(messages[i], marker, native_anthropic=native_anthropic)
+    return messages
+
+
+def bench_prompt_caching(report: Report, iterations: int) -> None:
+    from agent.prompt_caching import apply_anthropic_cache_control
+
+    messages = _synthetic_transcript(n_messages=40)  # long-ish session
+
+    def run_current():
+        apply_anthropic_cache_control(messages)
+
+    def run_legacy():
+        _legacy_apply_anthropic_cache_control(messages)
+
+    reps = max(1, iterations // 5)  # each op copies a 40-message transcript
+    report.add(Result("prompt_caching.apply_anthropic_cache_control", "current (shallow list + deepcopy ≤4 marked msgs)", reps, _timeit(run_current, reps)))
+    report.add(Result("prompt_caching.apply_anthropic_cache_control", "legacy baseline (deepcopy entire transcript)", reps, _timeit(run_legacy, reps)))
+
+
+# ---------------------------------------------------------------------------
+# Scenario: deterministic router latency (agent.router)
+# ---------------------------------------------------------------------------
+
+def bench_router(report: Report, iterations: int) -> None:
+    from agent.router import default_router
+
+    router = default_router()
+    trivial_inputs = ["help", "ping", "what time is it?", "pwd", "echo hello world"]
+
+    def run_route():
+        for text in trivial_inputs:
+            router.route(text)
+
+    total = _timeit(run_route, iterations)
+    report.add(Result(
+        "router.route (trivial inputs)",
+        "current (regex no-LLM router)",
+        iterations * len(trivial_inputs),
+        total,
+        notes="each match avoids an LLM round-trip entirely (network + inference latency, not measured here)",
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Scenario: CLI cold-import time (proxy for startup cost)
+# ---------------------------------------------------------------------------
+
+def bench_cli_startup(report: Report, samples: int) -> None:
+    times = []
+    last_error = "(no stderr)"
+    for _ in range(samples):
+        start = time.perf_counter()
+        proc = subprocess.run(
+            [sys.executable, "-c", "import hermes_cli.main"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            timeout=60,
+        )
+        elapsed = time.perf_counter() - start
+        if proc.returncode == 0:
+            times.append(elapsed)
+        else:
+            lines = proc.stderr.decode(errors="replace").strip().splitlines()
+            last_error = lines[-1] if lines else "(no stderr)"
+    if not times:
+        report.add(Result(
+            "cli.cold_import(hermes_cli.main)", "FAILED", 0, 0.0,
+            notes=f"subprocess import failed — {last_error} (missing project deps in this env?)",
+        ))
+        return
+    median = statistics.median(times)
+    report.add(Result(
+        "cli.cold_import(hermes_cli.main)",
+        f"median of {len(times)} subprocess samples",
+        1,
+        median,
+        notes=(
+            "measures module import only, not the plugin-discovery fast path "
+            "(hermes_cli/main.py:_plugin_cli_discovery_needed docstring documents "
+            "~500-650ms saved per invocation for builtin subcommands, not re-derived here)"
+        ),
+    ))
+
+
+SCENARIOS: dict[str, Callable[[Report, int], None]] = {
+    "serde": bench_serde,
+    "tokens": bench_tokens,
+    "think_scrubber": bench_think_scrubber,
+    "prompt_caching": bench_prompt_caching,
+    "router": bench_router,
+}
+
+
+def print_table(report: Report) -> None:
+    headers = ("scenario", "variant", "ops", "total_s", "per_op_us", "notes")
+    widths = [34, 42, 8, 10, 12, 60]
+    fmt = "  ".join(f"{{:<{w}}}" for w in widths)
+    print(fmt.format(*[h.upper() for h in headers]))
+    print(fmt.format(*["-" * w for w in widths]))
+    for r in report.results:
+        print(fmt.format(
+            r.scenario[:34],
+            r.variant[:42],
+            str(r.ops),
+            f"{r.total_s:.4f}",
+            f"{r.per_op_us:.2f}",
+            r.notes[:60],
+        ))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--iterations", type=int, default=2000, help="base iteration count for in-process scenarios (default: 2000)")
+    parser.add_argument("--startup-samples", type=int, default=3, help="subprocess samples for the CLI cold-import scenario (default: 3)")
+    parser.add_argument("--skip", action="append", default=[], choices=list(SCENARIOS) + ["cli_startup"], help="scenario(s) to skip")
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON instead of a table")
+    args = parser.parse_args()
+
+    report = Report()
+    for name, fn in SCENARIOS.items():
+        if name in args.skip:
+            continue
+        fn(report, args.iterations)
+    if "cli_startup" not in args.skip:
+        bench_cli_startup(report, args.startup_samples)
+
+    if args.json:
+        print(json.dumps([
+            {
+                "scenario": r.scenario,
+                "variant": r.variant,
+                "ops": r.ops,
+                "total_s": r.total_s,
+                "per_op_us": r.per_op_us,
+                "notes": r.notes,
+            }
+            for r in report.results
+        ], indent=2))
+    else:
+        print_table(report)
+        print()
+        print("Notes:")
+        print("- 'current' rows use whatever is installed in this environment right now.")
+        print("- 'forced-fallback' rows monkeypatch nothing at the process level; they call the")
+        print("  fallback function/path directly, so they're valid regardless of what's installed.")
+        print("- See docs/performance.md for what each module trades off and how to enable it.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
