@@ -106,10 +106,15 @@ class TestDefaults:
         assert ContextEngine.get_tool_schemas(engine) == []
 
     def test_default_handle_tool_call_returns_error(self):
+        from agent.toon_codec import from_toon
+
         engine = StubEngine()
         result = ContextEngine.handle_tool_call(engine, "unknown", {})
-        data = json.loads(result)
+        # Default payload is now TOON-encoded (falls back to JSON only if
+        # the TOON encoder itself raises) — decode with from_toon.
+        data = from_toon(result)
         assert "error" in data
+        assert "unknown" in data["error"]
 
     def test_default_get_status(self):
         engine = StubEngine()
