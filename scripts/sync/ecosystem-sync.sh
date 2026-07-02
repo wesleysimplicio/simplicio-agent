@@ -35,7 +35,13 @@
 #   ecosystem-update       Pull relevant updates from other Projetos/ai repos
 #                          (parameterizable via ECOSYSTEM_REPOS).
 #   asolaria-absorb        Read docs/ASOLARIA_ABSORPTION_PLAN.md and list pending
-#                          items (no auto-apply yet).
+#                          items with their license class. `--apply --complete
+#                          <id>` checks off one item's box after a human has
+#                          done the (re)implementation work — it NEVER copies
+#                          source files itself: most Asolaria originals carry
+#                          no license (all-rights-reserved), so this tool
+#                          refuses to automate vendoring. See the
+#                          `reimplement-only` vs `mit-safe` gate below.
 #   validate               Run the validation gate: python import smoke of the
 #                          perf modules + targeted pytest on the ported suites.
 #
@@ -448,10 +454,94 @@ cmd_ecosystem_update() {
 }
 
 # --------------------------------------------------------------------------
-# Subcommand: asolaria-absorb (placeholder hook, read-only)
+# Subcommand: asolaria-absorb
 # --------------------------------------------------------------------------
+# Canonical Asolaria absorption items (docs/ASOLARIA_ABSORPTION_PLAN.md,
+# "Status tracking" section — this table and that section must stay in
+# sync). Pipe-delimited: id|prio|license_class|title
+#
+#   license_class:
+#     mit-safe          — source is MIT-licensed; vendoring with attribution
+#                          is legally fine (still a human, reviewed step —
+#                          this script never copies bytes on its own).
+#     reimplement-only   — source carries NO LICENSE / NOASSERTION (or is
+#                          copyleft-incompatible). All-rights-reserved by
+#                          default: the *pattern* may be reimplemented from
+#                          the public README/spec, the code must never be
+#                          copy-pasted. `--complete` refuses these without
+#                          an explicit --confirm-reimplemented.
+# --------------------------------------------------------------------------
+ASOLARIA_ITEMS=(
+  "1|P0|reimplement-only|FEDENV single-parent dispatcher (omni-dispatcher / omnicoder)"
+  "2|P0|reimplement-only|SkillOpt v2 rollout scoring (Harness-edit)"
+  "3|P0|mit-safe|Cross-vendor memory handoff (ai-memory)"
+  "4|P1|reimplement-only|200ns revolver PID emitter"
+  "5|P1|reimplement-only|Real whiteroom scorer/store"
+  "6|P1|reimplement-only|Depth-N gate conformance vectors"
+  "7|P2|reimplement-only|Host-8 server-crate patterns (study only)"
+  "8|P2|mit-safe|Critical-path DAG scheduler (scala-critical-path-planner)"
+  "9|P2|reimplement-only|Doc-extraction flow (reference only)"
+)
+
+_asolaria_item_lookup() {
+  # $1 id -> prints "prio|license_class|title" on stdout, returns 1 if unknown.
+  local id="$1" entry eid eprio elicense etitle
+  for entry in "${ASOLARIA_ITEMS[@]}"; do
+    IFS='|' read -r eid eprio elicense etitle <<<"$entry"
+    if [ "$eid" = "$id" ]; then
+      printf '%s|%s|%s\n' "$eprio" "$elicense" "$etitle"
+      return 0
+    fi
+  done
+  return 1
+}
+
+_asolaria_complete_item() {
+  # $1 plan path, $2 item id, $3 confirm_reimpl (0/1). Flips that item's
+  # checkbox in the plan from "- [ ] N." to "- [x] N.". Never touches any
+  # file outside SIMPLICIO_REPO and never copies source from anywhere.
+  local plan="$1" id="$2" confirm_reimpl="$3"
+  local info prio license title
+
+  if ! info="$(_asolaria_item_lookup "$id")"; then
+    die "Unknown Asolaria item id: $id (see docs/ASOLARIA_ABSORPTION_PLAN.md 'Status tracking')"
+  fi
+  IFS='|' read -r prio license title <<<"$info"
+  log "Item #$id [$prio/$license]: $title"
+
+  if grep -qE "^- \[[xX]\] ${id}\. " "$plan"; then
+    log_ok "Item #$id is already marked complete."
+    return 0
+  fi
+  if ! grep -qE "^- \[ \] ${id}\. " "$plan"; then
+    die "No pending checkbox found for item #$id in $plan (unexpected format?)"
+  fi
+
+  if [ "$license" = "reimplement-only" ] && [ "$confirm_reimpl" -ne 1 ]; then
+    log_err "License class is 'reimplement-only' (NO LICENSE / NOASSERTION source)."
+    log_review "This item can only be completed after a human has reimplemented it from"
+    log_review "the public spec/README — copy-pasting the source is not permitted."
+    log_review "Re-run once that review has actually happened:"
+    log_review "  $0 asolaria-absorb --apply --complete $id --confirm-reimplemented"
+    return 1
+  fi
+
+  if [ "$APPLY" -ne 1 ]; then
+    log "would mark item #$id complete (dry-run; re-run with --apply)"
+    return 0
+  fi
+
+  local line_num
+  line_num="$(grep -nE "^- \[ \] ${id}\. " "$plan" | head -1 | cut -d: -f1)"
+  sed -i.bak "${line_num}s/^- \[ \] /- [x] /" "$plan"
+  rm -f "${plan}.bak"
+  log_ok "Marked item #$id complete in $plan"
+  log_review "Commit docs/ASOLARIA_ABSORPTION_PLAN.md together with the actual absorption change it tracks (or in the same PR)."
+  cmd_validate
+}
+
 cmd_asolaria_absorb() {
-  hr; log "SUBCOMMAND: asolaria-absorb (placeholder — lists pending items, no auto-apply)"
+  hr; log "SUBCOMMAND: asolaria-absorb"
   hr
   local plan="$SIMPLICIO_REPO/docs/ASOLARIA_ABSORPTION_PLAN.md"
   if [ ! -f "$plan" ]; then
@@ -459,19 +549,57 @@ cmd_asolaria_absorb() {
     log_review "Produce docs/ASOLARIA_ABSORPTION_PLAN.md (Asolaria / JesseBrown1980 items) first."
     return 0
   fi
+
+  # Parse --complete <id> / --confirm-reimplemented out of this subcommand's
+  # own args (parse_common_flags already stripped --apply/--dry-run into the
+  # global REMAINING_ARGS, same convention as cmd_ecosystem_update).
+  local complete_id="" confirm_reimpl=0
+  local _args=("${REMAINING_ARGS[@]:-}") a
+  local i=0
+  while [ "$i" -lt "${#_args[@]}" ]; do
+    a="${_args[$i]}"
+    case "$a" in
+      --complete) i=$((i+1)); complete_id="${_args[$i]:-}" ;;
+      --confirm-reimplemented) confirm_reimpl=1 ;;
+    esac
+    i=$((i+1))
+  done
+
+  if [ -n "$complete_id" ]; then
+    _asolaria_complete_item "$plan" "$complete_id" "$confirm_reimpl"
+    return $?
+  fi
+
   log "Reading plan: $plan"
   hr
-  # Pending items are unchecked task-list bullets: "- [ ] ...".
-  local pending
-  pending="$(grep -nE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$plan" || true)"
-  if [ -z "$pending" ]; then
-    log_ok "No pending (unchecked) Asolaria items in the plan."
-  else
-    log "Pending Asolaria items:"
-    printf '%s\n' "$pending"
+  local pending=0 done_count=0 line state id title info prio license
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^-\ \[([xX\ ])\]\ ([0-9]+)\.\ (.*)$ ]]; then
+      state="${BASH_REMATCH[1]}"
+      id="${BASH_REMATCH[2]}"
+      title="$(printf '%s' "${BASH_REMATCH[3]}" | sed -E 's/^P[0-9]+[[:space:]]*·[[:space:]]*//')"
+      if info="$(_asolaria_item_lookup "$id")"; then
+        IFS='|' read -r prio license _ <<<"$info"
+      else
+        prio="?"; license="unknown (not in ASOLARIA_ITEMS)"
+      fi
+      if [ "$state" = " " ]; then
+        pending=$((pending+1))
+        log "  PENDING  #$id [$prio/$license] $title"
+      else
+        done_count=$((done_count+1))
+        log_ok "  DONE     #$id [$prio/$license] $title"
+      fi
+    fi
+  done < "$plan"
+
+  hr
+  log "Status: $done_count absorbed, $pending pending"
+  if [ "$pending" -gt 0 ]; then
+    log_review "Mark an item complete with: $0 asolaria-absorb --apply --complete <id>"
+    log_review "reimplement-only items additionally require --confirm-reimplemented (never auto-copied — see docs/ASOLARIA_ABSORPTION_PLAN.md)."
   fi
   hr
-  log_review "asolaria-absorb is a placeholder: no items are applied automatically yet."
 }
 
 # --------------------------------------------------------------------------
@@ -561,7 +689,10 @@ Subcommands:
   ecosystem-update       Pull relevant updates from other Projetos/ai repos
                          (ECOSYSTEM_REPOS or positional paths).
   asolaria-absorb        List pending items from docs/ASOLARIA_ABSORPTION_PLAN.md
-                         (no auto-apply).
+                         with their license class. `--apply --complete <id>`
+                         [--confirm-reimplemented] checks off one item after a
+                         human has done the (re)implementation — never copies
+                         source files itself.
   validate               Perf import smoke + targeted pytest gate.
 
 Flags:

@@ -28,6 +28,32 @@ Simplicio ecosystem (Rust runtime `simplicio-runtime` + Hermes-based Python agen
 | 8 | **P2** | `scala-critical-path-planner` — DAG scheduler / critical-path / slack (concepts only) | Critical-path + slack scheduling algorithm for the exec graph | concept port into `exec_graph` / planner | **MIT** ✅ | M | Low |
 | 9 | **P2** | `Docs-Extractor` — Firecrawl+Claude doc-crawl → markdown | AI doc-extraction pattern (Simplicio already has Firecrawl skills) | reference only for `documentation-lookup` flow | **NO LICENSE** | S | Low |
 
+## Status tracking
+
+Machine-readable pending-item list consumed by
+`scripts/sync/ecosystem-sync.sh asolaria-absorb`. The summary table above
+documents **what** each item is; this section tracks **whether it's been
+absorbed yet**. `license_class` mirrors the License column above:
+`mit-safe` (safe to vendor with attribution) vs `reimplement-only` (NO
+LICENSE / NOASSERTION source — must be reimplemented from the public
+spec/README, never copy-pasted).
+
+Only flip a box via `asolaria-absorb --apply --complete <id>` (which
+refuses to check off a `reimplement-only` item without an explicit
+`--confirm-reimplemented`, and never touches `mit-safe` source files
+itself — vendoring, if any, is still a human, reviewed step). Never
+bulk-check by hand.
+
+- [ ] 1. P0 · FEDENV single-parent dispatcher (`omni-dispatcher` / `omnicoder`) — reimplement-only (NO LICENSE)
+- [ ] 2. P0 · SkillOpt v2 rollout scoring (`Harness-edit`) — reimplement-only (NO LICENSE)
+- [ ] 3. P0 · Cross-vendor memory handoff (`ai-memory`) — mit-safe (MIT)
+- [ ] 4. P1 · 200ns revolver PID emitter (`Asolaria-the-full-works...`) — reimplement-only (NO LICENSE)
+- [ ] 5. P1 · Real whiteroom scorer/store (`asolaria-whiteroom-engine`) — reimplement-only (NO LICENSE)
+- [ ] 6. P1 · Depth-N gate conformance vectors (`N-Nest-Prime...`) — reimplement-only (NO LICENSE)
+- [ ] 7. P2 · Host-8 server-crate patterns, study only (`asolaria-federation-1024`) — reimplement-only (NOASSERTION)
+- [ ] 8. P2 · Critical-path DAG scheduler (`scala-critical-path-planner`) — mit-safe (MIT)
+- [ ] 9. P2 · Doc-extraction flow, reference only, nothing to vendor (`Docs-Extractor`) — reimplement-only (NO LICENSE)
+
 ### DO NOT absorb (flagged)
 
 | Source | Why not |

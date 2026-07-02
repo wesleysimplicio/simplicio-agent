@@ -9,6 +9,13 @@ This module wraps ``httpx.AsyncClient`` with sensible pool defaults and
 exposes a thin interface that the agent can use uniformly across
 providers. Optional dependency: ``httpx[http2]``.
 
+Status: this repo's own LLM/tool/provider call sites are already SDK-managed
+(``openai``, Anthropic SDK, etc.) and none of them is a safe, repeated-
+same-base-url candidate — see ``CHANGELOG.md`` [0.21.0]. ``HttpPool`` is
+kept as a documented, tested, opt-in utility for plugin and MCP-transport
+authors who *do* make repeated calls to the same host (see
+``docs/performance.md``), not as dead code awaiting removal.
+
 Public surface::
 
     pool = HttpPool(base_url="https://api.anthropic.com")

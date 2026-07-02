@@ -4,6 +4,51 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-07-02
+
+### Added
+
+Follow-up work from the "how much better are we than upstream Hermes"
+question (issues #9-#12): make the perf-layer claims measurable, documented,
+and the sync tooling's remaining placeholder real.
+
+- **`scripts/benchmark_e2e.py`** (issue #9): standalone, offline benchmark
+  harness. Measures `agent.serde` (fast JSON) vs stdlib `json`,
+  `agent.tokens` (tiktoken) vs the naive `len // 4` estimator,
+  `agent.prompt_caching.apply_anthropic_cache_control`'s current
+  shallow-copy-of-≤4-messages strategy vs a reimplemented pre-0.19.0
+  full-transcript-deepcopy baseline, `agent.think_scrubber` streaming
+  throughput, `agent.router`'s deterministic no-LLM fast path latency, and
+  CLI cold-import time as a startup proxy. Every scenario runs against
+  whatever is actually installed, with an explicit fallback-path call for
+  the two toggleable backends — so `--json` output is a real "with extras
+  vs baseline" number, not a microbenchmark claim.
+- **`docs/performance.md`** (issue #10): single reference for every perf
+  module — what triggers it, what the fallback is, how to enable it, and
+  what's on by default (nothing beyond core `httpx`; `pip install
+  "hermes-agent[fast]"` is the one extra worth reaching for). Records the
+  decision that the base installer intentionally does not request `[fast]`.
+- **`hermes doctor`** (issue #10): new "Performance Modules" section
+  (`hermes_cli/doctor.py`) reporting live status of fast JSON, fast token
+  estimator, uvloop, the Rust hot-path extension, `HttpPool`/httpx, the
+  `HERMES_SIMPLICIO_PROMPT` gate, and the warm daemon — mirrors the
+  existing "Required Packages" check pattern.
+- **`agent/net/http_pool.py`** (issue #12): documented the decision to keep
+  `HttpPool` as a tested, opt-in utility for plugin/MCP-transport authors
+  rather than dead code — it has no call site in this repo's own SDK-managed
+  HTTP calls (see [0.21.0]) but remains a legitimate public surface.
+- **`scripts/sync/ecosystem-sync.sh` `asolaria-absorb --apply`** (issue
+  #11): the subcommand was a read-only placeholder whose pending-item grep
+  never matched anything (the plan had no checkboxes). Added a "Status
+  tracking" checklist to `docs/ASOLARIA_ABSORPTION_PLAN.md` and a canonical
+  `ASOLARIA_ITEMS` table (id/priority/license-class/title) to the script.
+  `--apply --complete <id>` now checks off one item after a human confirms
+  the (re)implementation landed — `reimplement-only` items (7 of 9; NO
+  LICENSE / NOASSERTION sources) additionally require
+  `--confirm-reimplemented` and are never auto-copied; the tool never
+  vendors source itself, only tracks status and runs the `validate` gate
+  afterward. `docs/SYNC_PIPELINE.md` updated to match.
+
 ## [0.21.1] - 2026-07-01
 
 ### Fixed

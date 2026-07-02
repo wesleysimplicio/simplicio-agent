@@ -660,7 +660,70 @@ def run_doctor(args):
             check_ok(name, "(optional)")
         except ImportError:
             check_warn(name, "(optional, not installed)")
-    
+
+    _section("Performance Modules")
+    check_info("Optional perf layer ported from hermes-turbo-agent; each item degrades to a stdlib/pure-Python fallback when its dependency is absent. See docs/performance.md.")
+
+    try:
+        from agent.serde import has_orjson, has_msgspec
+        if has_orjson():
+            check_ok("Fast JSON (orjson)", "(agent.serde)")
+        elif has_msgspec():
+            check_ok("Fast JSON (msgspec)", "(agent.serde)")
+        else:
+            check_warn("Fast JSON", "(stdlib json fallback; install orjson or msgspec)")
+    except Exception as e:
+        check_warn("Fast JSON", f"(check failed: {e})")
+
+    try:
+        from agent.tokens import has_tiktoken
+        if has_tiktoken():
+            check_ok("Fast token estimator (tiktoken)", "(agent.tokens)")
+        else:
+            check_warn("Fast token estimator", "(len // 4 fallback; install tiktoken for accurate counts)")
+    except Exception as e:
+        check_warn("Fast token estimator", f"(check failed: {e})")
+
+    if sys.platform == "win32":
+        check_info("uvloop event loop: not applicable on Windows")
+    else:
+        try:
+            __import__("uvloop")
+            check_ok("uvloop event loop", "(agent.uvloop_utils)")
+        except ImportError:
+            check_warn("uvloop event loop", "(asyncio default loop; install uvloop for lower latency)")
+
+    try:
+        from agent._hermes_fast import HAVE_RUST
+        if HAVE_RUST:
+            check_ok("Rust hot-path extension (hermes_fast)", "(agent._hermes_fast)")
+        else:
+            check_warn("Rust hot-path extension", "(pure-Python fallback; build rust_ext/ with maturin for the native path)")
+    except Exception as e:
+        check_warn("Rust hot-path extension", f"(check failed: {e})")
+
+    try:
+        from agent.net.http_pool import _HAS_HTTPX
+        if _HAS_HTTPX:
+            check_ok("HTTP/2 keep-alive pool", "(agent.net.HttpPool — opt-in utility for plugins/tools, not wired into core call sites)")
+        else:
+            check_warn("HTTP/2 keep-alive pool", "(httpx not installed; install httpx[http2] to use agent.net.HttpPool)")
+    except Exception as e:
+        check_warn("HTTP/2 keep-alive pool", f"(check failed: {e})")
+
+    _simplicio_prompt_raw = (
+        os.environ.get("HERMES_SIMPLICIO_PROMPT")
+        or os.environ.get("SIMPLICIO_PROMPT")
+        or os.environ.get("YOOL_TUPLE_FULL_RUNTIME")
+        or ""
+    )
+    if _simplicio_prompt_raw.strip().lower() in {"1", "true", "yes", "on"}:
+        check_ok("Simplicio system-prompt injection", "(HERMES_SIMPLICIO_PROMPT enabled)")
+    else:
+        check_info("Simplicio system-prompt injection: off by default (set HERMES_SIMPLICIO_PROMPT=1 to enable)")
+
+    check_info("Warm daemon: run `hermes daemon` to preload tool/skill/provider registries ahead of use")
+
     _section("Configuration Files")
     # Managed scope (administrator-pinned config/env), when present.
     managed_scope_check()
