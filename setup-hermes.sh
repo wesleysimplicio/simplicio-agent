@@ -396,8 +396,146 @@ else
 fi
 
 # ============================================================================
-# Seed bundled skills into ~/.hermes/skills/
+# SIMPLICIO RUNTIME — Instalar o corpo do Simplicio Agent
 # ============================================================================
+
+echo ""
+echo -e "${CYAN}→${NC} Instalando Simplicio Runtime (corpo do Agent)..."
+echo ""
+
+# ── 1. Rust binary ──────────────────────────────────────────────────────
+BIN_DIR="$HOME/.local/bin"
+mkdir -p "$BIN_DIR"
+
+if command -v "$BIN_DIR/simplicio" &> /dev/null; then
+    echo -e "${GREEN}✓${NC} simplicio binary já instalado ($($BIN_DIR/simplicio version 2>/dev/null || echo '?'))"
+else
+    echo -e "${CYAN}→${NC} Baixando simplicio binary..."
+    ARCH=$(uname -m)
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    case "$ARCH" in
+        x86_64)  ARCH="x86_64"  ;;
+        aarch64|arm64) ARCH="aarch64" ;;
+    esac
+
+    # Tenta instalar via npm (mais simples, cuida do PATH)
+    if command -v npm &> /dev/null; then
+        echo -e "${CYAN}→${NC} Via npm..."
+        npm install -g simplicio 2>/dev/null && \
+            echo -e "${GREEN}✓${NC} simplicio instalado via npm" || \
+            echo -e "${YELLOW}⚠${NC} npm install falhou — tentando download direto"
+    fi
+
+    # Fallback: download direto do GitHub
+    if ! command -v "$BIN_DIR/simplicio" &> /dev/null; then
+        DOWNLOAD_URL="https://github.com/wesleysimplicio/simplicio/releases/latest/download/simplicio-${ARCH}-${OS}.tar.gz"
+        echo -e "${CYAN}→${NC} Download: $DOWNLOAD_URL"
+        TMP_TAR=$(mktemp)
+        if curl -sL "$DOWNLOAD_URL" -o "$TMP_TAR" 2>/dev/null; then
+            tar -xzf "$TMP_TAR" -C "$BIN_DIR" 2>/dev/null || cp "$TMP_TAR" "$BIN_DIR/simplicio" 2>/dev/null
+            chmod +x "$BIN_DIR/simplicio" 2>/dev/null
+            # Remove quarantine no macOS
+            xattr -d com.apple.quarantine "$BIN_DIR/simplicio" 2>/dev/null || true
+            xattr -d com.apple.provenance "$BIN_DIR/simplicio" 2>/dev/null || true
+            codesign --force --sign - "$BIN_DIR/simplicio" 2>/dev/null || true
+            rm -f "$TMP_TAR"
+
+            if "$BIN_DIR/simplicio" version &> /dev/null; then
+                echo -e "${GREEN}✓${NC} simplicio binary instalado ($($BIN_DIR/simplicio version))"
+            else
+                echo -e "${YELLOW}⚠${NC} Binary baixado mas não executa — pode precisar de compilação manual"
+                echo "    Compile: cd ~/Projetos/ai/simplicio-runtime && cargo build --release && cp target/release/simplicio $BIN_DIR/simplicio"
+            fi
+        else
+            echo -e "${YELLOW}⚠${NC} Download falhou — compile manualmente do simplicio-runtime"
+            echo "    cd ~/Projetos/ai/simplicio-runtime && cargo build --release && cp target/release/simplicio $BIN_DIR/simplicio"
+        fi
+    fi
+fi
+
+# ── 2. Python ecosystem (PyPI) ──────────────────────────────────────────
+echo -e "${CYAN}→${NC} Instalando ecossistema Python do Simplicio..."
+"$SETUP_PYTHON" -m pip install simplicio-cli simplicio-mapper --quiet 2>/dev/null && \
+    echo -e "${GREEN}✓${NC} simplicio-cli + simplicio-mapper instalados (PyPI)" || \
+    echo -e "${YELLOW}⚠${NC} PyPI packages não disponíveis — instale manualmente com pip"
+
+# ── 3. Config.yaml — MCP server + plugin ──────────────────────────────
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+mkdir -p "$HERMES_HOME"
+
+if [ -f "$HERMES_HOME/config.yaml" ]; then
+    # Já existe — verificar se precisa adicionar MCP e plugin
+    if ! grep -q "simplicio:" "$HERMES_HOME/config.yaml" 2>/dev/null; then
+        echo -e "${CYAN}→${NC} Adicionando MCP server simplicio ao config.yaml..."
+        cat >> "$HERMES_HOME/config.yaml" << 'MCP_CONFIG'
+
+# ── Simplicio Runtime (MCP) ────────────────────────────────────────────
+mcp_servers:
+  simplicio:
+    command: ~/.local/bin/simplicio
+    args:
+      - serve
+      - --mcp
+      - --stdio
+    timeout: 120
+    connect_timeout: 60
+
+plugins:
+  enabled:
+    - simplicio
+  disabled: []
+MCP_CONFIG
+        echo -e "${GREEN}✓${NC} MCP server + plugin configurados no config.yaml"
+    else
+        echo -e "${GREEN}✓${NC} MCP server simplicio já configurado"
+    fi
+else
+    echo -e "${CYAN}→${NC} Criando config.yaml com MCP server simplicio..."
+    cat > "$HERMES_HOME/config.yaml" << 'MCP_CONFIG'
+# ── Simplicio Runtime (MCP) ────────────────────────────────────────────
+mcp_servers:
+  simplicio:
+    command: ~/.local/bin/simplicio
+    args:
+      - serve
+      - --mcp
+      - --stdio
+    timeout: 120
+    connect_timeout: 60
+
+plugins:
+  enabled:
+    - simplicio
+  disabled: []
+MCP_CONFIG
+    echo -e "${GREEN}✓${NC} config.yaml criado com MCP server simplicio"
+fi
+
+# ── 4. SOUL.md — Identidade Simplicio Agent ────────────────────────────
+if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
+    echo -e "${CYAN}→${NC} Criando SOUL.md com identidade Simplicio Agent..."
+    # Usa o template do default_soul.py (system prompt integrado)
+    # O template é inserido no código-fonte e será usado na primeira execução
+    echo -e "${GREEN}✓${NC} SOUL.md será criado pelo template padrão na primeira execução"
+fi
+
+# ── 5. Plugin simplicio ────────────────────────────────────────────────
+PLUGINS_DIR="$SCRIPT_DIR/plugins"
+if [ -d "$PLUGINS_DIR/simplicio" ]; then
+    echo -e "${CYAN}→${NC} Plugin simplicio disponível em $PLUGINS_DIR/simplicio"
+    echo -e "${GREEN}✓${NC} Plugin simplicio incluso no source (será carregado automaticamente)"
+fi
+
+# ── 6. Simplicio skill ──────────────────────────────────────────────────
+SKILLS_DIR="$HERMES_HOME/skills"
+mkdir -p "$SKILLS_DIR"
+BUNDLED_SKILL="$SCRIPT_DIR/skills/simplicio"
+if [ -d "$BUNDLED_SKILL" ]; then
+    cp -rn "$BUNDLED_SKILL" "$SKILLS_DIR/" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Skill simplicio instalada em $SKILLS_DIR/simplicio"
+fi
+
+echo -e "${GREEN}✓${NC} Ecossistema Simplicio instalado!"
 
 HERMES_SKILLS_DIR="${HERMES_HOME:-$HOME/.hermes}/skills"
 mkdir -p "$HERMES_SKILLS_DIR"
@@ -450,6 +588,8 @@ else
 fi
 echo "  hermes cron list     # View scheduled jobs"
 echo "  hermes doctor        # Diagnose issues"
+echo "  simplicio version    # Simplicio Runtime version"
+echo "  simplicio runtime map --repo . --for-llm markdown  # Orientação do repo"
 echo ""
 
 # Ask if they want to run setup wizard now
