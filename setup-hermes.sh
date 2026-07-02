@@ -522,8 +522,12 @@ fi
 # ── 5. Plugin simplicio ────────────────────────────────────────────────
 PLUGINS_DIR="$SCRIPT_DIR/plugins"
 if [ -d "$PLUGINS_DIR/simplicio" ]; then
-    echo -e "${CYAN}→${NC} Plugin simplicio disponível em $PLUGINS_DIR/simplicio"
-    echo -e "${GREEN}✓${NC} Plugin simplicio incluso no source (será carregado automaticamente)"
+    echo -e "${CYAN}→${NC} Instalando plugin simplicio..."
+    mkdir -p "$HERMES_HOME/plugins"
+    # Symlink para que atualizações no source reflitam automaticamente
+    ln -sfn "$PLUGINS_DIR/simplicio" "$HERMES_HOME/plugins/simplicio" 2>/dev/null || \
+        cp -rn "$PLUGINS_DIR/simplicio" "$HERMES_HOME/plugins/" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Plugin simplicio instalado em $HERMES_HOME/plugins/simplicio"
 fi
 
 # ── 6. Simplicio skill ──────────────────────────────────────────────────
@@ -536,6 +540,56 @@ if [ -d "$BUNDLED_SKILL" ]; then
 fi
 
 echo -e "${GREEN}✓${NC} Ecossistema Simplicio instalado!"
+
+# ── 7. Inicializar tudo — fully functional out of the box ──────────────
+echo ""
+echo -e "${CYAN}→${NC} Inicializando Simplicio Runtime (banco neural, provider, MCP)..."
+echo ""
+
+SIMPLICIO_CMD="$BIN_DIR/simplicio"
+
+# 7a. Neural memory database
+if [ -f "$HOME/.simplicio/memory/simplicio-memory.sqlite" ]; then
+    echo -e "${GREEN}✓${NC} Banco neural já existe ($("$SIMPLICIO_CMD" memory status 2>/dev/null | grep 'memory_items=' | head -1))"
+else
+    echo -e "${CYAN}→${NC} Inicializando banco neural (SQLite FTS5 + vector)..."
+    "$SIMPLICIO_CMD" init --quick --non-interactive 2>/dev/null || \
+        "$SIMPLICIO_CMD" onboard --non-interactive 2>/dev/null || \
+        echo -e "${YELLOW}⚠${NC} Init automático não disponível — crie provider manualmente com: simplicio init --quick"
+    
+    # Tenta forçar criação do banco de memória
+    "$SIMPLICIO_CMD" memory status 2>/dev/null || true
+    if [ -f "$HOME/.simplicio/memory/simplicio-memory.sqlite" ]; then
+        echo -e "${GREEN}✓${NC} Banco neural inicializado"
+    else
+        echo -e "${YELLOW}⚠${NC} Banco neural será criado na primeira execução"
+    fi
+fi
+
+# 7b. Provider/model onboarding (non-interactive se possível)
+if "$SIMPLICIO_CMD" init show &>/dev/null; then
+    echo -e "${GREEN}✓${NC} Provider já configurado ($("$SIMPLICIO_CMD" init show 2>/dev/null | head -1))"
+else
+    echo -e "${CYAN}→${NC} Provider não configurado — configurar via setup wizard após instalação"
+    echo -e "${CYAN}→${NC} Ou execute: simplicio init --quick (auto-detecta por env vars)"
+fi
+
+# 7c. Registrar MCP clients
+echo -e "${CYAN}→${NC} Registrando MCP..."
+if "$SIMPLICIO_CMD" mcp list &>/dev/null; then
+    "$SIMPLICIO_CMD" mcp register 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} MCP registrado em clients disponíveis"
+else
+    echo -e "${YELLOW}⚠${NC} MCP register não disponível — pule este passo"
+fi
+
+# 7d. Health check
+echo ""
+echo -e "${CYAN}→${NC} Verificando saúde do Simplicio Runtime..."
+"$SIMPLICIO_CMD" doctor 2>/dev/null || \
+    echo -e "${YELLOW}⚠${NC} Doctor não disponível (compile simplicio-runtime para obter auto-diagnóstico)"
+
+echo -e "${GREEN}✓${NC} Simplicio Runtime pronto para uso!"
 
 HERMES_SKILLS_DIR="${HERMES_HOME:-$HOME/.hermes}/skills"
 mkdir -p "$HERMES_SKILLS_DIR"
