@@ -179,13 +179,24 @@ class ContextEngine(ABC):
         """Handle a tool call from the agent.
 
         Only called for tool names returned by get_tool_schemas().
-        Must return a JSON string.
+        Must return a string suitable for a tool-result message. Structured
+        payloads are encoded with TOON (see ``agent.toon_codec``) for token
+        economy — it's a drop-in for ``json.dumps`` here, ~lossless, and
+        cheaper for an LLM to read. The codec itself falls back to compact
+        JSON for shapes it can't compress (non-uniform/empty arrays); this
+        method keeps an extra ``json.dumps`` safety net in case TOON
+        encoding raises for an unexpected value type.
 
         kwargs may include:
           messages: the current in-memory message list (for live ingestion)
         """
-        import json
-        return json.dumps({"error": f"Unknown context engine tool: {name}"})
+        payload = {"error": f"Unknown context engine tool: {name}"}
+        try:
+            from agent.toon_codec import to_toon
+            return to_toon(payload)
+        except Exception:
+            import json
+            return json.dumps(payload)
 
     # -- Optional: status / display ----------------------------------------
 
