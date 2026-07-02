@@ -176,13 +176,29 @@ def convert_to_trajectory_format(agent, messages: List[Dict[str, Any]], user_que
                     # Format tool response with XML tags
                     tool_response = "<tool_response>\n"
                     
-                    # Try to parse tool content as JSON if it looks like JSON
+                    # Try to parse tool content as JSON if it looks like JSON,
+                    # or as TOON if this session had context.toon_prompts on
+                    # (see agent/toon_boundary.py) — TOON-encoded structured
+                    # results don't start with `{`/`[`, so they need their own
+                    # branch rather than falling into the JSON check above.
+                    # Gated on the session flag (not attempted unconditionally)
+                    # so a plain-text tool result — e.g. "Error: timeout",
+                    # which *would* parse as a spurious TOON {"Error": ...}
+                    # dict — never gets misclassified for the (default,
+                    # flag-off) common case.
                     tool_content = tool_msg["content"]
                     try:
                         if tool_content.strip().startswith(("{", "[")):
                             tool_content = json.loads(tool_content)
+                        elif getattr(agent, "_toon_prompts_enabled", False):
+                            from agent.toon_codec import from_toon
+                            _decoded = from_toon(tool_content)
+                            if isinstance(_decoded, (dict, list)):
+                                tool_content = _decoded
                     except (json.JSONDecodeError, AttributeError):
                         pass  # Keep as string if not valid JSON
+                    except Exception:
+                        pass  # Keep as string if not valid TOON either
                     
                     tool_index = len(tool_responses)
                     tool_name = (

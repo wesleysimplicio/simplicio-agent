@@ -99,3 +99,40 @@ class TestCodingContextBlock:
         monkeypatch.setenv("TERMINAL_CWD", str(tmp_path))
         agent = _make_agent(valid_tool_names=[], platform="cli")
         assert "coding agent" not in _stable_prompt(agent)
+
+
+class TestToonPromptsHint:
+    """The TOON format hint (issue #16) is gated by the pinned per-session
+    flag and, like every other stable-tier block, only present when tools
+    are actually loaded."""
+
+    # NOTE: assert on the full hint heading, not a bare "TOON" substring —
+    # this test suite runs inside the real hermes-agent git checkout, and
+    # some other stable-tier block (recent commits) can legitimately
+    # contain the word "TOON" (e.g. this very feature's own commit
+    # message) independent of whether the hint itself fired.
+    _HINT_MARKER = "## Structured tool results (TOON)"
+
+    def test_absent_by_default(self, monkeypatch):
+        monkeypatch.delenv("TERMINAL_CWD", raising=False)
+        agent = _make_agent(valid_tool_names=["read_file"], _toon_prompts_enabled=False)
+        assert self._HINT_MARKER not in _stable_prompt(agent)
+
+    def test_absent_when_flag_missing_entirely(self, monkeypatch):
+        # No _toon_prompts_enabled attribute at all (a code path that
+        # bypasses agent_init) must default to absent, never raise.
+        monkeypatch.delenv("TERMINAL_CWD", raising=False)
+        agent = _make_agent(valid_tool_names=["read_file"])
+        assert self._HINT_MARKER not in _stable_prompt(agent)
+
+    def test_present_when_flag_pinned_true(self, monkeypatch):
+        monkeypatch.delenv("TERMINAL_CWD", raising=False)
+        agent = _make_agent(valid_tool_names=["read_file"], _toon_prompts_enabled=True)
+        stable = _stable_prompt(agent)
+        assert self._HINT_MARKER in stable
+        assert "Token-Oriented Object Notation" in stable
+
+    def test_absent_without_tools_even_if_flag_true(self, monkeypatch):
+        monkeypatch.delenv("TERMINAL_CWD", raising=False)
+        agent = _make_agent(valid_tool_names=[], _toon_prompts_enabled=True)
+        assert self._HINT_MARKER not in _stable_prompt(agent)

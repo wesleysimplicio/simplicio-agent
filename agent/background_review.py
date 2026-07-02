@@ -445,10 +445,14 @@ def summarize_background_review_actions(
                 continue
         if tcid and all_tool_call_ids and tcid not in call_details:
             continue
-        try:
-            data = json.loads(msg.get("content", "{}"))
-        except (json.JSONDecodeError, TypeError):
-            continue
+        # The review agent inherits the parent's pinned context.toon_prompts
+        # flag, so a memory/skill_manage result here may be TOON rather than
+        # JSON (see agent/toon_boundary.py). parse_tool_payload tries JSON
+        # first, then TOON; already scoped to notify_tools results above, so
+        # a non-dict/no-"success" parse is filtered out just like a failed
+        # json.loads used to be.
+        from agent.toon_codec import parse_tool_payload
+        data = parse_tool_payload(msg.get("content", "{}"))
         if not isinstance(data, dict) or not data.get("success"):
             continue
         message = data.get("message", "")

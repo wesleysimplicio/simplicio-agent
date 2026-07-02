@@ -99,6 +99,67 @@ class TodoStore:
         """Return a copy of the current list."""
         return [item.copy() for item in self._items]
 
+    # -- Brown-Hilbert addressing (issue #17 P0 #2) -------------------------
+    #
+    # Purely computed from the existing dotted-id convention -- NO schema
+    # change (TODO_SCHEMA below stays byte-identical, so every session's
+    # tool-schema token cost is unaffected). A todo whose id already
+    # encodes its place in the hierarchy (e.g. "0", "0.1", "0.1.0") gets a
+    # canonical `port.port.port` address with the tree root addressed
+    # "R.0"; an id with no dots (including free-form ids like "task-a")
+    # is its own root-level address and participates in zero hierarchy
+    # checks. "Each task carries its path as identity" -- the id IS the
+    # path; `address_of` just prefixes the canonical root marker.
+
+    @staticmethod
+    def address_of(item_id: str) -> str:
+        """Canonical Brown-Hilbert address for a todo id: ``R.<id>``."""
+        return f"R.{item_id}"
+
+    @staticmethod
+    def parent_id_of(item_id: str) -> Optional[str]:
+        """Dotted-parent id for a hierarchical id (``"0.1.2" -> "0.1"``),
+        or ``None`` for a root-level id (no dot)."""
+        if "." not in item_id:
+            return None
+        return item_id.rsplit(".", 1)[0]
+
+    def check_hierarchy_gate(self) -> List[str]:
+        """Watcher-style corrective gate (issue #17 P0 #2, N-Nest-Prime
+        "gate corretivo"): a subtask must respect its parent. Independently
+        recomputed from the current item list on every call -- never
+        trusts a prior "looks fine" state. Two violation classes:
+
+          * orphaned subtask -- its dotted parent id isn't in the list at
+            all (e.g. "0.1.2" exists but "0.1" doesn't).
+          * out-of-order subtask -- it's in_progress/completed while its
+            parent is still pending (the parent hasn't even started).
+
+        Returns a list of human-readable violation strings; an empty list
+        means the hierarchy is consistent. Lists with no dotted ids (the
+        common case -- flat todo lists) always return ``[]``.
+        """
+        by_id = {item["id"]: item for item in self._items}
+        violations: List[str] = []
+        for item in self._items:
+            parent = TodoStore.parent_id_of(item["id"])
+            if parent is None:
+                continue
+            parent_item = by_id.get(parent)
+            if parent_item is None:
+                violations.append(
+                    f"orphaned subtask {TodoStore.address_of(item['id'])!r}: "
+                    f"parent {TodoStore.address_of(parent)!r} not found in the list"
+                )
+                continue
+            if item["status"] in ("in_progress", "completed") and parent_item["status"] == "pending":
+                violations.append(
+                    f"subtask {TodoStore.address_of(item['id'])!r} is "
+                    f"{item['status']!r} but parent {TodoStore.address_of(parent)!r} "
+                    "is still 'pending'"
+                )
+        return violations
+
     def has_items(self) -> bool:
         """Check if there are any items in the list."""
         return bool(self._items)
@@ -231,6 +292,17 @@ def todo_tool(
     completed = sum(1 for i in items if i["status"] == "completed")
     cancelled = sum(1 for i in items if i["status"] == "cancelled")
 
+    # Brown-Hilbert addressing (issue #17 P0 #2) -- computed on every read,
+    # never stored, so it can't drift from the actual item list. Adds
+    # "address" per item (id-derived, "R.<id>") and a corrective-gate
+    # violation list to the summary; both are no-ops (address == "R.<id>",
+    # violations == []) for the common flat-id case, and this only affects
+    # the tool's OWN result payload, not TODO_SCHEMA -- zero added tokens
+    # on the per-API-call schema every session already pays for.
+    for item in items:
+        item["address"] = TodoStore.address_of(item["id"])
+    hierarchy_violations = store.check_hierarchy_gate()
+
     return json.dumps({
         "todos": items,
         "summary": {
@@ -239,6 +311,7 @@ def todo_tool(
             "in_progress": in_progress,
             "completed": completed,
             "cancelled": cancelled,
+            "hierarchy_violations": hierarchy_violations,
         },
     }, ensure_ascii=False)
 

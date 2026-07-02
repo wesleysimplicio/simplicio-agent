@@ -65,3 +65,35 @@ Module-level claims like "2-10x faster JSON" are microbenchmarks of one
 operation, not the agent end-to-end. For an end-to-end comparison (startup,
 streaming latency, prompt-cache overhead, router fast-path savings) see
 `scripts/benchmark_e2e.py` and issue #9.
+
+## TOON token savings (`agent/toon_codec.py`, issue #14/#16)
+
+`scripts/benchmark_e2e.py --skip serde --skip tokens --skip think_scrubber
+--skip prompt_caching --skip router --skip cli_startup` runs the `toon`
+scenario in isolation. It measures three payload shapes actually used at an
+LLM-prompt boundary in this repo (a uniform array of objects, a tool-result
+dict, and a small error payload), token-counting both the `json.dumps`
+baseline and the TOON encoding of the same value.
+
+Numbers below were captured in-repo with `agent.tokens.fast_estimator`'s
+**naive `len(text) // 4` estimator** (`tiktoken` was not installed in the
+environment this was measured in — `has_tiktoken()` returned `False`, and
+the estimator honestly falls back rather than faking a BPE count). Install
+`tiktoken` and re-run for exact BPE-tokenizer numbers; the naive estimator
+tracks character-count reduction, which is what TOON actually removes, so
+the *relative* savings are representative even though the absolute counts
+would shift with a real tokenizer.
+
+| Payload | JSON tokens (naive) | TOON tokens (naive) | Saved |
+|---|---:|---:|---:|
+| `uniform_array_20_users` (20-row array of `{id,name,active,role}`) | 320 | 125 | 60.9% |
+| `tool_result_files_modified` (`write_file`-shaped, 15-item list) | 81 | 69 | 14.8% |
+| `context_engine_error` (small single-key error dict) | 12 | 11 | 8.3% |
+
+Reproduce: `source .venv/bin/activate && python3 scripts/benchmark_e2e.py --skip serde --skip tokens --skip think_scrubber --skip prompt_caching --skip router --skip cli_startup --iterations 2000`.
+The pattern holds across shapes: TOON's win is concentrated in **uniform
+arrays of objects** (the table-collapse case) — a small single-key error
+dict barely benefits (as documented in `agent/toon_codec.py`'s own module
+docstring), which is exactly why `to_toon_or_json` exists as a safe
+default everywhere rather than something callers have to reason about
+per-payload.

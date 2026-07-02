@@ -55,6 +55,7 @@ from tools.tool_result_storage import (
     enforce_turn_budget,
 )
 from tools.budget_config import BudgetConfig, DEFAULT_BUDGET, budget_for_context_window
+from agent.toon_boundary import maybe_toon_encode_tool_result as _maybe_toon_encode_tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -818,6 +819,16 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
             config=_tool_budget,
         ) if not _is_multimodal_tool_result(function_result) else function_result
 
+        # TOON boundary (issue #16): re-encode a JSON tool result as TOON
+        # before it enters the model's context, gated by the session-pinned
+        # context.toon_prompts flag. No-op unless the flag is on for this
+        # session. Runs after persistence (so an oversized-result preview
+        # never gets re-parsed as JSON) and before subdir_hints (so the hint
+        # text lands after whichever encoding was used, same as before).
+        function_result = _maybe_toon_encode_tool_result(
+            agent, name, function_result, session_id=getattr(agent, "session_id", "unknown"),
+        )
+
         subdir_hints = agent._subdirectory_hints.check_tool_call(name, args)
         if subdir_hints:
             if _is_multimodal_tool_result(function_result):
@@ -1473,6 +1484,12 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
             env=get_active_env(effective_task_id),
             config=_tool_budget,
         ) if not _is_multimodal_tool_result(function_result) else function_result
+
+        # TOON boundary (issue #16) — see the sequential path above for the
+        # full rationale. Same placement: after persistence, before hints.
+        function_result = _maybe_toon_encode_tool_result(
+            agent, function_name, function_result, session_id=getattr(agent, "session_id", "unknown"),
+        )
 
         # Discover subdirectory context files from tool arguments
         subdir_hints = agent._subdirectory_hints.check_tool_call(function_name, function_args)

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -93,5 +96,116 @@ def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> Option
     return {"action": "block", "message": _block_message(tool_name, repo)}
 
 
+# ---------------------------------------------------------------------------
+# Watcher PID pattern (Asolaria N-Nest-Prime, issue #17 P0 #1)
+#
+# `_on_pre_tool_call` above forces every write inside a managed repo through
+# the terminal (`simplicio edit` / `simplicio dev-cli`), which means the
+# native `_turn_file_mutation_paths` verifier (run_agent.py) never sees
+# these edits at all -- it only tracks the native write_file/patch tools
+# this very plugin blocks. So the "did the edit actually land" check needs
+# its own, independent watcher here, at the one place that reliably sees
+# every terminal command AND its real output: `transform_terminal_output`.
+#
+# The watcher is a genuinely separate recompute, not a reminder for the
+# same agent to redo its own check: it runs `simplicio validate --repo
+# <repo>` itself, via subprocess, and appends the real PASS/FAIL result to
+# the terminal tool's own output -- "child.reported == watcher.recomputed_
+# truth" from N-Nest-Prime, applied to a real deterministic CLI instead of
+# a second LLM call. An unavailable `simplicio` binary is reported
+# honestly (no silent fake pass), matching AGENTS.md "no silent fake data".
+# ---------------------------------------------------------------------------
+
+_EDIT_CMD_RE = re.compile(r"(?<![\w-])simplicio\s+(?:edit|dev-cli)\b")
+_VALIDATE_CMD_RE = re.compile(r"(?<![\w-])simplicio\s+validate\b")
+_REPO_FLAG_RE = re.compile(r"--repo[=\s]+(\S+)")
+
+# Bound the watcher's own subprocess -- it must never hang the terminal
+# tool call it's piggybacking on.
+_WATCHER_VALIDATE_TIMEOUT_S = 120
+_WATCHER_OUTPUT_TAIL_CHARS = 800
+
+
+def _strip_quotes(raw: str) -> str:
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in ("'", '"'):
+        return raw[1:-1]
+    return raw
+
+
+def _repo_from_command(command: str) -> Optional[Path]:
+    """Resolve the target repo for a `simplicio edit`/`dev-cli` invocation.
+
+    Prefers an explicit `--repo <path>` flag on the command line; falls
+    back to the process cwd (the common case: the model already `cd`'d
+    into the managed repo before running `simplicio edit`).
+    """
+    m = _REPO_FLAG_RE.search(command or "")
+    if m:
+        raw = _strip_quotes(m.group(1).strip())
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            p = (Path.cwd() / p).resolve(strict=False)
+        else:
+            p = p.resolve(strict=False)
+        return _repo_for_path(p) or (p if p.name in _MANAGED_REPO_NAMES else None)
+    return _repo_for_path(Path.cwd())
+
+
+def _run_watcher_validate(repo: Path) -> str:
+    """Independently recompute: run `simplicio validate --repo <repo>`.
+
+    Never fakes a pass. An unavailable binary or a subprocess error
+    surfaces as an explicit, honest watcher note instead of silence.
+    """
+    binary = shutil.which("simplicio")
+    if not binary:
+        return (
+            "[watcher] simplicio binary not found on PATH -- could NOT "
+            "independently verify this edit. Run `simplicio validate "
+            f"--repo {repo}` manually before considering it done."
+        )
+    try:
+        proc = subprocess.run(
+            [binary, "validate", "--repo", str(repo)],
+            capture_output=True,
+            text=True,
+            timeout=_WATCHER_VALIDATE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            f"[watcher] simplicio validate --repo {repo} timed out after "
+            f"{_WATCHER_VALIDATE_TIMEOUT_S}s -- could NOT independently verify "
+            "this edit."
+        )
+    except Exception as exc:  # noqa: BLE001 - watcher must never raise into the terminal tool
+        return f"[watcher] simplicio validate --repo {repo} failed to run: {exc}"
+
+    status = "PASS" if proc.returncode == 0 else "FAIL"
+    tail = (proc.stdout or "") + (proc.stderr or "")
+    tail = tail.strip()[-_WATCHER_OUTPUT_TAIL_CHARS:]
+    return (
+        f"[watcher] independent verification: `simplicio validate --repo {repo}` "
+        f"-> {status} (exit {proc.returncode})\n{tail}"
+    ).rstrip()
+
+
+def _on_transform_terminal_output(
+    command: str = "", output: str = "", returncode: int = 0, **_: Any
+) -> Optional[str]:
+    if _plugin_disabled() or not isinstance(command, str):
+        return None
+    if _VALIDATE_CMD_RE.search(command):
+        # This IS the validate call -- never recurse into re-validating it.
+        return None
+    if not _EDIT_CMD_RE.search(command):
+        return None
+    repo = _repo_from_command(command)
+    if repo is None:
+        return None
+    watcher_note = _run_watcher_validate(repo)
+    return f"{output}\n\n{watcher_note}"
+
+
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
+    ctx.register_hook("transform_terminal_output", _on_transform_terminal_output)

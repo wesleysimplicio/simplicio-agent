@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 
@@ -10,13 +9,17 @@ FILE_MUTATING_TOOL_NAMES = frozenset({"write_file", "patch"})
 
 
 def file_mutation_result_landed(tool_name: str, result: Any) -> bool:
-    """Return True when a file mutation result proves the write landed."""
+    """Return True when a file mutation result proves the write landed.
+
+    ``result`` may be JSON or TOON — when ``context.toon_prompts`` is on
+    for a session (see agent/toon_boundary.py), a tool result already sitting
+    in message history was re-encoded as TOON before this function ever sees
+    it. ``parse_tool_payload`` tries JSON first, then TOON.
+    """
     if tool_name not in FILE_MUTATING_TOOL_NAMES or not isinstance(result, str):
         return False
-    try:
-        data = json.loads(result.strip())
-    except Exception:
-        return False
+    from agent.toon_codec import parse_tool_payload
+    data = parse_tool_payload(result)
     if not isinstance(data, dict) or data.get("error"):
         return False
     if tool_name == "write_file":

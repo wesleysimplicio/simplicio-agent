@@ -2038,6 +2038,20 @@ DEFAULT_CONFIG = {
     # a plugin in plugins/context_engine/<name>/ or ~/.hermes/plugins/.
     "context": {
         "engine": "compressor",
+        # TOON-encode structured (dict/list) tool results before they enter
+        # the model's context, instead of raw json.dumps (issue #14/#16;
+        # see agent/toon_codec.py + agent/toon_boundary.py). Read ONCE at
+        # session start and pinned for the whole conversation — never
+        # toggled mid-session, since that would change previously-cached
+        # message bytes and blow the upstream prompt cache. Default off
+        # (rollback-safe); flip to true to opt in.
+        "toon_prompts": False,
+        # Extra tool names exempt from TOON re-encoding at the
+        # tool_executor boundary, layered on top of the built-in default
+        # (agent.toon_boundary.TOON_EXEMPT_TOOLS). Use this for a
+        # deployment-specific tool whose contract needs the model to see
+        # byte-identical JSON.
+        "toon_exempt_tools": [],
     },
 
     # Persistent memory -- bounded curated memory injected into system prompt

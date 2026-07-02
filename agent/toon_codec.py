@@ -50,7 +50,13 @@ from typing import Any, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["to_toon", "from_toon", "ToonDecodeError"]
+__all__ = [
+    "to_toon",
+    "from_toon",
+    "to_toon_or_json",
+    "parse_tool_payload",
+    "ToonDecodeError",
+]
 
 
 class ToonDecodeError(ValueError):
@@ -434,3 +440,57 @@ def _parse_scalar(token: str) -> Any:
         return float(token)
     except ValueError:
         return token
+
+
+# ---------------------------------------------------------------------------
+# Convenience wrappers shared by every call site that embeds structured data
+# in an LLM prompt/tool-result (issue #14/#16) — a single place to fall back
+# safely and to reverse the process for code that re-parses a *historical*
+# tool message.
+# ---------------------------------------------------------------------------
+
+
+def to_toon_or_json(value: Any) -> str:
+    """Encode ``value`` as TOON; fall back to compact JSON if that raises.
+
+    Drop-in replacement for ``json.dumps(value, ...)`` at any prompt/tool
+    payload site. ``to_toon`` already falls back to compact JSON *per value*
+    for shapes it can't compress (non-uniform arrays, etc.) — this wrapper
+    is the outer safety net for anything ``to_toon`` itself can't handle
+    (e.g. an unexpected scalar type), so a payload site never raises just
+    because it switched encoders.
+    """
+    try:
+        return to_toon(value)
+    except Exception:
+        logger.debug("to_toon_or_json: to_toon raised, falling back to json.dumps", exc_info=True)
+        return _compact_json(value)
+
+
+def parse_tool_payload(text: Any) -> Any:
+    """Best-effort structured parse of a tool-result string: JSON then TOON.
+
+    Code that re-parses a *historical* tool message's content (e.g.
+    ``agent.tool_result_classification``, the trajectory converter in
+    ``agent.agent_runtime_helpers``, ``agent.background_review``) cannot
+    assume the string is JSON any more — when ``context.toon_prompts`` was
+    on for that session, ``agent.toon_boundary`` re-encoded it as TOON
+    before it was appended to the message history. This tries JSON first
+    (cheap, and still the common case), then TOON, and returns ``None`` if
+    neither parse succeeds — the same "give up" signal a bare
+    ``json.loads`` raising would have produced for callers that already
+    guard with ``isinstance(data, dict)``.
+    """
+    if not isinstance(text, str):
+        return None
+    stripped = text.strip()
+    if not stripped:
+        return None
+    try:
+        return json.loads(stripped)
+    except (ValueError, TypeError):
+        pass
+    try:
+        return from_toon(stripped)
+    except Exception:
+        return None
