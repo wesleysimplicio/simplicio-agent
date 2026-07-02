@@ -39,6 +39,7 @@ from agent.prompt_builder import (
     SKILLS_GUIDANCE,
     STEER_CHANNEL_NOTE,
     TASK_COMPLETION_GUIDANCE,
+    TOON_PROMPTS_HINT,
     TOOL_USE_ENFORCEMENT_GUIDANCE,
     TOOL_USE_ENFORCEMENT_MODELS,
     drain_truncation_warnings,
@@ -239,6 +240,13 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # agent has tools. Static text → byte-stable prompt (no cache hit).
     if agent.valid_tool_names:
         stable_parts.append(STEER_CHANNEL_NOTE)
+
+    # TOON hint — gated by the flag pinned once at construction
+    # (agent._toon_prompts_enabled, see agent/agent_init.py). The flag
+    # itself never changes mid-session, so whether this block is present
+    # is decided once and stays byte-stable for the life of the prompt.
+    if agent.valid_tool_names and getattr(agent, "_toon_prompts_enabled", False):
+        stable_parts.append(TOON_PROMPTS_HINT)
 
     # Computer-use — goes in as its own block rather than being merged into
     # tool_guidance because the content is multi-paragraph. The guidance is

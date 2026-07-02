@@ -9254,6 +9254,22 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         print(f"  Messages:         {msg_count}")
         print(f"  Compressions:     {compressions}")
 
+        # TOON savings (issue #16) — only shown when this session had
+        # context.toon_prompts on AND actually produced ledger events;
+        # silent otherwise (most sessions won't have the flag on).
+        if getattr(agent, "_toon_prompts_enabled", False):
+            try:
+                from agent.telemetry.token_savings import iter_records
+                _session_id = getattr(agent, "session_id", None)
+                _records = [r for r in iter_records() if r.get("session") == _session_id]
+                if _records:
+                    _raw = sum(int(r.get("raw_tokens", 0)) for r in _records)
+                    _saved = sum(int(r.get("saved_tokens", 0)) for r in _records)
+                    _pct = round(100.0 * _saved / _raw, 1) if _raw else 0.0
+                    print(f"  TOON savings:     {_saved:,} / {_raw:,} tokens ({_pct}%) across {len(_records)} tool result(s)")
+            except Exception:
+                pass
+
         # Account limits -- fetched off-thread with a hard timeout so slow
         # provider APIs don't hang the prompt.
         provider = getattr(agent, "provider", None) or getattr(self, "provider", None)

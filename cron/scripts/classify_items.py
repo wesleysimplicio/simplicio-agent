@@ -90,18 +90,51 @@ _CLASSIFY_INSTRUCTIONS = (
 )
 
 
-def _build_prompt(items: List[Dict[str, Any]], criteria: str) -> str:
+# Cap on each scalar field's length within a single item's view. Bounds the
+# whole ITEMS block regardless of encoding (mirrors the old per-item [:1200]
+# json.dumps cap, now applied per-field since a TOON table interleaves every
+# item's fields into shared rows instead of one blob per item).
+_MAX_FIELD_CHARS = 400
+
+
+def _item_view(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Compact, size-bounded view of one item -- the fields the model sees."""
+    view = {
+        k: item[k]
+        for k in ("title", "subject", "summary", "text", "body", "from", "sender", "url")
+        if k in item
+    }
+    if not view:
+        view = dict(item)  # fall back to the whole object
+    bounded: Dict[str, Any] = {}
+    for k, v in view.items():
+        if isinstance(v, str) and len(v) > _MAX_FIELD_CHARS:
+            v = v[:_MAX_FIELD_CHARS] + "…"
+        bounded[k] = v
+    return bounded
+
+
+def _build_prompt(items: List[Dict[str, Any]], criteria: str, *, legacy_json_items: bool = False) -> str:
+    """Build the classifier prompt.
+
+    Items are TOON-encoded as a single table (one header + one row per item,
+    in order -- the array-of-uniform-objects case TOON is built for), instead
+    of one json.dumps line per item. The classifier's response references
+    items by list *position* (``index``), which the row order preserves
+    regardless of encoding, so no downstream change is needed in
+    ``_parse_scores``. ``--legacy-json-items`` restores the pre-TOON, one
+    json.dumps line per item behavior for rollback/comparison.
+    """
     lines = [f"USER IMPORTANCE CRITERIA:\n{criteria}\n", "ITEMS:"]
-    for i, item in enumerate(items):
-        # Show a compact view; the model sees the salient fields.
-        view = {
-            k: item[k]
-            for k in ("title", "subject", "summary", "text", "body", "from", "sender", "url")
-            if k in item
-        }
-        if not view:
-            view = item  # fall back to the whole object
-        lines.append(f"[{i}] {json.dumps(view, ensure_ascii=False)[:1200]}")
+    views = [_item_view(item) for item in items]
+
+    if legacy_json_items:
+        for i, view in enumerate(views):
+            lines.append(f"[{i}] {json.dumps(view, ensure_ascii=False)[:1200]}")
+    else:
+        from agent.toon_codec import to_toon_or_json
+        lines.append(to_toon_or_json(views))
+
     lines.append(
         "\nReturn the JSON array of scores now (one object per item, same order)."
     )
@@ -147,6 +180,11 @@ def main() -> int:
     parser.add_argument("--threshold", type=int, default=7, help="Minimum score (0-10) to surface. Default 7.")
     parser.add_argument("--input-file", default=None, help="Read items JSON from this file instead of stdin.")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format for surfaced items.")
+    parser.add_argument(
+        "--legacy-json-items", action="store_true",
+        help="Rollback flag: build the ITEMS block with one json.dumps line per "
+             "item (pre-TOON behavior) instead of a single TOON table.",
+    )
     args = parser.parse_args()
 
     items = _load_items(args.input_file)
@@ -161,7 +199,7 @@ def main() -> int:
         _eprint(f"classify_items: cannot import auxiliary client: {e}")
         return 3
 
-    prompt = _build_prompt(items, args.criteria)
+    prompt = _build_prompt(items, args.criteria, legacy_json_items=args.legacy_json_items)
     try:
         resp = call_llm(
             task="monitor",

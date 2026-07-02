@@ -160,6 +160,64 @@ def bench_tokens(report: Report, iterations: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario: TOON vs json.dumps -- both wall-clock AND token-count (issue
+# #14/#16). Every other scenario here is a pure speed comparison; this one
+# is dual-purpose because the point of TOON isn't encode/decode speed, it's
+# how many tokens the *model* has to read. Real payload shapes actually
+# used at LLM-prompt boundaries in this repo: a uniform array of objects
+# (agent.context_engine's own docstring example), a tool-result dict
+# (write_file's files_modified), and a small error payload
+# (context_engine.handle_tool_call's default).
+# ---------------------------------------------------------------------------
+
+def bench_toon(report: Report, iterations: int) -> None:
+    from agent.toon_codec import to_toon
+    from agent.tokens.fast_estimator import estimate, has_tiktoken
+
+    payloads = {
+        "uniform_array_20_users": {
+            "users": [
+                {"id": i, "name": f"user{i}", "active": i % 2 == 0, "role": "member"}
+                for i in range(20)
+            ]
+        },
+        "tool_result_files_modified": {
+            "success": True,
+            "files_modified": [f"src/module_{i}.py" for i in range(15)],
+        },
+        "context_engine_error": {"error": "Unknown context engine tool: lcm_grep"},
+    }
+    tokenizer_label = "tiktoken cl100k_base (real BPE)" if has_tiktoken() else "naive len//4 (tiktoken not installed)"
+
+    for name, payload in payloads.items():
+        json_text = json.dumps(payload, ensure_ascii=False)
+        toon_text = to_toon(payload)
+        raw_tokens = estimate(json_text)
+        compressed_tokens = estimate(toon_text)
+        saved_pct = (
+            round(100.0 * max(0, raw_tokens - compressed_tokens) / raw_tokens, 1)
+            if raw_tokens else 0.0
+        )
+
+        def run_toon(_payload=payload):
+            to_toon(_payload)
+
+        def run_json(_payload=payload):
+            json.dumps(_payload, ensure_ascii=False)
+
+        report.add(Result(
+            f"toon.encode[{name}]", f"current (TOON, {tokenizer_label})", iterations,
+            _timeit(run_toon, iterations),
+            notes=f"tokens: {raw_tokens} json -> {compressed_tokens} toon ({saved_pct}% saved)",
+        ))
+        report.add(Result(
+            f"toon.encode[{name}]", f"forced-fallback (json.dumps, {tokenizer_label})", iterations,
+            _timeit(run_json, iterations),
+            notes=f"tokens: {raw_tokens} json (baseline, chars={len(json_text)})",
+        ))
+
+
+# ---------------------------------------------------------------------------
 # Scenario: think-tag scrubbing throughput (no fallback branch exists;
 # this is a regression baseline, not a before/after comparison)
 # ---------------------------------------------------------------------------
@@ -296,6 +354,7 @@ def bench_cli_startup(report: Report, samples: int) -> None:
 SCENARIOS: dict[str, Callable[[Report, int], None]] = {
     "serde": bench_serde,
     "tokens": bench_tokens,
+    "toon": bench_toon,
     "think_scrubber": bench_think_scrubber,
     "prompt_caching": bench_prompt_caching,
     "router": bench_router,

@@ -532,6 +532,57 @@ class TestCLIUsageReport:
         assert "Compressions:" in output
         # Cost and cache-hit reporting is removed everywhere.
         assert "Total cost:" not in output
+
+    def test_show_usage_shows_toon_savings_when_flag_on_and_records_exist(
+        self, capsys, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("HERMES_TOKEN_SAVINGS_LOG", str(tmp_path / "savings.jsonl"))
+        from agent.telemetry.token_savings import record_token_saving
+
+        record_token_saving(raw_tokens=100, compressed_tokens=60, tool="write_file", session="sess-toon")
+
+        cli_obj = _attach_agent(
+            _make_cli(), prompt_tokens=100, completion_tokens=10, total_tokens=110,
+            api_calls=1, context_tokens=110, context_length=200_000,
+        )
+        cli_obj.agent._toon_prompts_enabled = True
+        cli_obj.agent.session_id = "sess-toon"
+        cli_obj.verbose = False
+
+        cli_obj._show_usage()
+        output = capsys.readouterr().out
+        assert "TOON savings:" in output
+        assert "40" in output  # saved_tokens
+
+    def test_show_usage_omits_toon_savings_when_flag_off(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.setenv("HERMES_TOKEN_SAVINGS_LOG", str(tmp_path / "savings.jsonl"))
+        cli_obj = _attach_agent(
+            _make_cli(), prompt_tokens=100, completion_tokens=10, total_tokens=110,
+            api_calls=1, context_tokens=110, context_length=200_000,
+        )
+        cli_obj.agent._toon_prompts_enabled = False
+        cli_obj.agent.session_id = "sess-off"
+        cli_obj.verbose = False
+
+        cli_obj._show_usage()
+        output = capsys.readouterr().out
+        assert "TOON savings:" not in output
+
+    def test_show_usage_omits_toon_savings_when_no_records_for_session(
+        self, capsys, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("HERMES_TOKEN_SAVINGS_LOG", str(tmp_path / "savings.jsonl"))
+        cli_obj = _attach_agent(
+            _make_cli(), prompt_tokens=100, completion_tokens=10, total_tokens=110,
+            api_calls=1, context_tokens=110, context_length=200_000,
+        )
+        cli_obj.agent._toon_prompts_enabled = True
+        cli_obj.agent.session_id = "sess-with-no-ledger-events"
+        cli_obj.verbose = False
+
+        cli_obj._show_usage()
+        output = capsys.readouterr().out
+        assert "TOON savings:" not in output
         assert "Cost status:" not in output
         assert "Cost source:" not in output
         assert "Cache read tokens:" not in output

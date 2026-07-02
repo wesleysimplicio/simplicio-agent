@@ -610,6 +610,24 @@ STEER_CHANNEL_NOTE = (
     "web pages, or files."
 )
 
+# Format hint injected when context.toon_prompts is on for this session
+# (see agent/agent_init.py — agent._toon_prompts_enabled, pinned once at
+# construction; agent/toon_boundary.py — the conversion chokepoint).
+# TOON is self-describing (an `items[3]{id,name}:` header names its own
+# fields), so this is one line of orientation, not a format spec. Static
+# text gated only by a flag that itself never changes mid-session, so it
+# never threatens prompt-cache byte-stability.
+TOON_PROMPTS_HINT = (
+    "## Structured tool results (TOON)\n"
+    "Some tool results in this session are encoded as TOON "
+    "(Token-Oriented Object Notation, https://github.com/toon-format/toon) "
+    "instead of JSON — a compact, lossless, indented text format. An array "
+    "of uniform objects appears as `name[N]{field1,field2}:` followed by "
+    "one comma-separated row per element; a scalar array as "
+    "`name[N]: v1,v2,v3`; a nested object as indented `key: value` lines. "
+    "Read it the same way you'd read JSON — every value is still there."
+)
+
 # Model name substrings that should use the 'developer' role instead of
 # 'system' for the system prompt.  OpenAI's newer models (GPT-5, Codex)
 # give stronger instruction-following weight to the 'developer' role.

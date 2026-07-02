@@ -1579,7 +1579,23 @@ def init_agent(
         _ctx_cfg = _agent_cfg.get("context", {}) if isinstance(_agent_cfg, dict) else {}
         _engine_name = _ctx_cfg.get("engine", "compressor") or "compressor"
     except Exception:
-        pass
+        _ctx_cfg = {}
+
+    # TOON prompt encoding (issue #16): read ONCE here, at session start,
+    # and pinned for the life of this AIAgent instance. Never re-read
+    # mid-conversation — toggling the wire format between JSON and TOON
+    # inside a running conversation would change byte-for-byte content the
+    # model has already seen, invalidating the upstream prompt cache (see
+    # AGENTS.md "prompt caching is sacred"). Downstream consumers
+    # (agent/toon_boundary.py, agent/system_prompt.py) read this attribute,
+    # they never re-read config.yaml themselves.
+    try:
+        agent._toon_prompts_enabled = bool(_ctx_cfg.get("toon_prompts", False))
+        _toon_exempt = _ctx_cfg.get("toon_exempt_tools", [])
+        agent._toon_exempt_tools = list(_toon_exempt) if isinstance(_toon_exempt, (list, tuple, set)) else []
+    except Exception:
+        agent._toon_prompts_enabled = False
+        agent._toon_exempt_tools = []
 
     if _engine_name != "compressor":
         # Try loading from plugins/context_engine/<name>/

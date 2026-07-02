@@ -299,6 +299,7 @@ from hermes_cli.subcommands.memory import build_memory_parser
 from hermes_cli.subcommands.acp import build_acp_parser
 from hermes_cli.subcommands.tools import build_tools_parser
 from hermes_cli.subcommands.insights import build_insights_parser
+from hermes_cli.subcommands.report import build_report_parser
 from hermes_cli.subcommands.skills import build_skills_parser
 from hermes_cli.subcommands.pairing import build_pairing_parser
 from hermes_cli.subcommands.plugins import build_plugins_parser
@@ -11958,6 +11959,7 @@ _BUILTIN_SUBCOMMANDS = frozenset(
         "model", "pairing", "pets", "plugins", "portal", "postinstall", "profile",
         "project", "proxy",
         "prompt-size",
+        "report",
         "send", "sessions", "setup",
         "skills", "slack", "status", "tools", "uninstall", "update",
         "version", "webhook", "whatsapp", "whatsapp-cloud", "chat", "secrets", "security",
@@ -12389,6 +12391,33 @@ def cmd_insights(args):
         db.close()
     except Exception as e:
         print(f"Error generating insights: {e}")
+
+
+def cmd_report(args):
+    """``hermes report <name>`` -- currently just ``savings`` (issue #16).
+
+    Forwards to agent.telemetry.savings_report.main(), the module's own
+    argparse-based CLI, so this stays a thin adapter rather than a second
+    copy of the report-building logic.
+    """
+    action = getattr(args, "report_command", None)
+    if action != "savings":
+        print("Usage: hermes report savings [--since 7d] [--json|--markdown] [--out FILE]")
+        return
+    from agent.telemetry.savings_report import main as _savings_main
+
+    argv = ["--since", args.since]
+    if args.log:
+        argv += ["--log", args.log]
+    if args.prices:
+        argv += ["--prices", args.prices]
+    if args.json:
+        argv.append("--json")
+    if args.markdown:
+        argv.append("--markdown")
+    if args.out:
+        argv += ["--out", args.out]
+    sys.exit(_savings_main(argv))
 
 
 def cmd_skills(args):
@@ -13485,6 +13514,11 @@ def main():
     # insights command  (parser built in hermes_cli/subcommands/insights.py)
     # =========================================================================
     build_insights_parser(subparsers, cmd_insights=cmd_insights)
+
+    # =========================================================================
+    # report command  (parser built in hermes_cli/subcommands/report.py)
+    # =========================================================================
+    build_report_parser(subparsers, cmd_report=cmd_report)
 
     # =========================================================================
     # claw command  (parser built in hermes_cli/subcommands/claw.py)
