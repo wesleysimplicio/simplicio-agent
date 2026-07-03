@@ -3149,11 +3149,11 @@ def _run_blank_slate_setup(config: dict, hermes_home, is_existing: bool):
         print()
         print_success("Blank Slate setup complete — minimal agent ready.")
         print_info("Enable anything later, on demand:")
-        print_info("  Enable tools:        hermes tools")
-        print_info("  Seed skills:         hermes skills opt-in --sync")
-        print_info("  Add MCP servers:     hermes mcp add")
-        print_info("  Enable plugins:      hermes plugins")
-        print_info("  Tune agent settings: hermes setup agent")
+        print_info("  Enable tools:        simplicio-agent tools")
+        print_info("  Seed skills:         simplicio-agent skills opt-in --sync")
+        print_info("  Add MCP servers:     simplicio-agent mcp add")
+        print_info("  Enable plugins:      simplicio-agent plugins")
+        print_info("  Tune agent settings: simplicio-agent setup agent")
         print()
         _print_setup_summary(config, hermes_home)
         return
@@ -3185,8 +3185,8 @@ def _blank_slate_walkthrough(config: dict, hermes_home):
         else:
             set_bundled_skills_opt_out(True)
             print_info("No skills seeded. A .no-bundled-skills marker keeps future")
-            print_info("`hermes update` runs from re-injecting them. Opt back in any")
-            print_info("time with `hermes skills opt-in --sync`.")
+            print_info("`simplicio-agent update` runs from re-injecting them. Opt back in any")
+            print_info("time with `simplicio-agent skills opt-in --sync`.")
     except Exception as exc:
         logger.debug("blank-slate skill handling error: %s", exc)
         print_warning(f"Skill setup step encountered an error: {exc}")
@@ -3209,23 +3209,23 @@ def _blank_slate_walkthrough(config: dict, hermes_home):
             logger.debug("blank-slate tools_command error: %s", exc)
             print_warning(f"Tool selector encountered an error: {exc}")
     else:
-        print_info("Keeping the minimal toolset. Add tools later with `hermes tools`.")
+        print_info("Keeping the minimal toolset. Add tools later with `simplicio-agent tools`.")
 
     # ── Built-in plugins (off unless chosen) ──
     print()
     print_header("Plugins")
     if prompt_yes_no("Review and enable built-in plugins now?", default=False):
-        print_info("Manage plugins with `hermes plugins list` / `hermes plugins install`.")
+        print_info("Manage plugins with `simplicio-agent plugins list` / `simplicio-agent plugins install`.")
     else:
-        print_info("No plugins enabled. Add later with `hermes plugins`.")
+        print_info("No plugins enabled. Add later with `simplicio-agent plugins`.")
 
     # ── MCP servers (off unless chosen) ──
     print()
     print_header("MCP Servers")
     if prompt_yes_no("Add an MCP server now?", default=False):
-        print_info("Add servers with `hermes mcp add <name> --url ... | --command ...`.")
+        print_info("Add servers with `simplicio-agent mcp add <name> --url ... | --command ...`.")
     else:
-        print_info("No MCP servers configured. Add later with `hermes mcp add`.")
+        print_info("No MCP servers configured. Add later with `simplicio-agent mcp add`.")
 
     # ── Optional messaging gateway ──
     print()
@@ -3236,10 +3236,10 @@ def _blank_slate_walkthrough(config: dict, hermes_home):
 
     print()
     print_success("Blank Slate setup complete — minimal agent ready.")
-    print_info("  Enable more tools:   hermes tools")
-    print_info("  Seed skills:         hermes skills opt-in --sync")
-    print_info("  Add MCP servers:     hermes mcp add")
-    print_info("  Tune agent settings: hermes setup agent")
+    print_info("  Enable more tools:   simplicio-agent tools")
+    print_info("  Seed skills:         simplicio-agent skills opt-in --sync")
+    print_info("  Add MCP servers:     simplicio-agent mcp add")
+    print_info("  Tune agent settings: simplicio-agent setup agent")
     print()
 
     _print_setup_summary(config, hermes_home)

@@ -8859,7 +8859,7 @@ async def instantiate_blueprint(body: AutomationBlueprintInstantiate, profile: s
 # MCP server endpoints — list / add / remove / test.
 #
 # Wraps the same config data layer the CLI uses (hermes_cli.mcp_config), so
-# servers managed here show up under `hermes mcp list` and vice versa.  Secrets
+# servers managed here show up under `simplicio-agent mcp list` and vice versa.  Secrets
 # in stdio `env` blocks are redacted on read; the agent picks them up from
 # config.yaml at session start exactly as with CLI-added servers.
 # ---------------------------------------------------------------------------
@@ -9046,7 +9046,7 @@ async def list_mcp_catalog(profile: Optional[str] = None):
 
     Each entry reports whether it's already installed and enabled so the UI
     can show install / enabled state inline.  This is the same catalog
-    `hermes mcp catalog` / `hermes mcp install` read.  ``profile`` scopes
+    `simplicio-agent mcp catalog` / `simplicio-agent mcp install` read.  ``profile`` scopes
     the installed/enabled annotations (the catalog itself is repo-shipped
     and identical for every profile).
     """

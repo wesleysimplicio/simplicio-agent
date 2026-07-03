@@ -29,7 +29,7 @@ Configuration in config.yaml::
           client_secret: "secret"               # confidential clients only
           scope: "read write"                   # default: server-provided
           redirect_port: 0                      # 0 = auto-pick free port
-          client_name: "My Custom Client"       # default: "Hermes Agent"
+          client_name: "My Custom Client"       # default: "Simplicio Agent"
 """
 
 import asyncio
@@ -112,7 +112,7 @@ _SKIP_TOKENS = frozenset({"skip", "cancel", "s", "n", "no", "q", "quit"})
 # _wait_for_callback maps this to OAuthNonInteractiveError ("user_skipped")
 # so the MCP setup path treats it as a non-fatal "continue without this
 # server" rather than a hard failure.
-_USER_SKIPPED_SENTINEL = "__hermes_user_skipped__"
+_USER_SKIPPED_SENTINEL = "__simplicio_user_skipped__"
 
 
 # ---------------------------------------------------------------------------
@@ -637,7 +637,7 @@ def _paste_callback_reader(result: dict) -> None:
             return
         result["error"] = _USER_SKIPPED_SENTINEL
         print(
-            "  OAuth skipped. Run `hermes mcp login <server>` later to "
+            "  OAuth skipped. Run `simplicio-agent mcp login <server>` later to "
             "authenticate, or set ``enabled: false`` on that server in "
             "config.yaml to disable persistently.",
             file=sys.stderr,
@@ -736,7 +736,7 @@ def _build_client_metadata(cfg: dict) -> "OAuthClientMetadata":
         raise ValueError(
             "_configure_callback_port() must be called before _build_client_metadata()"
         )
-    client_name = cfg.get("client_name", "Hermes Agent")
+    client_name = cfg.get("client_name", "Simplicio Agent")
     scope = cfg.get("scope")
     redirect_uri = f"http://127.0.0.1:{port}/callback"
 
@@ -822,7 +822,7 @@ def build_oauth_auth(
             "MCP OAuth for "
             f"'{server_name}': non-interactive environment and no cached tokens "
             "found. The OAuth flow requires browser authorization. Run "
-            f"`hermes mcp login {server_name}` interactively first to complete "
+            f"`simplicio-agent mcp login {server_name}` interactively first to complete "
             "initial authorization, then cached tokens will be reused."
         )
 

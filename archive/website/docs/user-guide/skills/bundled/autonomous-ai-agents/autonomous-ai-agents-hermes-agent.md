@@ -149,17 +149,17 @@ hermes skills tap add REPO  Add a GitHub repo as skill source
 ### MCP Servers
 
 ```
-hermes mcp serve            Run Hermes as an MCP server
-hermes mcp add NAME         Add an MCP server (--url or --command)
-hermes mcp remove NAME      Remove an MCP server
-hermes mcp list             List configured servers
-hermes mcp test NAME        Test connection
-hermes mcp configure NAME   Toggle tool selection
+simplicio-agent mcp serve            Run Simplicio Agent as an MCP server
+simplicio-agent mcp add NAME         Add an MCP server (--url or --command)
+simplicio-agent mcp remove NAME      Remove an MCP server
+simplicio-agent mcp list             List configured servers
+simplicio-agent mcp test NAME        Test connection
+simplicio-agent mcp configure NAME   Toggle tool selection
 ```
 
 How the built-in MCP client connects servers (stdio/HTTP), auto-discovers
 their tools, and exposes them as first-class tools, plus catalog install
-(`hermes mcp install <name>`): `skill_view(name="hermes-agent", file_path="references/native-mcp.md")`.
+(`simplicio-agent mcp install <name>`): `skill_view(name="hermes-agent", file_path="references/native-mcp.md")`.
 
 ### Gateway (Messaging Platforms)
 
@@ -900,7 +900,7 @@ multi-source resolution chain (highest priority first):
 | Skills catalog | `hermes skills browse` or [Skills catalog](https://hermes-agent.nousresearch.com/docs/reference/skills-catalog) |
 | Provider setup | `hermes model` or [Providers guide](https://hermes-agent.nousresearch.com/docs/integrations/providers) |
 | Platform setup | `hermes gateway setup` or [Messaging docs](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) |
-| MCP servers | `hermes mcp list` or [MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
+| MCP servers | `simplicio-agent mcp list` or [MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
 | Profiles | `hermes profile list` or [Profiles docs](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) |
 | Cron jobs | `hermes cron list` or [Cron docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) |
 | Memory | `hermes memory status` or [Memory docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) |

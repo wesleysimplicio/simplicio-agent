@@ -300,7 +300,7 @@ Browse, search, and toggle installed skills and toolsets, and install new ones f
 ### MCP
 
 Manage [MCP](/integrations/mcp) servers without the CLI. The same `mcp_servers`
-block in `config.yaml` that `hermes mcp` reads from.
+block in `config.yaml` that `simplicio-agent mcp` reads from.
 
 **Your MCP servers:**
 
@@ -313,7 +313,7 @@ block in `config.yaml` that `hermes mcp` reads from.
 **Catalog:** browse the Nous-approved MCP servers (the bundled `optional-mcps/`
 catalog) and install any of them with one click. Entries that need API keys
 prompt for them inline; the values go to `.env`. This is the same catalog
-`hermes mcp catalog` / `hermes mcp install` use.
+`simplicio-agent mcp catalog` / `simplicio-agent mcp install` use.
 
 ![MCP admin page — your servers with enable/disable toggles, plus the install catalog](/img/dashboard/admin-mcp.png)
 

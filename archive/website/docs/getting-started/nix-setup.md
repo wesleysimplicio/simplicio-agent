@@ -498,11 +498,11 @@ The first OAuth authorization requires a browser-based consent flow. In a headle
 ```bash
 # Container mode
 docker exec -it hermes-agent \
-  hermes mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
+  simplicio-agent mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
 
 # Native mode
 sudo -u hermes HERMES_HOME=/var/lib/hermes/.hermes \
-  hermes mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
+  simplicio-agent mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
 ```
 
 The container uses `--network=host`, so the OAuth callback listener on `127.0.0.1` is reachable from the host browser.
@@ -510,7 +510,7 @@ The container uses `--network=host`, so the OAuth callback listener on `127.0.0.
 **Option B: Pre-seed tokens** — complete the flow on a workstation, then copy tokens:
 
 ```bash
-hermes mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
+simplicio-agent mcp add my-oauth-server --url https://mcp.example.com/mcp --auth oauth
 scp ~/.hermes/mcp-tokens/my-oauth-server{,.client}.json \
     server:/var/lib/hermes/.hermes/mcp-tokens/
 # Ensure: chown hermes:hermes, chmod 0600

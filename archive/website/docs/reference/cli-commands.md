@@ -75,7 +75,7 @@ hermes [global-options] <command> [subcommand/options]
 | `hermes curator` | Background skill maintenance — status, run, pause, pin. See [Curator](../user-guide/features/curator.md). |
 | `hermes memory` | Configure external memory provider. Plugin-specific subcommands (e.g. `hermes honcho`) register automatically when their provider is active. |
 | `hermes acp` | Run Hermes as an ACP server for editor integration. |
-| `hermes mcp` | Manage MCP server configurations and run Hermes as an MCP server. |
+| `simplicio-agent mcp` | Manage MCP server configurations and run Simplicio Agent as an MCP server. |
 | `hermes plugins` | Manage Hermes Agent plugins (install, enable, disable, remove). |
 | `hermes portal` | Nous Portal status, subscription link, and Tool Gateway routing. See [Tool Gateway](../user-guide/features/tool-gateway.md). |
 | `hermes tools` | Configure enabled tools per platform. |
@@ -1236,20 +1236,20 @@ cd ~/.hermes/hermes-agent && uv pip install -e '.[acp]'
 
 See [ACP Editor Integration](../user-guide/features/acp.md) and [ACP Internals](../developer-guide/acp-internals.md).
 
-## `hermes mcp`
+## `simplicio-agent mcp`
 
 ```bash
-hermes mcp <subcommand>
+simplicio-agent mcp <subcommand>
 ```
 
-Manage MCP (Model Context Protocol) server configurations and run Hermes as an MCP server.
+Manage MCP (Model Context Protocol) server configurations and run Simplicio Agent as an MCP server.
 
 | Subcommand | Description |
 |------------|-------------|
 | *(none)* or `picker` | Interactive catalog picker — browse Nous-approved MCPs and install/enable/disable. |
 | `catalog` | List Nous-approved MCPs (plain text, scriptable). |
-| `install <name>` | Install a catalog entry (e.g. `hermes mcp install n8n`). |
-| `serve [-v\|--verbose]` | Run Hermes as an MCP server — expose conversations to other agents. |
+| `install <name>` | Install a catalog entry (e.g. `simplicio-agent mcp install n8n`). |
+| `serve [-v\|--verbose]` | Run Simplicio Agent as an MCP server — expose conversations to other agents. |
 | `add <name> [--url URL] [--command CMD] [--auth oauth\|header] [--args ...]` | Add a custom MCP server with automatic tool discovery. `--args` passes the remaining argv to the stdio command, so put it last. |
 | `remove <name>` (alias: `rm`) | Remove an MCP server from config. |
 | `list` (alias: `ls`) | List configured MCP servers. |

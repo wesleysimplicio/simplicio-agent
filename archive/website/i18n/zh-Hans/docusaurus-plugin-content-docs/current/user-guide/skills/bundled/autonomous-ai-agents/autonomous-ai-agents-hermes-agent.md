@@ -149,12 +149,12 @@ hermes skills tap add REPO  Add a GitHub repo as skill source
 ### MCP 服务器
 
 ```
-hermes mcp serve            Run Hermes as an MCP server
-hermes mcp add NAME         Add an MCP server (--url or --command)
-hermes mcp remove NAME      Remove an MCP server
-hermes mcp list             List configured servers
-hermes mcp test NAME        Test connection
-hermes mcp configure NAME   Toggle tool selection
+simplicio-agent mcp serve            Run Simplicio Agent as an MCP server
+simplicio-agent mcp add NAME         Add an MCP server (--url or --command)
+simplicio-agent mcp remove NAME      Remove an MCP server
+simplicio-agent mcp list             List configured servers
+simplicio-agent mcp test NAME        Test connection
+simplicio-agent mcp configure NAME   Toggle tool selection
 ```
 
 ### Gateway（消息平台）
@@ -786,7 +786,7 @@ hermes config set auxiliary.vision.model <model_name>
 | Skill 目录 | `hermes skills browse` 或[Skill 目录](https://hermes-agent.nousresearch.com/docs/reference/skills-catalog) |
 | 提供商设置 | `hermes model` 或[提供商指南](https://hermes-agent.nousresearch.com/docs/integrations/providers) |
 | 平台设置 | `hermes gateway setup` 或[消息文档](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) |
-| MCP 服务器 | `hermes mcp list` 或[MCP 指南](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
+| MCP 服务器 | `simplicio-agent mcp list` 或[MCP 指南](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
 | Profiles | `hermes profile list` 或[Profiles 文档](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) |
 | Cron 任务 | `hermes cron list` 或[Cron 文档](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) |
 | 记忆 | `hermes memory status` 或[记忆文档](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) |

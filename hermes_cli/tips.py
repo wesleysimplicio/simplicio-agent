@@ -88,8 +88,8 @@ TIPS = [
     "hermes skills check scans installed hub skills for upstream updates.",
     "hermes skills tap add myorg/skills-repo adds a custom GitHub skill source.",
     "hermes skills snapshot export setup.json exports your skill configuration for backup or sharing.",
-    "hermes mcp add github --command npx adds MCP servers from the command line.",
-    "hermes mcp serve runs Hermes itself as an MCP server for other agents.",
+    "simplicio-agent mcp add github --command npx adds MCP servers from the command line.",
+    "simplicio-agent mcp serve runs Simplicio Agent itself as an MCP server for other agents.",
     "hermes auth add lets you add multiple API keys for credential pool rotation.",
     "hermes completion bash >> ~/.bashrc enables tab completion for all commands and profiles.",
     "hermes logs -f follows agent.log in real time. --level WARNING --since 1h filters output.",
@@ -227,9 +227,9 @@ TIPS = [
     "browser_vision with annotate=true overlays numbered labels on interactive elements.",
 
     # --- MCP ---
-    "hermes mcp opens an interactive picker of Nous-approved MCPs you can install in one keystroke.",
-    "hermes mcp catalog lists Nous-approved MCP servers shipped with the repo.",
-    "hermes mcp install <name> installs a catalog entry, prompts for credentials, and lets you pick which of its tools to enable.",
+    "simplicio-agent mcp opens an interactive picker of Nous-approved MCPs you can install in one keystroke.",
+    "simplicio-agent mcp catalog lists Nous-approved MCP servers shipped with the repo.",
+    "simplicio-agent mcp install <name> installs a catalog entry, prompts for credentials, and lets you pick which of its tools to enable.",
     "MCP servers are configured in config.yaml — both stdio and HTTP transports supported.",
     "Per-server tool filtering: tools.include whitelists and tools.exclude blacklists specific tools.",
     "MCP servers auto-generate toolsets at runtime — hermes tools can toggle them per platform.",

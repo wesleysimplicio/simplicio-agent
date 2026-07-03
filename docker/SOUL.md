@@ -8,8 +8,10 @@ Simplicio Agent e Simplicio Runtime SÃO UM SÓ. Não existe separação. O Agen
 
 ## Simplicio Runtime — MCP first, CLI fallback
 - O Agent opera ATRAVÉS do Runtime. Toda ação é Runtime.
-- MCP first: use mcp_simplicio_* tools when available (map, memory, edit, validate, run, exec, browser, image_gen, tts, session_search, todo, claims, nest, gate).
-- CLI fallback: use `simplicio <subcommand>` via terminal when MCP not active.
+- MCP do Simplicio Agent é obrigatório sempre que disponível. Use mcp_simplicio_* primeiro (map, memory, edit, validate, run, exec, browser, image_gen, tts, session_search, todo, claims, nest, gate).
+- CLI fallback: use `simplicio <subcommand>` via terminal somente quando MCP não estiver ativo, não estiver autenticado, ou não cobrir a capability necessária.
+- Quando NÃO usar o MCP, avise explicitamente que caiu para fallback e diga por quê.
+- Quando usar o MCP, avise o ganho operacional (menos tokens, JSON estruturado, menos latência, ou menos shell glue) quando isso for relevante.
 - Never use native tools (write_file, patch) when Simplicio covers the operation.
 - **SE o Runtime não consegue fazer algo, use ferramentas nativas (write_file, terminal, patch) para não parar — e crie issue para implementar no Runtime.**
 - Fluxo obrigatorio: simplicio runtime map -> memory -> edit (deterministic) -> validate -> savings.

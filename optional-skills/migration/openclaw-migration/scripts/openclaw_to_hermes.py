@@ -2909,7 +2909,7 @@ class Migrator:
             "After migration, you may want to:",
             "- Run `hermes claw cleanup` to archive the OpenClaw directory (prevents state confusion)",
             "- Run `hermes setup` to configure any remaining settings",
-            "- Run `hermes mcp list` to verify MCP servers were imported correctly",
+            "- Run `simplicio-agent mcp list` to verify MCP servers were imported correctly",
         ])
 
         if has_cron_config_archive:
@@ -3114,7 +3114,7 @@ def main() -> int:
         print()
         print("  Next steps:")
         print("    1. Review ~/.hermes/config.yaml")
-        print("    2. Run: hermes mcp list")
+        print("    2. Run: simplicio-agent mcp list")
         if any(i["kind"] == "cron-jobs" and i["status"] == "archived" for i in items):
             print("    3. Recreate cron jobs: hermes cron")
         if report.get("output_dir"):

@@ -1,5 +1,5 @@
 """
-Hermes MCP Server — expose messaging conversations as MCP tools.
+Simplicio Agent MCP Server — expose messaging conversations as MCP tools.
 
 Starts a stdio MCP server that lets any MCP client (Claude Code, Cursor, Codex,
 etc.) list conversations, read message history, send messages, poll for live
@@ -10,17 +10,17 @@ Matches OpenClaw's 9-tool MCP channel bridge surface:
   events_poll, events_wait, messages_send, permissions_list_open,
   permissions_respond
 
-Plus: channels_list (Hermes-specific extra)
+Plus: channels_list (Simplicio Agent-specific extra)
 
 Usage:
-    hermes mcp serve
-    hermes mcp serve --verbose
+    simplicio-agent mcp serve
+    simplicio-agent mcp serve --verbose
 
 MCP client config (e.g. claude_desktop_config.json):
     {
         "mcpServers": {
-            "hermes": {
-                "command": "hermes",
+            "simplicio-agent": {
+                "command": "simplicio-agent",
                 "args": ["mcp", "serve"]
             }
         }
