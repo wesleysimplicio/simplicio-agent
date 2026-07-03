@@ -954,8 +954,6 @@ def run_conversation(
         
         if not agent.quiet_mode:
             agent._vprint(f"\n{agent.log_prefix}🔄 Making API call #{api_call_count}/{agent.max_iterations}...")
-            agent._vprint(f"{agent.log_prefix}   📊 Request size: {len(api_messages)} messages, ~{approx_tokens:,} tokens (~{total_chars:,} chars)")
-            agent._vprint(f"{agent.log_prefix}   🔧 Available tools: {len(agent.tools) if agent.tools else 0}")
         else:
             # Animated thinking spinner in quiet mode
             face = random.choice(KawaiiSpinner.get_thinking_faces())

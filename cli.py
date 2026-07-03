@@ -3207,13 +3207,10 @@ class ChatConsole:
         """
         yield self
 
-# ASCII Art - HERMES-AGENT logo (full width, single line - requires ~95 char terminal)
-HERMES_AGENT_LOGO = """[bold #FFD700]██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗       █████╗  ██████╗ ███████╗███╗   ██╗████████╗[/]
-[bold #FFD700]██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔════╝      ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝[/]
-[#FFBF00]███████║█████╗  ██████╔╝██╔████╔██║█████╗  ███████╗█████╗███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║[/]
-[#FFBF00]██╔══██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ╚════██║╚════╝██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║[/]
-[#CD7F32]██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║      ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║[/]
-[#CD7F32]╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝      ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝[/]"""
+# ASCII Art - SIMPLICIO AGENT logo (verde + amarelo)
+SIMPLICIO_AGENT_LOGO = """[bold #00FF00]╔═╗┬┌┬┐┌─┐┬  ┬┌─┐┬┌─┐   ╔═╗┌─┐┌─┐┌┐┌┌┬┐[/]
+[bold #00FF00]╚═╗││││├─┘│  ││  ││ │   ╠═╣│ ┬├┤ │││ │ [/]
+[bold #FFD700]╚═╝┴┴ ┴┴  ┴─┘┴└─┘┴└─┘   ╩ ╩└─┘└─┘┘└┘ ┴ [/]"""
 
 # ASCII Art - Hermes Caduceus (compact, fits in left panel)
 HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
@@ -3248,8 +3245,8 @@ def _build_compact_banner() -> str:
     dim_color = _skin.get_color("banner_dim", "#B8860B") if _skin else "#B8860B"
 
     if skin_name == "default":
-        line1 = "⚕ NOUS HERMES - AI Agent Framework"
-        tiny_line = "⚕ NOUS HERMES"
+        line1 = "Simplicio Agent"
+        tiny_line = "Simplicio"
     else:
         agent_name = _skin.get_branding("agent_name", "Hermes Agent") if _skin else "Hermes Agent"
         line1 = f"{agent_name} - AI Agent Framework"
@@ -12707,9 +12704,9 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             from hermes_cli.skin_engine import get_active_skin
             _welcome_skin = get_active_skin()
             _welcome_text = _welcome_skin.get_branding("welcome", "Welcome to Hermes Agent! Type your message or /help for commands.")
-            _welcome_color = _welcome_skin.get_color("banner_text", "#FFF8DC")
+            _welcome_text = _welcome_skin.get_branding("welcome", "Simplicio Agent")
         except Exception:
-            _welcome_text = "Welcome to Hermes Agent! Type your message or /help for commands."
+            _welcome_text = "Simplicio Agent"
             _welcome_color = "#FFF8DC"
         self._console_print(f"[{_welcome_color}]{_welcome_text}[/]")
 
@@ -15339,7 +15336,7 @@ def main(
         import asyncio
         from agent.uvloop_utils import install_uvloop_policy
         from gateway.run import start_gateway
-        print("Starting Hermes Gateway (messaging platforms)...")
+        print("Starting Simplicio Gateway...")
         # Install right before the real event loop starts — see the note in
         # gateway/run.py's main() on why this isn't done at module import time.
         install_uvloop_policy()
