@@ -182,6 +182,131 @@ DEFAULT_MINIMAX_VOICE_ID = "English_expressive_narrator"
 DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1/t2a_v2"
 DEFAULT_MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
 DEFAULT_MISTRAL_TTS_VOICE_ID = "c69964a6-ab8b-4f8a-9465-ec0925096ec8"  # Paul - Neutral
+
+# ── Piper voice per locale ──────────────────────────────────────────────
+# Maps BCP-47 locale prefixes to the best-quality Piper voice available.
+# Fallback chain: exact match → language match → en_US default.
+PIPER_VOICE_BY_LOCALE: dict[str, str] = {
+    # Português
+    "pt_BR": "pt_BR-faber-medium",    # Brazilian Portuguese — male, clear
+    "pt_PT": "pt_PT-tugão-medium",    # European Portuguese
+    "pt":    "pt_BR-faber-medium",
+    # English variants
+    "en_US": "en_US-lessac-medium",    # American English — female, balanced
+    "en_GB": "en_GB-alan-medium",      # British English — male
+    "en_AU": "en_US-lessac-medium",    # Australian → fallback US
+    "en":    "en_US-lessac-medium",
+    # Español
+    "es":    "es_ES-carlitos-medium",  # Spanish
+    "es_ES": "es_ES-carlitos-medium",
+    "es_MX": "es_MX-ald-medium",       # Mexican Spanish
+    # Français
+    "fr":    "fr_FR-siwis-medium",     # French
+    "fr_FR": "fr_FR-siwis-medium",
+    # Deutsch
+    "de":    "de_DE-thorsten-medium",  # German
+    "de_DE": "de_DE-thorsten-medium",
+    # Italiano
+    "it":    "it_IT-paola-medium",     # Italian
+    "it_IT": "it_IT-paola-medium",
+    # 日本語
+    "ja":    "ja_JP-jp-medium",        # Japanese
+    "ja_JP": "ja_JP-jp-medium",
+    # 中文
+    "zh":    "zh_CN-huayan-medium",    # Chinese (Mandarin)
+    "zh_CN": "zh_CN-huayan-medium",
+    # 한국어
+    "ko":    "ko_KR-korean-medium",    # Korean
+    "ko_KR": "ko_KR-korean-medium",
+    # Русский
+    "ru":    "ru_RU-russian-medium",   # Russian
+    "ru_RU": "ru_RU-russian-medium",
+    # Nederlands
+    "nl":    "nl_NL-mls-medium",       # Dutch
+    "nl_NL": "nl_NL-mls-medium",
+    # Polski
+    "pl":    "pl_PL-gosia-medium",     # Polish
+    # Türkçe
+    "tr":    "tr_TR-fettah-medium",    # Turkish
+    # العربية
+    "ar":    "ar_JO-kareem-medium",    # Arabic
+    # हिन्दी
+    "hi":    "hi_IN-hindi-medium",     # Hindi
+}
+
+
+def _detect_user_locale() -> str:
+    """Detect user's locale for TTS voice selection.
+
+    Priority:
+      1. Simplicio UserProfile locale (~/.simplicio/user_profile.json)
+      2. System LANG/LC_ALL env vars
+      3. Fallback: 'en_US'
+    """
+    # 1. Try Simplicio UserProfile
+    profile_path = os.path.expanduser("~/.simplicio/user_profile.json")
+    if os.path.exists(profile_path):
+        try:
+            with open(profile_path) as f:
+                data = json.load(f)
+            locale = data.get("locale", "")
+            if locale:
+                return locale.replace("-", "_")
+        except Exception:
+            pass
+
+    # 2. Try system env vars
+    for var in ("LANG", "LC_ALL", "LC_MESSAGES"):
+        val = os.environ.get(var, "")
+        if val:
+            # Extract locale part (e.g., "pt_BR.UTF-8" → "pt_BR")
+            return val.split(".")[0]
+
+    # 3. Fallback
+    return "en_US"
+
+
+def get_piper_voice_for_locale(locale: Optional[str] = None) -> str:
+    """Return the best Piper voice for the given locale.
+
+    Resolution order:
+      1. Exact match in PIPER_VOICE_BY_LOCALE
+      2. Language-only match (first 2 chars)
+      3. Config override (tts.piper.voice in config.yaml)
+      4. DEFAULT_PIPER_VOICE
+
+    Args:
+        locale: BCP-47 locale string (e.g., 'pt_BR', 'en_US').
+                If None, auto-detected from UserProfile or system.
+    """
+    if locale is None:
+        locale = _detect_user_locale()
+
+    # 1. Exact match
+    if locale in PIPER_VOICE_BY_LOCALE:
+        return PIPER_VOICE_BY_LOCALE[locale]
+
+    # 2. Language-only match
+    lang = locale.split("_")[0] if "_" in locale else locale[:2]
+    if lang in PIPER_VOICE_BY_LOCALE:
+        return PIPER_VOICE_BY_LOCALE[lang]
+
+    # 3. Config override
+    try:
+        from hermes_cli.config import load_config
+        cfg = load_config()
+        tts_cfg = cfg.get("tts", {})
+        if isinstance(tts_cfg, dict):
+            piper_cfg = tts_cfg.get("piper", {})
+            if isinstance(piper_cfg, dict):
+                voice = piper_cfg.get("voice", "")
+                if voice:
+                    return voice
+    except Exception:
+        pass
+
+    # 4. Fallback
+    return DEFAULT_PIPER_VOICE
 DEFAULT_XAI_VOICE_ID = "eve"
 DEFAULT_XAI_LANGUAGE = "en"
 DEFAULT_XAI_SAMPLE_RATE = 24000
