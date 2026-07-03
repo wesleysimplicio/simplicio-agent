@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "turbo_speed": 1,
+    "description": "cold start \u2014 lazy imports e TTFP"
+  },
+  "hw": {
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "python": "3.11.15",
+    "processor": "arm",
+    "machine": "arm64",
+    "node": "MacBook-Pro-de-Wesley-5.local",
+    "cpu_count": 8
+  },
+  "results": [
+    {
+      "scenario": "import hermes_cli",
+      "import_time_s": 0.0544,
+      "ttfp_s": null,
+      "module_count": 0,
+      "heavy_imported": [],
+      "notes": "No heavy modules in boot.",
+      "hw": {
+        "platform": "macOS-26.3-arm64-arm-64bit",
+        "python": "3.11.15",
+        "processor": "arm",
+        "machine": "arm64",
+        "node": "MacBook-Pro-de-Wesley-5.local",
+        "cpu_count": 8
+      }
+    },
+    {
+      "scenario": "boot-minimo module audit",
+      "import_time_s": 0.0,
+      "ttfp_s": null,
+      "module_count": 0,
+      "heavy_imported": [],
+      "notes": "OK",
+      "hw": {
+        "platform": "macOS-26.3-arm64-arm-64bit",
+        "python": "3.11.15",
+        "processor": "arm",
+        "machine": "arm64",
+        "node": "MacBook-Pro-de-Wesley-5.local",
+        "cpu_count": 8
+      }
+    }
+  ]
+}

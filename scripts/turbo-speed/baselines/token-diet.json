@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "turbo_speed": 4,
+    "description": "token diet \u2014 cache-sacred, clamping, compression"
+  },
+  "hw": {
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "python": "3.11.15",
+    "processor": "arm",
+    "machine": "arm64",
+    "have_estimator": true
+  },
+  "results": [
+    {
+      "scenario": "cache-prefix-stability (consecutive turns)",
+      "turn1_prefix_hash": "acda98097b2da20f",
+      "turn2_prefix_hash": "acda98097b2da20f",
+      "stable": true,
+      "notes": "Prefix bytes: 360 (turn1), same prefix in turn2: 360 bytes. Hash: acda98097b2da20f vs acda98097b2da20f. \u2705 Prefixo est\u00e1vel \u2014 cache hit rate potencial: alto.",
+      "hw": {
+        "platform": "macOS-26.3-arm64-arm-64bit",
+        "python": "3.11.15",
+        "processor": "arm",
+        "machine": "arm64",
+        "have_estimator": true
+      }
+    },
+    {
+      "scenario": "cache-instability-timestamp (timestamp quebra cache)",
+      "turn1_prefix_hash": "7a5069969c2641bd",
+      "turn2_prefix_hash": "9da78dad45c57788",
+      "stable": false,
+      "notes": "Hash com t1: 7a5069969c2641bd, com t2: 9da78dad45c57788. \u2705 Inst\u00e1vel como esperado \u2014 timestamp no system quebra o cache.",
+      "hw": {
+        "platform": "macOS-26.3-arm64-arm-64bit",
+        "python": "3.11.15",
+        "processor": "arm",
+        "machine": "arm64",
+        "have_estimator": true
+      }
+    }
+  ]
+}
