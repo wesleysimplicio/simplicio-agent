@@ -18,6 +18,7 @@ import {
   togglePanesFlipped,
   toggleSidebarOpen
 } from '@/store/layout'
+import { $simpleMode, toggleSimpleMode } from '@/store/simple-mode'
 
 import { appViewForPath, isOverlayView } from '../routes'
 
@@ -54,6 +55,7 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
   const fileBrowserOpen = useStore($fileBrowserOpen)
   const sidebarOpen = useStore($sidebarOpen)
   const panesFlipped = useStore($panesFlipped)
+  const simpleMode = useStore($simpleMode)
 
   const toggleHaptics = () => {
     if (!hapticsMuted) {
@@ -117,6 +119,16 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
       id: 'haptics',
       label: hapticsMuted ? t.titlebar.unmuteHaptics : t.titlebar.muteHaptics,
       onSelect: toggleHaptics
+    },
+    {
+      active: !simpleMode,
+      icon: <Codicon name={simpleMode ? 'symbol-constant' : 'symbol-variable'} />,
+      id: 'simple-mode',
+      label: simpleMode ? 'Modo Avançado' : 'Modo Simples',
+      onSelect: () => {
+        triggerHaptic('tap')
+        toggleSimpleMode()
+      }
     },
     {
       icon: <Codicon name="keyboard" />,
