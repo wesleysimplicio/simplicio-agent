@@ -234,13 +234,13 @@ function normalizeAnsiForeground(color: string): string {
 // ── Defaults ─────────────────────────────────────────────────────────
 
 const BRAND: ThemeBrand = {
-  name: 'Hermes Agent',
-  icon: '⚕',
-  prompt: '❯',
-  welcome: 'Type your message or /help for commands.',
-  goodbye: 'Goodbye! ⚕',
+  name: 'Simplicio Agent',
+  icon: '◉',
+  prompt: '>',
+  welcome: 'Simplicio Agent',
+  goodbye: 'Simplicio',
   tool: '┊',
-  helpHeader: '(^_^)? Commands'
+  helpHeader: 'Comandos'
 }
 
 const cleanPromptSymbol = (s: string | undefined, fallback: string) => {
@@ -253,9 +253,9 @@ const cleanPromptSymbol = (s: string | undefined, fallback: string) => {
 
 export const DARK_THEME: Theme = {
   color: {
-    primary: '#FFD700',
-    accent: '#FFBF00',
-    border: '#CD7F32',
+    primary: '#7CFC00',
+    accent: '#FFD700',
+    border: '#B8860B',
     text: '#FFF8DC',
     muted: '#CC9B1F',
     // Bumped from the old `#B8860B` darkgoldenrod (~53% luminance) which
@@ -268,12 +268,12 @@ export const DARK_THEME: Theme = {
     completionMetaBg: '#1a1a2e',
     completionMetaCurrentBg: '#333355',
 
-    label: '#DAA520',
+    label: '#FFD700',
     ok: '#4caf50',
     error: '#ef5350',
     warn: '#ffa726',
 
-    prompt: '#FFF8DC',
+    prompt: '#7CFC00',
     // sessionLabel/sessionBorder intentionally track the `dim` value — they
     // are "same role, same colour" by design.  fromSkin's banner_dim fallback
     // relies on this pairing (#11300).
