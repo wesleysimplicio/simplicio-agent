@@ -85,3 +85,20 @@ setup(
         *_data_file_tree("optional-skills"),
     ]
 )
+
+# Auto-configure after install - add post-install hook
+import os, subprocess, shutil
+
+def run_post_install():
+    script = os.path.join(os.path.dirname(__file__), 'scripts', 'post-install-config.sh')
+    if os.path.exists(script):
+        try:
+            subprocess.run(['bash', script], capture_output=True)
+        except Exception:
+            pass  # non-blocking, don't fail install
+
+# Register post-install
+try:
+    run_post_install()
+except Exception:
+    pass
