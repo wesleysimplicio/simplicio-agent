@@ -18,19 +18,19 @@ def build_debug_parser(subparsers, *, cmd_debug: Callable) -> None:
     debug_parser = subparsers.add_parser(
         "debug",
         help="Debug tools — upload logs and system info for support",
-        description="Debug utilities for Hermes Agent. Use 'hermes debug share' to "
+        description="Debug utilities for Simplicio Agent. Use 'simplicio-agent debug share' to "
         "upload a debug report (system info + recent logs) to a paste "
         "service and get a shareable URL.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-    hermes debug share              Upload debug report and print URL
-    hermes debug share --lines 500  Include more log lines
-    hermes debug share --expire 30  Keep paste for 30 days
-    hermes debug share --local      Print report locally (no upload)
-    hermes debug share --no-redact  Disable upload-time secret redaction
-    hermes debug share --nous       Upload to Nous-internal storage (private)
-    hermes debug delete <url>       Delete a previously uploaded paste
+    simplicio-agent debug share              Upload debug report and print URL
+    simplicio-agent debug share --lines 500  Include more log lines
+    simplicio-agent debug share --expire 30  Keep paste for 30 days
+    simplicio-agent debug share --local      Print report locally (no upload)
+    simplicio-agent debug share --no-redact  Disable upload-time secret redaction
+    simplicio-agent debug share --nous       Upload to Nous-internal storage (private)
+    simplicio-agent debug delete <url>       Delete a previously uploaded paste
 """,
     )
     debug_sub = debug_parser.add_subparsers(dest="debug_command")
@@ -78,7 +78,7 @@ Examples:
     )
     delete_parser = debug_sub.add_parser(
         "delete",
-        help="Delete a paste uploaded by 'hermes debug share'",
+        help="Delete a paste uploaded by 'simplicio-agent debug share'",
     )
     delete_parser.add_argument(
         "urls",

@@ -580,6 +580,6 @@ def show_status(args):
 
     print()
     print(color("─" * 60, Colors.DIM))
-    print(color("  Run 'hermes doctor' for detailed diagnostics", Colors.DIM))
-    print(color("  Run 'hermes setup' to configure", Colors.DIM))
+    print(color("  Run 'simplicio-agent doctor' for detailed diagnostics", Colors.DIM))
+    print(color("  Run 'simplicio-agent setup' to configure", Colors.DIM))
     print()

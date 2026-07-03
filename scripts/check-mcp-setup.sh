@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verificação da ponte MCP Hermes ↔ Simplicio Runtime
+# Verificação da ponte MCP Simplicio Agent ↔ Simplicio Runtime
 set -euo pipefail
 
 R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'; N='\033[0m'
@@ -7,7 +7,7 @@ info()  { echo -e "${G}[✓]${N} $1"; }
 warn()  { echo -e "${Y}[!]${N} $1"; }
 error() { echo -e "${R}[✗]${N} $1"; }
 
-echo -e "${B}=== Verificação da ponte MCP Hermes ↔ Simplicio Runtime ===${N}\n"
+echo -e "${B}=== Verificação da ponte MCP Simplicio Agent ↔ Simplicio Runtime ===${N}\n"
 
 # 1. Simplicio binary
 echo "1. Simplicio Runtime"
@@ -28,22 +28,27 @@ else
   echo "$MCP_OUT" | head -5
 fi
 
-# 3. Hermes + MCP SDK
-echo -e "\n3. Hermes + MCP SDK"
+# 3. Simplicio Agent + MCP SDK
+echo -e "\n3. Simplicio Agent + MCP SDK"
 if /opt/homebrew/bin/python3.11 -c "import mcp" 2>/dev/null; then
   info "MCP SDK instalado (Python 3.11)"
 else
   error "MCP SDK NÃO instalado"
 fi
 
-# 4. MCP server registrado no Hermes
-echo -e "\n4. MCP server no Hermes"
-HERMES_MCP=$(HERMES_HOME=/Users/wesleysimplicio/.simplicio_agent /opt/homebrew/bin/hermes mcp list 2>&1)
-if echo "$HERMES_MCP" | grep -q "simplicio.*enabled"; then
-  info "simplicio registrado como ✓ enabled no Hermes"
+# 4. MCP server registrado no Simplicio Agent
+echo -e "\n4. MCP server no Simplicio Agent"
+SIMPLICIO_AGENT_BIN="${SIMPLICIO_AGENT_BIN:-$(command -v simplicio-agent 2>/dev/null || true)}"
+if [ -z "$SIMPLICIO_AGENT_BIN" ]; then
+  error "comando simplicio-agent não encontrado no PATH"
 else
-  error "simplicio NÃO registrado no Hermes!"
-  echo "$HERMES_MCP"
+  HERMES_MCP=$(HERMES_HOME=/Users/wesleysimplicio/.simplicio_agent "$SIMPLICIO_AGENT_BIN" mcp list 2>&1)
+  if echo "$HERMES_MCP" | grep -q "simplicio.*enabled"; then
+    info "simplicio registrado como ✓ enabled no Simplicio Agent"
+  else
+    error "simplicio NÃO registrado no Simplicio Agent!"
+    echo "$HERMES_MCP"
+  fi
 fi
 
 # 5. Config.yaml
@@ -71,12 +76,12 @@ else
   error "Venv quebrado"
 fi
 
-# 8. HERMES_HOME
-echo -e "\n8. HERMES_HOME"
+# 8. HERMES_HOME / home efetivo
+echo -e "\n8. HERMES_HOME / home efetivo"
 if [ -n "${HERMES_HOME:-}" ]; then
   info "HERMES_HOME=$HERMES_HOME"
 else
-  warn "HERMES_HOME não definido (pode estar usando ~/.hermes/)"
+  warn "HERMES_HOME não definido (pode estar usando ~/.simplicio_agent/)"
 fi
 
 echo -e "\n${B}=== Diagnóstico concluído ===${N}"

@@ -741,7 +741,7 @@ def run_doctor(args):
             check_ok("API key or custom endpoint configured")
         else:
             check_warn(f"No API key found in {_DHH}/.env")
-            issues.append("Run 'hermes setup' to configure API keys")
+            issues.append("Run 'simplicio-agent setup' to configure API keys")
     else:
         # Also check project root as fallback
         fallback_env = PROJECT_ROOT / '.env'
@@ -760,11 +760,11 @@ def run_doctor(args):
                 except OSError:
                     pass
                 check_ok(f"Created empty {_DHH}/.env")
-                check_info("Run 'hermes setup' to configure API keys")
+                check_info("Run 'simplicio-agent setup' to configure API keys")
                 fixed_count += 1
             else:
-                check_info("Run 'hermes setup' to create one")
-                issues.append("Run 'hermes setup' to create .env")
+                check_info("Run 'simplicio-agent setup' to create one")
+                issues.append("Run 'simplicio-agent setup' to create .env")
     
     # Check ~/.hermes/config.yaml (primary) or project cli-config.yaml (fallback)
     config_path = HERMES_HOME / 'config.yaml'
@@ -862,7 +862,7 @@ def run_doctor(args):
                         (
                             f"model.provider '{provider_raw}' is unknown. "
                             f"Valid providers: {known_list}. "
-                            f"Fix: run 'hermes config set model.provider <valid_provider>'"
+                            f"Fix: run 'simplicio-agent config set model.provider <valid_provider>'"
                         ),
                         issues,
                     )
@@ -936,8 +936,8 @@ def run_doctor(args):
                             "(check ~/.hermes/.env or run 'hermes setup')",
                             (
                                 f"No credentials found for provider '{runtime_provider}'. "
-                                f"Run 'hermes setup' or set the provider's API key in {_DHH}/.env, "
-                                f"or switch providers with 'hermes config set model.provider <name>'"
+                                f"Run 'simplicio-agent setup' or set the provider's API key in {_DHH}/.env, "
+                                f"or switch providers with 'simplicio-agent config set model.provider <name>'"
                             ),
                             issues,
                         )
@@ -983,9 +983,9 @@ def run_doctor(args):
                         fixed_count += 1
                     except Exception as mig_err:
                         check_warn(f"Auto-migration failed: {mig_err}")
-                        issues.append("Run 'hermes setup' to migrate config")
+                        issues.append("Run 'simplicio-agent setup' to migrate config")
                 else:
-                    issues.append("Run 'hermes doctor --fix' or 'hermes setup' to migrate config")
+                    issues.append("Run 'simplicio-agent doctor --fix' or 'simplicio-agent setup' to migrate config")
             else:
                 check_ok(f"Config version up to date (v{current_ver})")
         except Exception:
@@ -1025,7 +1025,7 @@ def run_doctor(args):
                     check_ok("Migrated stale root-level keys into model section")
                     fixed_count += 1
                 else:
-                    issues.append("Stale root-level provider/base_url in config.yaml — run 'hermes doctor --fix'")
+                    issues.append("Stale root-level provider/base_url in config.yaml — run 'simplicio-agent doctor --fix'")
         except Exception:
             pass
 
@@ -1081,7 +1081,7 @@ def run_doctor(args):
                 else:
                     issues.append(
                         "Stale HERMES_MAX_ITERATIONS in .env shadows config.yaml — "
-                        "run 'hermes doctor --fix'"
+                        "run 'simplicio-agent doctor --fix'"
                     )
         except Exception:
             pass
@@ -1302,8 +1302,8 @@ def run_doctor(args):
                         )
                 else:
                     issues.append(
-                        "state.db FTS write corruption — run 'hermes doctor --fix' "
-                        "(or 'hermes sessions repair') to rebuild the FTS index"
+                        "state.db FTS write corruption — run 'simplicio-agent doctor --fix' "
+                        "(or 'simplicio-agent sessions repair') to rebuild the FTS index"
                     )
         except Exception as e:
             from hermes_state import is_malformed_db_error, repair_state_db_schema
@@ -1348,8 +1348,8 @@ def run_doctor(args):
                         )
                 else:
                     issues.append(
-                        "state.db schema malformed — run 'hermes doctor --fix' "
-                        "(or 'hermes sessions repair') to recover hidden sessions"
+                        "state.db schema malformed — run 'simplicio-agent doctor --fix' "
+                        "(or 'simplicio-agent sessions repair') to recover hidden sessions"
                     )
             else:
                 check_warn(f"{_DHH}/state.db exists but has issues: {e}")
@@ -1375,7 +1375,7 @@ def run_doctor(args):
                     check_ok(f"WAL checkpoint performed ({wal_size // 1024}K → {new_size // 1024}K)")
                     fixed_count += 1
                 else:
-                    issues.append("Large WAL file — run 'hermes doctor --fix' to checkpoint")
+                    issues.append("Large WAL file — run 'simplicio-agent doctor --fix' to checkpoint")
             elif wal_size > 10 * 1024 * 1024:  # 10 MB
                 check_info(f"WAL file is {wal_size // (1024*1024)} MB (normal for active sessions)")
         except Exception:
@@ -1828,7 +1828,7 @@ def run_doctor(args):
                     [(color("✗", Colors.RED), "OpenRouter API",
                       color("(out of credits — payment required)", Colors.DIM))],
                     ["OpenRouter account has insufficient credits. "
-                     "Fix: run 'hermes config set model.provider <provider>' "
+                     "Fix: run 'simplicio-agent config set model.provider <provider>' "
                      "to switch providers, or fund your OpenRouter account "
                      "at https://openrouter.ai/settings/credits"],
                 )
@@ -2227,7 +2227,7 @@ def run_doctor(args):
         # Count disabled tools with API key requirements
         api_disabled = [u for u in unavailable if (u.get("missing_vars") or u.get("env_vars"))]
         if api_disabled:
-            issues.append("Run 'hermes setup' to configure missing API keys for full tool access")
+            issues.append("Run 'simplicio-agent setup' to configure missing API keys for full tool access")
     except Exception as e:
         check_warn("Could not check tool availability", f"({e})")
     
@@ -2439,7 +2439,7 @@ def run_doctor(args):
             print(f"  {i}. {issue}")
         print()
         if not should_fix:
-            print(color("  Tip: run 'hermes doctor --fix' to auto-fix what's possible.", Colors.DIM))
+            print(color("  Tip: run 'simplicio-agent doctor --fix' to auto-fix what's possible.", Colors.DIM))
     else:
         print(color("─" * 60, Colors.GREEN))
         print(color("  All checks passed! 🎉", Colors.GREEN, Colors.BOLD))

@@ -261,7 +261,7 @@ def _client_request(sock_path: Path, payload: dict[str, Any], timeout: float = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="hermes-daemon", description="Hermes warm daemon")
+    p = argparse.ArgumentParser(prog="simplicio-agent-daemon", description="Simplicio Agent warm daemon")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("start", help="Start the warm daemon (foreground)")
