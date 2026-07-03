@@ -23,7 +23,7 @@ set -euo pipefail
 # ============================================================================
 
 REPO_OWNER="wesleysimplicio"
-REPO_NAME="simplicio-agent"
+REPO_NAME="simplicio"
 REPO="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 DOWNLOAD_BASE="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
@@ -627,7 +627,7 @@ main
 
 # Se o repositorio agent for privado, tentar baixar binario do runtime
 if [ "$REPO_NAME" = "simplicio-agent" ]; then
-    FALLBACK_REPO="simplicio-runtime"
+    FALLBACK_REPO="simplicio"
     echo "[info] $REPO e privado - baixando binario de $FALLBACK_REPO"
     # As URLs de download usarao o runtime, mas o produto e o Agent
 fi
