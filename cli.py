@@ -11126,14 +11126,39 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         _cprint(f"  Mode:      {'ON' if self._voice_mode else 'OFF'}")
         _cprint(f"  TTS:       {'ON' if self._voice_tts else 'OFF'}")
         _cprint(f"  Recording: {'YES' if self._voice_recording else 'no'}")
-        # Display the startup-pinned label so /voice status always
-        # matches the live prompt_toolkit binding (Copilot round-14 on
-        # #19835, same class as round-13). Reading live config here
-        # would drift after a mid-session config edit.
         _cprint(f"  Record key: {self._voice_record_key_label()}")
         _cprint(f"\n  {_BOLD}Requirements:{_RST}")
         for line in reqs["details"].split("\n"):
             _cprint(f"    {line}")
+
+    def _enable_wake_word(self):
+        """Enable always-listening mode with wake word 'Simplicio'."""
+        try:
+            from tools.wake_word import create_wake_detector
+        except ImportError:
+            _cprint(f"\n{_DIM}Wake word não disponível. Instale: pip install pvporcupine{_RST}")
+            return
+
+        def on_wake():
+            _cprint(f"\n🎤 {_ACCENT}Simplicio ativado!{_RST} Ouvindo...")
+            if not self._voice_mode:
+                self._enable_voice_mode()
+            if self._voice_mode:
+                # Trigger push-to-talk recording
+                self._voice_start_recording()
+
+        detector = create_wake_detector(on_wake)
+        if not detector.is_available():
+            _cprint(f"\n{_DIM}Dependências ausentes: {detector.install_hint()}{_RST}")
+            return
+
+        _cprint(f"\n{_ACCENT}🎤 Always listening: diga 'Simplicio' para ativar{_RST}")
+        _cprint(f"  {_DIM}/voice off  para desativar{_RST}")
+        _cprint(f"  {_DIM}Ctrl+C       para sair{_RST}")
+
+        # Run in background thread
+        detector.start_async()
+        self._wake_detector = detector
 
     def _persist_prompt_summary(self, icon: str, label: str, detail: str, outcome: str) -> None:
         """Print a one-line scrollback summary of a resolved modal prompt.

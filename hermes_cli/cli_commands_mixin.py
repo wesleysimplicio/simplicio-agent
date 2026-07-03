@@ -2649,7 +2649,7 @@ class CLICommandsMixin:
         return True
 
     def _handle_voice_command(self, command: str):
-        """Handle /voice [on|off|tts|status] command."""
+        """Handle /voice [on|off|tts|status|wake] command."""
         from cli import _cprint
         parts = command.strip().split(maxsplit=1)
         subcommand = parts[1].lower().strip() if len(parts) > 1 else ""
@@ -2662,6 +2662,8 @@ class CLICommandsMixin:
             self._toggle_voice_tts()
         elif subcommand == "status":
             self._show_voice_status()
+        elif subcommand == "wake":
+            self._enable_wake_word()
         elif subcommand == "":
             # Toggle
             if self._voice_mode:
@@ -2670,4 +2672,4 @@ class CLICommandsMixin:
                 self._enable_voice_mode()
         else:
             _cprint(f"Unknown voice subcommand: {subcommand}")
-            _cprint("Usage: /voice [on|off|tts|status]")
+            _cprint("Usage: /voice [on|off|tts|status|wake]")
