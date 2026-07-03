@@ -18,6 +18,7 @@ Improvements over v2:
 
 import hashlib
 import json
+from agent._fastjson import loads as _fast_loads, dumps as _fast_dumps
 import logging
 import sqlite3
 import re
@@ -360,7 +361,7 @@ def _truncate_tool_call_args_json(args: str, head_chars: int = 200) -> str:
     something neither we nor the backend can parse.
     """
     try:
-        parsed = json.loads(args)
+        parsed = _fast_loads(args)
     except (ValueError, TypeError):
         return args
 
@@ -377,7 +378,7 @@ def _truncate_tool_call_args_json(args: str, head_chars: int = 200) -> str:
 
     shrunken = _shrink(parsed)
     # ensure_ascii=False preserves CJK/emoji instead of bloating with \uXXXX
-    return json.dumps(shrunken, ensure_ascii=False)
+    return _fast_dumps(shrunken, ensure_ascii=False)
 
 
 _IMAGE_PART_TYPES = frozenset({"image_url", "input_image", "image"})
@@ -502,7 +503,7 @@ def _summarize_tool_result(tool_name: str, tool_args: str, tool_content: str) ->
         [search_files] content search for 'compress' in agent/ -> 12 matches
     """
     try:
-        args = json.loads(tool_args) if tool_args else {}
+        args = _fast_loads(tool_args) if tool_args else {}
     except (json.JSONDecodeError, TypeError):
         args = {}
 
@@ -1409,7 +1410,7 @@ class ContextCompressor(ContextEngine):
                         call_id_to_tool[call_id] = (name, args)
                     if args:
                         try:
-                            parsed = json.loads(args)
+                            parsed = _fast_loads(args)
                         except Exception:
                             parsed = args
                         _collect_paths_from_jsonish(parsed)
