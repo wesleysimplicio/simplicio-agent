@@ -1354,6 +1354,36 @@ def _should_skip_container_guards(env_type: str, has_host_access: bool = False) 
     return env_type in ("singularity", "modal", "daytona")
 
 
+def _kernel_action_gate_precheck(
+    command: str, *, pattern_key: str, description: str, session_key: str,
+) -> Optional[dict]:
+    """Call the kernel action-gate binding for an already-flagged-dangerous
+    command. Isolated in its own function, wrapped defensively, so a bug in
+    the new binding degrades this safety-critical module to its pre-#20
+    behavior instead of crashing or (worse) silently weakening it.
+
+    Returns ``None`` to defer to the existing approval flow below, or a
+    ``{"approved": False, ...}`` block dict to short-circuit it.
+    """
+    try:
+        from tools.kernel_binding import evaluate_action_gate
+    except Exception as exc:
+        logger.debug("kernel_binding module unavailable, skipping gate precheck: %s", exc)
+        return None
+    try:
+        return evaluate_action_gate(
+            command,
+            pattern_key=pattern_key,
+            description=description,
+            session_key=session_key,
+        )
+    except Exception as exc:
+        # evaluate_action_gate() is documented not to raise; this is a last-
+        # resort net so an unexpected bug can never take down approval.py.
+        logger.error("kernel_binding.action_gate precheck raised unexpectedly: %s", exc)
+        return None
+
+
 def check_dangerous_command(command: str, env_type: str,
                             approval_callback=None,
                             has_host_access: bool = False) -> dict:
@@ -1398,6 +1428,18 @@ def check_dangerous_command(command: str, env_type: str,
         return {"approved": True, "message": None}
 
     session_key = get_current_session_key()
+
+    # F2 (issue #20) kernel action-gate binding. Front-ends this legacy
+    # detector with `simplicio gate classify` -- can only ADD a block on top
+    # of what's below, never bypass it. No-op (returns None) whenever the
+    # binding is off or degraded, so installations without the kernel see
+    # zero behavior change. See tools/kernel_binding.py.
+    kernel_block = _kernel_action_gate_precheck(
+        command, pattern_key=pattern_key, description=description, session_key=session_key,
+    )
+    if kernel_block is not None:
+        return kernel_block
+
     if is_approved(session_key, pattern_key):
         return {"approved": True, "message": None}
 

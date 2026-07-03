@@ -682,10 +682,24 @@ class CheckpointManager:
         self._checkpointed_dirs.add(abs_dir)
 
         try:
-            return self._take(abs_dir, reason)
+            taken = self._take(abs_dir, reason)
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
             return False
+
+        if taken:
+            # F2 (issue #20) kernel checkpoint binding: mirror the event
+            # into the simplicio kernel's evidence ledger. This shadow-git
+            # store stays the checkpoint of record (see
+            # docs/architecture/ADR-0001-kernel-checkpoint-binding.md); the
+            # kernel call is a best-effort, never-raising side note.
+            try:
+                from tools.kernel_binding import mirror_checkpoint
+                mirror_checkpoint(reason, workdir=abs_dir)
+            except Exception as e:
+                logger.debug("kernel_binding checkpoint mirror skipped (non-fatal): %s", e)
+
+        return taken
 
     def list_checkpoints(self, working_dir: str) -> List[Dict]:
         """List available checkpoints for a directory (most recent first)."""
