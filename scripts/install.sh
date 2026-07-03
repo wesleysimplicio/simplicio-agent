@@ -23,7 +23,7 @@ set -euo pipefail
 # ============================================================================
 
 REPO_OWNER="wesleysimplicio"
-REPO_NAME="simplicio-agent"
+REPO_NAME="simplicio-runtime"
 REPO="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 DOWNLOAD_BASE="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
