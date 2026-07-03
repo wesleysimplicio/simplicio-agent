@@ -47,6 +47,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from tools.thread_context import propagate_context_to_thread
 
+from agent.tier_rate_limiter import rate_limiter
 logger = logging.getLogger(__name__)
 
 
@@ -192,6 +193,20 @@ def dispatch_async_delegation(
         ``{"status": "dispatched", "delegation_id": ...}`` on success, or
         ``{"status": "rejected", "error": ...}`` when at capacity.
     """
+    # ----- Rate limiter check -----
+    tier = role or "subagent"
+    if not rate_limiter.try_acquire(tier):
+        return {
+            "status": "rejected",
+            "error": (
+                f"Rate limit exceeded for tier {tier!r}. "
+                f"Remaining tokens: {rate_limiter.remaining(tier):.1f}. "
+                f"Increase HERMES_TIER_RATE_LIMIT_{tier.upper()} in the "
+                f"environment or wait for the bucket to refill."
+            ),
+        }
+
+
     delegation_id = _new_delegation_id()
     dispatched_at = time.time()
     record: Dict[str, Any] = {
@@ -370,6 +385,20 @@ def dispatch_async_delegation_batch(
     ``{"status": "rejected", "error": ...}`` when the async pool is at
     capacity.
     """
+    # ----- Rate limiter check -----
+    tier = role or "subagent"
+    if not rate_limiter.try_acquire(tier):
+        return {
+            "status": "rejected",
+            "error": (
+                f"Rate limit exceeded for tier {tier!r}. "
+                f"Remaining tokens: {rate_limiter.remaining(tier):.1f}. "
+                f"Increase HERMES_TIER_RATE_LIMIT_{tier.upper()} in the "
+                f"environment or wait for the bucket to refill."
+            ),
+        }
+
+
     delegation_id = _new_delegation_id()
     dispatched_at = time.time()
     n = len(goals)

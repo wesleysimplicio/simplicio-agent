@@ -79,6 +79,14 @@ def _budget_for_agent(agent) -> BudgetConfig:
 # Mirrors the constant in ``run_agent`` for tests/imports that look here.
 _MAX_TOOL_WORKERS = 8
 
+# Timeout for a concurrent tool-call batch, in seconds.
+# When the batch exceeds this wall-clock duration any not-yet-completed
+# futures are cancelled. Controlled by HERMES_CONCURRENT_TOOL_TIMEOUT_S
+# env var; defaults to 420 seconds (7 minutes).
+_CONCURRENT_TOOL_TIMEOUT = float(
+    os.environ.get("HERMES_CONCURRENT_TOOL_TIMEOUT_S", "420.0")
+)
+
 
 def _flush_session_db_after_tool_progress(
     agent,
@@ -673,6 +681,8 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                     if not not_done:
                         break
 
+                    _conc_elapsed = int(time.time() - _conc_start)
+
                     # Check for interrupt — the per-thread interrupt signal
                     # already causes individual tools (terminal, execute_code)
                     # to abort, but tools without interrupt checks (web_search,
@@ -693,7 +703,21 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                         concurrent.futures.wait(not_done, timeout=3.0)
                         break
 
-                    _conc_elapsed = int(time.time() - _conc_start)
+                    # ── Timeout guard ──────────────────────────────────────
+                    if _conc_elapsed >= _CONCURRENT_TOOL_TIMEOUT:
+                        if not _interrupt_logged:
+                            _interrupt_logged = True
+                            agent._vprint(
+                                f"{agent.log_prefix}⚡ Timeout: cancelling "
+                                f"{len(not_done)} pending concurrent tool(s) "
+                                f"(exceeded {_CONCURRENT_TOOL_TIMEOUT:.0f}s timeout)",
+                                force=True,
+                            )
+                        for f in not_done:
+                            f.cancel()
+                        concurrent.futures.wait(not_done, timeout=3.0)
+                        break
+
                     # Heartbeat every ~30s (6 × 5s poll intervals)
                     if _conc_elapsed > 0 and _conc_elapsed % 30 < 6:
                         _still_running = [
