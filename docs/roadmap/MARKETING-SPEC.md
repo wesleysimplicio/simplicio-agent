@@ -62,7 +62,7 @@ Three pillars:
 1. **Numbers everywhere**: every claim backed by a benchmark or measurement.
    No "faster" without "X% faster on Y benchmark with Z methodology."
 2. **Open-core positioning**: core agent is MIT; enterprise features
-   (licensing, PyArmor, Nuitka binary) are commercial.
+   (licensing tiers free/trial/economy/pro) are commercial. Issues #73-76 resolvidas em docs/packaging.md, docs/licensing.md, docs/distribution.md, docs/security/pyarmor-decision.md.
 3. **"Simplicio on Metal"** is the tagline — emphasis on local-first,
    user-owned hardware.
 

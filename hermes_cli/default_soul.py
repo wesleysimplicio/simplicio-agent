@@ -66,7 +66,7 @@ DEFAULT_SOUL_MD = (
     "\n"
     "## Comercial (roadmap issues #73-76)\n"
     "- Runtime open source. Agent licenciado SimpleTI.\n"
-    "- Nuitka + PyArmor + license key para distribuição.\n"
+    "- Rust binario compilado + licensing tiers (free/trial/economy/pro).\n"
     "\n"
     "## Missão: Evoluir o Runtime\n"
     "- Cada interação DEVE melhorar o simplicio-runtime.\n"
