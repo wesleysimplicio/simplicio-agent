@@ -8,10 +8,29 @@ behavior for arrays that aren't uniform.
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 
 import pytest
 
-from agent.toon_codec import from_toon, parse_tool_payload, to_toon, to_toon_or_json
+from agent.toon_codec import (
+    ToonDecodeError,
+    from_toon,
+    parse_tool_payload,
+    to_toon,
+    to_toon_or_json,
+    to_toon_report,
+)
+
+_ROOT = Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from scripts.toon_contract_runner import (  # noqa: E402
+    _load_manifest as _load_toon_contract_manifest,
+    check_invalid_case as _check_toon_contract_invalid_case,
+    check_valid_case as _check_toon_contract_valid_case,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +98,14 @@ ROUNDTRIP_CASES = [
         {"big": {"list": [{"id": i, "even": i % 2 == 0} for i in range(25)]}},
         id="larger-uniform-array",
     ),
+    pytest.param(
+        {"items": [{"id": 1, "tags": [1, 2]}, {"id": 2, "tags": []}]},
+        id="uniform-array-with-list-of-scalars-cells",
+    ),
+    pytest.param(
+        {"items": [{"id": 1, "tags": [1]}]},
+        id="one-element-list-cell-is-not-ambiguous-with-scalar",
+    ),
 ]
 
 
@@ -128,10 +155,28 @@ def test_mixed_type_array_falls_back_to_compact_json():
     assert json.loads(blob) == value["mixed"]
 
 
-def test_array_with_nested_containers_falls_back():
-    value = {"items": [{"a": 1, "b": [1, 2]}, {"a": 2, "b": [3, 4]}]}
+def test_array_with_dict_valued_cell_falls_back():
+    # A dict-valued cell (not a list of scalars) cannot take the tabular
+    # path and must fall back to an embedded JSON blob (TOON-CONTRACT.md
+    # §4, reason "nested_containers").
+    value = {"items": [{"a": 1, "b": {"c": 1}}, {"a": 2, "b": {"c": 2}}]}
     encoded = to_toon(value)
     assert "items[2]{" not in encoded
+    assert from_toon(encoded) == value
+
+
+def test_array_with_list_of_scalar_cells_uses_tabular_path():
+    # A cell whose value is a list of *scalars* DOES take the tabular path
+    # -- the list-cell rule (TOON-CONTRACT.md §4, fixed upstream in
+    # simplicio-mapper#148 after being found to cost most of the promised
+    # compression: real shapes like files[].exports/imports are exactly
+    # this).
+    value = {"items": [{"a": 1, "b": [1, 2]}, {"a": 2, "b": [3, 4]}]}
+    encoded = to_toon(value)
+    lines = encoded.split("\n")
+    assert lines[0] == "items[2]{a,b}:"
+    assert lines[1] == "  1,[1,2]"
+    assert lines[2] == "  2,[3,4]"
     assert from_toon(encoded) == value
 
 
@@ -244,3 +289,124 @@ def test_parse_tool_payload_none_for_non_string_input():
     assert parse_tool_payload(42) is None
     assert parse_tool_payload("") is None
     assert parse_tool_payload("   ") is None
+
+
+# ---------------------------------------------------------------------------
+# Fallback report (TOON-CONTRACT.md §3, issue #16/#149)
+# ---------------------------------------------------------------------------
+
+
+def test_to_toon_report_matches_to_toon_for_the_encoded_text():
+    value = {"items": [{"a": 1}, {"b": 2}]}
+    encoded, _report = to_toon_report(value)
+    assert encoded == to_toon(value)
+
+
+def test_to_toon_report_records_differing_keys_fallback():
+    _encoded, report = to_toon_report({"items": [{"a": 1}, {"b": 2}]})
+    assert report == [{"path": "$.items", "reason": "differing_keys"}]
+
+
+def test_to_toon_report_records_mixed_types_fallback():
+    _encoded, report = to_toon_report({"a": [1, "x", {"z": 1}]})
+    assert report == [{"path": "$.a", "reason": "mixed_types"}]
+
+
+def test_to_toon_report_records_nested_containers_fallback_with_dotted_path():
+    _encoded, report = to_toon_report({"deep": {"items": [{"a": 1, "b": {"c": 1}}]}})
+    assert report == [{"path": "$.deep.items", "reason": "nested_containers"}]
+
+
+def test_to_toon_report_empty_array_is_not_a_fallback():
+    # An empty array has its own canonical encoding (`key: []`) -- it is
+    # not a lossy fallback, so it must not appear in the report.
+    _encoded, report = to_toon_report({"empty": []})
+    assert report == []
+
+
+def test_to_toon_report_list_cell_is_not_a_fallback():
+    # The list-cell rule means a list-of-scalars cell takes the tabular
+    # path -- it must not be reported as a fallback either.
+    _encoded, report = to_toon_report({"items": [{"id": 1, "tags": [1, 2]}]})
+    assert report == []
+
+
+def test_to_toon_report_no_fallbacks_for_clean_payload():
+    _encoded, report = to_toon_report({"a": 1, "users": [{"id": 1, "name": "Alice"}]})
+    assert report == []
+
+
+# ---------------------------------------------------------------------------
+# Decode error hardening (TOON-CONTRACT.md §5, issue #16/#149)
+# ---------------------------------------------------------------------------
+
+
+def test_toon_decode_error_is_a_value_error():
+    assert issubclass(ToonDecodeError, ValueError)
+
+
+def test_from_toon_raises_on_truncated_root_table():
+    with pytest.raises(ToonDecodeError, match="Truncated"):
+        from_toon("[2]{file,lines}:\n  a.py,10")
+
+
+def test_from_toon_raises_on_truncated_nested_table():
+    with pytest.raises(ToonDecodeError, match="Truncated"):
+        from_toon("files[2]{path,lines}:\n  a.py,10")
+
+
+def test_from_toon_raises_on_row_field_count_mismatch():
+    with pytest.raises(ToonDecodeError, match="mismatch"):
+        from_toon("files[1]{path,lines}:\n  a.py,10,extra")
+
+
+def test_from_toon_raises_on_malformed_array_header():
+    with pytest.raises(ToonDecodeError, match="Malformed"):
+        from_toon("[2{file,lines}:\n  a.py,10\n  b.py,20")
+
+
+def test_from_toon_raises_on_unterminated_quote():
+    with pytest.raises(ToonDecodeError, match="quoted"):
+        from_toon('name: "unterminated')
+
+
+def test_from_toon_raises_on_truncated_scalar_array():
+    with pytest.raises(ToonDecodeError):
+        from_toon("tags[3]: a,b")
+
+
+# ---------------------------------------------------------------------------
+# TOON-CONTRACT golden-corpus conformance (issue #16/#149)
+#
+# tests/fixtures/toon-golden/ + the root TOON-CONTRACT.md are vendored
+# verbatim from the canonical host, simplicio-mapper (issue #149). See
+# scripts/toon_contract_runner.py for what "conformance" means here (this
+# repo's codec is not the reference implementation, so byte-identical
+# encoding is not required -- only lossless round-trip and cross-repo
+# decode interop).
+# ---------------------------------------------------------------------------
+
+_TOON_CONTRACT_MANIFEST = _load_toon_contract_manifest()
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    [case["id"] for case in _TOON_CONTRACT_MANIFEST["valid"]],
+)
+def test_toon_contract_valid_case_conforms(case_id):
+    failures = _check_toon_contract_valid_case(case_id)
+    assert failures == [], "\n".join(failures)
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    [case["id"] for case in _TOON_CONTRACT_MANIFEST["invalid"]],
+)
+def test_toon_contract_invalid_case_conforms(case_id):
+    failures = _check_toon_contract_invalid_case(case_id)
+    assert failures == [], "\n".join(failures)
+
+
+def test_toon_contract_manifest_lists_at_least_one_case_of_each_kind():
+    assert len(_TOON_CONTRACT_MANIFEST.get("valid", [])) > 0
+    assert len(_TOON_CONTRACT_MANIFEST.get("invalid", [])) > 0
