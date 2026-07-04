@@ -4,6 +4,28 @@ Instructions for AI coding assistants and developers working on the hermes-agent
 
 **Never give up on the right solution.**
 
+## Product identity — Simplicio Agent
+
+**Simplicio Agent = Hermes Turbo Agent + Simplicio Runtime.** The shipped
+product is `simplicio-agent`: the Hermes Turbo agent core (speed: streaming,
+hot-paths, prewarm) fused with the Simplicio Runtime (the Rust determinism
+kernel — action gate, checkpoints/undo, zero-token mechanical editing, HBP
+ledger). Canonical spec: `docs/roadmap/SIMPLICIO-ROADMAP.md` (#25).
+
+Two names, one rule for keeping them straight:
+
+- **User-facing surfaces are "Simplicio Agent"** — CLI banners, MCP server
+  name, docs, install output, error/billing messages, desktop app. Launch
+  branding lives here.
+- **Internal code stays Hermes** — never rename variables, functions, config
+  keys, module paths, or the `HERMES_*` env prefix (see
+  `hermes_cli/default_soul.py`). The `hermes` console script remains a working
+  alias of `simplicio-agent`.
+
+"Não expor código" means shipping the composed product (binary/thin-client)
+without the source tree, and not leaking internals through user-facing
+surfaces — not renaming internals.
+
 ## What Hermes Is
 
 Hermes is a personal AI agent that runs the same agent core across a CLI, a
