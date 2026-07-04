@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-07-04
+
+Product launch hardening for the Simplicio Agent MCP server — gate the paid
+surface behind a subscription and stop the product leaking internals.
+
+### Added
+
+- **Subscription gate on `simplicio-agent mcp serve`** (`mcp_serve.py`): the MCP
+  server is now a subscription-only product surface. `run_mcp_server()` checks
+  entitlement before starting and refuses to serve when the account is not
+  entitled, printing a billing/login nudge to stderr and exiting non-zero. The
+  check reuses the existing Nous Portal entitlement chain
+  (`hermes_cli.nous_account.get_nous_portal_account_info` +
+  `format_nous_portal_entitlement_message`) so "subscribed" has a single source
+  of truth. Fails closed: an account-lookup error or a missing entitlement
+  module denies access rather than allowing it.
+- **`SIMPLICIO_MCP_ALLOW_UNLICENSED`** env escape hatch: any truthy value
+  bypasses the subscription gate for self-hosted / dev / CI runs. Unset in the
+  hosted product so access stays subscription-only.
+- **`SIMPLICIO_NO_SOURCE_FALLBACK`** env for `scripts/install.sh`: when set and
+  no compiled binary is available for the platform, the installer exits instead
+  of falling back to a pip-from-git or git-clone **source** install — so a
+  product/enterprise install never pulls the full source tree onto a customer
+  machine. Default (unset) preserves the existing self-host fallback behaviour.
+
+### Security
+
+- **No internal detail in MCP tool errors** (`mcp_serve.py`): `messages_read`,
+  `attachments_fetch`, and `messages_send` no longer interpolate raw exception
+  text / `ImportError` module paths into the JSON returned to MCP clients. They
+  now return generic messages and log the detail at DEBUG only, so tracebacks,
+  internal module names, and filesystem paths are not exposed to end users.
+
+### Changed
+
+- Rebranded the MCP server logger from `hermes.mcp_serve` to
+  `simplicio.mcp_serve` and the `run_mcp_server` banner to "Simplicio Agent".
+
 ## [0.22.0] - 2026-07-02
 
 ### Added
