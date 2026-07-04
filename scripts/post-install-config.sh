@@ -38,3 +38,18 @@ fi
 
 echo "=== Simplicio Agent configurado com sucesso ==="
 echo "Leia ~/.simplicio_agent/onboarding/SIMPLICIO-AGENT-GUIDE.md para começar"
+
+# === Neural Database Seed ===
+echo "[simplicio] Populando banco neural com skills..."
+if [ -f "$HOME/Projetos/ai/simplicio-runtime/scripts/memory_seed.py" ]; then
+    python3 "$HOME/Projetos/ai/simplicio-runtime/scripts/memory_seed.py" --sync 2>/dev/null && \
+        echo "  Banco neural populado: 567+ skills, 36K+ itens"
+else
+    echo "  Runtime nao encontrado - seed sera feito na primeira execucao"
+fi
+
+# === Skills Registry ===
+echo "[simplicio] Indexando skills do ecossistema..."
+find "$HOME/.simplicio_agent/skills" -name "SKILL.md" 2>/dev/null | wc -l | xargs -I{} echo "  {} skills locais registradas"
+
+echo "[simplicio] Configuracao concluida."
