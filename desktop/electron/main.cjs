@@ -1,3 +1,4 @@
+const { createTray, destroyTray } = require('./tray.cjs')
 const {
   app,
   BrowserWindow,
@@ -5933,6 +5934,9 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
+    // Initialize Simplicio tray icon
+    createTray(mainWindow)
+
   })
 
   mainWindow.on('will-enter-full-screen', () => sendWindowStateChanged(true))
