@@ -1,7 +1,7 @@
 {
   "name": "simplicio-desktop",
   "version": "1.8.0",
-  "description": "Simplicio Agent — Seu assistente pessoal que realmente se importa",
+  "description": "Simplicio Agent \u2014 Seu assistente pessoal que realmente se importa",
   "main": "electron/main.cjs",
   "author": "Wesley Simplicio <plasmatoid@gmail.com>",
   "license": "Proprietary",
@@ -10,13 +10,13 @@
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "vite --host 127.0.0.1 --port 5174",
     "dev:electron": "wait-on http://127.0.0.1:5174 && electron .",
-    "build": "vite build && electron-builder build --config",
+    "build": "electron-vite build",
     "build:mac": "vite build && electron-builder build --mac --config",
     "build:win": "vite build && electron-builder build --win --config",
     "build:linux": "vite build && electron-builder build --linux --config",
-    "dist:mac": "npm run build:mac",
-    "dist:win": "npm run build:win",
-    "dist:linux": "npm run build:linux",
+    "dist:mac": "electron-vite build && electron-builder build --mac --config",
+    "dist:win": "electron-vite build && electron-builder build --win --config",
+    "dist:linux": "electron-vite build && electron-builder build --linux --config",
     "dist:all": "npm run build"
   },
   "build": {
@@ -33,8 +33,20 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.icns",
       "entitlements": "electron/entitlements.mac.plist",
@@ -44,16 +56,41 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "msi", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] },
-        { "target": "rpm", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.png",
       "category": "Utility"
@@ -73,11 +110,14 @@
     }
   },
   "dependencies": {
-    "electron": "^30.0.0",
-    "electron-builder": "^24.0.0",
     "concurrently": "^8.0.0",
-    "wait-on": "^7.0.0",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "wait-on": "^7.0.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@tailwindcss/oxide": "^4.3.2",
+    "electron-vite": "*",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
 }
