@@ -13,6 +13,7 @@ dicts. Descriptions are truncated to 60 chars.
 import shutil
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,8 @@ def hermes_home(monkeypatch):
     monkeypatch.setattr(_st, "SKILLS_DIR", home / "skills", raising=False)
     # Reset the in-process slash-command cache so each test starts from zero.
     monkeypatch.setattr(_sc, "_skill_commands", {}, raising=False)
+    monkeypatch.setattr(_sc, "_skill_payload_cache", {}, raising=False)
+    monkeypatch.setattr(_sc, "_skill_payload_cache_inflight", set(), raising=False)
 
     yield home
 
@@ -157,3 +160,76 @@ class TestReloadSkillsHelper:
             "prompt cache snapshot should be preserved — skills don't live "
             "in the system prompt so there's no reason to invalidate it"
         )
+
+    def test_skill_payload_cache_hits_until_invalidated(self, hermes_home, monkeypatch):
+        from agent.skill_commands import _load_skill_payload, invalidate_skill_payload_cache
+        import tools.skills_tool as _st
+
+        _write_skill(hermes_home / "skills", "demo", "cached")
+        calls = {"n": 0}
+        real_skill_view = _st.skill_view
+
+        def _counting_skill_view(*args, **kwargs):
+            calls["n"] += 1
+            return real_skill_view(*args, **kwargs)
+
+        monkeypatch.setattr(_st, "skill_view", _counting_skill_view)
+
+        first = _load_skill_payload("demo")
+        second = _load_skill_payload("demo")
+        invalidate_skill_payload_cache("demo")
+        third = _load_skill_payload("demo")
+
+        assert first is not None
+        assert second is not None
+        assert third is not None
+        assert calls["n"] == 2
+
+    def test_prewarm_skill_payloads_fills_cache_in_background(self, hermes_home, monkeypatch):
+        from agent import skill_commands as _sc
+        from agent.skill_commands import _load_skill_payload, prewarm_skill_payloads
+        import tools.skills_tool as _st
+
+        _write_skill(hermes_home / "skills", "demo", "prewarmed")
+        calls = {"n": 0}
+        real_skill_view = _st.skill_view
+
+        def _counting_skill_view(*args, **kwargs):
+            calls["n"] += 1
+            return real_skill_view(*args, **kwargs)
+
+        monkeypatch.setattr(_st, "skill_view", _counting_skill_view)
+
+        prewarm_skill_payloads(["demo", "demo"])
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            if calls["n"] >= 1 and _sc._skill_payload_cache:
+                break
+            time.sleep(0.02)
+
+        payload = _load_skill_payload("demo")
+
+        assert payload is not None
+        assert _sc._skill_payload_cache
+        assert calls["n"] == 1
+
+    def test_load_skill_payload_waits_for_inflight_prewarm(self, hermes_home, monkeypatch):
+        from agent.skill_commands import _load_skill_payload, prewarm_skill_payloads
+        import tools.skills_tool as _st
+
+        _write_skill(hermes_home / "skills", "demo", "slow-prewarm")
+        calls = {"n": 0}
+        real_skill_view = _st.skill_view
+
+        def _slow_skill_view(*args, **kwargs):
+            calls["n"] += 1
+            time.sleep(0.08)
+            return real_skill_view(*args, **kwargs)
+
+        monkeypatch.setattr(_st, "skill_view", _slow_skill_view)
+
+        prewarm_skill_payloads(["demo"])
+        payload = _load_skill_payload("demo")
+
+        assert payload is not None
+        assert calls["n"] == 1
