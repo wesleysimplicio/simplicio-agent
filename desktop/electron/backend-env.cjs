@@ -80,13 +80,21 @@ function buildDesktopBackendEnv({
   venvRoot,
   currentEnv = process.env,
   platform = process.platform,
-  pathModule = pathModuleForPlatform(platform)
+  pathModule = pathModuleForPlatform(platform),
+  // Absolute path to a simplicio (Rust kernel) binary bundled into the
+  // packaged app (see scripts/stage-runtime-bin.cjs + the `bin` extraResources
+  // entry). tools/kernel_binding.py already honors HERMES_KERNEL_BIN as an
+  // override to its PATH-only lookup, so this is the only hook the desktop
+  // app needs: point it at the bundled binary instead of requiring a
+  // separate host install. A caller-supplied HERMES_KERNEL_BIN in currentEnv
+  // always wins (explicit override beats the bundled default).
+  kernelBin = null
 } = {}) {
   const delimiter = delimiterForPlatform(platform)
   const currentPythonPath = currentEnv?.PYTHONPATH || ''
   const key = pathEnvKey(currentEnv, platform)
 
-  return {
+  const env = {
     PYTHONPATH: appendUniquePathEntries([...pythonPathEntries, currentPythonPath], { delimiter }),
     [key]: buildDesktopBackendPath({
       hermesHome,
@@ -96,6 +104,12 @@ function buildDesktopBackendEnv({
       pathModule
     })
   }
+
+  if (kernelBin && !currentEnv?.HERMES_KERNEL_BIN) {
+    env.HERMES_KERNEL_BIN = kernelBin
+  }
+
+  return env
 }
 
 module.exports = {
