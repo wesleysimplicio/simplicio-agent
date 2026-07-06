@@ -29,6 +29,7 @@ _skill_payload_cache: Dict[tuple[Optional[str], str], tuple[float, tuple[dict[st
 _skill_payload_cache_inflight: set[tuple[Optional[str], str]] = set()
 _skill_payload_cache_lock = threading.Lock()
 _SKILL_PAYLOAD_CACHE_TTL_SECONDS = 300.0
+_SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS = 0.35
 # Patterns for sanitizing skill names into clean hyphen-separated slugs.
 _SKILL_INVALID_CHARS = re.compile(r"[^a-z0-9-]")
 _SKILL_MULTI_HYPHEN = re.compile(r"-{2,}")
@@ -229,6 +230,22 @@ def invalidate_skill_payload_cache(skill_identifier: str | None = None) -> None:
         _skill_payload_cache_inflight.discard(key)
 
 
+def _wait_for_inflight_skill_payload(
+    key: tuple[Optional[str], str],
+    timeout_seconds: float = _SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS,
+) -> tuple[dict[str, Any], Path | None, str] | None:
+    deadline = time.time() + max(timeout_seconds, 0.0)
+    while time.time() < deadline:
+        with _skill_payload_cache_lock:
+            cached = _skill_payload_cache.get(key)
+            if cached and (time.time() - cached[0]) < _SKILL_PAYLOAD_CACHE_TTL_SECONDS:
+                return copy.deepcopy(cached[1])
+            if key not in _skill_payload_cache_inflight:
+                return None
+        time.sleep(0.01)
+    return None
+
+
 def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> None:
     keys_to_warm: list[tuple[Optional[str], str]] = []
     now = time.time()
@@ -276,13 +293,24 @@ def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tu
         cached = _skill_payload_cache.get(key)
         if cached and (now - cached[0]) < _SKILL_PAYLOAD_CACHE_TTL_SECONDS:
             return copy.deepcopy(cached[1])
+        inflight = key in _skill_payload_cache_inflight
+        if not inflight:
+            _skill_payload_cache_inflight.add(key)
+
+    if inflight:
+        warmed = _wait_for_inflight_skill_payload(key)
+        if warmed is not None:
+            return warmed
 
     payload = _read_skill_payload_uncached(skill_identifier, task_id=task_id)
     if payload is None:
+        with _skill_payload_cache_lock:
+            _skill_payload_cache_inflight.discard(key)
         return None
 
     with _skill_payload_cache_lock:
         _skill_payload_cache[key] = (time.time(), payload)
+        _skill_payload_cache_inflight.discard(key)
     return copy.deepcopy(payload)
 
 def _inject_skill_config(loaded_skill: dict[str, Any], parts: list[str]) -> None:

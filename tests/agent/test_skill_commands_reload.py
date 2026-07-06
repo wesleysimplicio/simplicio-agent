@@ -212,3 +212,24 @@ class TestReloadSkillsHelper:
         assert payload is not None
         assert _sc._skill_payload_cache
         assert calls["n"] == 1
+
+    def test_load_skill_payload_waits_for_inflight_prewarm(self, hermes_home, monkeypatch):
+        from agent.skill_commands import _load_skill_payload, prewarm_skill_payloads
+        import tools.skills_tool as _st
+
+        _write_skill(hermes_home / "skills", "demo", "slow-prewarm")
+        calls = {"n": 0}
+        real_skill_view = _st.skill_view
+
+        def _slow_skill_view(*args, **kwargs):
+            calls["n"] += 1
+            time.sleep(0.08)
+            return real_skill_view(*args, **kwargs)
+
+        monkeypatch.setattr(_st, "skill_view", _slow_skill_view)
+
+        prewarm_skill_payloads(["demo"])
+        payload = _load_skill_payload("demo")
+
+        assert payload is not None
+        assert calls["n"] == 1
