@@ -120,6 +120,13 @@ const {
   resolveRequestedPathForIpc,
   resolveTimeoutMs
 } = require('./hardening.cjs')
+const { registerSimplicioIpc } = require('./simplicio-ipc.cjs')
+
+// Registers ipcMain handlers immediately (no need to wait for app.whenReady)
+// and owns the one supervised "simplicio serve --mcp --stdio" daemon for this
+// process's lifetime; started below in app.whenReady() and stopped in
+// before-quit so it's always active while the app runs, never orphaned.
+const simplicioMcpDaemon = registerSimplicioIpc(ipcMain)
 
 let nodePty = null
 let nodePtyDir = null
@@ -7553,6 +7560,7 @@ app.whenReady().then(() => {
   ensureWslWindowsFonts()
   configureSpellChecker()
   registerPowerResumeListeners()
+  simplicioMcpDaemon.start()
   createWindow()
 
   // Win/Linux cold start: the launching hermes:// URL is in our own argv.
@@ -7623,6 +7631,10 @@ app.on('before-quit', () => {
 
   stopBackendChild(hermesProcess)
   stopAllPoolBackends()
+
+  // Stop the supervised MCP daemon so its child (and any restart timer) don't
+  // outlive the app.
+  simplicioMcpDaemon.stop()
 })
 
 app.on('window-all-closed', () => {

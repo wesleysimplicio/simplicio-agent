@@ -1,0 +1,228 @@
+// Defensive, pure parsing of `simplicio savings report --json` output.
+//
+// The report shape is not contractually fixed here — it comes from a Rust
+// CLI whose aggregate JSON may or may not carry every field depending on
+// runtime version. Every extractor below tolerates a missing/malformed field
+// by returning `null` rather than guessing a number. Callers render `null`
+// as "—" (unknown). This file must never synthesize a plausible-looking
+// figure — that would defeat the entire point of the measured/estimated
+// distinction this panel exists to show honestly.
+
+import { isProofKind, type ProofKind, type SavingsRawReport } from './types'
+
+export interface SavingsTotals {
+  spent: null | number
+  baseline: null | number
+  saved: null | number
+  pct: null | number
+}
+
+export interface SavingsEvent {
+  /** Synthesized when the report doesn't carry a stable id. */
+  id: string
+  timestamp: null | string
+  /** Epoch ms, when `timestamp` parses as a real date; used for sorting/chart. */
+  timestampMs: null | number
+  spent: null | number
+  baseline: null | number
+  saved: null | number
+  pct: null | number
+  proofKind: null | ProofKind
+  session: null | string
+  repo: null | string
+  model: null | string
+}
+
+export interface ParsedSavingsReport {
+  totals: SavingsTotals
+  events: SavingsEvent[]
+  /** True when at least one event carries a session/repo/model tag. */
+  hasSessionGranularity: boolean
+}
+
+const EMPTY_TOTALS: SavingsTotals = { spent: null, baseline: null, saved: null, pct: null }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function numOrNull(value: unknown): null | number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+function strOrNull(value: unknown): null | string {
+  return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
+function proofKindOrNull(value: unknown): null | ProofKind {
+  return isProofKind(value) ? value : null
+}
+
+function timestampMsOrNull(value: null | string): null | number {
+  if (!value) {
+    return null
+  }
+
+  // Bare epoch seconds/millis (common in ledger dumps) as well as ISO strings.
+  const asNumber = Number(value)
+
+  if (Number.isFinite(asNumber) && /^\d+$/.test(value.trim())) {
+    return asNumber > 1e12 ? asNumber : asNumber * 1000
+  }
+
+  const parsed = Date.parse(value)
+
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+/** First truthy value found by trying each key on the record, else undefined. */
+function pick(record: Record<string, unknown>, keys: readonly string[]): unknown {
+  for (const key of keys) {
+    if (record[key] !== undefined && record[key] !== null) {
+      return record[key]
+    }
+  }
+
+  return undefined
+}
+
+const SPENT_KEYS = ['spent', 'spent_tokens', 'tokens_spent', 'actual', 'used'] as const
+const BASELINE_KEYS = ['baseline', 'baseline_tokens', 'tokens_baseline', 'without_simplicio'] as const
+const SAVED_KEYS = ['saved', 'saved_tokens', 'tokens_saved', 'delta'] as const
+const PCT_KEYS = ['pct', 'percent', 'percentage', 'saved_pct', 'pct_saved'] as const
+const PROOF_KEYS = ['proof_kind', 'proofKind', 'kind'] as const
+const TIMESTAMP_KEYS = ['timestamp', 'ts', 'recorded_at', 'created_at', 'time'] as const
+const SESSION_KEYS = ['session', 'session_id', 'sessionId'] as const
+const REPO_KEYS = ['repo', 'repository', 'project'] as const
+const MODEL_KEYS = ['model', 'model_id', 'modelId'] as const
+const ID_KEYS = ['id', 'event_id', 'eventId', 'uuid'] as const
+
+function extractTotals(record: Record<string, unknown>): SavingsTotals {
+  const spent = numOrNull(pick(record, SPENT_KEYS))
+  const baseline = numOrNull(pick(record, BASELINE_KEYS))
+  let saved = numOrNull(pick(record, SAVED_KEYS))
+  let pct = numOrNull(pick(record, PCT_KEYS))
+
+  // Derive saved/pct from spent+baseline when the report omits them outright
+  // (still real arithmetic on real reported numbers, not a fabricated figure).
+  if (saved === null && spent !== null && baseline !== null) {
+    saved = baseline - spent
+  }
+
+  if (pct === null && saved !== null && baseline !== null && baseline > 0) {
+    pct = Math.round((saved / baseline) * 100)
+  }
+
+  return { spent, baseline, saved, pct }
+}
+
+function totalsSource(report: Record<string, unknown>): Record<string, unknown> {
+  const nested = pick(report, ['totals', 'aggregate', 'aggregates', 'summary'])
+
+  return isRecord(nested) ? nested : report
+}
+
+function eventsSource(report: Record<string, unknown>): unknown[] {
+  const list = pick(report, ['events', 'sessions', 'entries', 'items', 'records'])
+
+  return Array.isArray(list) ? list : []
+}
+
+function parseEvent(raw: unknown, index: number): null | SavingsEvent {
+  if (!isRecord(raw)) {
+    return null
+  }
+
+  const timestamp = strOrNull(pick(raw, TIMESTAMP_KEYS))
+  const { baseline, pct, saved, spent } = extractTotals(raw)
+
+  return {
+    baseline,
+    id: strOrNull(pick(raw, ID_KEYS)) ?? `event-${index}`,
+    model: strOrNull(pick(raw, MODEL_KEYS)),
+    pct,
+    proofKind: proofKindOrNull(pick(raw, PROOF_KEYS)),
+    repo: strOrNull(pick(raw, REPO_KEYS)),
+    saved,
+    session: strOrNull(pick(raw, SESSION_KEYS)),
+    spent,
+    timestamp,
+    timestampMs: timestampMsOrNull(timestamp)
+  }
+}
+
+export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsReport {
+  if (!isRecord(report)) {
+    return { events: [], hasSessionGranularity: false, totals: EMPTY_TOTALS }
+  }
+
+  const totals = extractTotals(totalsSource(report))
+  const events = eventsSource(report)
+    .map((raw, index) => parseEvent(raw, index))
+    .filter((event): event is SavingsEvent => event !== null)
+
+  // No explicit totals block? Fall back to summing whatever events carry
+  // real numbers, so the hero cards aren't blank when only a flat event list
+  // is present.
+  const totalsAreEmpty = totals.spent === null && totals.baseline === null && totals.saved === null
+  const derivedTotals = totalsAreEmpty && events.length > 0 ? sumEventTotals(events) : totals
+
+  return {
+    events: [...events].sort((a, b) => (b.timestampMs ?? 0) - (a.timestampMs ?? 0)),
+    hasSessionGranularity: events.some(event => event.session !== null || event.repo !== null),
+    totals: derivedTotals
+  }
+}
+
+function sumEventTotals(events: readonly SavingsEvent[]): SavingsTotals {
+  let spent: null | number = null
+  let baseline: null | number = null
+
+  for (const event of events) {
+    if (event.spent !== null) {
+      spent = (spent ?? 0) + event.spent
+    }
+
+    if (event.baseline !== null) {
+      baseline = (baseline ?? 0) + event.baseline
+    }
+  }
+
+  const saved = spent !== null && baseline !== null ? baseline - spent : null
+  const pct = saved !== null && baseline !== null && baseline > 0 ? Math.round((saved / baseline) * 100) : null
+
+  return { baseline, pct, saved, spent }
+}
+
+export interface CumulativePoint {
+  timestampMs: number
+  cumulativeSaved: number
+}
+
+/** Ascending-time cumulative-saved series for the trend chart. Events with no
+ * usable saved figure or timestamp are skipped rather than plotted at zero. */
+export function cumulativeSavedSeries(events: readonly SavingsEvent[]): CumulativePoint[] {
+  const usable = events
+    .filter((event): event is SavingsEvent & { saved: number; timestampMs: number } => {
+      return event.saved !== null && event.timestampMs !== null
+    })
+    .sort((a, b) => a.timestampMs - b.timestampMs)
+
+  let running = 0
+
+  return usable.map(event => {
+    running += event.saved
+
+    return { cumulativeSaved: running, timestampMs: event.timestampMs }
+  })
+}

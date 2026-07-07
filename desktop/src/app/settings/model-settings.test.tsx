@@ -13,17 +13,22 @@ beforeAll(() => {
 const getGlobalModelInfo = vi.fn()
 const getGlobalModelOptions = vi.fn()
 const getAuxiliaryModels = vi.fn()
+const getMoaModels = vi.fn()
+const saveMoaModels = vi.fn()
 const setModelAssignment = vi.fn()
 const getRecommendedDefaultModel = vi.fn()
 const setEnvVar = vi.fn()
 const getHermesConfigRecord = vi.fn()
 const saveHermesConfig = vi.fn()
 const startManualProviderOAuth = vi.fn()
+const startManualLocalEndpoint = vi.fn()
 
 vi.mock('@/hermes', () => ({
   getGlobalModelInfo: () => getGlobalModelInfo(),
   getGlobalModelOptions: () => getGlobalModelOptions(),
   getAuxiliaryModels: () => getAuxiliaryModels(),
+  getMoaModels: () => getMoaModels(),
+  saveMoaModels: (body: unknown) => saveMoaModels(body),
   setModelAssignment: (body: unknown) => setModelAssignment(body),
   getRecommendedDefaultModel: (slug: string) => getRecommendedDefaultModel(slug),
   setEnvVar: (key: string, value: string) => setEnvVar(key, value),
@@ -32,7 +37,8 @@ vi.mock('@/hermes', () => ({
 }))
 
 vi.mock('@/store/onboarding', () => ({
-  startManualProviderOAuth: (slug: string) => startManualProviderOAuth(slug)
+  startManualProviderOAuth: (slug: string) => startManualProviderOAuth(slug),
+  startManualLocalEndpoint: (body: unknown) => startManualLocalEndpoint(body)
 }))
 
 beforeEach(() => {
@@ -61,6 +67,8 @@ beforeEach(() => {
     main: { provider: 'nous', model: 'hermes-4' },
     tasks: [{ task: 'vision', provider: 'auto', model: '', base_url: '' }]
   })
+  getMoaModels.mockResolvedValue(null)
+  saveMoaModels.mockResolvedValue({ ok: true })
   setModelAssignment.mockResolvedValue({ provider: 'nous', model: 'hermes-4', gateway_tools: [] })
   getRecommendedDefaultModel.mockResolvedValue({ provider: 'deepseek', model: 'deepseek-chat', free_tier: null })
   setEnvVar.mockResolvedValue({ ok: true })
@@ -92,10 +100,12 @@ describe('ModelSettings', () => {
     fireEvent.click(triggers[0])
 
     // "Nous" shows in both the trigger and the open list; the unconfigured
-    // provider + its setup hint are the unique signal of the full universe.
+    // provider listed as a selectable option is the unique signal of the full
+    // universe. (Its setup affordance — the inline API-key input — only appears
+    // after selection and is covered by the "activates an unconfigured
+    // api_key provider" test below.)
     expect((await screen.findAllByText('Nous')).length).toBeGreaterThan(0)
-    expect(await screen.findByText(/DeepSeek/)).toBeTruthy()
-    expect(await screen.findByText(/set up/)).toBeTruthy()
+    expect(await screen.findByRole('option', { name: /DeepSeek/ })).toBeTruthy()
   })
 
   it('activates an unconfigured api_key provider inline by saving its key', async () => {

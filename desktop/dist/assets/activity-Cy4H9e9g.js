@@ -1,0 +1,1 @@
+import{ao as r}from"./index-BhrXashH.js";const a=8,c=300*1e3,n=r({});function p(t){n.set(u({...n.get(),[t.name]:{status:t,updatedAt:Date.now()}}))}function u(t){const o=Date.now();return Object.fromEntries(Object.entries(t).filter(([,e])=>e.status.running||o-e.updatedAt<=c).sort(([,e],[,s])=>s.updatedAt-e.updatedAt).slice(0,a))}export{p as u};

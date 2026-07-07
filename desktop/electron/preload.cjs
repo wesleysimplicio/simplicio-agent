@@ -216,3 +216,18 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     searchMarketplace: query => ipcRenderer.invoke('hermes:vscode-theme:search', query)
   }
 })
+
+// Simplicio Savings surface: the `simplicio` runtime binary's savings
+// report/doctor, editor MCP registration status, and the supervised MCP
+// stdio daemon. Kept as its own contextBridge object (not folded into
+// hermesDesktop) since it targets the simplicio kernel specifically, not the
+// Hermes backend.
+contextBridge.exposeInMainWorld('simplicioSavings', {
+  savingsReport: () => ipcRenderer.invoke('simplicio:savings-report'),
+  doctorRun: () => ipcRenderer.invoke('simplicio:doctor'),
+  editorsDetect: () => ipcRenderer.invoke('simplicio:editors-detect'),
+  mcpRegister: () => ipcRenderer.invoke('simplicio:mcp-register'),
+  mcpDaemonStatus: () => ipcRenderer.invoke('simplicio:mcp-daemon-status'),
+  mcpDaemonStart: () => ipcRenderer.invoke('simplicio:mcp-daemon-start'),
+  mcpDaemonStop: () => ipcRenderer.invoke('simplicio:mcp-daemon-stop')
+})

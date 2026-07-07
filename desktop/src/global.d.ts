@@ -196,7 +196,91 @@ declare global {
         searchMarketplace: (query: string) => Promise<DesktopMarketplaceSearchItem[]>
       }
     }
+    // Simplicio Savings surface: the `simplicio` runtime binary's savings
+    // report/doctor, editor MCP registration status, and the supervised MCP
+    // stdio daemon (electron/simplicio-ipc.cjs + electron/preload.cjs).
+    simplicioSavings: {
+      savingsReport: () => Promise<SavingsReportResult>
+      doctorRun: () => Promise<DoctorResult>
+      editorsDetect: () => Promise<EditorsDetectResult>
+      mcpRegister: () => Promise<McpRegisterResult>
+      mcpDaemonStatus: () => Promise<McpDaemonStatus>
+      mcpDaemonStart: () => Promise<McpDaemonStatus>
+      mcpDaemonStop: () => Promise<McpDaemonStatus>
+    }
   }
+}
+
+// `simplicio savings report --json` payload is not schema-pinned here (the
+// runtime owns that shape, tracked as `simplicio.savings-event/v1` in
+// docs/SAVINGS_EVENT_SPEC.md) -- this only promises the honest ok/error
+// envelope the IPC layer adds around it. Field name `report` (not `data`)
+// deliberately matches the `SimplicioSavingsBridge`/`SavingsReportResult`
+// contract in `src/app/savings/types.ts`, a parallel in-flight change that
+// consumes this exact bridge.
+export interface SavingsReportResult {
+  ok: boolean
+  report?: Record<string, unknown>
+  error?: string
+  raw?: string
+}
+
+// Field name `doctor` (not `data`) deliberately matches the local
+// `DoctorRunResult` contract declared in
+// `src/components/onboarding/doctor-step.tsx`, a parallel in-flight change
+// that reads `result.doctor` via `mapDoctorToChecklist()`.
+export interface DoctorResult {
+  ok: boolean
+  doctor?: Record<string, unknown>
+  error?: string
+  raw?: string
+}
+
+// One editor/agent-tool's Simplicio MCP integration state, as reported by
+// electron/editor-integrations.cjs's detectEditors().
+export interface EditorIntegration {
+  id: string
+  name: string
+  // True when the editor/tool itself (or its config directory) is present on
+  // this machine.
+  installed: boolean
+  // True when its MCP config already references the Simplicio server.
+  registered: boolean
+  configPath: string
+}
+
+export interface EditorsDetectResult {
+  ok: boolean
+  editors: EditorIntegration[]
+  error?: string
+}
+
+// `simplicio mcp register`'s parsed stdout: which editors it registered vs.
+// skipped because they aren't installed.
+export interface McpRegisterResult {
+  ok: boolean
+  registered: string[]
+  skipped: string[]
+  raw?: string
+  error?: string
+}
+
+// Supervised `simplicio serve --mcp --stdio` daemon status
+// (electron/mcp-daemon.cjs). `startedAt` is an ISO-8601 string (not epoch
+// ms) to match the `McpDaemonStatus` contract in `src/app/savings/types.ts`,
+// a parallel in-flight change consuming this exact bridge.
+export interface McpDaemonStatus {
+  running: boolean
+  pid: number | null
+  restarts: number
+  startedAt: string | null
+  // Explicit reason the daemon is down/last failed (e.g. "simplicio binary
+  // not found"), or null when there's nothing to report.
+  lastError: string | null
+  // Which resolveSimplicioBin() rung supplied the running/last-attempted
+  // binary ("env:SIMPLICIO_BIN" | "path" | "local-bin" | "dev-fallback"), or
+  // null before any resolution attempt.
+  binSource: string | null
 }
 
 export interface DesktopMarketplaceSearchItem {

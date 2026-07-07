@@ -48,6 +48,14 @@ export type OnboardingFlow =
       saving: boolean
       status: 'confirming_model'
     }
+  // Post-provider onboarding sequence (all skippable, none gate app usage):
+  // runtime doctor checklist -> simulated Google sign-in -> simulated
+  // subscription. Entered from 'confirming_model' via advanceToPostSetup()
+  // and finalized the same way 'confirming_model' used to be (see
+  // finishPostSetup / the DesktopOnboardingOverlay's finalizeOnboarding).
+  | { status: 'post_doctor' }
+  | { status: 'post_google' }
+  | { status: 'post_subscription' }
   | { message: string; provider?: OAuthProvider; start?: OAuthStartResponse; status: 'error' }
 
 export interface DesktopOnboardingState {
@@ -77,6 +85,22 @@ export interface DesktopOnboardingState {
    *  custom endpoint"). Forces the API-key form with the local option
    *  preselected instead of the OAuth picker. */
   localEndpoint: boolean
+  /** Results from the post-provider onboarding steps (runtime doctor /
+   *  simulated Google sign-in / simulated subscription). Optional so
+   *  existing state literals (tests, callers built before this field
+   *  existed) don't need updating — reads fall back to
+   *  DEFAULT_POST_SETUP_STATE. Reset on completeDesktopOnboarding(). */
+  postSetup?: PostSetupState
+}
+
+export interface PostSetupState {
+  google: { email: null | string; signedIn: boolean }
+  subscription: { subscribed: boolean }
+}
+
+export const DEFAULT_POST_SETUP_STATE: PostSetupState = {
+  google: { email: null, signedIn: false },
+  subscription: { subscribed: false }
 }
 
 export interface OnboardingContext {
@@ -156,7 +180,8 @@ const INITIAL: DesktopOnboardingState = {
   requested: false,
   firstRunSkipped: readCachedSkipped(),
   manual: false,
-  localEndpoint: false
+  localEndpoint: false,
+  postSetup: DEFAULT_POST_SETUP_STATE
 }
 
 export const $desktopOnboarding = atom<DesktopOnboardingState>(INITIAL)
@@ -479,7 +504,8 @@ export function completeDesktopOnboarding() {
     requested: false,
     firstRunSkipped: false,
     manual: false,
-    localEndpoint: false
+    localEndpoint: false,
+    postSetup: DEFAULT_POST_SETUP_STATE
   })
 }
 
@@ -922,6 +948,79 @@ export function confirmOnboardingModel(ctx: OnboardingContext) {
   // No success toast here: the confirm-model screen already showed "<provider>
   // connected." notifyReady is reserved for completion paths that SKIP this
   // screen (no-default fallthrough, local endpoint) so feedback isn't lost.
+  completeDesktopOnboarding()
+  ctx.onCompleted?.()
+}
+
+// ---------------------------------------------------------------------------
+// Post-provider onboarding sequence: runtime doctor -> simulated Google
+// sign-in -> simulated subscription. All three steps are skippable and none
+// gates app usage — they exist to exercise the onboarding UI end-to-end.
+// Entered from the "Begin" action on the model-confirm card instead of
+// finishing onboarding immediately; the last step (subscription) finishes
+// onboarding the same way confirmOnboardingModel used to.
+// ---------------------------------------------------------------------------
+
+// "Begin" on the model-confirm card. Used to call confirmOnboardingModel
+// directly (finishing onboarding); now it hands off to the post-setup
+// sequence instead, starting with the runtime doctor checklist.
+export function advanceToPostSetup() {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'confirming_model') {
+    return
+  }
+
+  setFlow({ status: 'post_doctor' })
+}
+
+export function advanceFromDoctor() {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'post_doctor') {
+    return
+  }
+
+  setFlow({ status: 'post_google' })
+}
+
+// Records the simulated Google sign-in result. No real OAuth call is made —
+// the label stays clearly marked "simulado" wherever it's rendered.
+export function setGoogleSignedIn(email: string) {
+  const state = $desktopOnboarding.get()
+  patch({ postSetup: { ...(state.postSetup ?? DEFAULT_POST_SETUP_STATE), google: { signedIn: true, email } } })
+}
+
+export function advanceFromGoogle() {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'post_google') {
+    return
+  }
+
+  setFlow({ status: 'post_subscription' })
+}
+
+// Records the simulated subscription result. Never gates anything — purely
+// cosmetic state for the "SIMULAÇÃO" badge.
+export function setSubscribed(subscribed: boolean) {
+  const state = $desktopOnboarding.get()
+  patch({
+    postSetup: { ...(state.postSetup ?? DEFAULT_POST_SETUP_STATE), subscription: { subscribed } }
+  })
+}
+
+// Final step of the post-setup sequence ("Assinar (simulação)" or "Continuar
+// sem assinar" on the subscription card). Mirrors confirmOnboardingModel's
+// body — the only difference is the guard status, since this sequence now
+// owns the "finish onboarding" moment.
+export function finishPostSetup(ctx: OnboardingContext) {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'post_subscription') {
+    return
+  }
+
   completeDesktopOnboarding()
   ctx.onCompleted?.()
 }

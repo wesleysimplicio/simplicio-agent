@@ -89,7 +89,9 @@ describe('buildToolView browser_navigate title', () => {
     )
 
     expect(view.status).toBe('error')
-    expect(view.title).toBe('Failed to open hermes-agent.nousresearch.com')
+    // hostnameOf() keeps a non-root pathname (targets.ts), so the title carries
+    // the /docs suffix.
+    expect(view.title).toBe('Failed to open hermes-agent.nousresearch.com/docs')
   })
 
   it('shows opened title on success', () => {
@@ -103,7 +105,8 @@ describe('buildToolView browser_navigate title', () => {
     )
 
     expect(view.status).toBe('success')
-    expect(view.title).toBe('Opened hermes-agent.nousresearch.com')
+    // Same hostnameOf() contract as above: non-root pathnames are preserved.
+    expect(view.title).toBe('Opened hermes-agent.nousresearch.com/docs')
   })
 })
 
@@ -336,7 +339,9 @@ describe('clampForDisplay', () => {
 
     expect(clamped.length).toBeLessThan(oversized.length)
     expect(clamped.startsWith('x'.repeat(MAX_TOOL_RENDER_CHARS))).toBe(true)
-    expect(clamped).toContain('5,000 more characters truncated')
+    // format.ts renders the count with toLocaleString(); build the expectation
+    // the same way so the assertion holds on any host locale (5,000 / 5.000 / …).
+    expect(clamped).toContain(`${(5_000).toLocaleString()} more characters truncated`)
     expect(clamped).toContain('Copy')
   })
 })

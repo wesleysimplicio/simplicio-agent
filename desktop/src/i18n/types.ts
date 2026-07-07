@@ -708,6 +708,50 @@ export interface Translations {
     tokens: (value: number) => string
   }
 
+  savings: {
+    title: string
+    subtitle: string
+    close: string
+    refresh: string
+    refreshing: string
+    lastUpdated: (time: string) => string
+    heroTotalSavedLabel: string
+    heroPctSavedLabel: string
+    heroSpentLabel: string
+    heroSpentHint: (baseline: string) => string
+    evidenceSectionTitle: string
+    evidenceSectionDesc: string
+    measuredLabel: string
+    measuredTooltip: string
+    estimatedLabel: string
+    estimatedTooltip: string
+    unknownProofLabel: string
+    unknownProofTooltip: string
+    chartTitle: string
+    perSessionTitle: string
+    perSessionAggregatedNote: string
+    noEventListDesc: string
+    columnTimestamp: string
+    columnContext: string
+    columnSpent: string
+    columnBaseline: string
+    columnSaved: string
+    columnProof: string
+    mcpUnknown: string
+    mcpRunning: string
+    mcpRunningPid: (pid: number) => string
+    mcpStopped: string
+    mcpStoppedNoDetail: string
+    mcpRestarts: (count: number) => string
+    backendUnavailableTitle: string
+    backendUnavailableDesc: string
+    errorTitle: string
+    retry: string
+    emptyTitle: string
+    emptyDesc: string
+    loading: string
+  }
+
   commandCenter: {
     close: string
     paletteTitle: string
@@ -1050,6 +1094,36 @@ export interface Translations {
     chat: string
     copyUrl: string
     copyPath: string
+  }
+
+  integrations: {
+    title: string
+    subtitle: string
+    backendUnavailable: string
+    daemonTitle: string
+    daemonAlwaysOn: string
+    daemonRunning: string
+    daemonStopped: string
+    daemonPid: (pid: number) => string
+    daemonUptime: (uptime: string) => string
+    daemonRestarts: (count: number) => string
+    daemonLastError: (message: string) => string
+    editorsHeading: string
+    deployAll: string
+    deploying: string
+    deployedTitle: string
+    deployedSummary: (registered: number, skipped: number) => string
+    deployFailedTitle: string
+    deployResultRegisteredLabel: string
+    deployResultSkippedLabel: string
+    deployResultNoneRegistered: string
+    restartNote: string
+    detectFailedTitle: string
+    noEditorsFound: string
+    configPathUnknown: string
+    stateConnected: string
+    stateInstalled: string
+    stateNotInstalled: string
   }
 
   sidebar: {

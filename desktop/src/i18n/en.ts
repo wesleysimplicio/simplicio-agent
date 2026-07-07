@@ -811,6 +811,51 @@ export const en: Translations = {
     tokens: value => `${value} tok`
   },
 
+  savings: {
+    title: 'Token Economy',
+    subtitle: 'Real, evidenced token savings — measured where possible, estimated where not.',
+    close: 'Close savings',
+    refresh: 'Refresh',
+    refreshing: 'Refreshing…',
+    lastUpdated: time => `Updated ${time}`,
+    heroTotalSavedLabel: 'Total tokens saved',
+    heroPctSavedLabel: 'Savings rate',
+    heroSpentLabel: 'Spent this period',
+    heroSpentHint: baseline => `of ${baseline} baseline`,
+    evidenceSectionTitle: 'Evidence',
+    evidenceSectionDesc: 'Every figure below is tagged measured or estimated — never shown unlabeled.',
+    measuredLabel: 'Measured',
+    measuredTooltip: 'Real usage reported by the provider or savings ledger.',
+    estimatedLabel: 'Estimated',
+    estimatedTooltip: 'Heuristic estimate, not a provider-reported figure.',
+    unknownProofLabel: 'Unlabeled',
+    unknownProofTooltip: 'This record has no proof-kind tag in the report.',
+    chartTitle: 'Cumulative savings over time',
+    perSessionTitle: 'By session',
+    perSessionAggregatedNote: 'This report has no per-session breakdown — showing raw ledger events instead.',
+    noEventListDesc: 'This report only has aggregate totals — no event-level list to show.',
+    columnTimestamp: 'Time',
+    columnContext: 'Session / repo / model',
+    columnSpent: 'Spent',
+    columnBaseline: 'Baseline',
+    columnSaved: 'Saved',
+    columnProof: 'Proof',
+    mcpUnknown: 'MCP status unknown',
+    mcpRunning: 'MCP daemon running',
+    mcpRunningPid: pid => `MCP daemon running (pid ${pid})`,
+    mcpStopped: 'MCP daemon stopped',
+    mcpStoppedNoDetail: 'Stopped — no error reported',
+    mcpRestarts: count => `${count} restart${count === 1 ? '' : 's'}`,
+    backendUnavailableTitle: 'Savings backend unavailable',
+    backendUnavailableDesc:
+      'window.simplicioSavings is not exposed by this build. Update the desktop app, or run `simplicio savings report --json` from a terminal to check the ledger directly.',
+    errorTitle: 'Could not load the savings report',
+    retry: 'Retry',
+    emptyTitle: 'No savings recorded yet',
+    emptyDesc: 'Run `simplicio savings record --spent <N> --baseline <N> --proof-kind estimated` to log your first entry.',
+    loading: 'Loading savings data…'
+  },
+
   commandCenter: {
     close: 'Close command center',
     paletteTitle: 'Command palette',
@@ -1301,12 +1346,44 @@ export const en: Translations = {
     copyPath: 'Copy path'
   },
 
+  integrations: {
+    title: 'Integrations',
+    subtitle: 'Deploy the Simplicio MCP server to your installed editors and agents.',
+    backendUnavailable: "Simplicio bridge unavailable — integration status can't be checked from this window.",
+    daemonTitle: 'Simplicio MCP server',
+    daemonAlwaysOn: 'Local MCP server, always on',
+    daemonRunning: 'Active',
+    daemonStopped: 'Stopped',
+    daemonPid: pid => `PID ${pid}`,
+    daemonUptime: uptime => `up ${uptime}`,
+    daemonRestarts: count => `${count} restart${count === 1 ? '' : 's'}`,
+    daemonLastError: message => `last error: ${message}`,
+    editorsHeading: 'Editors & agents',
+    deployAll: 'Deploy to all',
+    deploying: 'Deploying...',
+    deployedTitle: 'MCP server deployed',
+    deployedSummary: (registered, skipped) =>
+      skipped > 0 ? `${registered} registered, ${skipped} skipped` : `${registered} registered`,
+    deployFailedTitle: 'Deploy failed',
+    deployResultRegisteredLabel: 'Registered:',
+    deployResultSkippedLabel: 'Skipped:',
+    deployResultNoneRegistered: 'No editors were registered.',
+    restartNote: 'Restart your editor or agent to load the server.',
+    detectFailedTitle: 'Failed to detect editors',
+    noEditorsFound: 'No editors detected on this machine.',
+    configPathUnknown: 'No config path reported',
+    stateConnected: 'Connected',
+    stateInstalled: 'Installed, not connected',
+    stateNotInstalled: 'Not installed'
+  },
+
   sidebar: {
     nav: {
       'new-session': 'New session',
       skills: 'Skills & Tools',
       messaging: 'Messaging',
-      artifacts: 'Artifacts'
+      artifacts: 'Artifacts',
+      integrations: 'Integrations'
     },
     searchAria: 'Search sessions',
     searchPlaceholder: 'Search sessions…',

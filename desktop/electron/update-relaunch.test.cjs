@@ -36,7 +36,11 @@ const {
   shellQuote
 } = require('./update-relaunch.cjs')
 
-const ROOT = '/home/u/.hermes/hermes-agent'
+// Pre-resolve the fixture root: resolveUnpackedRelease() path.resolve()s the
+// execPath, which on win32 prefixes the current drive (C:\home\…). Resolving
+// ROOT the same way keeps the prefix comparison consistent on every platform
+// (a no-op on POSIX, where resolve('/home/…') === '/home/…').
+const ROOT = path.resolve('/home/u/.hermes/hermes-agent')
 const UNPACKED = path.join(ROOT, 'apps', 'desktop', 'release', 'linux-unpacked')
 
 // ---------------------------------------------------------------------------

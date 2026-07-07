@@ -67,6 +67,7 @@ import {
   MESSAGING_ROUTE,
   NEW_CHAT_ROUTE,
   PROFILES_ROUTE,
+  SAVINGS_ROUTE,
   sessionRoute,
   SETTINGS_ROUTE,
   SKILLS_ROUTE,
@@ -392,6 +393,13 @@ export function CommandPalette() {
             keywords: ['star map', 'memory', 'memories', 'skills', 'graph', 'learning', 'constellation'],
             label: t.starmap.title,
             run: go(STARMAP_ROUTE)
+          },
+          {
+            icon: Zap,
+            id: 'nav-savings',
+            keywords: ['tokens', 'economy', 'cost', 'usage', 'ledger', 'evidence'],
+            label: t.savings.title,
+            run: go(SAVINGS_ROUTE)
           }
         ]
       },

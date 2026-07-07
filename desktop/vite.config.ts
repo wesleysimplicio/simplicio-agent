@@ -58,11 +58,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@hermes/shared': path.resolve(__dirname, '../shared/src'),
-      react: path.resolve(__dirname, '../../node_modules/react'),
-      'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),
-      'react/jsx-dev-runtime': path.resolve(__dirname, '../../node_modules/react/jsx-dev-runtime.js'),
-      'react/jsx-runtime': path.resolve(__dirname, '../../node_modules/react/jsx-runtime.js')
+      '@hermes/shared': path.resolve(__dirname, '../apps/shared/src'),
+      react: path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'react/jsx-dev-runtime': path.resolve(__dirname, './node_modules/react/jsx-dev-runtime.js'),
+      'react/jsx-runtime': path.resolve(__dirname, './node_modules/react/jsx-runtime.js')
     },
     dedupe: ['react', 'react-dom']
   },
@@ -77,5 +77,19 @@ export default defineConfig({
   preview: {
     host: '127.0.0.1',
     port: 4174
+  },
+  test: {
+    environment: 'jsdom',
+    // Vitest only owns the renderer tests under src/. The electron main-process
+    // tests are plain node:test files (electron/*.test.cjs — run via
+    // `node --test electron/`), and build/native-deps contains vendored
+    // node-pty sources whose own *.test.js files must not be collected.
+    include: ['src/**/*.test.{ts,tsx}'],
+    // jsdom does not implement window.CSS; the setup file polyfills CSS.escape
+    // used by the thread timeline.
+    setupFiles: ['./src/test-setup.ts'],
+    // First import of a large component graph (e.g. MessagingView) can exceed
+    // 5s on cold module transform; keep headroom for slower machines.
+    testTimeout: 20000
   }
 })

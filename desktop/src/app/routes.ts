@@ -5,10 +5,12 @@ export const COMMAND_CENTER_ROUTE = '/command-center'
 export const SKILLS_ROUTE = '/skills'
 export const MESSAGING_ROUTE = '/messaging'
 export const ARTIFACTS_ROUTE = '/artifacts'
+export const INTEGRATIONS_ROUTE = '/integrations'
 export const CRON_ROUTE = '/cron'
 export const PROFILES_ROUTE = '/profiles'
 export const AGENTS_ROUTE = '/agents'
 export const STARMAP_ROUTE = '/starmap'
+export const SAVINGS_ROUTE = '/savings'
 
 export type AppView =
   | 'agents'
@@ -16,8 +18,10 @@ export type AppView =
   | 'chat'
   | 'command-center'
   | 'cron'
+  | 'integrations'
   | 'messaging'
   | 'profiles'
+  | 'savings'
   | 'settings'
   | 'skills'
   | 'starmap'
@@ -27,9 +31,11 @@ export type AppRouteId =
   | 'artifacts'
   | 'command-center'
   | 'cron'
+  | 'integrations'
   | 'messaging'
   | 'new'
   | 'profiles'
+  | 'savings'
   | 'settings'
   | 'skills'
   | 'starmap'
@@ -47,10 +53,12 @@ export const APP_ROUTES = [
   { id: 'skills', path: SKILLS_ROUTE, view: 'skills' },
   { id: 'messaging', path: MESSAGING_ROUTE, view: 'messaging' },
   { id: 'artifacts', path: ARTIFACTS_ROUTE, view: 'artifacts' },
+  { id: 'integrations', path: INTEGRATIONS_ROUTE, view: 'integrations' },
   { id: 'cron', path: CRON_ROUTE, view: 'cron' },
   { id: 'profiles', path: PROFILES_ROUTE, view: 'profiles' },
   { id: 'agents', path: AGENTS_ROUTE, view: 'agents' },
-  { id: 'starmap', path: STARMAP_ROUTE, view: 'starmap' }
+  { id: 'starmap', path: STARMAP_ROUTE, view: 'starmap' },
+  { id: 'savings', path: SAVINGS_ROUTE, view: 'savings' }
 ] as const satisfies readonly AppRoute[]
 
 const APP_VIEW_BY_PATH = new Map<string, AppView>(APP_ROUTES.map(route => [route.path, route.view]))
@@ -64,6 +72,7 @@ export const OVERLAY_VIEWS: ReadonlySet<AppView> = new Set([
   'command-center',
   'cron',
   'profiles',
+  'savings',
   'settings',
   'starmap'
 ])

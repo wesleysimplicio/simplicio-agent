@@ -62,8 +62,12 @@ describe('usePreviewRouting', () => {
     $currentCwd.set('/work')
     $messages.set([])
     $previewTarget.set(null)
-    window.localStorage.clear()
+    // Reset the registry BEFORE clearing storage: clearSessionPreviewRegistry()
+    // sets the persisted atom, which immediately writes '{}' back to
+    // localStorage — clearing afterwards leaves the key truly absent for the
+    // "nothing was persisted" assertions.
     clearSessionPreviewRegistry()
+    window.localStorage.clear()
     handleEvent = () => undefined
 
     Object.defineProperty(window, 'hermesDesktop', {

@@ -151,9 +151,11 @@ describe('PaneShell composition', () => {
     setPaneOpen('files', true)
     setPaneWidthOverride('files', 320)
 
+    // Width overrides only apply to resizable panes (trackForPane gates on
+    // pane.resizable); fixed panes keep their declared width.
     const rendered = render(
       <PaneShell>
-        <Pane id="files" side="left" width="240px">
+        <Pane id="files" resizable side="left" width="240px">
           files
         </Pane>
         <PaneMain>main</PaneMain>

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { ModelPickerDialog } from '@/components/model-picker'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,8 @@ import { useI18n } from '@/i18n'
 import { ExternalLink, Loader2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
+  advanceFromDoctor,
+  advanceFromGoogle,
   cancelOnboardingFlow,
   copyDeviceCode,
   copyExternalCommand,
@@ -22,19 +24,28 @@ import {
   submitOnboardingCode
 } from '@/store/onboarding'
 
+import { DoctorStep } from './doctor-step'
 import { DecodedLabel, GlyphText, HackeryButton, useScramble } from './glyph'
+import { GoogleSignInStep } from './google-signin-step'
 import { providerTitle } from './providers'
+import { SubscriptionStep } from './subscription-step'
 
 export function FlowPanel({
   ctx,
   flow,
   leaving,
-  onBegin
+  onBegin,
+  onFinish
 }: {
   ctx: OnboardingContext
   flow: OnboardingFlow
   leaving: boolean
   onBegin: () => void
+  /** Finishes the post-provider onboarding sequence (runtime doctor ->
+   *  simulated Google sign-in -> simulated subscription). Only invoked by the
+   *  last step, mirroring the cinematic exit `onBegin` used to trigger
+   *  directly from the model-confirm card. */
+  onFinish: () => void
 }) {
   const { t } = useI18n()
   const title = 'provider' in flow && flow.provider ? providerTitle(flow.provider) : ''
@@ -53,6 +64,34 @@ export function FlowPanel({
 
   if (flow.status === 'confirming_model') {
     return <ConfirmingModelPanel flow={flow} leaving={leaving} onBegin={onBegin} />
+  }
+
+  // Post-provider onboarding sequence (#A/#B/#C): all three steps are
+  // skippable and never gate app usage. Each panel fades/slides in via
+  // StepTransition since these swap by conditional render (no shared
+  // wrapper animation like the model-confirm card's bare cinematic exit).
+  if (flow.status === 'post_doctor') {
+    return (
+      <StepTransition>
+        <DoctorStep onContinue={advanceFromDoctor} />
+      </StepTransition>
+    )
+  }
+
+  if (flow.status === 'post_google') {
+    return (
+      <StepTransition>
+        <GoogleSignInStep onContinue={advanceFromGoogle} />
+      </StepTransition>
+    )
+  }
+
+  if (flow.status === 'post_subscription') {
+    return (
+      <StepTransition>
+        <SubscriptionStep onFinish={onFinish} />
+      </StepTransition>
+    )
   }
 
   if (flow.status === 'error') {
@@ -149,10 +188,45 @@ export function FlowPanel({
   )
 }
 
-function Step({ children, title }: { children: React.ReactNode; title: string }) {
+export function Step({ children, title }: { children: React.ReactNode; title: string }) {
   return (
     <div className="grid gap-4">
       <h3 className="text-sm font-semibold">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+// Lightweight mount-in transition for step panels that swap via conditional
+// render (post_doctor / post_google / post_subscription) rather than a
+// shared animated container. Fades + rises once on mount; respects
+// prefers-reduced-motion by skipping straight to the settled state (no
+// animation library — matches the matchMedia-guard pattern used elsewhere in
+// this overlay, e.g. glyph.tsx's useDecoded / index.tsx's finalizeOnboarding).
+export function StepTransition({ children }: { children: React.ReactNode }) {
+  const [entered, setEntered] = useState(
+    () =>
+      typeof window === 'undefined' ||
+      (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
+  )
+
+  useEffect(() => {
+    if (entered) {
+      return
+    }
+
+    const id = window.requestAnimationFrame(() => setEntered(true))
+
+    return () => window.cancelAnimationFrame(id)
+  }, [entered])
+
+  return (
+    <div
+      className={cn(
+        'transition-all duration-300 ease-out',
+        entered ? 'translate-y-0 opacity-100' : 'translate-y-1.5 opacity-0'
+      )}
+    >
       {children}
     </div>
   )

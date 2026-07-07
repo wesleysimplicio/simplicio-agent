@@ -682,6 +682,81 @@
   }
 }
 
+/* Savings panel (Token Economy): a scoped green-neon accent + a handful of
+   small entrance/attention animations, all opt-out under reduced motion. */
+.savings-panel {
+  --savings-accent: #39ff14;
+}
+
+@keyframes savings-pulse-good {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, #22c55e 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, #22c55e 0%, transparent);
+  }
+}
+
+.savings-pulse-good {
+  animation: savings-pulse-good 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .savings-pulse-good {
+    animation: none;
+  }
+}
+
+@keyframes savings-neon-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 0.3rem color-mix(in srgb, var(--savings-accent, #39ff14) 50%, transparent);
+  }
+  50% {
+    text-shadow: 0 0 0.55rem color-mix(in srgb, var(--savings-accent, #39ff14) 75%, transparent);
+  }
+}
+
+.savings-neon-text {
+  color: color-mix(in srgb, var(--savings-accent, #39ff14) 78%, var(--ui-text-primary, currentColor));
+  animation: savings-neon-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .savings-neon-text {
+    animation: none;
+    text-shadow: 0 0 0.3rem color-mix(in srgb, var(--savings-accent, #39ff14) 50%, transparent);
+  }
+}
+
+@keyframes savings-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.savings-stagger-in {
+  animation: savings-stagger-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .savings-stagger-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .savings-chart-line {
+    transition: none !important;
+  }
+}
+
 /* No focus rings, anywhere. Kills the native outline plus Tailwind's
    `focus-visible:ring-*` (a box-shadow driven by --tw-ring-*). Unlayered so it
    beats the utilities layer without !important on the outline. The composer /

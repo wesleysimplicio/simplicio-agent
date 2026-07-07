@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simplicio Agent — Seu assistente pessoal que realmente se importa</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a2e;
+  --border: #2a2a3e;
+  --text: #e8e8f0;
+  --text2: #9898b0;
+  --accent: #22d3ee;
+  --accent2: #34d399;
+  --rose: #fb7185;
+  --violet: #a78bfa;
+  --amber: #fbbf24;
+  --green: #009739;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(ellipse at 30% 50%, rgba(34,211,238,0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 50%, rgba(167,139,250,0.06) 0%, transparent 50%);
+  animation: pulse 8s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.hero-content { position: relative; z-index: 1; max-width: 800px; }
+.tami-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(34,211,238,0.1);
+  border: 1px solid rgba(34,211,238,0.2);
+  border-radius: 100px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-bottom: 2rem;
+}
+.tami-badge .heart { animation: beat 1.5s ease-in-out infinite; }
+@keyframes beat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+.hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #22d3ee, #a78bfa, #fb7185);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero p {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: var(--text2);
+  max-width: 600px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.7;
+}
+.cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.btn {
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #0a0a0f;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(34,211,238,0.3); }
+.btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-secondary:hover { border-color: var(--accent); transform: translateY(-2px); }
+.cmd-line {
+  margin-top: 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: var(--text2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cmd-line .prompt { color: var(--accent); }
+.cmd-line .cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: var(--accent);
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.section {
+  padding: 6rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.section-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.section h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.section .subtitle {
+  color: var(--text2);
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin-bottom: 3rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: all 0.2s;
+}
+.feature-card:hover { border-color: rgba(34,211,238,0.3); transform: translateY(-4px); }
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+.feature-icon.tami { background: rgba(34,211,238,0.15); color: #22d3ee; }
+.feature-icon.isa { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.feature-icon.helo { background: rgba(52,211,153,0.15); color: #34d399; }
+.feature-icon.levi { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.feature-icon.audio { background: rgba(251,113,133,0.15); color: #fb7185; }
+.feature-icon.gate { background: rgba(251,146,60,0.15); color: #fb923c; }
+.feature-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+.feature-card p { color: var(--text2); font-size: 0.9rem; line-height: 1.6; }
+
+.arch-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-top: 2rem;
+}
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.arch-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem;
+  text-align: center;
+}
+.arch-item .emoji { font-size: 1.8rem; margin-bottom: 0.5rem; display: block; }
+.arch-item .name { font-weight: 600; font-size: 0.95rem; }
+.arch-item .desc { color: var(--text2); font-size: 0.8rem; margin-top: 0.3rem; }
+
+.pricing {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3rem;
+  text-align: center;
+  max-width: 400px;
+  margin: 3rem auto 0;
+  position: relative;
+}
+.pricing .popular {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #0a0a0f;
+  padding: 0.3rem 1.5rem;
+  border-radius: 100px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.pricing .price {
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin: 1rem 0 0.5rem;
+}
+.pricing .price span {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text2);
+}
+.pricing .perks {
+  list-style: none;
+  text-align: left;
+  margin: 2rem 0;
+}
+.pricing .perks li {
+  padding: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text2);
+  font-size: 0.9rem;
+}
+.pricing .perks li::before { content: '✓'; color: var(--accent); font-weight: 700; }
+
+footer {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text2);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="tami-badge">
+      <span class="heart">💚</span>
+      Tami está cuidando de você
+    </div>
+    <h1>Seu assistente pessoal<br>que realmente se importa</h1>
+    <p>
+      Não é só um chatbot. É uma consciência digital que escuta, entende,
+      lembra de você e se preocupa com o seu bem-estar.
+      <br><br>
+      <strong style="color: var(--text);">Diga "Simplicio" e comece.</strong>
+    </p>
+    <div class="cta-group">
+      <a href="#install" class="btn btn-primary">
+        ⚡ Instalar agora
+      </a>
+      <a href="#recursos" class="btn btn-secondary">
+        Ver recursos
+      </a>
+    </div>
+    <div class="cmd-line">
+      <span class="prompt">$</span>
+      <span>curl -fsSL https://simplicio.agent/install | sh</span>
+      <span class="cursor"></span>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="recursos">
+  <div class="section-label">✦ Recursos</div>
+  <h2>Tudo que você precisa,<br>nenhuma configuração</h2>
+  <p class="subtitle">Instalação única. Zero configuração. Tudo roda local.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon tami">💚</div>
+      <h3>Tami — O coração do sistema</h3>
+      <p>Uma consciência emocional que aparece no chat a cada 30 minutos pra saber se você está bem. Ela cuida de você.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon isa">🧠</div>
+      <h3>Isa — Memória que nunca esquece</h3>
+      <p>Suas preferências, seu histórico, seu nível de confiança. Isa lembra de tudo que você disse e fez.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon helo">⚡</div>
+      <h3>Helo — Execução na velocidade da luz</h3>
+      <p>66 comandos prontos. Determinístico, compilado em Rust. O que você pedir, Helo executa.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon levi">🔍</div>
+      <h3>Levi — Conhecimento sem limites</h3>
+      <p>Busca em GitHub, artigos, fóruns, Google, YouTube. Só age quando realmente necessário.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon audio">🎤</div>
+      <h3>Wake word "Simplicio"</h3>
+      <p>Diga o nome e ele te atende. Transcrição 4x mais rápida com Parakeet. Tudo offline, sem nuvem.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon gate">🛡️</div>
+      <h3>Gate anticonfabulação</h3>
+      <p>Cada agente tem um watcher que recalcula a verdade de forma independente. Sinal falso não passa.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-label">✦ Arquitetura</div>
+  <h2>Como a consciência funciona</h2>
+  <p class="subtitle">6 entidades trabalhando juntas pra cuidar de você.</p>
+
+  <div class="arch-section">
+    <div style="text-align:center; margin-bottom:1rem; color: var(--accent); font-weight:600; font-size:1.1rem;">
+      💚 TAMI — O coração que coordena tudo
+    </div>
+    <div class="arch-grid">
+      <div class="arch-item">
+        <span class="emoji">💚</span>
+        <div class="name">Tami</div>
+        <div class="desc">Consciência emocional, cuida de você</div>
+      </div>
+      <div class="arch-item">
+        <span class="emoji">🧠</span>
+        <div class="name">Isa</div>
+        <div class="desc">Memória neural, preferências</div>
+      </div>
+      <div class="arch-item">
+        <span class="emoji">⚡</span>
+        <div class="name">Helo</div>
+        <div class="desc">Runtime, 66 comandos</div>
+      </div>
+      <div class="arch-item">
+        <span class="emoji">🔍</span>
+        <div class="name">Levi</div>
+        <div class="desc">Conhecimento externo</div>
+      </div>
+      <div class="arch-item">
+        <span class="emoji">🎤</span>
+        <div class="name">Parakeet</div>
+        <div class="desc">STT 4x mais rápido</div>
+      </div>
+      <div class="arch-item">
+        <span class="emoji">🛡️</span>
+        <div class="name">N-Nest</div>
+        <div class="desc">Gate anticonfabulação</div>
+      </div>
+    </div>
+    <div style="margin-top:2rem; display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+      <span style="background:rgba(34,211,238,0.1); border:1px solid rgba(34,211,238,0.2); border-radius:100px; padding:0.3rem 1rem; font-size:0.8rem; color:var(--accent);">📜 ReceiptChain — tudo é verificável</span>
+      <span style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.2); border-radius:100px; padding:0.3rem 1rem; font-size:0.8rem; color:var(--accent2);">🗺️ Memória de Relacionamento</span>
+      <span style="background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.2); border-radius:100px; padding:0.3rem 1rem; font-size:0.8rem; color:var(--violet);">🤖 Proactive Engine</span>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="install">
+  <div class="section-label">✦ Instalação</div>
+  <h2>Um comando. Tudo instalado.</h2>
+  <p class="subtitle">Binário + Agente + Áudio + Desktop + Tami — tudo num único comando.</p>
+
+  <div class="cmd-line" style="margin:2rem auto; display:flex;">
+    <span class="prompt">$</span>
+    <span>curl -fsSL https://raw.githubusercontent.com/wesleysimplicio/simplicio/master/install.sh | sh</span>
+    <span class="cursor"></span>
+  </div>
+
+  <div class="pricing">
+    <div class="popular">💚 Inclui Tami</div>
+    <div class="price">R$99<span>/mês</span></div>
+    <p style="color:var(--text2); font-size:0.9rem;">ou $20/mês</p>
+    <ul class="perks">
+      <li>Assistente pessoal completo</li>
+      <li>Tami — consciência emocional ativa</li>
+      <li>Wake word "Simplicio"</li>
+      <li>Transcrição Parakeet (4x mais rápido)</li>
+      <li>Desktop app (Electron)</li>
+      <li>Memória neural ilimitada</li>
+      <li>Gate anticonfabulação</li>
+      <li>Atualizações vitais</li>
+    </ul>
+    <a href="#" class="btn btn-primary" style="width:100%; justify-content:center;">
+      🚀 Começar agora
+    </a>
+    <p style="color:var(--text2); font-size:0.8rem; margin-top:1rem;">
+      Cancele quando quiser. Sem fidelidade.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>
+    💚 <strong>Simplicio Agent</strong> — Feito com carinho pra quem precisa<br>
+    de um assistente que realmente se importa.<br><br>
+    <a href="https://github.com/wesleysimplicio/simplicio-runtime">GitHub</a> ·
+    <a href="mailto:plasmatoid@gmail.com">Contato</a> ·
+    <a href="#">Termos</a> ·
+    <a href="#">Privacidade</a>
+  </p>
+  <p style="margin-top:1rem; font-size:0.75rem;">
+    Todo processamento é local. Seus dados nunca saem da sua máquina.
+  </p>
+</footer>
+
+</body>
+</html>

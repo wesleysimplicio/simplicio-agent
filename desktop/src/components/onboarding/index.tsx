@@ -12,12 +12,14 @@ import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
 import {
   $desktopOnboarding,
+  advanceToPostSetup,
   clearPendingProviderOAuth,
   closeManualOnboarding,
   confirmOnboardingModel,
   DEFAULT_MANUAL_ONBOARDING_REASON,
   DEFAULT_ONBOARDING_REASON,
   dismissFirstRunOnboarding,
+  finishPostSetup,
   type OnboardingContext,
   peekPendingProviderOAuth,
   refreshOnboarding,
@@ -170,10 +172,25 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
     []
   )
 
-  // Cinematic exit on "Begin": dissolve the panel + overlay (revealing the chat
-  // behind), THEN finalize so the unmount lands after the fade — mirrors the
+  // Cinematic exit: dissolve the panel + overlay (revealing the chat behind),
+  // THEN finalize so the unmount lands after the fade — mirrors the
   // connecting overlay's exit choreography instead of cutting instantly.
+  // "Begin" on the model-confirm card no longer triggers this directly: it
+  // now hands off to the post-provider onboarding sequence (runtime doctor ->
+  // simulated Google sign-in -> simulated subscription, see FlowPanel), and
+  // this cinematic exit fires once at the end of THAT sequence instead.
   const [leaving, setLeaving] = useState(false)
+
+  const commitOnboarding = () => {
+    // The post-setup sequence's last step (subscription) is the only caller
+    // once a provider is connected; confirmOnboardingModel is kept as a
+    // fallback for any other status this ever gets invoked from.
+    if ($desktopOnboarding.get().flow.status === 'post_subscription') {
+      finishPostSetup(ctx)
+    } else {
+      confirmOnboardingModel(ctx)
+    }
+  }
 
   const finalizeOnboarding = () => {
     if (leaving) {
@@ -183,13 +200,13 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
     if (reduce) {
-      confirmOnboardingModel(ctx)
+      commitOnboarding()
 
       return
     }
 
     setLeaving(true)
-    window.setTimeout(() => confirmOnboardingModel(ctx), ONBOARDING_EXIT_MS)
+    window.setTimeout(commitOnboarding, ONBOARDING_EXIT_MS)
   }
 
   useEffect(() => {
@@ -308,7 +325,7 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
             showPicker ? (
               <Picker ctx={ctx} />
             ) : (
-              <FlowPanel ctx={ctx} flow={flow} leaving={leaving} onBegin={finalizeOnboarding} />
+              <FlowPanel ctx={ctx} flow={flow} leaving={leaving} onBegin={advanceToPostSetup} onFinish={finalizeOnboarding} />
             )
           ) : (
             <Preparing boot={boot} />

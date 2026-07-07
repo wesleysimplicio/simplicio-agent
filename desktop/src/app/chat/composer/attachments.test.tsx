@@ -33,10 +33,12 @@ describe('AttachmentList', () => {
   it('renders empty list without error', () => {
     renderWithI18n(<AttachmentList attachments={[]} />)
 
+    // The component marks its root with data-slot (no data-testid); use the
+    // non-throwing query so the data-slot fallback is actually reachable.
     const container =
-      screen.getByTestId?.('composer-attachments') ?? document.querySelector('[data-slot="composer-attachments"]')
+      screen.queryByTestId('composer-attachments') ?? document.querySelector('[data-slot="composer-attachments"]')
 
-    expect(container).toBeDefined()
+    expect(container).not.toBeNull()
   })
 
   it('does not crash when attachments array contains undefined entries', () => {

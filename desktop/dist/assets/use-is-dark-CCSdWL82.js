@@ -1,0 +1,1 @@
+import{b8 as c,r as e}from"./index-BhrXashH.js";const t=()=>typeof document<"u"&&document.documentElement.classList.contains("dark");function a(){const s=c(),[o,n]=e.useState(t);return e.useEffect(()=>n(t()),[s]),o}export{a as u};
