@@ -1236,3 +1236,92 @@ class TestEventBridgePollE2E:
         """Verify the poll interval constant."""
         from mcp_serve import POLL_INTERVAL
         assert POLL_INTERVAL == 0.2
+
+
+# ---------------------------------------------------------------------------
+# Subscription gate — product access is subscription-only
+# ---------------------------------------------------------------------------
+
+class TestSubscriptionGate:
+    """The MCP server is a paid product surface. `_subscription_gate` returns
+    None when access is granted and a user-facing denial message otherwise.
+    """
+
+    def test_bypass_env_allows_self_host(self, monkeypatch):
+        import mcp_serve
+        monkeypatch.setenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", "1")
+        assert mcp_serve._subscription_gate() is None
+
+    def test_bypass_env_truthy_variants(self, monkeypatch):
+        import mcp_serve
+        for val in ("true", "YES", "on", "1"):
+            monkeypatch.setenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", val)
+            assert mcp_serve._subscription_gate() is None
+
+    def test_bypass_env_falsey_does_not_allow(self, monkeypatch):
+        import mcp_serve
+        import hermes_cli.nous_account as na
+        monkeypatch.setenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", "0")
+        monkeypatch.setattr(na, "get_nous_portal_account_info", lambda **kw: object())
+        monkeypatch.setattr(
+            na, "format_nous_portal_entitlement_message", lambda info, **kw: "denied"
+        )
+        assert mcp_serve._subscription_gate() == "denied"
+
+    def test_entitled_account_allows(self, monkeypatch):
+        import mcp_serve
+        import hermes_cli.nous_account as na
+        monkeypatch.delenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", raising=False)
+        monkeypatch.setattr(na, "get_nous_portal_account_info", lambda **kw: object())
+        monkeypatch.setattr(
+            na, "format_nous_portal_entitlement_message", lambda info, **kw: None
+        )
+        assert mcp_serve._subscription_gate() is None
+
+    def test_unentitled_account_denied(self, monkeypatch):
+        import mcp_serve
+        import hermes_cli.nous_account as na
+        monkeypatch.delenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", raising=False)
+        monkeypatch.setattr(na, "get_nous_portal_account_info", lambda **kw: object())
+        monkeypatch.setattr(
+            na,
+            "format_nous_portal_entitlement_message",
+            lambda info, **kw: "Subscribe at https://portal/billing",
+        )
+        assert mcp_serve._subscription_gate() == "Subscribe at https://portal/billing"
+
+    def test_account_lookup_failure_fails_closed(self, monkeypatch):
+        """A network/auth error looking up the account must deny (fail-closed),
+        passing info=None to the entitlement formatter."""
+        import mcp_serve
+        import hermes_cli.nous_account as na
+        seen = {}
+        monkeypatch.delenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", raising=False)
+
+        def _boom(**kw):
+            raise RuntimeError("network down")
+
+        def _fmt(info, **kw):
+            seen["info"] = info
+            return None if info is not None else "log in to Nous Portal"
+
+        monkeypatch.setattr(na, "get_nous_portal_account_info", _boom)
+        monkeypatch.setattr(na, "format_nous_portal_entitlement_message", _fmt)
+        result = mcp_serve._subscription_gate()
+        assert seen["info"] is None
+        assert result == "log in to Nous Portal"
+
+    def test_capability_label_is_product_named(self, monkeypatch):
+        import mcp_serve
+        import hermes_cli.nous_account as na
+        captured = {}
+        monkeypatch.delenv("SIMPLICIO_MCP_ALLOW_UNLICENSED", raising=False)
+        monkeypatch.setattr(na, "get_nous_portal_account_info", lambda **kw: object())
+
+        def _fmt(info, **kw):
+            captured["capability"] = kw.get("capability")
+            return "denied"
+
+        monkeypatch.setattr(na, "format_nous_portal_entitlement_message", _fmt)
+        mcp_serve._subscription_gate()
+        assert captured["capability"] == "the Simplicio Agent MCP server"

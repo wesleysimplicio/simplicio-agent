@@ -3248,21 +3248,21 @@ def _build_compact_banner() -> str:
         line1 = "Simplicio Agent"
         tiny_line = "Simplicio"
     else:
-        agent_name = _skin.get_branding("agent_name", "Hermes Agent") if _skin else "Hermes Agent"
-        line1 = f"{agent_name} - AI Agent Framework"
+        agent_name = _skin.get_branding("agent_name", "Simplicio Agent") if _skin else "Simplicio Agent"
+        line1 = agent_name
         tiny_line = agent_name
 
     if os.environ.get("HERMES_FAST_STARTUP_BANNER") == "1":
         from hermes_cli import __release_date__ as _release_date
         from hermes_cli import __version__ as _version
 
-        version_line = f"Hermes Agent v{_version} ({_release_date})"
+        version_line = f"Simplicio Agent v{_version} ({_release_date})"
     else:
         version_line = format_banner_version_label()
 
     w = min(shutil.get_terminal_size().columns - 2, 88)
     if w < 30:
-        return f"\n[{title_color}]{tiny_line}[/] [dim {dim_color}]- Nous Research[/]\n"
+        return f"\n[{title_color}]{tiny_line}[/]\n"
 
     inner = w - 2  # inside the box border
     bar = "═" * w
@@ -12728,8 +12728,8 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         try:
             from hermes_cli.skin_engine import get_active_skin
             _welcome_skin = get_active_skin()
-            _welcome_text = _welcome_skin.get_branding("welcome", "Welcome to Hermes Agent! Type your message or /help for commands.")
             _welcome_text = _welcome_skin.get_branding("welcome", "Simplicio Agent")
+            _welcome_color = _welcome_skin.get_color("banner_text", "#FFF8DC")
         except Exception:
             _welcome_text = "Simplicio Agent"
             _welcome_color = "#FFF8DC"
@@ -15309,7 +15309,7 @@ def main(
     ignore_rules: bool = False,
 ):
     """
-    Hermes Agent CLI - Interactive AI Assistant
+    Simplicio Agent CLI - Interactive AI Assistant
     
     Args:
         query: Single query to execute (then exit). Alias: -q

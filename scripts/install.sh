@@ -23,7 +23,7 @@ set -euo pipefail
 # ============================================================================
 
 REPO_OWNER="wesleysimplicio"
-REPO_NAME="simplicio-agent"
+REPO_NAME="simplicio"
 REPO="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 DOWNLOAD_BASE="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
@@ -576,6 +576,17 @@ main() {
 
     # -- Fallback: pip --
     if [ -z "$binary_path" ] || [ ! -f "$binary_path" ]; then
+        # Product/enterprise installs can forbid pulling the full source tree
+        # to the customer's machine. When SIMPLICIO_NO_SOURCE_FALLBACK is set
+        # and no compiled binary is available, fail loudly instead of silently
+        # falling back to a pip-from-git or git-clone source install.
+        if [ -n "${SIMPLICIO_NO_SOURCE_FALLBACK:-}" ]; then
+            log_error "Binario compilado nao encontrado para ${os_arch}."
+            log_error "SIMPLICIO_NO_SOURCE_FALLBACK esta definido: instalacao"
+            log_error "somente por binario. Nenhum codigo-fonte foi baixado."
+            log_error "Solicite um binario para sua plataforma."
+            exit 1
+        fi
         log_warn "Binario compilado nao encontrado para ${os_arch}."
         log_info "Tentando instalacao via pip (Python)..."
         install_method="pip"
@@ -624,3 +635,10 @@ main() {
 }
 
 main
+
+# Se o repositorio agent for privado, tentar baixar binario do runtime
+if [ "$REPO_NAME" = "simplicio-agent" ]; then
+    FALLBACK_REPO="simplicio"
+    echo "[info] $REPO e privado - baixando binario de $FALLBACK_REPO"
+    # As URLs de download usarao o runtime, mas o produto e o Agent
+fi

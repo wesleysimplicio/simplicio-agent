@@ -43,15 +43,15 @@ describe('DEFAULT_THEME', () => {
   it('has brand defaults', async () => {
     const { DEFAULT_THEME } = await importThemeWithCleanEnv()
 
-    expect(DEFAULT_THEME.brand.name).toBe('Hermes Agent')
-    expect(DEFAULT_THEME.brand.prompt).toBe('❯')
+    expect(DEFAULT_THEME.brand.name).toBe('Simplicio Agent')
+    expect(DEFAULT_THEME.brand.prompt).toBe('>')
     expect(DEFAULT_THEME.brand.tool).toBe('┊')
   })
 
   it('has color palette', async () => {
     const { DEFAULT_THEME } = await importThemeWithCleanEnv()
 
-    expect(DEFAULT_THEME.color.primary).toBe('#FFD700')
+    expect(DEFAULT_THEME.color.primary).toBe('#7CFC00')
     expect(DEFAULT_THEME.color.error).toBe('#ef5350')
   })
 })

@@ -1,5 +1,5 @@
 """
-Hermes MCP Server — expose messaging conversations as MCP tools.
+Simplicio Agent MCP Server — expose messaging conversations as MCP tools.
 
 Starts a stdio MCP server that lets any MCP client (Claude Code, Cursor, Codex,
 etc.) list conversations, read message history, send messages, poll for live
@@ -10,17 +10,17 @@ Matches OpenClaw's 9-tool MCP channel bridge surface:
   events_poll, events_wait, messages_send, permissions_list_open,
   permissions_respond
 
-Plus: channels_list (Hermes-specific extra)
+Plus: channels_list (Simplicio Agent-specific extra)
 
 Usage:
-    hermes mcp serve
-    hermes mcp serve --verbose
+    simplicio-agent mcp serve
+    simplicio-agent mcp serve --verbose
 
 MCP client config (e.g. claude_desktop_config.json):
     {
         "mcpServers": {
-            "hermes": {
-                "command": "hermes",
+            "Simplicio Agent": {
+                "command": "simplicio-agent",
                 "args": ["mcp", "serve"]
             }
         }
@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-logger = logging.getLogger("hermes.mcp_serve")
+logger = logging.getLogger("simplicio.mcp_serve")
 
 # ---------------------------------------------------------------------------
 # Lazy MCP SDK import
@@ -455,7 +455,7 @@ class EventBridge:
 # ---------------------------------------------------------------------------
 
 def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
-    """Create and return the Hermes MCP server with all tools registered."""
+    """Create and return the Simplicio Agent MCP server with all tools registered."""
     if not _MCP_SERVER_AVAILABLE:
         raise ImportError(
             "MCP server requires the 'mcp' package. "
@@ -463,9 +463,9 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         )
 
     mcp = FastMCP(
-        "hermes",
+        "Simplicio Agent",
         instructions=(
-            "Hermes Agent messaging bridge. Use these tools to interact with "
+            "Simplicio Agent messaging bridge. Use these tools to interact with "
             "conversations across Telegram, Discord, Slack, WhatsApp, Signal, "
             "Matrix, and other connected platforms."
         ),
@@ -596,7 +596,8 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         try:
             all_messages = db.get_messages(session_id)
         except Exception as e:
-            return json.dumps({"error": f"Failed to read messages: {e}"})
+            logger.debug("get_messages failed: %s", e)
+            return json.dumps({"error": "Unable to read conversation history."})
 
         filtered = []
         for msg in all_messages:
@@ -652,7 +653,8 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         try:
             all_messages = db.get_messages(session_id)
         except Exception as e:
-            return json.dumps({"error": f"Failed to read messages: {e}"})
+            logger.debug("get_messages failed: %s", e)
+            return json.dumps({"error": "Unable to read conversation history."})
 
         # Find the target message
         target_msg = None
@@ -767,9 +769,10 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             )
             return result_str
         except ImportError:
-            return json.dumps({"error": "Send message tool not available"})
+            return json.dumps({"error": "Send message capability is unavailable."})
         except Exception as e:
-            return json.dumps({"error": f"Send failed: {e}"})
+            logger.debug("send_message_tool failed: %s", e)
+            return json.dumps({"error": "Failed to send message."})
 
     # -- channels_list -----------------------------------------------------
 
@@ -867,11 +870,69 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
 
 
 # ---------------------------------------------------------------------------
+# Subscription gate
+# ---------------------------------------------------------------------------
+
+# Env escape hatch for self-hosted / dev / CI installs that run the runtime
+# without a Nous Portal login. Any truthy value bypasses the subscription
+# check. The hosted product leaves this unset so access stays subscription-only.
+_UNLICENSED_BYPASS_ENV = "SIMPLICIO_MCP_ALLOW_UNLICENSED"
+_MCP_CAPABILITY = "the Simplicio Agent MCP server"
+
+
+def _subscription_gate() -> Optional[str]:
+    """Verify the caller has active Simplicio subscription access.
+
+    Returns ``None`` when access is granted, or a user-facing message
+    explaining why it was denied. Access is granted when the
+    ``SIMPLICIO_MCP_ALLOW_UNLICENSED`` env var is truthy (self-hosted / dev),
+    or when the Nous Portal account has paid service access or a live tool
+    pool. Reuses the existing entitlement chain in ``hermes_cli.nous_account``
+    so there is a single source of truth for what "subscribed" means.
+
+    The MCP server is a paid product surface, so an unverifiable entitlement
+    is denied (fail-closed) rather than allowed.
+    """
+    bypass = os.environ.get(_UNLICENSED_BYPASS_ENV, "").strip().lower()
+    if bypass in {"1", "true", "yes", "on"}:
+        logger.warning("Subscription gate bypassed via %s", _UNLICENSED_BYPASS_ENV)
+        return None
+
+    try:
+        from hermes_cli.nous_account import (
+            format_nous_portal_entitlement_message,
+            get_nous_portal_account_info,
+        )
+    except Exception as e:
+        logger.debug("entitlement module unavailable: %s", e)
+        return (
+            f"{_MCP_CAPABILITY} requires an active Simplicio subscription, which "
+            f"could not be verified on this install. Log in with "
+            f"`simplicio-agent model`, or set {_UNLICENSED_BYPASS_ENV}=1 to run "
+            f"self-hosted."
+        )
+
+    try:
+        # Default (force_fresh=False) trusts a valid, unexpired portal-signed
+        # JWT as a local entitlement snapshot and only hits the network when the
+        # JWT is absent/expired. A free user cannot forge the signed `paid_access`
+        # claim, and this keeps paying subscribers working through a transient
+        # portal/network blip instead of being denied on every startup.
+        info = get_nous_portal_account_info()
+    except Exception as e:
+        logger.debug("account lookup failed: %s", e)
+        info = None
+
+    # Returns None when entitled; a denial message otherwise.
+    return format_nous_portal_entitlement_message(info, capability=_MCP_CAPABILITY)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def run_mcp_server(verbose: bool = False) -> None:
-    """Start the Hermes MCP server on stdio."""
+    """Start the Simplicio Agent MCP server on stdio."""
     if not _MCP_SERVER_AVAILABLE:
         print(
             "Error: MCP server requires the 'mcp' package.\n"
@@ -884,6 +945,11 @@ def run_mcp_server(verbose: bool = False) -> None:
         logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
     else:
         logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
+
+    denial = _subscription_gate()
+    if denial is not None:
+        print(f"Simplicio Agent: {denial}", file=sys.stderr)
+        sys.exit(1)
 
     bridge = EventBridge()
     bridge.start()

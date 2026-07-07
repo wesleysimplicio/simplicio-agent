@@ -1,0 +1,130 @@
+{
+  "name": "simplicio-desktop",
+  "version": "1.8.0",
+  "description": "Simplicio Agent \u2014 Seu assistente pessoal que realmente se importa",
+  "main": "electron/main.cjs",
+  "author": "Wesley Simplicio <plasmatoid@gmail.com>",
+  "license": "Proprietary",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --host 127.0.0.1 --port 5174",
+    "dev:electron": "wait-on http://127.0.0.1:5174 && electron .",
+    "build": "electron-vite build",
+    "stage:runtime": "node scripts/stage-runtime-bin.cjs",
+    "build:mac": "npm run stage:runtime && vite build && electron-builder build --mac --config",
+    "build:win": "npm run stage:runtime && vite build && electron-builder build --win --config",
+    "build:linux": "npm run stage:runtime && vite build && electron-builder build --linux --config",
+    "dist:mac": "npm run stage:runtime && electron-vite build && electron-builder build --mac --config",
+    "dist:win": "npm run stage:runtime && electron-vite build && electron-builder build --win --config",
+    "dist:linux": "npm run stage:runtime && electron-vite build && electron-builder build --linux --config",
+    "dist:all": "npm run build"
+  },
+  "build": {
+    "appId": "com.simplicio.agent",
+    "productName": "Simplicio Agent",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/bin",
+        "to": "bin"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico"
+    },
+    "dmg": {
+      "artifactName": "Simplicio-Agent-${version}-${arch}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "wesleysimplicio",
+      "repo": "simplicio-agent"
+    }
+  },
+  "dependencies": {
+    "concurrently": "^8.0.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/oxide": "^4.3.2",
+    "electron-vite": "*",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

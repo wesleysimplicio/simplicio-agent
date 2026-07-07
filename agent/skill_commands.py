@@ -4,10 +4,13 @@ Shared between CLI (cli.py) and gateway (gateway/run.py) so both surfaces
 can invoke skills via /skill-name commands.
 """
 
+import copy
 import json
 import logging
 import os
 import re
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -22,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 _skill_commands: Dict[str, Dict[str, Any]] = {}
 _skill_commands_platform: Optional[str] = None
+_skill_payload_cache: Dict[tuple[Optional[str], str], tuple[float, tuple[dict[str, Any], Path | None, str]]] = {}
+_skill_payload_cache_inflight: set[tuple[Optional[str], str]] = set()
+_skill_payload_cache_lock = threading.Lock()
+_SKILL_PAYLOAD_CACHE_TTL_SECONDS = 300.0
+_SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS = 0.35
 # Patterns for sanitizing skill names into clean hyphen-separated slugs.
 _SKILL_INVALID_CHARS = re.compile(r"[^a-z0-9-]")
 _SKILL_MULTI_HYPHEN = re.compile(r"-{2,}")
@@ -135,45 +143,48 @@ def _resolve_skill_commands_platform() -> Optional[str]:
         resolved_platform = os.getenv("HERMES_PLATFORM")
     return resolved_platform or None
 
-def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tuple[dict[str, Any], Path | None, str] | None:
-    """Load a skill by name/path and return (loaded_payload, skill_dir, display_name)."""
-    raw_identifier = (skill_identifier or "").strip()
+def _normalize_skill_identifier(raw_identifier: str) -> str | None:
+    raw_identifier = (raw_identifier or "").strip()
     if not raw_identifier:
+        return None
+
+    from tools.skills_tool import SKILLS_DIR
+    from agent.skill_utils import get_external_skills_dirs
+
+    identifier_path = Path(raw_identifier).expanduser()
+    if not identifier_path.is_absolute():
+        return raw_identifier.lstrip("/")
+
+    normalized = None
+    trusted_roots = [SKILLS_DIR]
+    try:
+        trusted_roots.extend(get_external_skills_dirs())
+    except Exception:
+        pass
+
+    for root in trusted_roots:
+        try:
+            normalized = str(identifier_path.relative_to(root))
+            break
+        except ValueError:
+            continue
+
+    if normalized is None:
+        try:
+            normalized = str(identifier_path.resolve().relative_to(SKILLS_DIR.resolve()))
+        except Exception:
+            normalized = raw_identifier
+    return normalized
+
+
+def _read_skill_payload_uncached(skill_identifier: str, task_id: str | None = None) -> tuple[dict[str, Any], Path | None, str] | None:
+    raw_identifier = (skill_identifier or "").strip()
+    normalized = _normalize_skill_identifier(raw_identifier)
+    if not normalized:
         return None
 
     try:
         from tools.skills_tool import SKILLS_DIR, skill_view
-        from agent.skill_utils import get_external_skills_dirs
-
-        identifier_path = Path(raw_identifier).expanduser()
-        if identifier_path.is_absolute():
-            normalized = None
-            trusted_roots = [SKILLS_DIR]
-            try:
-                trusted_roots.extend(get_external_skills_dirs())
-            except Exception:
-                pass
-
-            # Prefer the lexical path under a trusted skill root before
-            # resolving symlinks.  Slash-command discovery can legitimately
-            # find a skill via ~/.hermes/skills/<name> where <name> is a
-            # symlink to a checked-out skill elsewhere.  Resolving first turns
-            # that trusted visible path into an arbitrary absolute path that
-            # skill_view() refuses to load.
-            for root in trusted_roots:
-                try:
-                    normalized = str(identifier_path.relative_to(root))
-                    break
-                except ValueError:
-                    continue
-
-            if normalized is None:
-                try:
-                    normalized = str(identifier_path.resolve().relative_to(SKILLS_DIR.resolve()))
-                except Exception:
-                    normalized = raw_identifier
-        else:
-            normalized = raw_identifier.lstrip("/")
 
         loaded_skill = json.loads(
             skill_view(normalized, task_id=task_id, preprocess=False)
@@ -187,10 +198,6 @@ def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tu
     skill_name = str(loaded_skill.get("name") or normalized)
     skill_path = str(loaded_skill.get("path") or "")
     skill_dir = None
-    # Prefer the absolute skill_dir returned by skill_view() — this is
-    # correct for both local and external skills.  Fall back to the old
-    # SKILLS_DIR-relative reconstruction only when skill_dir is absent
-    # (e.g. legacy skill_view responses).
     abs_skill_dir = loaded_skill.get("skill_dir")
     if abs_skill_dir:
         skill_dir = Path(abs_skill_dir)
@@ -202,6 +209,109 @@ def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tu
 
     return loaded_skill, skill_dir, skill_name
 
+
+def _skill_payload_cache_key(skill_identifier: str) -> tuple[Optional[str], str] | None:
+    normalized = _normalize_skill_identifier(skill_identifier)
+    if not normalized:
+        return None
+    return (_resolve_skill_commands_platform(), normalized)
+
+
+def invalidate_skill_payload_cache(skill_identifier: str | None = None) -> None:
+    with _skill_payload_cache_lock:
+        if skill_identifier is None:
+            _skill_payload_cache.clear()
+            _skill_payload_cache_inflight.clear()
+            return
+        key = _skill_payload_cache_key(skill_identifier)
+        if key is None:
+            return
+        _skill_payload_cache.pop(key, None)
+        _skill_payload_cache_inflight.discard(key)
+
+
+def _wait_for_inflight_skill_payload(
+    key: tuple[Optional[str], str],
+    timeout_seconds: float = _SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS,
+) -> tuple[dict[str, Any], Path | None, str] | None:
+    deadline = time.time() + max(timeout_seconds, 0.0)
+    while time.time() < deadline:
+        with _skill_payload_cache_lock:
+            cached = _skill_payload_cache.get(key)
+            if cached and (time.time() - cached[0]) < _SKILL_PAYLOAD_CACHE_TTL_SECONDS:
+                return copy.deepcopy(cached[1])
+            if key not in _skill_payload_cache_inflight:
+                return None
+        time.sleep(0.01)
+    return None
+
+
+def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> None:
+    keys_to_warm: list[tuple[Optional[str], str]] = []
+    now = time.time()
+    with _skill_payload_cache_lock:
+        for identifier in skill_identifiers or []:
+            key = _skill_payload_cache_key(identifier)
+            if key is None:
+                continue
+            cached = _skill_payload_cache.get(key)
+            if cached and (now - cached[0]) < _SKILL_PAYLOAD_CACHE_TTL_SECONDS:
+                continue
+            if key in _skill_payload_cache_inflight:
+                continue
+            _skill_payload_cache_inflight.add(key)
+            keys_to_warm.append(key)
+
+    if not keys_to_warm:
+        return
+
+    def _worker() -> None:
+        for key in keys_to_warm:
+            _, normalized = key
+            try:
+                payload = _read_skill_payload_uncached(normalized)
+                with _skill_payload_cache_lock:
+                    if payload is not None:
+                        _skill_payload_cache[key] = (time.time(), payload)
+            except Exception:
+                pass
+            finally:
+                with _skill_payload_cache_lock:
+                    _skill_payload_cache_inflight.discard(key)
+
+    threading.Thread(target=_worker, name="skills-prewarm", daemon=True).start()
+
+
+def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tuple[dict[str, Any], Path | None, str] | None:
+    """Load a skill by name/path and return (loaded_payload, skill_dir, display_name)."""
+    key = _skill_payload_cache_key(skill_identifier)
+    if key is None:
+        return None
+
+    now = time.time()
+    with _skill_payload_cache_lock:
+        cached = _skill_payload_cache.get(key)
+        if cached and (now - cached[0]) < _SKILL_PAYLOAD_CACHE_TTL_SECONDS:
+            return copy.deepcopy(cached[1])
+        inflight = key in _skill_payload_cache_inflight
+        if not inflight:
+            _skill_payload_cache_inflight.add(key)
+
+    if inflight:
+        warmed = _wait_for_inflight_skill_payload(key)
+        if warmed is not None:
+            return warmed
+
+    payload = _read_skill_payload_uncached(skill_identifier, task_id=task_id)
+    if payload is None:
+        with _skill_payload_cache_lock:
+            _skill_payload_cache_inflight.discard(key)
+        return None
+
+    with _skill_payload_cache_lock:
+        _skill_payload_cache[key] = (time.time(), payload)
+        _skill_payload_cache_inflight.discard(key)
+    return copy.deepcopy(payload)
 
 def _inject_skill_config(loaded_skill: dict[str, Any], parts: list[str]) -> None:
     """Resolve and inject skill-declared config values into the message parts.
@@ -474,6 +584,7 @@ def reload_skills() -> Dict[str, Any]:
     # Rescan the skills dir. ``scan_skill_commands`` resets
     # ``_skill_commands = {}`` internally and repopulates it.
     new_commands = scan_skill_commands()
+    invalidate_skill_payload_cache()
 
     after = _snapshot(new_commands)
 

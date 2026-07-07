@@ -11,10 +11,25 @@ echo -e "${B}=== Verificação da ponte MCP Hermes ↔ Simplicio Runtime ===${N}
 
 # 1. Simplicio binary
 echo "1. Simplicio Runtime"
-if [ -x /Users/wesleysimplicio/.local/bin/simplicio ]; then
-  info "Binário: /Users/wesleysimplicio/.local/bin/simplicio"
+RESOLVED_SIMPLICIO="$(command -v simplicio 2>/dev/null || true)"
+if [ -n "$RESOLVED_SIMPLICIO" ]; then
+  info "command -v simplicio -> $RESOLVED_SIMPLICIO"
 else
-  error "Binário não encontrado!"
+  warn "simplicio não está no PATH"
+fi
+
+if [ -x /Users/wesleysimplicio/.local/bin/simplicio ]; then
+  if /Users/wesleysimplicio/.local/bin/simplicio version >/dev/null 2>&1; then
+    info "Binário canônico executa: /Users/wesleysimplicio/.local/bin/simplicio"
+  else
+    error "Binário canônico existe, mas falha ao executar"
+  fi
+else
+  error "Binário canônico não encontrado: /Users/wesleysimplicio/.local/bin/simplicio"
+fi
+
+if [ -n "$RESOLVED_SIMPLICIO" ] && [ "$RESOLVED_SIMPLICIO" != "/Users/wesleysimplicio/.local/bin/simplicio" ]; then
+  warn "PATH está preferindo $RESOLVED_SIMPLICIO em vez do binário canônico"
 fi
 
 # 2. MCP serve test

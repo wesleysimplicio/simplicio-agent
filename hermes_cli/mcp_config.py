@@ -964,7 +964,7 @@ def mcp_command(args):
         _info("hermes mcp                                    Open the catalog picker (default)")
         _info("hermes mcp catalog                            List Nous-approved MCPs")
         _info("hermes mcp install <name>                     Install a catalog MCP")
-        _info("hermes mcp serve                              Run as MCP server")
+        _info("simplicio-agent mcp serve                     Run as MCP server")
         _info("hermes mcp add <name> --url <endpoint>        Add a custom MCP server")
         _info("hermes mcp add <name> --command <cmd>         Add a stdio server")
         _info("hermes mcp add <name> --preset <preset>       Add from a known preset")

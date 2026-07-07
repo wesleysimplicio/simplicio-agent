@@ -406,6 +406,52 @@ echo ""
 # ── 1. Rust binary ──────────────────────────────────────────────────────
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
+export PATH="$BIN_DIR:$PATH"
+
+SIMPLICIO_RUNTIME_DIR="${SIMPLICIO_RUNTIME_DIR:-$HOME/Projetos/ai/simplicio-runtime}"
+
+repair_simplicio_binary() {
+    local target="$BIN_DIR/simplicio"
+    local source_bin="${SIMPLICIO_RUNTIME_DIR%/}/target/release/simplicio"
+
+    # If the canonical binary already exists and executes, keep it.
+    if [ -x "$target" ] && "$target" version &>/dev/null; then
+        return 0
+    fi
+
+    echo -e "${CYAN}→${NC} Reforçando o binário canônico do Simplicio..."
+
+    # Prefer a locally built runtime binary when available.
+    if [ -x "$source_bin" ]; then
+        cp "$source_bin" "$target" 2>/dev/null || true
+        chmod +x "$target" 2>/dev/null || true
+        xattr -d com.apple.quarantine "$target" 2>/dev/null || true
+        xattr -d com.apple.provenance "$target" 2>/dev/null || true
+        if "$target" version &>/dev/null; then
+            echo -e "${GREEN}✓${NC} simplicio reparado a partir do runtime local ($target)"
+            return 0
+        fi
+    fi
+
+    # If the runtime source tree exists, try to build it deterministically.
+    if [ -d "$SIMPLICIO_RUNTIME_DIR" ] && [ -f "$SIMPLICIO_RUNTIME_DIR/Cargo.toml" ] && command -v cargo &>/dev/null; then
+        echo -e "${CYAN}→${NC} Compilando simplicio-runtime local..."
+        if (cd "$SIMPLICIO_RUNTIME_DIR" && cargo build --release --locked); then
+            if [ -x "$SIMPLICIO_RUNTIME_DIR/target/release/simplicio" ]; then
+                cp "$SIMPLICIO_RUNTIME_DIR/target/release/simplicio" "$target" 2>/dev/null || true
+                chmod +x "$target" 2>/dev/null || true
+                xattr -d com.apple.quarantine "$target" 2>/dev/null || true
+                xattr -d com.apple.provenance "$target" 2>/dev/null || true
+                if "$target" version &>/dev/null; then
+                    echo -e "${GREEN}✓${NC} simplicio compilado e instalado em $target"
+                    return 0
+                fi
+            fi
+        fi
+    fi
+
+    return 1
+}
 
 if command -v "$BIN_DIR/simplicio" &> /dev/null; then
     echo -e "${GREEN}✓${NC} simplicio binary já instalado ($($BIN_DIR/simplicio version 2>/dev/null || echo '?'))"
@@ -451,6 +497,11 @@ else
             echo "    cd ~/Projetos/ai/simplicio-runtime && cargo build --release && cp target/release/simplicio $BIN_DIR/simplicio"
         fi
     fi
+fi
+
+if ! repair_simplicio_binary; then
+    echo -e "${YELLOW}⚠${NC} Não foi possível reparar o binário canônico agora"
+    echo "    Verifique: $BIN_DIR/simplicio e $SIMPLICIO_RUNTIME_DIR/target/release/simplicio"
 fi
 
 # ── 2. Python ecosystem (PyPI) ──────────────────────────────────────────

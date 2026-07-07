@@ -72,9 +72,11 @@ def get_hermes_home() -> Path:
     if override:
         return Path(override)
 
-    val = os.environ.get("HERMES_HOME", "").strip()
-    if val:
-        return Path(val)
+    # SIMPLICIO_AGENT_HOME takes priority over HERMES_HOME (product rename)
+    for env_var in ("SIMPLICIO_AGENT_HOME", "HERMES_HOME"):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            return Path(val)
 
     # Guard: if a non-default profile is sticky-active, warn once that
     # the fallback to the default profile is almost certainly wrong.
