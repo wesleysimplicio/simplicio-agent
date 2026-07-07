@@ -56,14 +56,26 @@ def resolve_kernel_bin() -> Optional[str]:
     """Return the absolute path to the ``simplicio`` binary, or ``None``.
 
     Honors ``HERMES_KERNEL_BIN`` for tests/overrides; otherwise resolves the
-    bare ``simplicio`` command from PATH, matching the runtime's own naming
-    rule (the agent resolves the kernel, it never reimplements it).
+    bare ``simplicio`` command from PATH, then falls back to the managed
+    install dir (``~/.simplicio/bin``, populated by
+    ``tools/runtime_manager.ensure_runtime`` — see ADR-0003). The agent
+    resolves the kernel, it never reimplements it.
     """
     override = os.environ.get(_KERNEL_BIN_ENV, "").strip()
     bin_name = override or _DEFAULT_KERNEL_BIN
     if bin_name in _kernel_path_cache:
         return _kernel_path_cache[bin_name]
     resolved = shutil.which(bin_name)
+    if resolved is None and not override:
+        try:
+            from tools.runtime_manager import managed_bin_dir
+            candidate = managed_bin_dir() / (
+                f"{bin_name}.exe" if os.name == "nt" else bin_name
+            )
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                resolved = str(candidate)
+        except Exception as exc:
+            logger.debug("managed kernel dir lookup failed: %s", exc)
     _kernel_path_cache[bin_name] = resolved
     return resolved
 

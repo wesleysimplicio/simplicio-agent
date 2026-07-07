@@ -1459,6 +1459,45 @@ def run_doctor(args):
                 else:
                     issues.append(f"Missing {_cmd_link_display}/hermes symlink — run 'hermes doctor --fix'")
 
+    _section("Simplicio Runtime Kernel")
+    # The kernel is a managed, pinned dependency (runtime.lock + ADR-0003):
+    # the agent's execution bindings (gate, mechanical edit, ledger) shell
+    # out to it, so an absent or stale kernel means those run degraded.
+    try:
+        from tools.runtime_manager import ensure_runtime
+
+        _rt = ensure_runtime(install=should_fix)
+        _rt_where = f"{_rt.bin_path} [{_rt.source}]" if _rt.bin_path else ""
+        if _rt.satisfied:
+            check_ok(
+                f"simplicio kernel v{_rt.version}",
+                f"(pin >= {_rt.min_version}, {_rt_where})",
+            )
+            if should_fix and _rt.source == "managed":
+                fixed_count += 1
+        elif _rt.present:
+            _fail_and_issue(
+                f"simplicio kernel outdated: v{_rt.version or '?'} < pin v{_rt.min_version}",
+                f"({_rt_where})" if _rt_where else "",
+                "Update the simplicio kernel: run 'hermes doctor --fix' "
+                "(release download or sibling cargo build)",
+                issues,
+            )
+            if _rt.detail:
+                check_info(_rt.detail)
+        else:
+            _fail_and_issue(
+                "simplicio kernel not found",
+                "(env override, PATH, ~/.simplicio/bin)",
+                "Install the simplicio kernel: run 'hermes doctor --fix' "
+                "(release download or sibling cargo build)",
+                issues,
+            )
+            if _rt.detail:
+                check_info(_rt.detail)
+    except Exception as _rt_exc:  # doctor must never crash on one section
+        check_warn("kernel handshake errored", f"({_rt_exc})")
+
     _section("External Tools")
     # Git
     if _safe_which("git"):

@@ -40,6 +40,11 @@ growing the core.
 - **Hermes-native tools first** for reading, searching, reasoning, and coordination.
 - **Simplicio CLI/MCP second** for execution, deterministic edits, validation, evidence, and other repo mutations.
 - When both could work, keep Hermes in the driver’s seat and use Simplicio as the actuator.
+- The simplicio kernel is a **managed, pinned dependency**: `runtime.lock` pins
+  the minimum version, `tools/runtime_manager.py` owns the handshake and the
+  managed install (`~/.simplicio/bin`), and `hermes doctor` surfaces/fixes
+  drift. The runtime stays a separate repo; the unification lives on this
+  side. See ADR-0003.
 
 Two properties shape almost every design decision and are the lens for
 reviewing any change:

@@ -1,0 +1,13 @@
+{
+  "schema": "runtime-lock/v1",
+  "kernel": "simplicio",
+  "min_version": "3.4.0",
+  "release_repo": "wesleysimplicio/simplicio",
+  "source_repo": "wesleysimplicio/simplicio-runtime",
+  "assets": {
+    "darwin-arm64": "simplicio-macos-arm64",
+    "darwin-x86_64": "simplicio",
+    "linux-x86_64": "simplicio"
+  },
+  "sibling_checkout": "../simplicio-runtime"
+}
