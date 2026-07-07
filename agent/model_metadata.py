@@ -2215,8 +2215,28 @@ def _estimate_message_chars(msg: Dict[str, Any]) -> int:
 
     Base64 images are counted via `_count_image_tokens` instead; including
     their raw chars here would massively overestimate token usage.
+
+    Fast path: when no field needs stripping/summarizing (the common case of
+    a plain role/text message), the shadow dict would be an exact copy of
+    ``msg``, so ``len(str(msg))`` is numerically identical and we skip the
+    per-key rebuild.  This matters because this helper runs on every message
+    of a growing history, several times per turn — an O(n^2) hot path.
     """
     if not isinstance(msg, dict):
+        return len(str(msg))
+    content = msg.get("content")
+    needs_transform = "_anthropic_content_blocks" in msg
+    if not needs_transform:
+        if isinstance(content, list):
+            needs_transform = any(
+                isinstance(part, dict)
+                and part.get("type") in {"image", "image_url", "input_image"}
+                for part in content
+            )
+        elif isinstance(content, dict) and content.get("_multimodal"):
+            needs_transform = True
+    if not needs_transform:
+        # shadow would equal msg field-for-field -> identical str length.
         return len(str(msg))
     shadow: Dict[str, Any] = {}
     for k, v in msg.items():
@@ -2263,5 +2283,48 @@ def estimate_request_tokens_rough(
     if messages:
         total += estimate_messages_tokens_rough(messages)
     if tools:
-        total += (len(str(tools)) + 3) // 4
+        total += _estimate_tools_tokens_rough(tools)
     return total
+
+
+# Tool schemas are constant for a session but ``estimate_request_tokens_rough``
+# runs every turn; stringifying 50+ schemas each call is pure waste.  Cache the
+# char count keyed on a cheap, content-sensitive signature (count + tool names)
+# rather than ``id(tools)`` (which can be reused after GC and would return a
+# stale count for a different list).
+_TOOLS_CHARLEN_CACHE: Dict[Any, int] = {}
+_TOOLS_CHARLEN_CACHE_MAX = 32
+
+
+def _tools_signature(tools: List[Dict[str, Any]]) -> Any:
+    names: List[str] = []
+    for t in tools:
+        if isinstance(t, dict):
+            fn = t.get("function")
+            if isinstance(fn, dict):
+                names.append(str(fn.get("name", "")))
+            else:
+                names.append(str(t.get("name", "")))
+        else:
+            names.append("")
+    return (len(tools), tuple(names))
+
+
+def _estimate_tools_tokens_rough(tools: List[Dict[str, Any]]) -> int:
+    """Char/4 token estimate for the tool-schema payload, memoized per session.
+
+    Numerically identical to ``(len(str(tools)) + 3) // 4`` for a given tool
+    set; the cache only avoids re-stringifying the (constant) schemas each turn.
+    """
+    try:
+        key = _tools_signature(tools)
+    except Exception:
+        return (len(str(tools)) + 3) // 4
+    cached = _TOOLS_CHARLEN_CACHE.get(key)
+    if cached is not None:
+        return cached
+    value = (len(str(tools)) + 3) // 4
+    if len(_TOOLS_CHARLEN_CACHE) >= _TOOLS_CHARLEN_CACHE_MAX:
+        _TOOLS_CHARLEN_CACHE.clear()
+    _TOOLS_CHARLEN_CACHE[key] = value
+    return value
