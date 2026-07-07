@@ -149,6 +149,21 @@ try {
   }
 }
 
+// Resolve the simplicio (Rust kernel) binary bundled into the packaged app,
+// if present. Staged per-platform/arch by scripts/stage-runtime-bin.cjs and
+// shipped via the `bin` extraResources entry; tools/kernel_binding.py picks
+// it up through HERMES_KERNEL_BIN (see buildDesktopBackendEnv's `kernelBin`
+// param). Dev mode has no process.resourcesPath / no staged binary, so this
+// returns null there and the backend falls back to today's PATH-only lookup
+// — zero behavior change for developer checkouts or hosts without a bundle.
+function resolveBundledKernelBin() {
+  const resourcesPath = process.resourcesPath
+  if (!resourcesPath) return null
+  const binName = IS_WINDOWS ? 'simplicio.exe' : 'simplicio'
+  const candidate = path.join(resourcesPath, 'bin', `${process.platform}-${process.arch}`, binName)
+  return fileExists(candidate) ? candidate : null
+}
+
 const USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
 if (USER_DATA_OVERRIDE) {
   const resolvedUserData = path.resolve(USER_DATA_OVERRIDE)
@@ -1333,7 +1348,8 @@ function unwrapWindowsVenvHermesCommand(command, backendArgs) {
     env: buildDesktopBackendEnv({
       hermesHome: HERMES_HOME,
       pythonPathEntries: [...(directoryExists(root) ? [root] : []), ...getVenvSitePackagesEntries(venvRoot)],
-      venvRoot
+      venvRoot,
+      kernelBin: resolveBundledKernelBin()
     }),
     kind: 'python',
     // Surfaced so backendSupportsServe() can read this runtime's source for the
@@ -2873,7 +2889,8 @@ function createPythonBackend(root, label, backendArgs, options = {}) {
     env: buildDesktopBackendEnv({
       hermesHome: HERMES_HOME,
       pythonPathEntries: [root, ...getVenvSitePackagesEntries(venvRoot)],
-      venvRoot
+      venvRoot,
+      kernelBin: resolveBundledKernelBin()
     }),
     root,
     bootstrap: Boolean(options.bootstrap),
@@ -2897,7 +2914,8 @@ function createActiveBackend(backendArgs) {
     env: buildDesktopBackendEnv({
       hermesHome: HERMES_HOME,
       pythonPathEntries: [ACTIVE_HERMES_ROOT, ...getVenvSitePackagesEntries(VENV_ROOT)],
-      venvRoot: VENV_ROOT
+      venvRoot: VENV_ROOT,
+      kernelBin: resolveBundledKernelBin()
     }),
     root: ACTIVE_HERMES_ROOT,
     bootstrap: true,

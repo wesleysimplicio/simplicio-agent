@@ -11,12 +11,13 @@
     "dev:renderer": "vite --host 127.0.0.1 --port 5174",
     "dev:electron": "wait-on http://127.0.0.1:5174 && electron .",
     "build": "electron-vite build",
-    "build:mac": "vite build && electron-builder build --mac --config",
-    "build:win": "vite build && electron-builder build --win --config",
-    "build:linux": "vite build && electron-builder build --linux --config",
-    "dist:mac": "electron-vite build && electron-builder build --mac --config",
-    "dist:win": "electron-vite build && electron-builder build --win --config",
-    "dist:linux": "electron-vite build && electron-builder build --linux --config",
+    "stage:runtime": "node scripts/stage-runtime-bin.cjs",
+    "build:mac": "npm run stage:runtime && vite build && electron-builder build --mac --config",
+    "build:win": "npm run stage:runtime && vite build && electron-builder build --win --config",
+    "build:linux": "npm run stage:runtime && vite build && electron-builder build --linux --config",
+    "dist:mac": "npm run stage:runtime && electron-vite build && electron-builder build --mac --config",
+    "dist:win": "npm run stage:runtime && electron-vite build && electron-builder build --win --config",
+    "dist:linux": "npm run stage:runtime && electron-vite build && electron-builder build --linux --config",
     "dist:all": "npm run build"
   },
   "build": {
@@ -29,6 +30,12 @@
       "electron/**/*",
       "dist/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/bin",
+        "to": "bin"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",

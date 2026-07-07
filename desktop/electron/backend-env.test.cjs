@@ -100,6 +100,38 @@ test('Windows PATH casing and delimiter are preserved without POSIX sane entries
   assert.equal(env.Path.includes('/opt/homebrew/bin'), false)
 })
 
+test('buildDesktopBackendEnv sets HERMES_KERNEL_BIN from a bundled kernelBin path', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    pathModule: path.posix,
+    kernelBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/simplicio'
+  })
+
+  assert.equal(env.HERMES_KERNEL_BIN, '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/simplicio')
+})
+
+test('buildDesktopBackendEnv leaves HERMES_KERNEL_BIN unset without a kernelBin', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    pathModule: path.posix
+  })
+
+  assert.equal('HERMES_KERNEL_BIN' in env, false)
+})
+
+test('buildDesktopBackendEnv never overrides an explicit HERMES_KERNEL_BIN override', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin', HERMES_KERNEL_BIN: '/opt/dev/simplicio' },
+    platform: 'darwin',
+    pathModule: path.posix,
+    kernelBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/simplicio'
+  })
+
+  assert.equal(env.HERMES_KERNEL_BIN, undefined)
+})
+
 test('appendUniquePathEntries drops empty entries and keeps first occurrence', () => {
   assert.equal(appendUniquePathEntries([':/a::/b', ['/a', '/c']], { delimiter: ':' }), '/a:/b:/c')
 })

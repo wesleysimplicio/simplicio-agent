@@ -62,8 +62,23 @@ Wrapper Python para o binario compilado. packaging/pypi/.
 
 ## Canais Planejados (Nao implementados)
 
-- Electron .app — desktop app. Ainda nao existe.
 - AUR (Arch Linux) — PKGBUILD existe em packaging/aur/.
+
+### 6. Electron desktop app
+
+`desktop/` (electron-builder, mac/win/linux) existe e e mantido ativamente —
+a linha acima ("Electron .app ainda nao existe") estava desatualizada. O app
+spawna o backend Python (`hermes serve`) via venv; o kernel `simplicio`
+(Rust) e resolvido por PATH (`tools/kernel_binding.py`, override
+`HERMES_KERNEL_BIN`). Desde 2026-07-06, `npm run build:*`/`dist:*` em
+`desktop/` tambem embala o binario `simplicio` do host
+(`scripts/stage-runtime-bin.cjs` + a entrada `bin` em `extraResources`), e
+`main.cjs` aponta `HERMES_KERNEL_BIN` pra ele quando presente — sem binario
+staged, cai de volta pro PATH, sem quebrar instalacoes existentes. Testado
+de ponta a ponta so em Linux (binario real, script de staging e
+`buildDesktopBackendEnv` unit-testados); mac/win tem a mesma logica mas sem
+CI que gere o binario nessas plataformas ainda (`release.yml` roda so em
+`ubuntu-latest`).
 
 ## Auto-Update
 
