@@ -1879,6 +1879,42 @@ class DiscordAdapter(BasePlatformAdapter):
             elif outcome == ProcessingOutcome.FAILURE:
                 await self._add_reaction(message, "❌")
 
+    @staticmethod
+    def _is_transient_discord_send_error(exc: BaseException) -> bool:
+        """Return True for transient Discord transport errors worth one retry.
+
+        We keep this intentionally narrow: network disconnects, connection
+        resets, and request timeouts are retryable; permission / validation
+        errors are not.  The helper accepts both real discord.py / aiohttp
+        exceptions and lightweight test doubles that only mirror the class
+        name/message.
+        """
+        type_name = type(exc).__name__.lower()
+        error_text = str(exc).lower()
+        transient_name_markers = (
+            "serverdisconnected",
+            "clientconnection",
+            "connectionreset",
+            "connectionerror",
+            "timeout",
+        )
+        if any(marker in type_name for marker in transient_name_markers):
+            return True
+        transient_text_markers = (
+            "server disconnected",
+            "connection reset",
+            "temporarily unavailable",
+            "broken pipe",
+        )
+        if any(marker in error_text for marker in transient_text_markers):
+            return True
+        try:
+            import aiohttp  # type: ignore
+
+            return isinstance(exc, (aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError))
+        except Exception:
+            return False
+
     async def send(
         self,
         chat_id: str,
@@ -1971,6 +2007,15 @@ class DiscordAdapter(BasePlatformAdapter):
                         msg = await channel.send(
                             content=chunk,
                             reference=None,
+                        )
+                    elif self._is_transient_discord_send_error(e):
+                        logger.warning(
+                            "[%s] Discord send hit a transient transport error; retrying once",
+                            self.name,
+                        )
+                        msg = await channel.send(
+                            content=chunk,
+                            reference=chunk_reference,
                         )
                     else:
                         raise

@@ -123,6 +123,39 @@ async def test_send_retries_without_reference_when_reply_target_is_deleted():
 
 
 @pytest.mark.asyncio
+async def test_send_retries_transient_transport_errors_once():
+    adapter = DiscordAdapter(PlatformConfig(enabled=True, token="***"))
+
+    send_calls = []
+
+    class ServerDisconnectedError(RuntimeError):
+        pass
+
+    async def fake_send(*, content, reference=None):
+        send_calls.append({"content": content, "reference": reference})
+        if len(send_calls) == 1:
+            raise ServerDisconnectedError("Server disconnected")
+        return SimpleNamespace(id=4321)
+
+    channel = SimpleNamespace(
+        fetch_message=AsyncMock(),
+        send=AsyncMock(side_effect=fake_send),
+    )
+    adapter._client = SimpleNamespace(
+        get_channel=lambda _chat_id: channel,
+        fetch_channel=AsyncMock(),
+    )
+
+    result = await adapter.send("555", "hello")
+
+    assert result.success is True
+    assert result.message_id == "4321"
+    assert channel.send.await_count == 2
+    assert send_calls[0]["reference"] is None
+    assert send_calls[1]["reference"] is None
+
+
+@pytest.mark.asyncio
 async def test_send_does_not_retry_on_unrelated_errors():
     """Regression guard: errors unrelated to the reply reference (e.g. 50013
     Missing Permissions) must NOT trigger the no-reference retry path — they
