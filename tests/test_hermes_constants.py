@@ -104,9 +104,21 @@ class TestGetDefaultHermesRoot:
 class TestGetHermesHome:
     """Tests for get_hermes_home() platform-aware fallback."""
 
+    def test_simplicio_agent_home_takes_precedence(self, tmp_path, monkeypatch):
+        """SIMPLICIO_AGENT_HOME overrides HERMES_HOME for the active home."""
+        simplicio_home = tmp_path / "simplicio-agent"
+        hermes_home = tmp_path / "hermes"
+        simplicio_home.mkdir()
+        hermes_home.mkdir()
+        monkeypatch.setenv("SIMPLICIO_AGENT_HOME", str(simplicio_home))
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+
+        assert get_hermes_home() == simplicio_home
+
     def test_windows_fallback_uses_localappdata(self, tmp_path, monkeypatch):
-        """When HERMES_HOME is unset on Windows, use %LOCALAPPDATA%\\hermes."""
+        """When home env vars are unset on Windows, use %LOCALAPPDATA%\\hermes."""
         local_appdata = tmp_path / "LocalAppData"
+        monkeypatch.delenv("SIMPLICIO_AGENT_HOME", raising=False)
         monkeypatch.delenv("HERMES_HOME", raising=False)
         monkeypatch.setenv("LOCALAPPDATA", str(local_appdata))
         monkeypatch.setattr(Path, "home", lambda: tmp_path / "Home")
