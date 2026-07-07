@@ -46,6 +46,14 @@ growing the core.
   drift. The runtime stays a separate repo; the unification lives on this
   side. See ADR-0003.
 
+## Imported Asolaria patterns already productized
+
+- `asolaria-act-halting` — evidence-gated loop halting: stop only when confidence is high *and* the turn produced real verification.
+- `asolaria-agent-table` — agent orchestration as data: prerequisites, model, toolset, deliverable, evidence, then execute in order.
+- `asolaria-consolidation` — end-of-session consolidation into markdown/wiki plus durable memory lessons.
+
+Use these before inventing one-off orchestration code.
+
 Two properties shape almost every design decision and are the lens for
 reviewing any change:
 
