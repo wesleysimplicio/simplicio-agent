@@ -205,13 +205,22 @@ class TestGatewaySelfTargetingGuard:
             gateway_command(args)
         assert exc_info.value.code == 1
 
-    def test_restart_refuses_inside_gateway(self, monkeypatch):
+    def test_restart_uses_launchd_path_inside_gateway(self, tmp_path, monkeypatch):
         monkeypatch.setenv("_HERMES_GATEWAY", "1")
-        from hermes_cli.gateway import gateway_command
+        import hermes_cli.gateway as gw
+
+        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path.write_text("<plist/>", encoding="utf-8")
+        monkeypatch.setattr(gw, "is_macos", lambda: True)
+        monkeypatch.setattr(gw, "get_launchd_plist_path", lambda: plist_path)
+
+        calls = []
+        monkeypatch.setattr(gw, "launchd_restart", lambda: calls.append("launchd_restart"))
+
         args = Namespace(gateway_command="restart", all=False, system=False)
-        with pytest.raises(SystemExit) as exc_info:
-            gateway_command(args)
-        assert exc_info.value.code == 1
+        gw.gateway_command(args)
+
+        assert calls == ["launchd_restart"]
 
     def test_stop_allows_outside_gateway(self, monkeypatch):
         # With the gateway marker unset, the self-targeting guard must NOT
