@@ -937,8 +937,8 @@ export const en: Translations = {
     },
     nav: {
       newChat: { title: 'New session', detail: 'Start a fresh session' },
-      settings: { title: 'Settings', detail: 'Configure Hermes desktop' },
-      skills: { title: 'Skills & Tools', detail: 'Enable skills, toolsets, and providers' },
+      settings: { title: 'Settings', detail: 'Configure the Simplicio Agent desktop' },
+      skills: { title: 'Capabilities', detail: 'Enable skills, toolsets, and providers' },
       messaging: { title: 'Messaging', detail: 'Set up Telegram, Slack, Discord, and more' },
       artifacts: { title: 'Artifacts', detail: 'Browse generated outputs' }
     },
@@ -1380,7 +1380,7 @@ export const en: Translations = {
   sidebar: {
     nav: {
       'new-session': 'New session',
-      skills: 'Skills & Tools',
+      skills: 'Capabilities',
       messaging: 'Messaging',
       artifacts: 'Artifacts',
       integrations: 'Integrations'
@@ -1722,7 +1722,7 @@ export const en: Translations = {
     manualPickedUp: 'Hermes will pick up the new version next time you launch it.',
     guiSkewTitle: 'Update the desktop app',
     guiSkewBody:
-      'The backend was updated, but this desktop app package wasn’t changed. Update or reinstall the Hermes desktop app (your AppImage / .deb / .rpm) to match.',
+      'The backend was updated, but this desktop app package wasn’t changed. Update or reinstall the Simplicio Agent desktop app (your AppImage / .deb / .rpm) to match.',
     copy: 'Copy',
     copied: 'Copied',
     done: 'Done',

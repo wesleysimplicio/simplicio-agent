@@ -207,33 +207,33 @@ export const monoTheme: DesktopTheme = {
 /** Neon green on black. Matches the CLI cyberpunk skin and dashboard theme. */
 export const cyberpunkTheme: DesktopTheme = {
   name: 'cyberpunk',
-  label: 'Cyberpunk',
-  description: 'Neon green on black — matrix terminal',
+  label: 'Simplicio',
+  description: 'Green and yellow terminal styling for the Simplicio Agent',
   colors: {
     background: '#000a00',
-    foreground: '#00ff41',
+    foreground: '#ffe98a',
     card: '#001200',
-    cardForeground: '#00ff41',
+    cardForeground: '#ffe98a',
     muted: '#001a00',
-    mutedForeground: '#1a8a30',
+    mutedForeground: '#8bcf6b',
     popover: '#001000',
-    popoverForeground: '#00ff41',
+    popoverForeground: '#ffe98a',
     primary: '#00ff41',
     primaryForeground: '#000a00',
     secondary: '#002800',
-    secondaryForeground: '#00cc34',
-    accent: '#002000',
-    accentForeground: '#00e038',
-    border: '#003000',
-    input: '#003000',
-    ring: '#00ff41',
-    midground: '#00ff41',
+    secondaryForeground: '#ffe98a',
+    accent: '#6b5b00',
+    accentForeground: '#ffe98a',
+    border: '#3d4f00',
+    input: '#3d4f00',
+    ring: '#ffd700',
+    midground: '#ffd700',
     destructive: '#ff003c',
     destructiveForeground: '#000a00',
     sidebarBackground: '#000600',
-    sidebarBorder: '#001800',
+    sidebarBorder: '#3d4f00',
     userBubble: '#001400',
-    userBubbleBorder: '#004800'
+    userBubbleBorder: '#005500'
   },
   typography: {
     fontMono: `"Courier New", Courier, monospace, ${EMOJI_FALLBACK}`,
@@ -289,4 +289,4 @@ export const BUILTIN_THEMES: Record<string, DesktopTheme> = {
 export const BUILTIN_THEME_LIST = Object.values(BUILTIN_THEMES)
 
 /** Skin used when nothing is persisted or the persisted name is retired. */
-export const DEFAULT_SKIN_NAME = 'nous'
+export const DEFAULT_SKIN_NAME = 'cyberpunk'
