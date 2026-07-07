@@ -37,14 +37,42 @@ def _clean_state(monkeypatch):
     kernel_binding_module.reset_kernel_cache()
 
 
-class TestZeroRegressionWithoutKernel:
-    """No kernel_binding config + no kernel on PATH -> identical to pre-#20."""
+class TestDefaultFailsClosedWithoutKernel:
+    """ADR-0003: the agent always runs with the runtime. Default config +
+    no kernel on PATH -> flagged-dangerous commands are blocked with a
+    kernel message, before the legacy prompt ever runs."""
+
+    def test_absent_kernel_blocks_by_default(self, monkeypatch):
+        monkeypatch.setenv("HERMES_INTERACTIVE", "1")
+        monkeypatch.setenv("HERMES_SESSION_KEY", "test-session")
+
+        def _boom_if_called(*a, **k):
+            raise AssertionError("legacy prompt must not run under default fail-closed")
+
+        with mock_patch("hermes_cli.config.load_config", return_value={}), \
+             mock_patch("shutil.which", return_value=None), \
+             mock_patch("tools.runtime_manager.managed_bin_dir",
+                        return_value=__import__("pathlib").Path("/nonexistent")):
+            result = check_dangerous_command(
+                "rm -rf /tmp/stuff", "local", approval_callback=_boom_if_called,
+            )
+        assert result["approved"] is False
+        assert "kernel" in result["message"].lower()
+
+
+class TestConfigRelaxRestoresLegacyFlow:
+    """`kernel_binding.action_gate.mode: auto` opts a machine back into the
+    pre-ADR-0003 honest degradation -- legacy flow, byte for byte."""
+
+    _RELAXED = {"kernel_binding": {"action_gate": {"mode": "auto"}}}
 
     def test_legacy_deny_flow_unaffected(self, monkeypatch):
         monkeypatch.setenv("HERMES_INTERACTIVE", "1")
         monkeypatch.setenv("HERMES_SESSION_KEY", "test-session")
-        with mock_patch("hermes_cli.config.load_config", return_value={}), \
-             mock_patch("shutil.which", return_value=None):
+        with mock_patch("hermes_cli.config.load_config", return_value=self._RELAXED), \
+             mock_patch("shutil.which", return_value=None), \
+             mock_patch("tools.runtime_manager.managed_bin_dir",
+                        return_value=__import__("pathlib").Path("/nonexistent")):
             result = check_dangerous_command(
                 "rm -rf /tmp/stuff", "local", approval_callback=lambda *a, **k: "deny",
             )
@@ -56,8 +84,10 @@ class TestZeroRegressionWithoutKernel:
     def test_legacy_approve_flow_unaffected(self, monkeypatch):
         monkeypatch.setenv("HERMES_INTERACTIVE", "1")
         monkeypatch.setenv("HERMES_SESSION_KEY", "test-session-2")
-        with mock_patch("hermes_cli.config.load_config", return_value={}), \
-             mock_patch("shutil.which", return_value=None):
+        with mock_patch("hermes_cli.config.load_config", return_value=self._RELAXED), \
+             mock_patch("shutil.which", return_value=None), \
+             mock_patch("tools.runtime_manager.managed_bin_dir",
+                        return_value=__import__("pathlib").Path("/nonexistent")):
             result = check_dangerous_command(
                 "rm -rf /tmp/stuff", "local", approval_callback=lambda *a, **k: "session",
             )

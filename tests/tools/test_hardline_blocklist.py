@@ -9,6 +9,7 @@ Inspired by Mercury Agent's permission-hardened blocklist.
 
 import pytest
 
+import tools.approval as approval_module
 from tools.approval import (
     HARDLINE_PATTERNS,
     check_all_command_guards,
@@ -20,6 +21,17 @@ from tools.approval import (
     reset_current_session_key,
     set_current_session_key,
 )
+
+
+@pytest.fixture(autouse=True)
+def _healthy_kernel_gate(monkeypatch):
+    """This suite tests the hardline floor and yolo semantics. Pin the
+    ADR-0003 kernel action gate to 'healthy kernel, no additional block' so
+    the machine's real kernel state (absent/stale) can't leak in and
+    fail-close before the layers under test are reached."""
+    monkeypatch.setattr(
+        approval_module, "_kernel_action_gate_precheck", lambda *a, **k: None,
+    )
 
 
 # -------------------------------------------------------------------------

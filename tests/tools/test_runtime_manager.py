@@ -6,10 +6,12 @@ env > PATH > managed-dir resolution order, RuntimeStatus outcomes, the
 never-overwrite-user-installs rule, and honest install failure reporting.
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import patch as mock_patch
 
 import pytest
@@ -23,8 +25,10 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
     monkeypatch.delenv("SIMPLICIO_HOME", raising=False)
     kb.reset_kernel_cache()
+    rm.reset_bootstrap()
     yield
     kb.reset_kernel_cache()
+    rm.reset_bootstrap()
 
 
 def _write_lock(tmp_path, monkeypatch, **overrides):
@@ -114,6 +118,30 @@ class TestVersionHandshake:
 
     def test_kernel_version_none_on_failure(self):
         proc = subprocess.CompletedProcess([], 1, stdout="", stderr="boom")
+        with mock_patch("subprocess.run", return_value=proc):
+            assert rm.kernel_version("/bin/simplicio") is None
+
+    def test_kernel_version_accepts_runtime_suffix_and_v_prefix(self):
+        proc = subprocess.CompletedProcess([], 0, stdout="simplicio-runtime v3.5.1\n", stderr="")
+        with mock_patch("subprocess.run", return_value=proc):
+            assert rm.kernel_version("/bin/simplicio") == "3.5.1"
+
+    def test_kernel_version_rejects_homonym_binary_banner(self):
+        """Identity handshake (adversarial review #4): a binary that shares
+        the name but isn't the kernel must not satisfy the pin just because
+        a version-shaped substring appears somewhere in its output."""
+        proc = subprocess.CompletedProcess(
+            [], 0, stdout="Simplicio Agent v0.17.0\nPython 3.11\n", stderr="",
+        )
+        with mock_patch("subprocess.run", return_value=proc):
+            assert rm.kernel_version("/bin/simplicio") is None
+
+    def test_kernel_version_ignores_stderr_only_version(self):
+        """The banner must come from stdout -- stderr is not trusted for
+        identity, only for diagnostics."""
+        proc = subprocess.CompletedProcess(
+            [], 0, stdout="", stderr="simplicio 3.4.0\n",
+        )
         with mock_patch("subprocess.run", return_value=proc):
             assert rm.kernel_version("/bin/simplicio") is None
 
@@ -266,3 +294,164 @@ class TestEnsureRuntime:
         with mock_patch("platform.system", return_value="Windows"), \
              mock_patch("platform.machine", return_value="AMD64"):
             assert rm._platform_asset(lock) is None
+
+
+# =========================================================================
+# _install_from_release -- supply-chain verification (adversarial review #1)
+# =========================================================================
+
+class TestInstallFromReleaseSha256:
+    _ASSET_KEY = "testsys-testarch"
+
+    def _lock(self, sha256):
+        entry = {"name": "simplicio-bin"}
+        if sha256 is not None:
+            entry["sha256"] = sha256
+        return {
+            "assets": {self._ASSET_KEY: entry},
+            "release_repo": "wesleysimplicio/simplicio",
+        }
+
+    def _patched_platform(self):
+        return (
+            mock_patch("platform.system", return_value="Testsys"),
+            mock_patch("platform.machine", return_value="testarch"),
+        )
+
+    def test_no_pinned_sha256_refuses_install(self, tmp_path):
+        lock = self._lock(sha256=None)
+        dest = tmp_path / "simplicio"
+        p1, p2 = self._patched_platform()
+        with p1, p2, mock_patch("shutil.which", return_value="/usr/bin/gh") as which, \
+             mock_patch("subprocess.run") as run:
+            err = rm._install_from_release(lock, dest)
+        assert err is not None
+        assert "no pinned sha256" in err
+        # Never even attempts the download without a pinned hash.
+        run.assert_not_called()
+        assert not dest.exists()
+
+    def test_sha256_mismatch_removes_tmp_and_errors(self, tmp_path):
+        lock = self._lock(sha256="0" * 64)
+        dest = tmp_path / "simplicio"
+
+        def fake_run(cmd, **kwargs):
+            out_idx = cmd.index("--output") + 1
+            Path(cmd[out_idx]).write_bytes(b"not-the-real-binary-bytes")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        p1, p2 = self._patched_platform()
+        with p1, p2, mock_patch("shutil.which", return_value="/usr/bin/gh"), \
+             mock_patch("subprocess.run", side_effect=fake_run):
+            err = rm._install_from_release(lock, dest)
+
+        assert err is not None
+        assert "sha256 mismatch" in err
+        assert not dest.exists()
+        leftover = list(tmp_path.glob(".simplicio.download.*"))
+        assert leftover == [], f"tmp download not cleaned up: {leftover}"
+
+    def test_sha256_match_installs(self, tmp_path):
+        payload = b"the-real-binary-bytes"
+        digest = hashlib.sha256(payload).hexdigest()
+        lock = self._lock(sha256=digest)
+        dest = tmp_path / "simplicio"
+
+        def fake_run(cmd, **kwargs):
+            out_idx = cmd.index("--output") + 1
+            Path(cmd[out_idx]).write_bytes(payload)
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        p1, p2 = self._patched_platform()
+        with p1, p2, mock_patch("shutil.which", return_value="/usr/bin/gh"), \
+             mock_patch("subprocess.run", side_effect=fake_run):
+            err = rm._install_from_release(lock, dest)
+
+        assert err is None
+        assert dest.read_bytes() == payload
+        leftover = list(tmp_path.glob(".simplicio.download.*"))
+        assert leftover == []
+
+    def test_legacy_plain_string_asset_has_no_pinned_hash(self, tmp_path):
+        """Back-compat: a bare-string asset entry (no object) is treated as
+        having no pinned hash, so it's refused, not installed blind."""
+        lock = {
+            "assets": {self._ASSET_KEY: "simplicio-bin"},
+            "release_repo": "wesleysimplicio/simplicio",
+        }
+        dest = tmp_path / "simplicio"
+        p1, p2 = self._patched_platform()
+        with p1, p2, mock_patch("shutil.which", return_value="/usr/bin/gh"), \
+             mock_patch("subprocess.run") as run:
+            err = rm._install_from_release(lock, dest)
+        assert err is not None
+        assert "no pinned sha256" in err
+        run.assert_not_called()
+
+
+# =========================================================================
+# bootstrap_session -- the startup handshake (agent always runs w/ runtime)
+# =========================================================================
+
+class TestBootstrapSession:
+    def test_quiet_when_satisfied(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        good = rm.RuntimeStatus("/bin/simplicio", "path", "3.4.0", "3.4.0", True)
+        with mock_patch.object(rm, "runtime_status", return_value=good):
+            assert rm.bootstrap_session() is None
+
+    def test_warns_when_absent(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        absent = rm.RuntimeStatus(
+            None, "absent", None, "3.4.0", False,
+            detail="kernel binary not found",
+        )
+        with mock_patch.object(rm, "runtime_status", return_value=absent):
+            warning = rm.bootstrap_session()
+        assert warning is not None
+        assert "3.4.0" in warning
+        assert "doctor --fix" in warning
+
+    def test_absent_kernel_never_auto_installs(self, tmp_path, monkeypatch):
+        """Adversarial review #1c: bootstrap is a handshake only. It must
+        never call the install path -- that requires explicit consent via
+        `hermes doctor --fix` (ensure_runtime(install=True))."""
+        _write_lock(tmp_path, monkeypatch)
+        monkeypatch.setenv("SIMPLICIO_HOME", str(tmp_path / "simplicio-home"))
+        absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
+        with mock_patch.object(rm, "runtime_status", return_value=absent), \
+             mock_patch.object(rm, "_install_from_release") as rel, \
+             mock_patch.object(rm, "_install_from_sibling") as sib:
+            warning = rm.bootstrap_session()
+        assert warning is not None
+        rel.assert_not_called()
+        sib.assert_not_called()
+
+    def test_stale_user_managed_warns_without_install(self, tmp_path, monkeypatch):
+        """A stale PATH kernel is reported, never replaced at startup."""
+        _write_lock(tmp_path, monkeypatch)
+        stale = rm.RuntimeStatus(
+            "/usr/bin/simplicio", "path", "0.17.0", "3.4.0", False,
+            detail="installed 0.17.0 < pinned 3.4.0",
+        )
+        with mock_patch.object(rm, "runtime_status", return_value=stale), \
+             mock_patch.object(rm, "_install_from_release") as rel:
+            warning = rm.bootstrap_session()
+        assert warning is not None and "0.17.0" in warning
+        rel.assert_not_called()
+
+    def test_runs_once_per_process(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
+        with mock_patch.object(rm, "runtime_status", return_value=absent) as st, \
+             mock_patch.object(rm, "_install_from_release", return_value="err"):
+            rm.bootstrap_session()
+            first_calls = st.call_count
+            assert rm.bootstrap_session() is None  # latched
+            assert st.call_count == first_calls
+
+    def test_never_raises(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        with mock_patch.object(rm, "runtime_status", side_effect=RuntimeError("boom")):
+            assert rm.bootstrap_session() is None
+

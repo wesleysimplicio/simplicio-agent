@@ -22,6 +22,17 @@ def _clear_approval_state():
     approval_module.clear_session("test-session")
 
 
+@pytest.fixture(autouse=True)
+def _healthy_kernel_gate(monkeypatch):
+    """This suite tests the legacy cron approval layer. Pin the ADR-0003
+    kernel action gate to 'healthy kernel, no additional block' so the
+    machine's real kernel state (absent/stale) can't leak in and fail-close
+    before the cron logic under test is reached."""
+    monkeypatch.setattr(
+        approval_module, "_kernel_action_gate_precheck", lambda *a, **k: None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # _get_cron_approval_mode() config parsing
 # ---------------------------------------------------------------------------

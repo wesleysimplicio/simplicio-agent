@@ -1431,9 +1431,12 @@ def check_dangerous_command(command: str, env_type: str,
 
     # F2 (issue #20) kernel action-gate binding. Front-ends this legacy
     # detector with `simplicio gate classify` -- can only ADD a block on top
-    # of what's below, never bypass it. No-op (returns None) whenever the
-    # binding is off or degraded, so installations without the kernel see
-    # zero behavior change. See tools/kernel_binding.py.
+    # of what's below, never bypass it. ADR-0003: action_gate defaults to
+    # mode="required", so an absent/unverified kernel is NOT a no-op here --
+    # it fails closed with an actionable BLOCKED message ('hermes doctor
+    # --fix'). Only when the binding is explicitly relaxed to mode="auto" or
+    # "off" in config.yaml does this return None and defer to the legacy
+    # flow unchanged. See tools/kernel_binding.py.
     kernel_block = _kernel_action_gate_precheck(
         command, pattern_key=pattern_key, description=description, session_key=session_key,
     )

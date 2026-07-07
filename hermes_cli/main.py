@@ -2273,6 +2273,26 @@ def cmd_chat(args):
     except Exception:
         pass
 
+    # Simplicio kernel handshake (ADR-0003) -- the agent always runs with
+    # the runtime. This is a local `--version` handshake only: it never
+    # downloads or builds anything (that's `hermes doctor --fix`, the
+    # explicit-consent install path). Anything unhealthy is surfaced here,
+    # because the execution bindings (action gate, mechanical edit) fail
+    # closed by default and the user deserves the why at startup, not
+    # mid-turn.
+    try:
+        from tools.runtime_manager import bootstrap_session
+
+        _kernel_warning = bootstrap_session()
+        if _kernel_warning:
+            sys.stderr.write(f"\033[33m⚠ {_kernel_warning}\033[0m\n")
+            sys.stderr.write(
+                "  \033[2mExecution bindings fail closed until the kernel is "
+                "healthy. Run 'hermes doctor --fix'.\033[0m\n\n"
+            )
+    except Exception:
+        pass
+
     # First-run guard: check if any provider is configured before launching
     if not _has_any_provider_configured():
         print()

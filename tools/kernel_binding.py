@@ -52,17 +52,29 @@ class KernelBindingError(RuntimeError):
     timeout, or output that isn't the JSON the binding contract expects)."""
 
 
+def _kernel_bin_name() -> str:
+    """The kernel binary name, sourced from ``runtime.lock`` (single source
+    of truth -- ADR-0003 adversarial review #9), falling back to the
+    literal ``simplicio`` if the lock can't be read."""
+    try:
+        from tools.runtime_manager import load_runtime_lock
+        return str(load_runtime_lock().get("kernel") or _DEFAULT_KERNEL_BIN)
+    except Exception as exc:
+        logger.debug("failed to read kernel bin name from runtime.lock: %s", exc)
+        return _DEFAULT_KERNEL_BIN
+
+
 def resolve_kernel_bin() -> Optional[str]:
     """Return the absolute path to the ``simplicio`` binary, or ``None``.
 
     Honors ``HERMES_KERNEL_BIN`` for tests/overrides; otherwise resolves the
-    bare ``simplicio`` command from PATH, then falls back to the managed
-    install dir (``~/.simplicio/bin``, populated by
+    bare kernel command (name from ``runtime.lock``) from PATH, then falls
+    back to the managed install dir (``~/.simplicio/bin``, populated by
     ``tools/runtime_manager.ensure_runtime`` — see ADR-0003). The agent
     resolves the kernel, it never reimplements it.
     """
     override = os.environ.get(_KERNEL_BIN_ENV, "").strip()
-    bin_name = override or _DEFAULT_KERNEL_BIN
+    bin_name = override or _kernel_bin_name()
     if bin_name in _kernel_path_cache:
         return _kernel_path_cache[bin_name]
     resolved = shutil.which(bin_name)
@@ -85,9 +97,44 @@ def is_kernel_available() -> bool:
     return resolve_kernel_bin() is not None
 
 
+_kernel_verified_cache: Optional[tuple[bool, str]] = None
+
+
+def _kernel_verified() -> tuple[bool, str]:
+    """``(ok, detail)`` -- presence **and** pin handshake, cached per process.
+
+    Execution-class bindings (gate, mechanical edit) must never talk to a
+    binary that merely *shares the kernel's name*: PATH collisions are real
+    (pip shims, branding aliases). ``ok`` means runtime_manager resolved a
+    binary whose ``--version`` satisfies the ``runtime.lock`` pin.
+
+    When ``runtime_manager`` itself is unavailable (import failure or an
+    unexpected exception from the handshake), this fails **closed** --
+    ``(False, "runtime_manager unavailable: <error>")`` -- rather than
+    degrading to a presence-only check (adversarial review #3). A broken
+    dependency-manager module is not evidence the kernel is safe to trust;
+    honest degradation here would silently reopen the PATH-collision hole
+    ADR-0003 closed. The failure is logged at ``warning`` since it is an
+    operational anomaly, not routine absence.
+    """
+    global _kernel_verified_cache
+    if _kernel_verified_cache is not None:
+        return _kernel_verified_cache
+    try:
+        from tools.runtime_manager import runtime_status
+        st = runtime_status()
+        _kernel_verified_cache = (st.satisfied, st.detail or "")
+    except Exception as exc:
+        logger.warning("runtime_manager unavailable, failing closed: %s", exc)
+        _kernel_verified_cache = (False, f"runtime_manager unavailable: {exc}")
+    return _kernel_verified_cache
+
+
 def reset_kernel_cache() -> None:
-    """Clear the PATH-resolution cache. Test-only escape hatch."""
+    """Clear the PATH-resolution + handshake caches. Test-only escape hatch."""
+    global _kernel_verified_cache
     _kernel_path_cache.clear()
+    _kernel_verified_cache = None
 
 
 def _run_kernel(
@@ -155,25 +202,43 @@ def _run_kernel(
 
 _VALID_MODES = ("auto", "required", "off")
 
+# Per-binding default modes (ADR-0003): the agent always runs with the
+# runtime, so execution-class bindings fail closed by default -- a missing
+# or broken kernel blocks flagged-dangerous execution instead of silently
+# falling back. Read-class bindings (orient, recall) and evidence mirrors
+# (checkpoint, ledger) keep honest degradation: their absence never
+# compromises safety, only enrichment. config.yaml still overrides any of
+# these per binding.
+_BINDING_DEFAULT_MODES = {
+    "action_gate": "required",
+    "mechanical_edit": "required",
+}
+_FALLBACK_DEFAULT_MODE = "auto"
 
-def _normalize_mode(mode: Any) -> str:
+
+def _default_mode(binding: str) -> str:
+    return _BINDING_DEFAULT_MODES.get(binding, _FALLBACK_DEFAULT_MODE)
+
+
+def _normalize_mode(mode: Any, default: str = _FALLBACK_DEFAULT_MODE) -> str:
     """Normalize a ``kernel_binding.<binding>.mode`` config value.
 
     Mirrors ``tools.approval._normalize_approval_mode``: YAML 1.1 parses
-    bare ``off`` as ``False``, so booleans are folded in too.
+    bare ``off`` as ``False``, so booleans are folded in too. Unknown or
+    non-string values fall back to the binding's own default.
     """
     if isinstance(mode, bool):
-        return "off" if mode is False else "auto"
+        return "off" if mode is False else default
     if isinstance(mode, str):
         normalized = mode.strip().lower()
         if normalized in _VALID_MODES:
             return normalized
         if normalized:
             logger.warning(
-                "Unknown kernel_binding mode %r -- defaulting to 'auto'. Valid values: %s",
-                mode, ", ".join(_VALID_MODES),
+                "Unknown kernel_binding mode %r -- defaulting to %r. Valid values: %s",
+                mode, default, ", ".join(_VALID_MODES),
             )
-    return "auto"
+    return default
 
 
 def get_binding_config(binding: str) -> dict:
@@ -181,9 +246,10 @@ def get_binding_config(binding: str) -> dict:
 
     Returns ``{"mode": "auto"|"required"|"off"}`` merged with any extra
     keys the binding defines. Never raises -- config load failures degrade
-    to the safe default (``mode="auto"``), consistent with the rest of the
-    approval/config stack.
+    to the binding's default mode (``required`` for execution bindings,
+    ``auto`` otherwise -- see ``_BINDING_DEFAULT_MODES``).
     """
+    default = _default_mode(binding)
     try:
         from hermes_cli.config import cfg_get, load_config
         config = load_config()
@@ -194,7 +260,7 @@ def get_binding_config(binding: str) -> dict:
     if not isinstance(raw, dict):
         raw = {}
     out = dict(raw)
-    out["mode"] = _normalize_mode(raw.get("mode", "auto"))
+    out["mode"] = _normalize_mode(raw.get("mode", default), default)
     return out
 
 
@@ -277,28 +343,31 @@ def evaluate_action_gate(
     if mode == "off":
         return None
 
-    if not is_kernel_available():
+    kernel_ok, kernel_detail = _kernel_verified()
+    if not kernel_ok:
+        why = kernel_detail or "kernel binary not found"
         if mode == "required":
             emit_savings_event(
                 "gate", "blocked_kernel_absent",
-                f"pattern={pattern_key} description={description}",
+                f"pattern={pattern_key} description={description} why={why}",
             )
             return {
                 "approved": False,
                 "pattern_key": pattern_key,
                 "description": description,
                 "message": (
-                    "BLOCKED: kernel_binding.action_gate.mode is 'required' but the "
-                    "simplicio kernel binary is not on PATH. Refusing to fall back to "
-                    "an ungated approval for a flagged-dangerous command "
-                    f"({description or pattern_key}). Install simplicio-runtime or set "
+                    "BLOCKED: kernel_binding.action_gate.mode is 'required' but no "
+                    f"healthy simplicio kernel is available ({why}). Refusing to fall "
+                    "back to an ungated approval for a flagged-dangerous command "
+                    f"({description or pattern_key}). Run 'hermes doctor --fix' to "
+                    "install/update the kernel, or set "
                     "kernel_binding.action_gate.mode to 'auto'/'off' to change this."
                 ),
             }
         logger.warning(
-            "kernel_binding.action_gate: simplicio kernel not found on PATH -- "
+            "kernel_binding.action_gate: no healthy simplicio kernel (%s) -- "
             "gate is OFF for this call, falling back to the built-in approval flow "
-            "(honest degradation, not a silent bypass)."
+            "(honest degradation, not a silent bypass).", why,
         )
         return None
 
@@ -386,8 +455,12 @@ def edit_mechanical(plan: dict) -> Optional[dict]:
     cfg = get_binding_config("mechanical_edit")
     if cfg["mode"] == "off":
         return None
-    if not is_kernel_available():
-        msg = "kernel_binding.mechanical_edit: kernel not on PATH"
+    kernel_ok, kernel_detail = _kernel_verified()
+    if not kernel_ok:
+        msg = (
+            "kernel_binding.mechanical_edit: no healthy kernel "
+            f"({kernel_detail or 'not found'})"
+        )
         if cfg["mode"] == "required":
             raise KernelBindingError(msg)
         logger.warning("%s -- falling back to LLM-authored edit", msg)

@@ -33,6 +33,7 @@ conversation turn.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -52,6 +53,17 @@ _KERNEL_BIN_ENV = "HERMES_KERNEL_BIN"
 _MANAGED_DIR_ENV = "SIMPLICIO_HOME"
 
 _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+# Identity handshake (adversarial review #4): a bare X.Y.Z found *anywhere*
+# in the output is not enough -- PATH collisions and homonym binaries (e.g.
+# an unrelated "Simplicio Agent v0.17.0" banner) must never be mistaken for
+# the kernel. Anchored at the start of stdout only (never stderr, which can
+# carry unrelated warnings); allows leading whitespace and an optional
+# "-runtime" / "v" decoration.
+_KERNEL_BANNER_RE = re.compile(
+    r"^\s*simplicio(?:-runtime)?\s+v?(\d+)\.(\d+)\.(\d+)",
+    re.IGNORECASE,
+)
 
 _DEFAULT_LOCK = {
     "schema": "runtime-lock/v1",
@@ -117,7 +129,14 @@ def version_satisfies(installed: str, minimum: str) -> bool:
 
 
 def kernel_version(bin_path: str) -> Optional[str]:
-    """Run ``<bin> --version`` and return the raw semver string, or None."""
+    """Run ``<bin> --version`` and return the raw semver string, or None.
+
+    Validates *identity*, not just presence of a version-shaped substring:
+    ``stdout`` must start with a ``simplicio``/``simplicio-runtime`` banner
+    (see ``_KERNEL_BANNER_RE``). A binary that merely shares the name but
+    prints an unrelated banner (or puts its version only in stderr) does not
+    satisfy the handshake and returns ``None``.
+    """
     try:
         from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
         extra = {"creationflags": windows_hide_flags()} if IS_WINDOWS else {}
@@ -133,8 +152,10 @@ def kernel_version(bin_path: str) -> Optional[str]:
         return None
     if proc.returncode != 0:
         return None
-    triple = parse_semver((proc.stdout or "") + (proc.stderr or ""))
-    return ".".join(str(n) for n in triple) if triple else None
+    m = _KERNEL_BANNER_RE.match(proc.stdout or "")
+    if not m:
+        return None
+    return f"{int(m.group(1))}.{int(m.group(2))}.{int(m.group(3))}"
 
 
 # ---------------------------------------------------------------------------
@@ -223,25 +244,71 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     )
 
 
-def _platform_asset(lock: dict) -> Optional[str]:
-    """Map the current platform to a release asset name, or None."""
+def _asset_entry(lock: dict) -> tuple[Optional[str], Optional[str]]:
+    """Map the current platform to ``(asset_name, pinned_sha256)``.
+
+    Each value in ``assets`` may be a plain string (legacy shape, no pinned
+    hash) or an object ``{"name": ..., "sha256": ...}``. Returns
+    ``(None, None)`` when no asset is published for this platform.
+    """
     assets = lock.get("assets") or {}
     system = platform.system().lower()      # darwin / linux / windows
     machine = platform.machine().lower()    # arm64 / x86_64 / amd64
     machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
-    return assets.get(f"{system}-{machine}")
+    entry = assets.get(f"{system}-{machine}")
+    if entry is None:
+        return None, None
+    if isinstance(entry, dict):
+        name = entry.get("name")
+        sha256 = entry.get("sha256")
+        return (str(name) if name else None), (str(sha256) if sha256 else None)
+    return str(entry), None
+
+
+def _platform_asset(lock: dict) -> Optional[str]:
+    """Map the current platform to a release asset name, or None."""
+    name, _ = _asset_entry(lock)
+    return name
+
+
+def _sha256_file(path: Path) -> str:
+    """Streamed sha256 hex digest of ``path``."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _cleanup_tmp(tmp: Path) -> None:
+    try:
+        if tmp.is_file():
+            tmp.unlink()
+    except OSError as exc:
+        logger.debug("failed to remove tmp download %s: %s", tmp, exc)
 
 
 def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
     """``gh release download`` the platform asset into ``dest``. Returns an
-    error string on failure, None on success."""
-    asset = _platform_asset(lock)
+    error string on failure, None on success.
+
+    Supply-chain gate (adversarial review #1): the downloaded bytes are
+    hashed and compared against the ``sha256`` pinned in ``runtime.lock``
+    for this asset. No pinned hash -> refuse to install rather than trust an
+    unverified download; a mismatch -> delete the tmp file and error. The
+    tmp file name is unique per-process (``pid``) to avoid a concurrent-
+    download race clobbering another process's in-flight file, and is
+    always removed on any failure path.
+    """
+    asset, pinned_sha256 = _asset_entry(lock)
     if not asset:
         return f"no release asset published for this platform ({platform.system()}-{platform.machine()})"
+    if not pinned_sha256:
+        return "no pinned sha256 for asset -- refusing unverified download"
     if not shutil.which("gh"):
         return "gh CLI not available for release download"
     repo = str(lock.get("release_repo") or "")
-    tmp = dest.parent / f".{dest.name}.download"
+    tmp = dest.parent / f".{dest.name}.download.{os.getpid()}"
     try:
         proc = subprocess.run(
             ["gh", "release", "download", "--repo", repo,
@@ -249,13 +316,25 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
             capture_output=True, text=True, timeout=300,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
+        _cleanup_tmp(tmp)
         return f"gh release download failed to run: {exc}"
     if proc.returncode != 0:
+        _cleanup_tmp(tmp)
         return f"gh release download failed: {(proc.stderr or '').strip()[:300]}"
+    if not tmp.is_file():
+        _cleanup_tmp(tmp)
+        return f"gh release download reported success but {tmp} is missing"
+
+    digest = _sha256_file(tmp)
+    if digest.lower() != pinned_sha256.lower():
+        _cleanup_tmp(tmp)
+        return f"sha256 mismatch for {asset}: expected {pinned_sha256}, got {digest}"
+
     try:
         tmp.chmod(0o755)
         tmp.replace(dest)
     except OSError as exc:
+        _cleanup_tmp(tmp)
         return f"failed to move downloaded binary into place: {exc}"
     return None
 
@@ -287,6 +366,54 @@ def _install_from_sibling(lock: dict, dest: Path) -> Optional[str]:
     except OSError as exc:
         return f"failed to copy built binary into place: {exc}"
     return None
+
+
+_bootstrap_ran = False
+
+
+def bootstrap_session() -> Optional[str]:
+    """Once-per-process startup handshake (ADR-0003).
+
+    The agent always runs *with* the runtime: this is called at chat
+    startup so an absent/stale kernel is surfaced immediately instead of
+    execution bindings failing closed with no explanation mid-turn.
+
+    This performs the ``--version`` handshake only -- it **never**
+    downloads or builds anything (adversarial review #1c: an unattended
+    network fetch at every chat startup is a supply-chain and latency
+    hazard the user never consented to). Installing/updating the kernel is
+    exclusively ``ensure_runtime(install=True)``, reached via
+    ``hermes doctor --fix`` -- that command *is* the explicit consent.
+    Returns a one-line warning (with the doctor fix instruction) for the
+    caller to print, or ``None`` when the kernel is healthy. Never raises,
+    never blocks startup on anything beyond the local handshake.
+    """
+    global _bootstrap_ran
+    if _bootstrap_ran:
+        return None
+    _bootstrap_ran = True
+
+    try:
+        lock = load_runtime_lock()
+        status = runtime_status(lock)
+        if status.satisfied:
+            return None
+
+        where = f" ({status.bin_path} [{status.source}])" if status.present else ""
+        return (
+            f"simplicio kernel unavailable: {status.detail or 'not found'}{where} "
+            f"-- pinned >= {status.min_version}. Run 'hermes doctor --fix' to "
+            "install/update it."
+        )
+    except Exception as exc:  # startup must never crash on the handshake
+        logger.debug("runtime bootstrap failed: %s", exc)
+        return None
+
+
+def reset_bootstrap() -> None:
+    """Clear the once-per-process bootstrap latch. Test-only escape hatch."""
+    global _bootstrap_ran
+    _bootstrap_ran = False
 
 
 def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
@@ -324,6 +451,12 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
     for strategy in (_install_from_release, _install_from_sibling):
         err = strategy(lock, dest)
         if err is None:
+            # The install changed what's on disk at the managed path -- the
+            # kernel_binding layer caches PATH resolution + the verified
+            # handshake per process (adversarial review #5), so without an
+            # explicit invalidation it would keep reporting the pre-install
+            # state for the rest of the process lifetime.
+            _reset_kernel_binding_cache()
             refreshed = runtime_status(lock)
             if not refreshed.satisfied and refreshed.present:
                 refreshed.detail = (
@@ -335,3 +468,15 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
 
     status.detail = "install failed: " + "; ".join(errors)
     return status
+
+
+def _reset_kernel_binding_cache() -> None:
+    """Best-effort invalidation of ``tools.kernel_binding``'s process caches
+    after this module installs/updates the managed kernel. Import is local
+    (kernel_binding imports back into this module) and tolerant of any
+    failure -- a stale cache is a staleness bug, not a crash."""
+    try:
+        from tools.kernel_binding import reset_kernel_cache
+        reset_kernel_cache()
+    except Exception as exc:
+        logger.debug("failed to reset kernel_binding cache after install: %s", exc)

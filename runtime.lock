@@ -5,9 +5,9 @@
   "release_repo": "wesleysimplicio/simplicio",
   "source_repo": "wesleysimplicio/simplicio-runtime",
   "assets": {
-    "darwin-arm64": "simplicio-macos-arm64",
-    "darwin-x86_64": "simplicio",
-    "linux-x86_64": "simplicio"
+    "darwin-arm64": {"name": "simplicio-macos-arm64", "sha256": null},
+    "darwin-x86_64": {"name": "simplicio", "sha256": null},
+    "linux-x86_64": {"name": "simplicio", "sha256": null}
   },
   "sibling_checkout": "../simplicio-runtime"
 }
