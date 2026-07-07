@@ -16,10 +16,8 @@ _PATH_ARG_KEYS = (
     "target",
 )
 _TOOL_GUIDANCE = {
-    "read_file": "Use terminal + `simplicio runtime map --repo <repo> --for-llm markdown` or `simplicio map --repo <repo> --json` first.",
-    "search_files": "Use terminal + `simplicio runtime map --repo <repo> --for-llm markdown`, `simplicio orientation pack --repo <repo> --json`, or `simplicio map --repo <repo> --json` first.",
-    "write_file": "Use terminal + `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
-    "patch": "Use terminal + `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
+    "write_file": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
+    "patch": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
 }
 _BLOCKED_TOOLS = frozenset(_TOOL_GUIDANCE)
 
