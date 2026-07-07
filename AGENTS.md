@@ -35,6 +35,12 @@ delegates to subagents, runs scheduled jobs, and drives a real terminal and
 browser. It is extended primarily through **plugins and skills**, not by
 growing the core.
 
+## Tool routing
+
+- **Hermes-native tools first** for reading, searching, reasoning, and coordination.
+- **Simplicio CLI/MCP second** for execution, deterministic edits, validation, evidence, and other repo mutations.
+- When both could work, keep Hermes in the driver’s seat and use Simplicio as the actuator.
+
 Two properties shape almost every design decision and are the lens for
 reviewing any change:
 
