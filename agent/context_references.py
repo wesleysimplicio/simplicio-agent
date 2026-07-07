@@ -223,17 +223,29 @@ async def _expand_reference(
     allowed_root: Path | None = None,
 ) -> tuple[str | None, str | None]:
     try:
+        # The sync helpers below block on subprocess (git) or disk reads.  This
+        # coroutine is fanned out via ``asyncio.gather`` (see _expand_all), so
+        # run each blocking helper in a worker thread — otherwise the gather is
+        # fake concurrency and every git/file ref stalls the whole event loop.
         if ref.kind == "file":
-            return _expand_file_reference(ref, cwd, allowed_root=allowed_root)
+            return await asyncio.to_thread(
+                _expand_file_reference, ref, cwd, allowed_root=allowed_root
+            )
         if ref.kind == "folder":
-            return _expand_folder_reference(ref, cwd, allowed_root=allowed_root)
+            return await asyncio.to_thread(
+                _expand_folder_reference, ref, cwd, allowed_root=allowed_root
+            )
         if ref.kind == "diff":
-            return _expand_git_reference(ref, cwd, ["diff"], "git diff")
+            return await asyncio.to_thread(_expand_git_reference, ref, cwd, ["diff"], "git diff")
         if ref.kind == "staged":
-            return _expand_git_reference(ref, cwd, ["diff", "--staged"], "git diff --staged")
+            return await asyncio.to_thread(
+                _expand_git_reference, ref, cwd, ["diff", "--staged"], "git diff --staged"
+            )
         if ref.kind == "git":
             count = max(1, min(int(ref.target or "1"), 10))
-            return _expand_git_reference(ref, cwd, ["log", f"-{count}", "-p"], f"git log -{count} -p")
+            return await asyncio.to_thread(
+                _expand_git_reference, ref, cwd, ["log", f"-{count}", "-p"], f"git log -{count} -p"
+            )
         if ref.kind == "url":
             content = await _fetch_url_content(ref.target, url_fetcher=url_fetcher)
             if not content:
@@ -445,7 +457,13 @@ def _is_binary_file(path: Path) -> bool:
         path.name.endswith(ext) for ext in (".py", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".js", ".ts")
     ):
         return True
-    chunk = path.read_bytes()[:4096]
+    # Bounded read: only the first 4 KB is inspected for null bytes, so never
+    # pull a whole (possibly large) binary/media file into memory here.
+    try:
+        with open(path, "rb") as fh:
+            chunk = fh.read(4096)
+    except OSError:
+        return False
     return b"\x00" in chunk
 
 
