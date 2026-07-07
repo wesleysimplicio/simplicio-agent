@@ -2277,8 +2277,8 @@ export const en: Translations = {
 
   errors: {
     genericFailure: 'Something went wrong',
-    boundaryTitle: 'Something broke in the interface',
-    boundaryDesc: 'The view hit an unexpected error. Your chats and settings are safe.',
+    boundaryTitle: 'Simplicio Agent hit an unexpected error',
+    boundaryDesc: 'Your chats and settings are safe. Reload the window to continue.',
     reloadWindow: 'Reload window',
     openLogs: 'Open logs'
   },
