@@ -109,7 +109,13 @@ function createMcpDaemon(opts = {}) {
       spawned = spawnFn(invocation.command, invocation.args, {
         windowsHide: true,
         windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-        stdio: ['ignore', 'pipe', 'pipe']
+        // stdin MUST be an open pipe held for the child's whole life: the
+        // stdio MCP server reads requests from stdin, and 'ignore' hands it
+        // a closed fd -- immediate EOF, clean exit code 0 right after start
+        // (the "Stopped · exited (code 0)" E2E bug). We never write to it
+        // and never call child.stdin.end() while supervising; only stop()
+        // tears the child (and with it the pipe) down.
+        stdio: ['pipe', 'pipe', 'pipe']
       })
     } catch (error) {
       state = { ...state, running: false, pid: null, lastError: error.message, binSource: resolved.source }
@@ -132,6 +138,11 @@ function createMcpDaemon(opts = {}) {
 
     if (spawned.stdout) spawned.stdout.on('data', chunk => log(chunk.toString()))
     if (spawned.stderr) spawned.stderr.on('data', chunk => log(chunk.toString()))
+    if (spawned.stdin) {
+      // Hold the pipe open, but never let a late EPIPE (child died first)
+      // become an uncaught 'error' that takes down the Electron main process.
+      spawned.stdin.on('error', () => {})
+    }
 
     // Node emits 'error' (spawn failure) and/or 'exit' for the same failed
     // child; guard so a single crash counts as exactly one restart.
@@ -146,11 +157,15 @@ function createMcpDaemon(opts = {}) {
     spawned.once('exit', (code, signal) => {
       if (settled) return
       settled = true
-      state = {
-        ...state,
-        running: false,
-        lastError: signal ? `killed (${signal})` : `exited (code ${code})`
-      }
+      // ANY exit while supervising is unexpected for a long-running server
+      // and triggers the restart backoff -- including a clean code 0, which
+      // for a stdio server almost always means its stdin reached EOF.
+      const lastError = signal
+        ? `killed (${signal})`
+        : code === 0
+          ? 'exited (code 0) unexpectedly — stdio server saw EOF on stdin?'
+          : `exited (code ${code})`
+      state = { ...state, running: false, lastError }
       handleExit(startedAtMs)
     })
   }
@@ -195,6 +210,15 @@ function createMcpDaemon(opts = {}) {
     state = { ...state, running: false, pid: null }
 
     if (!dying) return status()
+
+    // Graceful first: EOF on stdin is the idiomatic shutdown signal for a
+    // stdio server (this is the ONLY place stdin is ever ended -- never
+    // while supervising). The kill below reaps it if it doesn't oblige.
+    try {
+      if (dying.stdin) dying.stdin.end()
+    } catch {
+      // already gone
+    }
 
     const pid = dying.pid
     if (process.platform === 'win32' && Number.isInteger(pid)) {

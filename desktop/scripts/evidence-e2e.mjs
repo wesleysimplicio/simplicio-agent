@@ -126,18 +126,16 @@ async function main() {
     // status bar shows "Gateway ready") or the boot progress bar goes away.
     await page.waitForSelector('text=/gateway ready/i', { timeout: 180_000 }).catch(() => {})
     await page.waitForTimeout(3000)
-    // Force the first-run onboarding to show again: clear its persisted flags
-    // and reload. With the gateway already configured this lands on the
-    // model-confirm step whose "Begin" leads into the three new steps.
-    await page.evaluate(() => {
-      localStorage.removeItem('hermes-desktop-onboarded-v1')
-      localStorage.removeItem('hermes-onboarding-skipped-v1')
-    }).catch(() => {})
-    await page.reload().catch(() => {})
-    await page.waitForLoadState('domcontentloaded', { timeout: 120_000 })
-    await page.waitForSelector('text=/gateway ready/i', { timeout: 120_000 }).catch(() => {})
-    await page.waitForTimeout(3000)
-    await capture(page, 'onboarding-entry', 'onboarding entry (provider/model step or first new step)')
+    await capture(page, 'home', 'app home after boot (gateway ready)')
+    // Open the post-setup onboarding via the command palette "Setup Simplicio"
+    // entry (works even when a provider is already configured).
+    await page.keyboard.press('Control+k')
+    await page.waitForTimeout(800)
+    await page.keyboard.type('Setup Simplicio', { delay: 40 })
+    await page.waitForTimeout(800)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(1500)
+    await capture(page, 'onboarding-entry', 'onboarding overlay opened via palette (post-setup flow)')
 
     // Adaptive walker: advance through onboarding, photographing each of the
     // three new steps when their markers appear. A miss records FAIL — never
@@ -152,7 +150,10 @@ async function main() {
     for (let hop = 0; hop < 12 && !(seen.doctor && seen.google && seen.stripe); hop++) {
       if (!seen.doctor && await page.locator('text=/verificar novamente/i').first().isVisible().catch(() => false)) {
         seen.doctor = true
-        await page.waitForTimeout(4000) // let the real `simplicio doctor` respond
+        // Wait for the real `simplicio doctor` checklist to resolve (spinner
+        // "Rodando diagnóstico..." replaced by status items), not a fixed nap.
+        await page.waitForSelector('text=/bin(á|a)rio|vers(ã|a)o|runtime v/i', { timeout: 45_000 }).catch(() => {})
+        await page.waitForTimeout(1000)
         await capture(page, 'onboarding-doctor', 'onboarding: runtime pendencies checklist (real simplicio doctor)')
       } else if (!seen.google && await page.locator('text=/continuar com google/i').first().isVisible().catch(() => false)) {
         seen.google = true
@@ -194,7 +195,20 @@ async function main() {
       await page.keyboard.type('Token Economy', { delay: 40 })
       await page.waitForTimeout(800)
       await page.keyboard.press('Enter')
-      await page.waitForTimeout(4000) // savings report runs the real binary
+      // First IPC cycle is slow (binary probe + doctor + memory status). Wait
+      // for a real resolved value — the neural backend name — not a fixed nap.
+      await page.waitForSelector('text=/sqlite-fts5/', { timeout: 60_000 }).catch(() => {})
+      await page.waitForTimeout(1500)
+    })
+
+    // ---- Sessions drill-down inside the savings cockpit (command trail proof).
+    await capture(page, 'savings-sessions', 'per-session timeline: commands used (surfaces), tokens, hash chain', async () => {
+      const sess = page.locator('text=/sess(õ|o)es|sessions/i').first()
+      await sess.scrollIntoViewIfNeeded({ timeout: 5000 })
+      // expand the first session card if collapsed
+      const card = page.locator('[data-testid="savings-session"], .savings-session, button:has-text("auto-memory")').first()
+      if (await card.isVisible().catch(() => false)) await card.click().catch(() => {})
+      await page.waitForTimeout(1500)
     })
 
     // ---- Integrations screen via sidebar plug icon.

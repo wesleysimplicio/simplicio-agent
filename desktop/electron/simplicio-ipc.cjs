@@ -64,6 +64,17 @@ function doctorRun(runner) {
 }
 
 /**
+ * `simplicio memory status --json` (schema `simplicio.memory-backend/v1`:
+ * selected backend, database path, memory_items counts, guardian roster).
+ * Resolves `{ok:true, memory}` on success.
+ *
+ * @param {Function} [runner] - runSimplicio stand-in (tests).
+ */
+function memoryStatus(runner) {
+  return runJsonCommand(['memory', 'status', '--json'], 'simplicio memory status', 'memory', runner)
+}
+
+/**
  * Register every IPC handler for the Simplicio Savings surface and start (but
  * do not yet spawn) the supervised MCP daemon.
  *
@@ -90,6 +101,13 @@ function registerSimplicioIpc(ipcMain, opts = {}) {
   ipcMain.handle('simplicio:mcp-daemon-status', () => daemon.status())
   ipcMain.handle('simplicio:mcp-daemon-start', () => daemon.start())
   ipcMain.handle('simplicio:mcp-daemon-stop', () => daemon.stop())
+  ipcMain.handle('simplicio:memory-status', () => memoryStatus())
+  // Direct ledger read -- no spawn, no LLM. `request` may carry an optional
+  // repoPath whose per-repo ledger is merged (deduped by event_id) with the
+  // home ledger.
+  ipcMain.handle('simplicio:savings-sessions', (_event, request) =>
+    readSavingsSessions({ repoPath: request && request.repoPath })
+  )
 
   return daemon
 }
@@ -98,5 +116,6 @@ module.exports = {
   registerSimplicioIpc,
   savingsReport,
   doctorRun,
+  memoryStatus,
   resolveSimplicioBin
 }

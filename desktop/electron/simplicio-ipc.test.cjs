@@ -3,7 +3,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { registerSimplicioIpc, savingsReport, doctorRun } = require('./simplicio-ipc.cjs')
+const { registerSimplicioIpc, savingsReport, doctorRun, memoryStatus } = require('./simplicio-ipc.cjs')
 
 // A minimal ipcMain fake: records handlers by channel and lets the test
 // invoke them directly, so this doesn't need a real electron runtime.
@@ -47,7 +47,9 @@ test('registerSimplicioIpc registers every documented channel', () => {
       'simplicio:mcp-daemon-status',
       'simplicio:mcp-daemon-stop',
       'simplicio:mcp-register',
-      'simplicio:savings-report'
+      'simplicio:memory-status',
+      'simplicio:savings-report',
+      'simplicio:savings-sessions'
     ].sort()
   )
 })
@@ -116,4 +118,54 @@ test('doctorRun resolves {ok:true, doctor:<parsed json>} on success', async () =
   }
   const result = await doctorRun(runner)
   assert.deepEqual(result, { ok: true, doctor: { overall_status: 'ok' } })
+})
+
+test('memoryStatus resolves {ok:true, memory} filtering JSONL progress lines from stdout', async () => {
+  const stdout = [
+    '{"schema":"simplicio.progress/v1","step":"scan"}',
+    JSON.stringify({
+      schema: 'simplicio.memory-backend/v1',
+      status: 'ready',
+      selected_backend: 'sqlite-fts5',
+      initialized: true,
+      operator_visibility: { memory: { memory_items: 1304 } },
+      guardian_policy: {
+        guardians: [
+          { name: 'Isa', status: 'active', role: 'recall' },
+          { name: 'Helo', status: 'idle', role: 'context' },
+          { name: 'Levi', status: 'armed', role: 'external' }
+        ]
+      }
+    })
+  ].join('\n')
+  const runner = async args => {
+    assert.deepEqual(args, ['memory', 'status', '--json'])
+    return { ok: true, stdout, stderr: '', code: 0 }
+  }
+  const result = await memoryStatus(runner)
+  assert.equal(result.ok, true)
+  assert.equal(result.memory.status, 'ready')
+  assert.equal(result.memory.selected_backend, 'sqlite-fts5')
+  assert.equal(result.memory.operator_visibility.memory.memory_items, 1304)
+  assert.equal(result.memory.guardian_policy.guardians.length, 3)
+})
+
+test('memoryStatus resolves {ok:false, error} when the binary is missing', async () => {
+  const runner = async () => ({ ok: false, stdout: '', stderr: 'simplicio binary not found', code: null })
+  const result = await memoryStatus(runner)
+  assert.equal(result.ok, false)
+  assert.equal(result.error, 'simplicio binary not found')
+  assert.equal('memory' in result, false)
+})
+
+test('simplicio:savings-sessions handler forwards the optional repoPath and returns the ledger shape', async () => {
+  const ipcMain = makeFakeIpcMain()
+  registerSimplicioIpc(ipcMain, { daemon: makeFakeDaemon() })
+  // No repoPath: reads only the home ledger (whatever this machine has) --
+  // assert the envelope shape, not machine-specific contents.
+  const result = await ipcMain.invoke('simplicio:savings-sessions', undefined)
+  assert.equal(typeof result.ok, 'boolean')
+  assert.ok(Array.isArray(result.sessions))
+  assert.equal(typeof result.skipped, 'number')
+  assert.ok(Array.isArray(result.sources))
 })

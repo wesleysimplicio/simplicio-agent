@@ -27,16 +27,21 @@ test('isStableUptime is true at/above 60s, false below', () => {
 })
 
 // A fake spawn() that yields a controllable child EventEmitter for each call,
-// recording every invocation for assertions.
+// recording every invocation (including the stdio options) for assertions.
 function makeFakeSpawn() {
   const children = []
-  const spawnFn = (bin, args) => {
+  const spawnFn = (bin, args, options) => {
     const child = new EventEmitter()
     child.stdout = new EventEmitter()
     child.stderr = new EventEmitter()
+    child.stdin = new EventEmitter()
+    child.stdin.ended = false
+    child.stdin.end = () => {
+      child.stdin.ended = true
+    }
     child.pid = 1000 + children.length
     child.kill = () => child.emit('exit', null, 'SIGTERM')
-    children.push({ bin, args, child })
+    children.push({ bin, args, options, child })
     return child
   }
   return { spawnFn, children }
@@ -140,6 +145,58 @@ test('createMcpDaemon status carries an explicit lastError when the binary is no
   const status = daemon.start()
   assert.equal(status.running, false)
   assert.equal(status.lastError, 'simplicio binary not found')
+})
+
+// "Stopped · exited (code 0)" E2E regression: the stdio MCP server reads
+// requests from stdin, so stdin must be spawned as an OPEN pipe ('ignore'
+// hands the child a closed fd -> immediate EOF -> clean exit right after
+// start) and must never be ended while the daemon is supervising.
+test('createMcpDaemon spawns with stdin as an open pipe and does not end it while running', () => {
+  const { spawnFn, children } = makeFakeSpawn()
+  const scheduler = makeFakeScheduler()
+  const daemon = createMcpDaemon({
+    spawnFn,
+    scheduleRestart: scheduler.scheduleRestart,
+    clearScheduled: scheduler.clearScheduled,
+    execFileSyncFn: () => {},
+    resolveBin: () => ({ bin: '/bin/simplicio', source: 'test' })
+  })
+
+  daemon.start()
+  assert.deepEqual(children[0].options.stdio, ['pipe', 'pipe', 'pipe'], "stdin must be 'pipe', never 'ignore'")
+  assert.equal(children[0].child.stdin.ended, false, 'stdin must stay open while supervising')
+
+  // stop() is the ONLY place stdin gets ended (graceful EOF before the kill).
+  daemon.stop()
+  assert.equal(children[0].child.stdin.ended, true)
+})
+
+test('createMcpDaemon treats an unexpected clean exit (code 0) as a crash: descriptive lastError + restart', () => {
+  const { spawnFn, children } = makeFakeSpawn()
+  const scheduler = makeFakeScheduler()
+  const daemon = createMcpDaemon({
+    spawnFn,
+    scheduleRestart: scheduler.scheduleRestart,
+    clearScheduled: scheduler.clearScheduled,
+    execFileSyncFn: () => {},
+    resolveBin: () => ({ bin: '/bin/simplicio', source: 'test' }),
+    now: () => 0
+  })
+
+  daemon.start()
+  children[0].child.emit('exit', 0, null)
+
+  const status = daemon.status()
+  assert.equal(status.running, false)
+  assert.match(status.lastError, /exited \(code 0\) unexpectedly/)
+  assert.match(status.lastError, /stdin/i)
+  assert.equal(status.restarts, 1)
+  assert.deepEqual(scheduler.pendingDelays(), [MIN_BACKOFF_MS], 'code 0 must schedule a restart like any crash')
+
+  scheduler.fireNext()
+  assert.equal(children.length, 2, 'a replacement child must be spawned')
+  assert.equal(daemon.status().running, true)
+  daemon.stop()
 })
 
 test('createMcpDaemon auto-restarts on unexpected exit with growing backoff, and stop() halts restarts', () => {

@@ -229,5 +229,11 @@ contextBridge.exposeInMainWorld('simplicioSavings', {
   mcpRegister: () => ipcRenderer.invoke('simplicio:mcp-register'),
   mcpDaemonStatus: () => ipcRenderer.invoke('simplicio:mcp-daemon-status'),
   mcpDaemonStart: () => ipcRenderer.invoke('simplicio:mcp-daemon-start'),
-  mcpDaemonStop: () => ipcRenderer.invoke('simplicio:mcp-daemon-stop')
+  mcpDaemonStop: () => ipcRenderer.invoke('simplicio:mcp-daemon-stop'),
+  // Runtime cockpit: neural-memory backend status (`simplicio memory status`)
+  // and per-run savings sessions read directly from the append-only JSONL
+  // ledgers (no spawn). `opts` may carry { repoPath } to merge that repo's
+  // ledger with the home one.
+  memoryStatus: () => ipcRenderer.invoke('simplicio:memory-status'),
+  savingsSessions: opts => ipcRenderer.invoke('simplicio:savings-sessions', opts)
 })

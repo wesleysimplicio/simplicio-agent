@@ -1,0 +1,84 @@
+{
+  "started_at": "2026-07-07T23:33:19.715Z",
+  "steps": [
+    {
+      "n": 1,
+      "slug": "boot",
+      "note": "app booted (Electron window, renderer loaded)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\01-boot.png"
+    },
+    {
+      "n": 2,
+      "slug": "home",
+      "note": "app home after boot (gateway ready)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\02-home.png"
+    },
+    {
+      "n": 3,
+      "slug": "onboarding-entry",
+      "note": "onboarding overlay opened via palette (post-setup flow)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\03-onboarding-entry.png"
+    },
+    {
+      "n": 4,
+      "slug": "onboarding-doctor",
+      "note": "onboarding: runtime pendencies checklist (real simplicio doctor)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\04-onboarding-doctor.png"
+    },
+    {
+      "n": 5,
+      "slug": "onboarding-google",
+      "note": "onboarding: simulated Google sign-in (MODO TESTE badge)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\05-onboarding-google.png"
+    },
+    {
+      "n": 6,
+      "slug": "onboarding-google-signed",
+      "note": "simulated sign-in completed (voce@exemplo.com · simulado)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\06-onboarding-google-signed.png"
+    },
+    {
+      "n": 7,
+      "slug": "onboarding-stripe",
+      "note": "onboarding: simulated subscription (gate off)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\07-onboarding-stripe.png"
+    },
+    {
+      "n": 8,
+      "slug": "savings-panel",
+      "note": "savings panel: real ledger + measured/estimated evidence + MCP chip",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\08-savings-panel.png"
+    },
+    {
+      "n": 9,
+      "slug": "savings-sessions",
+      "note": "per-session timeline: commands used (surfaces), tokens, hash chain",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\09-savings-sessions.png"
+    },
+    {
+      "n": 10,
+      "slug": "integrations",
+      "note": "integrations: per-editor MCP status (real config detection)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\10-integrations.png"
+    },
+    {
+      "n": 11,
+      "slug": "mcp-deploy",
+      "note": "deploy to all editors: real `simplicio mcp register` result",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\11-mcp-deploy.png"
+    }
+  ],
+  "dev_url": "http://127.0.0.1:5174",
+  "finished_at": "2026-07-07T23:37:40.363Z"
+}
