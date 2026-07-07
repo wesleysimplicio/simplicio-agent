@@ -5146,7 +5146,7 @@ class BasePlatformAdapter(ABC):
                 await self.send(
                     chat_id=event.source.chat_id,
                     content=(
-                        f"Sorry, I encountered an error ({error_type}).\n"
+                        f"Simplicio Agent hit an error ({error_type}).\n"
                         f"{error_detail}\n"
                         "Try again or use /reset to start a fresh session."
                     ),

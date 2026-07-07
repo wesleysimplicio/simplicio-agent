@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# Hermes Agent Setup Script
+# Simplicio Agent Setup Script
 # ============================================================================
 # Quick setup for developers who cloned the repo manually.
 # Uses uv for desktop/server setup and Python's stdlib venv + pip on Termux.
@@ -56,7 +56,7 @@ get_command_link_display_dir() {
 }
 
 echo ""
-echo -e "${CYAN}⚕ Hermes Agent Setup${NC}"
+echo -e "${CYAN}⚕ Simplicio Agent Setup${NC}"
 echo ""
 
 # ============================================================================
@@ -511,7 +511,9 @@ echo -e "${CYAN}→${NC} Instalando ecossistema Python do Simplicio..."
     echo -e "${YELLOW}⚠${NC} PyPI packages não disponíveis — instale manualmente com pip"
 
 # ── 3. Config.yaml — MCP server + plugin ──────────────────────────────
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+# Simplicio Agent usa ~/.simplicio_agent como home de perfil por padrão.
+# Mantemos o nome HERMES_HOME internamente para não quebrar o código legado.
+HERMES_HOME="${HERMES_HOME:-$HOME/.simplicio_agent}"
 mkdir -p "$HERMES_HOME"
 
 if [ -f "$HERMES_HOME/config.yaml" ]; then

@@ -7,7 +7,7 @@ info()  { echo -e "${G}[✓]${N} $1"; }
 warn()  { echo -e "${Y}[!]${N} $1"; }
 error() { echo -e "${R}[✗]${N} $1"; }
 
-echo -e "${B}=== Verificação da ponte MCP Hermes ↔ Simplicio Runtime ===${N}\n"
+echo -e "${B}=== Verificação da ponte MCP Simplicio Agent ↔ Simplicio Runtime ===${N}\n"
 
 # 1. Simplicio binary
 echo "1. Simplicio Runtime"
@@ -43,8 +43,8 @@ else
   echo "$MCP_OUT" | head -5
 fi
 
-# 3. Hermes + MCP SDK
-echo -e "\n3. Hermes + MCP SDK"
+# 3. Simplicio Agent + MCP SDK
+echo -e "\n3. Simplicio Agent + MCP SDK"
 if /opt/homebrew/bin/python3.11 -c "import mcp" 2>/dev/null; then
   info "MCP SDK instalado (Python 3.11)"
 else
@@ -52,17 +52,17 @@ else
 fi
 
 # 4. MCP server registrado no Hermes
-echo -e "\n4. MCP server no Hermes"
+echo -e "\n4. MCP server no Simplicio Agent"
 HERMES_MCP=$(HERMES_HOME=/Users/wesleysimplicio/.simplicio_agent /opt/homebrew/bin/hermes mcp list 2>&1)
 if echo "$HERMES_MCP" | grep -q "simplicio.*enabled"; then
-  info "simplicio registrado como ✓ enabled no Hermes"
+  info "simplicio registrado como ✓ enabled no Simplicio Agent"
 else
-  error "simplicio NÃO registrado no Hermes!"
+  error "simplicio NÃO registrado no Simplicio Agent!"
   echo "$HERMES_MCP"
 fi
 
 # 5. Config.yaml
-echo -e "\n5. Config.yaml mcp_servers"
+echo -e "\n5. config.yaml do Simplicio Agent (mcp_servers)"
 if grep -q "mcp_servers:" /Users/wesleysimplicio/.simplicio_agent/config.yaml && \
    grep -q "simplicio:" /Users/wesleysimplicio/.simplicio_agent/config.yaml; then
   info "mcp_servers.simplicio presente no config.yaml"
