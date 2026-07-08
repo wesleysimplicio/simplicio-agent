@@ -375,6 +375,15 @@ async function stepLaunchNotepad() {
     return false
   }
 
+  // Clean slate: close any existing Notepad so the capture binds exactly the
+  // window we launch. Win11 Notepad is single-instance with tabs and this
+  // harness types into it, so a pre-existing/ghost tab could otherwise be
+  // what capture() sees and where type() lands. Best-effort; documented in the
+  // header so a user running this knows their open Notepad will be closed.
+  console.log('  (closing any existing Notepad for a clean test window)')
+  spawnSync('taskkill', ['/IM', 'notepad.exe', '/F'], { encoding: 'utf8', timeout: 5000, windowsHide: true })
+  await sleep(900)
+
   const spawnError = await new Promise(resolve => {
     let settled = false
     const finish = err => {
@@ -522,7 +531,8 @@ async function stepDriveComputerUse(pythonInfo) {
     const status = s.ok ? 'pass' : 'fail'
     const detail =
       name === 'cu-sentinel-verified'
-        ? `sentinel ${s.sentinel_found_after ? 'FOUND' : 'NOT FOUND'} after type (absent beforehand: ${s.sentinel_absent_before})`
+        ? `type ${s.readback_verified ? 'UIA-readback-verified' : s.sentinel_found_after ? 'found-in-capture' : 'NOT verified'} ` +
+          `(readback=${s.readback_verified}, found_in_capture=${s.sentinel_found_after}, absent_before=${s.sentinel_absent_before})`
         : s.error || truncate(s.text, 200)
     const rec = record(name, status, detail)
     if (s.image_b64) {
@@ -674,7 +684,7 @@ def main():
     # cua-driver's type_text targets the pid captured above directly (it does
     # not depend on OS keyboard focus), so a click failure here does not stop
     # the drive; the real proof is the sentinel round-trip below.
-    run("cu-type-sentinel", {"action": "type", "text": sentinel}, is_action=True)
+    type_step = run("cu-type-sentinel", {"action": "type", "text": sentinel}, is_action=True)
 
     after_som = run("cu-capture-after", {"action": "capture", "mode": "som", "app": app_name})
     after_ax = run("cu-capture-after-ax", {"action": "capture", "mode": "ax", "app": app_name})
@@ -684,12 +694,27 @@ def main():
     sentinel_found_after = bool(sentinel) and sentinel in haystack
     sentinel_absent_before = bool(sentinel) and sentinel not in before_haystack
 
+    # Authoritative verification: cua-driver's type_text reads the target
+    # control's value back via UIA (ValuePattern) after typing and reports
+    # "verified via UIA read-back" when the exact text landed. That is the
+    # ground truth the OS reports -- stronger than grepping a capture's
+    # element labels, where a plain editor's BODY text (e.g. Win11 Notepad's
+    # document) never surfaces. We accept EITHER signal so the proof is honest
+    # and robust to how a given app exposes its edited text.
+    type_text = type_step.get("text") or ""
+    readback_verified = "verified via UIA read-back" in type_text
+    verified = bool(sentinel) and (sentinel_found_after or readback_verified)
+
     steps.append({
         "name": "cu-sentinel-verified",
-        "ok": sentinel_found_after,
+        "ok": verified,
         "sentinel_found_after": sentinel_found_after,
         "sentinel_absent_before": sentinel_absent_before,
-        "error": None if sentinel_found_after else "sentinel not found in post-type AX/SOM capture text",
+        "readback_verified": readback_verified,
+        "error": None if verified else (
+            "type not confirmed: sentinel absent from post-type capture text AND "
+            "no 'verified via UIA read-back' in the type result"
+        ),
     })
 
     emit({"steps": steps, "sentinel": sentinel, "app": app_name})

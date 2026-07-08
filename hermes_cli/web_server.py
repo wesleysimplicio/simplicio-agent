@@ -11672,6 +11672,32 @@ async def get_computer_use_status(profile: Optional[str] = None):
         return computer_use_status()
 
 
+# Killswitch — process-level, in-memory pause for destructive computer_use
+# actions (see tools.computer_use.killswitch's module docstring). Not
+# profile-scoped: it's a single-process runtime flag, not persisted config,
+# so it mirrors the curator pause route's shape (GET status / PUT to flip)
+# rather than the profile-aware `/status` route above. This is also the
+# ONLY way to resume computer control after a pause — the model has no tool
+# that reaches tools.computer_use.killswitch, by design.
+@app.get("/api/tools/computer-use/pause")
+async def get_computer_use_pause():
+    from tools.computer_use import killswitch
+
+    return {"paused": killswitch.is_paused()}
+
+
+class ComputerUsePause(BaseModel):
+    paused: bool
+
+
+@app.put("/api/tools/computer-use/pause")
+async def set_computer_use_pause(body: ComputerUsePause):
+    from tools.computer_use import killswitch
+
+    killswitch.set_paused(bool(body.paused))
+    return {"ok": True, "paused": bool(body.paused)}
+
+
 @app.post("/api/tools/computer-use/permissions/grant")
 async def grant_computer_use_permissions(profile: Optional[str] = None):
     """Spawn ``hermes computer-use permissions grant`` as a background action.
