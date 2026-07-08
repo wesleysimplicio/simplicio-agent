@@ -224,6 +224,11 @@ _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
     "logs",                 # gateway logs
 })
 
+# Wrapper-body needles that identify a wrapper as ours. New wrappers say
+# `simplicio-agent -p`; wrappers written before the command rename say
+# `hermes -p` and must keep being recognized (overwrite/remove/reverse-lookup).
+_WRAPPER_MARKERS = ("simplicio-agent -p", "hermes -p")
+
 # Names that cannot be used as profile aliases
 _RESERVED_NAMES = frozenset({
     "hermes", "default", "test", "tmp", "root", "sudo",
@@ -396,7 +401,7 @@ def check_alias_collision(name: str) -> Optional[str]:
             if existing_path == str(expected):
                 try:
                     content = expected.read_text()
-                    if "simplicio-agent -p" in content:
+                    if any(m in content for m in _WRAPPER_MARKERS):
                         return None  # it's our wrapper, safe to overwrite
                 except Exception:
                     pass
@@ -439,7 +444,7 @@ def create_wrapper_script(name: str, target: Optional[str] = None) -> Optional[P
     if is_windows:
         wrapper_path = wrapper_dir / f"{canon}.bat"
         try:
-            wrapper_path.write_text(f"@echo off\r\nhermes -p {profile} %*\r\n")
+            wrapper_path.write_text(f"@echo off\r\nsimplicio-agent -p {profile} %*\r\n")
             return wrapper_path
         except OSError as e:
             print(f"⚠ Could not create wrapper at {wrapper_path}: {e}")
@@ -447,8 +452,12 @@ def create_wrapper_script(name: str, target: Optional[str] = None) -> Optional[P
     else:
         wrapper_path = wrapper_dir / canon
         try:
-            hermes_exe = shutil.which("hermes") or "hermes"
-            wrapper_path.write_text(f'#!/bin/sh\nexec {shlex.quote(hermes_exe)} -p {profile} "$@"\n')
+            # Canonical command first; `hermes` covers venvs predating the
+            # simplicio-agent entry point.
+            agent_exe = (
+                shutil.which("simplicio-agent") or shutil.which("hermes") or "simplicio-agent"
+            )
+            wrapper_path.write_text(f'#!/bin/sh\nexec {shlex.quote(agent_exe)} -p {profile} "$@"\n')
             wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
             return wrapper_path
         except OSError as e:
@@ -478,7 +487,7 @@ def remove_wrapper_script(name: str) -> bool:
             try:
                 # Verify it's our wrapper before removing
                 content = wrapper_path.read_text()
-                if "simplicio-agent -p" in content:
+                if any(m in content for m in _WRAPPER_MARKERS):
                     wrapper_path.unlink()
                     return True
             except Exception:
@@ -561,7 +570,7 @@ def build_alias_map() -> dict[str, str]:
     if not wrapper_dir.is_dir():
         return result
     is_windows = sys.platform == "win32"
-    prefix = "simplicio-agent -p "
+    prefixes = tuple(f"{m} " for m in _WRAPPER_MARKERS)
 
     for entry in sorted(wrapper_dir.iterdir()):
         if not entry.is_file():
@@ -577,7 +586,12 @@ def build_alias_map() -> dict[str, str]:
         except (OSError, UnicodeDecodeError):
             # UnicodeDecodeError = a binary on PATH (ffmpeg etc.) — not a wrapper.
             continue
-        idx = content.find(prefix)
+        idx, prefix = -1, ""
+        for candidate in prefixes:
+            idx = content.find(candidate)
+            if idx != -1:
+                prefix = candidate
+                break
         if idx == -1:
             continue
         rest = content[idx + len(prefix):]

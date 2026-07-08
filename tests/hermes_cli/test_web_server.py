@@ -3354,7 +3354,12 @@ class TestNewEndpoints:
         wrapper_dir = tmp_path / "bin"
         wrapper_dir.mkdir()
         monkeypatch.setattr(profiles_mod, "_get_wrapper_dir", lambda: wrapper_dir)
-        monkeypatch.setattr(profiles_mod.shutil, "which", lambda name: "/opt/hermes/bin/hermes")
+        # which() resolves the canonical simplicio-agent binary first.
+        monkeypatch.setattr(
+            profiles_mod.shutil,
+            "which",
+            lambda name: f"/opt/simplicio/bin/{name}" if name == "simplicio-agent" else None,
+        )
 
         resp = self.client.post(
             "/api/profiles",
@@ -3369,7 +3374,7 @@ class TestNewEndpoints:
         if is_windows:
             assert lines == ["@echo off", "simplicio-agent -p writer %*"]
         else:
-            assert lines == ["#!/bin/sh", 'exec /opt/hermes/bin/simplicio-agent -p writer "$@"']
+            assert lines == ["#!/bin/sh", 'exec /opt/simplicio/bin/simplicio-agent -p writer "$@"']
 
     def test_profiles_create_with_clone_from_copies_source_skills(self, monkeypatch):
         from hermes_constants import get_hermes_home

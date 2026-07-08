@@ -238,10 +238,16 @@ def _gateway_command_subcommand(command: str | None) -> str | None:
             return "run"
 
     joined = " ".join(tokens)
+    # Both command names host the gateway: the canonical `simplicio-agent`
+    # and the deprecated `hermes` alias (processes may be running under
+    # either, including gateways started before an update).
+    _cli_basenames = (
+        "simplicio-agent", "simplicio-agent.exe", "hermes", "hermes.exe",
+    )
     has_gateway_entry = (
         "hermes_cli.main" in joined
         or "hermes_cli/main.py" in joined
-        or any(t.rsplit("/", 1)[-1] in ("hermes", "hermes.exe") for t in tokens)
+        or any(t.rsplit("/", 1)[-1] in _cli_basenames for t in tokens)
     )
     if not has_gateway_entry:
         return None

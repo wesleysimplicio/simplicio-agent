@@ -21,12 +21,16 @@ from hermes_cli.colors import Colors, color
 # Deliberately specific — a bare "gateway ... restart" catch-all would block
 # legitimate prompts that merely mention an unrelated gateway (e.g. "summarize
 # the API gateway logs and report restart events").
+# Both CLI names are live: `simplicio-agent` (canonical) and `hermes`
+# (deprecated alias) — a cron job or terminal command may use either.
+# `simplicio-agent` also contains no bare "hermes" substring, so each
+# alternation needs both names explicitly.
 _GATEWAY_LIFECYCLE_PATTERNS = re.compile(
     r"(?i)"
-    r"(hermes\s+gateway\s+(restart|stop|start))"
-    r"|(launchctl\s+(kickstart|unload|load|stop|restart)\s+.*hermes)"
-    r"|(systemctl\s+(-\S+\s+)*(restart|stop|start)\s+.*hermes)"
-    r"|(p?kill\s+.*hermes.*gateway)"
+    r"((simplicio-agent|hermes)\s+gateway\s+(restart|stop|start))"
+    r"|(launchctl\s+(kickstart|unload|load|stop|restart)\s+.*(hermes|simplicio-agent))"
+    r"|(systemctl\s+(-\S+\s+)*(restart|stop|start)\s+.*(hermes|simplicio-agent))"
+    r"|(p?kill\s+.*(hermes|simplicio-agent).*gateway)"
 )
 
 
