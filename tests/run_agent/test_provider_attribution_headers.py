@@ -20,6 +20,30 @@ def test_openrouter_base_url_applies_or_headers(mock_openai):
     agent._apply_client_headers_for_base_url("https://openrouter.ai/api/v1")
 
     headers = agent._client_kwargs["default_headers"]
+    assert headers["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
+    assert headers["X-Title"] == "Hermes Agent"
+
+
+@patch("run_agent.OpenAI")
+def test_openrouter_base_url_applies_or_headers_override(mock_openai):
+    mock_openai.return_value = MagicMock()
+    import os
+
+    with patch.dict(os.environ, {
+        "OPENROUTER_X_TITLE": "Simplicio Agent",
+        "OPENROUTER_HTTP_REFERER": "simpleti.com.br/simplicio",
+    }):
+        agent = AIAgent(
+            api_key="test-key",
+            base_url="https://openrouter.ai/api/v1",
+            model="test/model",
+            quiet_mode=True,
+            skip_context_files=True,
+            skip_memory=True,
+        )
+        agent._apply_client_headers_for_base_url("https://openrouter.ai/api/v1")
+
+    headers = agent._client_kwargs["default_headers"]
     assert headers["HTTP-Referer"] == "simpleti.com.br/simplicio"
     assert headers["X-Title"] == "Simplicio Agent"
 
