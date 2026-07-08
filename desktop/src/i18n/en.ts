@@ -307,6 +307,7 @@ export const en: Translations = {
       keysSettings: 'Settings',
       mcp: 'MCP',
       archivedChats: 'Archived Chats',
+      billing: 'Billing',
       about: 'About',
       notifications: 'Notifications'
     },
@@ -689,6 +690,39 @@ export const en: Translations = {
       deleteFailed: 'Delete failed',
       updateDirFailed: 'Could not update default directory',
       clearDirFailed: 'Could not clear default directory'
+    },
+    billing: {
+      loading: 'Loading billing…',
+      noneTitle: 'No active subscription',
+      noneDesc: 'Subscribe to unlock higher usage limits.',
+      changePlan: 'Change plan',
+      cancelSubscriptionBanner: date => `Your subscription will be canceled on ${date}.`,
+      resubscribe: 'Resubscribe',
+      cancelSubscription: 'Cancel subscription',
+      paymentTitle: 'Payment',
+      noPaymentMethod: 'No payment method on file',
+      updatePaymentMethod: 'Update',
+      invoicesTitle: 'Invoices',
+      invoicesEmpty: 'No invoices yet',
+      invoiceDateHeader: 'Date',
+      invoiceTotalHeader: 'Total',
+      invoiceStatusHeader: 'Status',
+      invoiceActionsHeader: 'Actions',
+      invoiceView: 'View',
+      invoiceStatus: {
+        paid: 'Paid',
+        open: 'Open',
+        void: 'Void',
+        uncollectible: 'Uncollectible'
+      },
+      simulatedBadge: 'Simulated',
+      simulatedNotice: 'Stripe isn’t connected yet — this screen shows simulated billing data.',
+      changePlanSimulated: 'Simulation: this will open the Stripe billing portal once connected.',
+      resubscribeSuccess: 'Subscription resumed',
+      cancelSuccess: 'Subscription will cancel at period end',
+      paymentMethodUpdateSimulated: 'Simulation: this will open the Stripe payment update flow once connected.',
+      invoiceViewSimulated: (amount, date) => `Simulation: invoice for ${amount} on ${date} (no real Stripe invoice yet).`,
+      actionFailed: 'Could not complete that action'
     },
     toolsets: {
       loadingConfig: 'Loading configuration',

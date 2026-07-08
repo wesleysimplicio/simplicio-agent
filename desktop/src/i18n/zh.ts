@@ -298,6 +298,7 @@ export const zh: Translations = {
       keysSettings: '设置',
       mcp: 'MCP',
       archivedChats: '已归档对话',
+      billing: '账单',
       about: '关于',
       notifications: '通知'
     },
@@ -874,6 +875,39 @@ export const zh: Translations = {
       deleteFailed: '删除失败',
       updateDirFailed: '无法更新默认目录',
       clearDirFailed: '无法清除默认目录'
+    },
+    billing: {
+      loading: '正在加载账单…',
+      noneTitle: '没有有效订阅',
+      noneDesc: '订阅以解锁更高的使用限额。',
+      changePlan: '调整方案',
+      cancelSubscriptionBanner: date => `您的订阅将于 ${date} 取消。`,
+      resubscribe: '重新订阅',
+      cancelSubscription: '取消订阅',
+      paymentTitle: '付款',
+      noPaymentMethod: '没有已保存的付款方式',
+      updatePaymentMethod: '更新',
+      invoicesTitle: '账单',
+      invoicesEmpty: '暂无账单',
+      invoiceDateHeader: '日期',
+      invoiceTotalHeader: '总计',
+      invoiceStatusHeader: '状态',
+      invoiceActionsHeader: '操作',
+      invoiceView: '查看',
+      invoiceStatus: {
+        paid: '已支付',
+        open: '待支付',
+        void: '已作废',
+        uncollectible: '无法收取'
+      },
+      simulatedBadge: '模拟',
+      simulatedNotice: 'Stripe 尚未接入 —— 此页面显示的是模拟账单数据。',
+      changePlanSimulated: '模拟：接入后将打开 Stripe 账单门户。',
+      resubscribeSuccess: '订阅已恢复',
+      cancelSuccess: '订阅将在当前周期结束时取消',
+      paymentMethodUpdateSimulated: '模拟：接入后将打开 Stripe 付款方式更新流程。',
+      invoiceViewSimulated: (amount, date) => `模拟：${date} 的账单，金额 ${amount}（尚无真实 Stripe 账单）。`,
+      actionFailed: '无法完成该操作'
     },
     toolsets: {
       loadingConfig: '正在加载配置',

@@ -5,7 +5,20 @@ import { Tip } from '@/components/ui/tooltip'
 import { getHermesConfigDefaults, getHermesConfigRecord, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
-import { Archive, Bell, Download, Globe, Info, KeyRound, RefreshCw, Settings2, Upload, Wrench, Zap } from '@/lib/icons'
+import {
+  Archive,
+  Bell,
+  CreditCard,
+  Download,
+  Globe,
+  Info,
+  KeyRound,
+  RefreshCw,
+  Settings2,
+  Upload,
+  Wrench,
+  Zap
+} from '@/lib/icons'
 import { notifyError } from '@/store/notifications'
 
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
@@ -15,6 +28,7 @@ import { OverlayView } from '../overlays/overlay-view'
 
 import { AboutSettings } from './about-settings'
 import { AppearanceSettings } from './appearance-settings'
+import { BillingSettings } from './billing-settings'
 import { ConfigSettings } from './config-settings'
 import { SECTIONS } from './constants'
 import { GatewaySettings } from './gateway-settings'
@@ -33,6 +47,7 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'mcp',
   'notifications',
   'sessions',
+  'billing',
   'about'
 ]
 
@@ -176,6 +191,12 @@ export function SettingsView({ gateway, onClose, onConfigSaved, onMainModelChang
             label={t.settings.nav.archivedChats}
             onClick={() => setActiveView('sessions')}
           />
+          <OverlayNavItem
+            active={activeView === 'billing'}
+            icon={CreditCard}
+            label={t.settings.nav.billing}
+            onClick={() => setActiveView('billing')}
+          />
           <div className="my-2 h-px bg-border/30" />
           <OverlayNavItem
             active={activeView === 'about'}
@@ -235,6 +256,8 @@ export function SettingsView({ gateway, onClose, onConfigSaved, onMainModelChang
             <McpSettings gateway={gateway} onConfigSaved={onConfigSaved} />
           ) : activeView === 'notifications' ? (
             <NotificationsSettings />
+          ) : activeView === 'billing' ? (
+            <BillingSettings />
           ) : (
             <SessionsSettings />
           )}

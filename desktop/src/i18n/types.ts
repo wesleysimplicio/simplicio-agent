@@ -285,6 +285,7 @@ export interface Translations {
       keysSettings: string
       mcp: string
       archivedChats: string
+      billing: string
       about: string
       notifications: string
     }
@@ -604,6 +605,40 @@ export interface Translations {
       deleteFailed: string
       updateDirFailed: string
       clearDirFailed: string
+    }
+    billing: {
+      loading: string
+      /** Shown when the account has no subscription at all (never subscribed). */
+      noneTitle: string
+      noneDesc: string
+      changePlan: string
+      cancelSubscriptionBanner: (date: string) => string
+      resubscribe: string
+      cancelSubscription: string
+      paymentTitle: string
+      noPaymentMethod: string
+      updatePaymentMethod: string
+      invoicesTitle: string
+      invoicesEmpty: string
+      invoiceDateHeader: string
+      invoiceTotalHeader: string
+      invoiceStatusHeader: string
+      invoiceActionsHeader: string
+      invoiceView: string
+      invoiceStatus: {
+        paid: string
+        open: string
+        void: string
+        uncollectible: string
+      }
+      simulatedBadge: string
+      simulatedNotice: string
+      changePlanSimulated: string
+      resubscribeSuccess: string
+      cancelSuccess: string
+      paymentMethodUpdateSimulated: string
+      invoiceViewSimulated: (amount: string, date: string) => string
+      actionFailed: string
     }
     toolsets: {
       loadingConfig: string

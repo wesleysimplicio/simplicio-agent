@@ -307,6 +307,7 @@ export const ptBr = defineLocale({
       keysSettings: 'Configurações',
       mcp: 'MCP',
       archivedChats: 'Conversas arquivadas',
+      billing: 'Cobrança',
       about: 'Sobre',
       notifications: 'Notificações'
     },
@@ -895,6 +896,39 @@ export const ptBr = defineLocale({
       deleteFailed: 'Falha ao excluir',
       updateDirFailed: 'Não foi possível atualizar o diretório padrão',
       clearDirFailed: 'Não foi possível limpar o diretório padrão'
+    },
+    billing: {
+      loading: 'Carregando cobrança…',
+      noneTitle: 'Nenhuma assinatura ativa',
+      noneDesc: 'Assine para desbloquear limites de uso maiores.',
+      changePlan: 'Ajustar plano',
+      cancelSubscriptionBanner: date => `Sua assinatura será cancelada em ${date}.`,
+      resubscribe: 'Reassinar',
+      cancelSubscription: 'Cancelar assinatura',
+      paymentTitle: 'Pagamento',
+      noPaymentMethod: 'Nenhuma forma de pagamento cadastrada',
+      updatePaymentMethod: 'Atualizar',
+      invoicesTitle: 'Faturas',
+      invoicesEmpty: 'Nenhuma fatura ainda',
+      invoiceDateHeader: 'Data',
+      invoiceTotalHeader: 'Total',
+      invoiceStatusHeader: 'Status',
+      invoiceActionsHeader: 'Ações',
+      invoiceView: 'Ver',
+      invoiceStatus: {
+        paid: 'Paga',
+        open: 'Em aberto',
+        void: 'Anulada',
+        uncollectible: 'Incobrável'
+      },
+      simulatedBadge: 'Simulado',
+      simulatedNotice: 'O Stripe ainda não está conectado — esta tela mostra dados de cobrança simulados.',
+      changePlanSimulated: 'Simulação: isso abrirá o portal de cobrança do Stripe quando estiver conectado.',
+      resubscribeSuccess: 'Assinatura reativada',
+      cancelSuccess: 'A assinatura será cancelada ao final do período',
+      paymentMethodUpdateSimulated: 'Simulação: isso abrirá o fluxo de atualização de pagamento do Stripe quando estiver conectado.',
+      invoiceViewSimulated: (amount, date) => `Simulação: fatura de ${amount} em ${date} (ainda não é uma fatura real do Stripe).`,
+      actionFailed: 'Não foi possível concluir essa ação'
     },
     toolsets: {
       loadingConfig: 'Carregando configuração',
