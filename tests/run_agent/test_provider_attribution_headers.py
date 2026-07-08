@@ -20,8 +20,8 @@ def test_openrouter_base_url_applies_or_headers(mock_openai):
     agent._apply_client_headers_for_base_url("https://openrouter.ai/api/v1")
 
     headers = agent._client_kwargs["default_headers"]
-    assert headers["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
-    assert headers["X-Title"] == "Hermes Agent"
+    assert headers["HTTP-Referer"] == "https://simplicio.ai"
+    assert headers["X-Title"] == "Simplicio Agent"
 
 
 @patch("run_agent.OpenAI")
