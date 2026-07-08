@@ -333,7 +333,7 @@ class OpenRouterCompatImageProvider(ImageGenProvider):
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             # OpenRouter attribution headers (harmless against Nous Portal).
-            "HTTP-Referer": "https://simplicio.ai",
+            "HTTP-Referer": "simpleti.com.br/simplicio",
             "X-Title": "Simplicio Agent",
         }
         last_error: Optional[Dict[str, Any]] = None
