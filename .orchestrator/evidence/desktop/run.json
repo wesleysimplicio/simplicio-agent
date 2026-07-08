@@ -1,5 +1,5 @@
 {
-  "started_at": "2026-07-08T04:51:24.914Z",
+  "started_at": "2026-07-08T05:06:06.480Z",
   "steps": [
     {
       "n": 1,
@@ -32,79 +32,88 @@
     {
       "n": 5,
       "slug": "onboarding-google",
-      "status": "FAIL",
-      "error": "step marker never became visible during walk"
+      "note": "onboarding: simulated Google sign-in (MODO TESTE badge)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\05-onboarding-google.png"
     },
     {
       "n": 6,
-      "slug": "onboarding-stripe",
-      "status": "FAIL",
-      "error": "step marker never became visible during walk"
+      "slug": "onboarding-google-signed",
+      "note": "simulated sign-in completed (voce@exemplo.com · simulado)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\06-onboarding-google-signed.png"
     },
     {
       "n": 7,
-      "slug": "savings-panel",
-      "note": "cockpit via sidebar: status cards + charts + neon burst (100%)",
+      "slug": "onboarding-stripe",
+      "note": "onboarding: simulated subscription (gate off)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\07-savings-panel.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\07-onboarding-stripe.png"
     },
     {
       "n": 8,
-      "slug": "daemon-stop",
-      "note": "MCP card: Stop button + inline confirm -> daemon really stopped",
+      "slug": "savings-panel",
+      "note": "cockpit via sidebar: status cards + charts + neon burst (100%)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\08-daemon-stop.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\08-savings-panel.png"
     },
     {
       "n": 9,
-      "slug": "daemon-start",
-      "note": "MCP card: Start button -> daemon running again (new pid)",
+      "slug": "daemon-stop",
+      "note": "MCP card: Stop button + inline confirm -> daemon really stopped",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\09-daemon-start.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\09-daemon-stop.png"
     },
     {
       "n": 10,
-      "slug": "diagnostics-button",
-      "note": "Diagnostics button -> doctor checklist overlay",
+      "slug": "daemon-start",
+      "note": "MCP card: Start button -> daemon running again (new pid)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\10-diagnostics-button.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\10-daemon-start.png"
     },
     {
       "n": 11,
-      "slug": "savings-sessions",
-      "note": "per-session timeline: commands used (surfaces), tokens, hash chain",
+      "slug": "diagnostics-button",
+      "note": "Diagnostics button -> doctor checklist overlay",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\11-savings-sessions.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\11-diagnostics-button.png"
     },
     {
       "n": 12,
-      "slug": "live-activity-1",
-      "note": "Live Activity: LIVE badge + heartbeat + recent feed (poll 1)",
+      "slug": "savings-sessions",
+      "note": "per-session timeline: commands used (surfaces), tokens, hash chain",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\12-live-activity-1.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\12-savings-sessions.png"
     },
     {
       "n": 13,
-      "slug": "live-activity-2",
-      "note": "Live Activity after a poll cycle (proves the pulse is real, not static)",
+      "slug": "live-activity-1",
+      "note": "Live Activity: LIVE badge + heartbeat + recent feed (poll 1)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\13-live-activity-2.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\13-live-activity-1.png"
     },
     {
       "n": 14,
-      "slug": "integrations",
-      "note": "integrations: per-editor MCP status (real config detection)",
+      "slug": "live-activity-2",
+      "note": "Live Activity after a poll cycle (proves the pulse is real, not static)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\14-integrations.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\14-live-activity-2.png"
     },
     {
       "n": 15,
+      "slug": "integrations",
+      "note": "integrations: per-editor MCP status (real config detection)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\15-integrations.png"
+    },
+    {
+      "n": 16,
       "slug": "mcp-deploy",
       "note": "deploy to all editors: real `simplicio mcp register` result",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\15-mcp-deploy.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\16-mcp-deploy.png"
     }
   ],
   "dev_url": "http://127.0.0.1:5174",
-  "finished_at": "2026-07-08T04:57:17.423Z"
+  "finished_at": "2026-07-08T05:10:29.474Z"
 }
