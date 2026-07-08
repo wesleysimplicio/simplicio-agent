@@ -14,7 +14,10 @@ import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 import { DaemonCard } from './daemon-card'
 import { EditorCard } from './editor-card'
 import { sortEditorsForDisplay } from './editor-presentation'
+import { findLiveConnectionForEditor } from './mcp-connections-presentation'
+import { McpConnectionsSection } from './mcp-connections-section'
 import { DEPLOY_BACKEND_UNAVAILABLE, type DeployOutcome, useIntegrationsData } from './use-integrations-data'
+import { useMcpConnections } from './use-mcp-connections'
 
 interface IntegrationsViewProps extends React.ComponentProps<'section'> {
   setStatusbarItemGroup?: SetStatusbarItemGroup
@@ -25,6 +28,13 @@ export function IntegrationsView({ setStatusbarItemGroup: _setStatusbarItemGroup
   const c = t.integrations
   const { apiAvailable, daemonStatus, deploy, deployOutcome, deploying, detectError, editors, loading, refresh } =
     useIntegrationsData()
+  // Live MCP connections poll (~3.5s) — separate cadence from the 20s
+  // editors/daemon poll above, since "who's connected right now" is meant to
+  // feel real-time. Lifted here (not inside McpConnectionsSection) so the
+  // same poll result also drives the "live now" badge on the static
+  // Editors & agents grid below.
+  const { state: mcpConnectionsState } = useMcpConnections()
+  const liveConnections = mcpConnectionsState.status === 'ok' ? mcpConnectionsState.connections : []
 
   useRefreshHotkey(() => void refresh())
 
@@ -132,7 +142,14 @@ export function IntegrationsView({ setStatusbarItemGroup: _setStatusbarItemGroup
               ) : (
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {sortedEditors.map((editor, index) => (
-                    <EditorCard copy={c} editor={editor} entered={entered} index={index} key={editor.id} />
+                    <EditorCard
+                      copy={c}
+                      editor={editor}
+                      entered={entered}
+                      index={index}
+                      key={editor.id}
+                      live={findLiveConnectionForEditor(liveConnections, editor) !== null}
+                    />
                   ))}
                 </div>
               )}
@@ -141,6 +158,8 @@ export function IntegrationsView({ setStatusbarItemGroup: _setStatusbarItemGroup
                 <DeployResultPanel copy={c} outcome={deployOutcome} />
               )}
             </div>
+
+            <McpConnectionsSection state={mcpConnectionsState} />
           </div>
         )}
       </div>

@@ -2200,6 +2200,7 @@ export const zhHant = defineLocale({
         browser_take_screenshot: { done: '已擷取截圖', pending: '正在擷取截圖', pendingAction: '正在擷取' },
         browser_type: { done: '已在頁面輸入', pending: '正在頁面輸入', pendingAction: '正在輸入' },
         clarify: { done: '已提問', pending: '正在提問', pendingAction: '正在提問' },
+        computer_use: { done: '已控制桌面', pending: '正在控制桌面', pendingAction: '正在控制' },
         cronjob: { done: 'Cron 工作', pending: '正在安排 Cron 工作', pendingAction: '正在安排' },
         edit_file: { done: '已編輯檔案', pending: '正在編輯檔案', pendingAction: '正在編輯' },
         execute_code: { done: '已執行程式碼', pending: '正在撰寫腳本', pendingAction: '正在撰寫腳本' },

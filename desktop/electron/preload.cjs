@@ -236,6 +236,11 @@ contextBridge.exposeInMainWorld('simplicioSavings', {
   // ledger with the home one.
   memoryStatus: () => ipcRenderer.invoke('simplicio:memory-status'),
   savingsSessions: opts => ipcRenderer.invoke('simplicio:savings-sessions', opts),
+  // `simplicio mcp status --json` -- live MCP client connections (which
+  // editor/agent process is ACTUALLY connected right now, pid, the
+  // clientInfo the handshake received, tools called). Complements
+  // editorsDetect()'s static installed/registered-in-config view.
+  mcpConnections: () => ipcRenderer.invoke('simplicio:mcp-connections'),
   // Supervised `simplicio dashboard start` daemon (electron/dashboard-daemon.cjs)
   // -- the runtime's embedded token-savings HTTP dashboard. Mirrors the MCP
   // daemon bridge shape above; dashboardSummary() resolves against whatever

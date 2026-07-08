@@ -364,3 +364,141 @@ describe('countDiffLineStats', () => {
     expect(countDiffLineStats(`--- a/x\n+++ b/x\n@@\n-old\n+new\n context\n+another`)).toEqual({ added: 2, removed: 1 })
   })
 })
+
+// computer_use returns a screenshot nested inside an OpenAI-style multi-part
+// `_multimodal` envelope (tools/computer_use/tool.py) rather than a flat
+// `image_url`/`url` field. Before this, toolImageUrl() couldn't find it and
+// the row fell back to a raw JSON dump of the envelope.
+describe('buildToolView computer_use', () => {
+  const dataUrl = 'data:image/png;base64,AAAA'
+
+  const multimodalCapture = {
+    _multimodal: true,
+    content: [
+      { type: 'text', text: 'capture mode=som 1024x768 app=Safari\n1 interactable element(s):\n  #1 button "Back"' },
+      { type: 'image_url', image_url: { url: dataUrl } }
+    ],
+    text_summary: 'capture mode=som 1024x768 app=Safari\n1 interactable element(s):\n  #1 button "Back"'
+  }
+
+  it('unwraps the screenshot from the _multimodal envelope', () => {
+    const view = buildToolView(
+      part({ args: { action: 'capture', app: 'Safari' }, result: multimodalCapture, toolName: 'computer_use' }),
+      ''
+    )
+
+    expect(view.imageUrl).toBe(dataUrl)
+  })
+
+  it('uses text_summary instead of a raw field dump for multimodal detail', () => {
+    const view = buildToolView(
+      part({ args: { action: 'capture', app: 'Safari' }, result: multimodalCapture, toolName: 'computer_use' }),
+      ''
+    )
+
+    expect(view.detail).toBe(multimodalCapture.text_summary)
+    expect(view.detail).not.toContain('_multimodal')
+  })
+
+  it('falls back to the text content part when text_summary is missing', () => {
+    const { text_summary: _drop, ...withoutSummary } = multimodalCapture
+
+    const view = buildToolView(
+      part({ args: { action: 'capture' }, result: withoutSummary, toolName: 'computer_use' }),
+      ''
+    )
+
+    expect(view.detail).toBe(multimodalCapture.content[0].text)
+  })
+
+  it('prefers the `summary` field for non-multimodal (mode=ax) captures', () => {
+    const view = buildToolView(
+      part({
+        args: { action: 'capture', mode: 'ax' },
+        result: { mode: 'ax', width: 1024, height: 768, app: 'Safari', summary: 'capture mode=ax 1024x768 app=Safari' },
+        toolName: 'computer_use'
+      }),
+      ''
+    )
+
+    expect(view.detail).toBe('capture mode=ax 1024x768 app=Safari')
+  })
+
+  it('renders action-aware titles for representative actions', () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ action: 'capture', app: 'Safari' }, 'Looked at Safari'],
+      [{ action: 'capture' }, 'Looked at the screen'],
+      [{ action: 'click', app: 'Safari' }, 'Clicked Safari'],
+      [{ action: 'click', coordinate: [100, 200] }, 'Clicked (100, 200)'],
+      [{ action: 'double_click', element: 3 }, 'Double-clicked element #3'],
+      [{ action: 'right_click', app: 'Finder' }, 'Right-clicked Finder'],
+      [{ action: 'type', text: 'hello world' }, 'Typed "hello world"'],
+      [
+        { action: 'type', text: 'a'.repeat(80) },
+        `Typed "${'a'.repeat(39)}…"`
+      ],
+      [{ action: 'scroll', direction: 'down', app: 'Safari' }, 'Scrolled down in Safari'],
+      [{ action: 'scroll' }, 'Scrolled down'],
+      [{ action: 'key', keys: 'cmd+s' }, 'Pressed cmd+s'],
+      [{ action: 'focus_app', app: 'Notes' }, 'Switched to Notes'],
+      [{ action: 'list_apps' }, 'Listed open apps'],
+      [{ action: 'wait', seconds: 2 }, 'Waited 2s'],
+      [{ action: 'set_value', value: 'Blue' }, 'Set value to "Blue"'],
+      [{ action: 'drag' }, 'Dragged'],
+      [{ action: 'frobnicate' }, 'Frobnicate']
+    ]
+
+    for (const [args, expectedTitle] of cases) {
+      const view = buildToolView(part({ args, result: { ok: true, action: args.action }, toolName: 'computer_use' }), '')
+
+      expect(view.title).toBe(expectedTitle)
+    }
+  })
+
+  it('uses gerund tense while the action is still pending', () => {
+    const view = buildToolView(
+      part({ args: { action: 'click', app: 'Safari' }, result: undefined, toolName: 'computer_use' }),
+      ''
+    )
+
+    expect(view.title).toBe('Clicking Safari')
+    expect(view.titleAction).toEqual({ prefix: '', text: 'Clicking', suffix: ' Safari' })
+  })
+
+  it('surfaces a delivery-escalation note as a subtitle under the title', () => {
+    const view = buildToolView(
+      part({
+        args: { action: 'type', text: 'hello' },
+        result: { ok: true, action: 'type_text', meta: { delivery_escalated: true, delivery_escalation_ok: true } },
+        toolName: 'computer_use'
+      }),
+      ''
+    )
+
+    expect(view.title).toBe('Typed "hello"')
+    expect(view.subtitle).toBe('Delivery escalated to verify it landed')
+  })
+
+  it('omits the subtitle when there is no delivery-escalation note', () => {
+    const view = buildToolView(
+      part({ args: { action: 'type', text: 'hello' }, result: { ok: true, action: 'type_text' }, toolName: 'computer_use' }),
+      ''
+    )
+
+    expect(view.subtitle).toBe('')
+  })
+
+  it('surfaces the error message for a denied/blocked action without crashing', () => {
+    const view = buildToolView(
+      part({
+        args: { action: 'key', keys: 'cmd+shift+backspace' },
+        result: { error: "blocked key combo: ['backspace', 'cmd', 'shift']" },
+        toolName: 'computer_use'
+      }),
+      ''
+    )
+
+    expect(view.status).toBe('error')
+    expect(view.detail).toContain('blocked key combo')
+  })
+})

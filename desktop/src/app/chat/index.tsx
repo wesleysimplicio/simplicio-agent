@@ -341,10 +341,12 @@ export function ChatView({
     !resumeExhausted && isRoutedSessionView && (routeSessionMismatch || (messagesEmpty && !activeSessionId))
 
   const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastVisibleIsUser)
-  // Hide the composer in the exhausted error state too: there's no live runtime
-  // to send to until a retry rebinds one. Watch windows are pure spectators of a
-  // subagent run driven elsewhere — no composer, transcript is read-only.
-  const showChatBar = !loadingSession && !resumeExhausted && !isWatchWindow()
+  // Runtime-cockpit scope (2026-07-08 standing decision): this build is a
+  // monitoring surface for the Simplicio runtime, not a chat client -- the
+  // composer (and its scroll-to-bottom/drop-zone chrome) is unconditionally
+  // hidden. Session history stays readable. Was previously
+  // `!loadingSession && !resumeExhausted && !isWatchWindow()`.
+  const showChatBar = false
   const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
 
   const modelOptionsQuery = useQuery<ModelOptionsResponse>({
