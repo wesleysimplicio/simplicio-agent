@@ -39,14 +39,10 @@ export function ArtLines({ lines }: { lines: [string, string][] }) {
   )
 }
 
-// Responsive Banner: full art → compact rule → text → hidden.
-//
-// Terminals can't scale glyphs, so "responsive" means picking a layout that
-// fits the available columns. Thresholds are picked so each tier reads
-// comfortably without forcing wrap or truncation drift on box-drawing edges.
-const TAG_FULL = 'Nous Research · Messenger of the Digital Gods'
-const TAG_MID = 'Messenger of the Digital Gods'
-const TAG_TINY = 'Nous Research'
+// Responsive Banner: full art -> compact rule -> text -> hidden.
+const TAG_FULL = 'Simplicio Agent'
+const TAG_MID = 'Simplicio Agent'
+const TAG_TINY = 'Simplicio Agent'
 const HIDE_BELOW = 34
 const COMPACT_FROM = 58
 
@@ -69,7 +65,6 @@ const ruleIn = (label: string, w: number) => {
 }
 
 function CompactBanner({ cols, t }: { cols: number; t: Theme }) {
-  // -4 keeps a margin so exact-edge rows don't trip terminal pending-wrap.
   const w = Math.max(28, cols - 4)
 
   return (
@@ -109,7 +104,7 @@ export function Banner({ maxWidth, t }: { maxWidth?: number; t: Theme }) {
     return <CompactBanner cols={cols} t={t} />
   }
 
-  const name = cols >= 52 ? t.brand.name : (t.brand.name.split(' ')[0] ?? t.brand.name)
+  const name = cols >= 52 ? t.brand.name : t.brand.name.split(' ')[0] ?? t.brand.name
   const tag = cols >= 64 ? TAG_FULL : cols >= 46 ? TAG_MID : TAG_TINY
 
   return (
@@ -124,292 +119,36 @@ export function Banner({ maxWidth, t }: { maxWidth?: number; t: Theme }) {
   )
 }
 
-// ── Collapsible helpers ──────────────────────────────────────────────
-
-function CollapseToggle({
-  count,
-  open,
-  suffix,
-  t,
-  title,
-  onToggle
-}: {
-  count?: number
-  open: boolean
-  suffix?: string
-  t: Theme
-  title: string
-  onToggle: () => void
-}) {
-  return (
-    <Box onClick={onToggle}>
-      <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
-      <Text bold color={t.color.accent}>
-        {title}
-      </Text>
-      {typeof count === 'number' ? <Text color={t.color.muted}> ({count})</Text> : null}
-      {suffix ? <Text color={t.color.muted}> {suffix}</Text> : null}
-    </Box>
-  )
-}
-
-// ── SessionPanel ─────────────────────────────────────────────────────
-
-const SKILLS_MAX = 8
-const TOOLSETS_MAX = 8
+// ── SessionPanel (Simplicio Agent — clean layout, no skills/tools/logo) ──
 
 export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
   const term = useStdout().stdout?.columns ?? 100
   const cols = Math.max(20, Math.min(term, maxWidth ?? term))
-  const heroLines = caduceus(t.color, t.bannerHero || undefined)
-  const leftW = Math.min((artWidth(heroLines) || CADUCEUS_WIDTH) + 4, Math.floor(cols * 0.4))
-  const wide = cols >= 90 && leftW + 40 < cols
-  const w = Math.max(20, wide ? cols - leftW - 14 : cols - 12)
-  const lineBudget = Math.max(12, w - 2)
-  const strip = (s: string) => (s.endsWith('_tools') ? s.slice(0, -6) : s)
-
-  // ── Local collapse state for each section ──
-  const [toolsOpen, setToolsOpen] = useState(true)
-  const [skillsOpen, setSkillsOpen] = useState(false)
-  const [systemOpen, setSystemOpen] = useState(false)
-  const [mcpOpen, setMcpOpen] = useState(false)
-
-  const truncLine = (pfx: string, items: string[]) => {
-    let line = ''
-    let shown = 0
-
-    for (const item of [...items].sort()) {
-      const next = line ? `${line}, ${item}` : item
-
-      if (pfx.length + next.length > lineBudget) {
-        return line ? `${line}, …+${items.length - shown}` : `${item}, …`
-      }
-
-      line = next
-      shown++
-    }
-
-    return line
-  }
-
-  // ── Collapsible skills section ──
-  const skillEntries = Object.entries(info.skills).sort()
-  const skillsTotal = flat(info.skills).length
-  const skillsCatCount = skillEntries.length
-
-  const skillsBody = () => {
-    if (info.lazy && skillEntries.length === 0) {
-      return <InlineLoader label="scanning skills" t={t} />
-    }
-
-    const shown = skillEntries.slice(0, SKILLS_MAX)
-    const overflow = skillEntries.length - SKILLS_MAX
-
-    return (
-      <>
-        {shown.map(([k, vs]) => (
-          <Text key={k} wrap="truncate">
-            <Text color={t.color.muted}>{strip(k)}: </Text>
-            <Text color={t.color.text}>{truncLine(strip(k) + ': ', vs)}</Text>
-          </Text>
-        ))}
-        {overflow > 0 && <Text color={t.color.muted}>(and {overflow} more categories…)</Text>}
-      </>
-    )
-  }
-
-  // ── Collapsible tools section ──
-  const toolEntries = Object.entries(info.tools).sort()
-  const toolsTotal = flat(info.tools).length
-
-  // MCP headline counts *connected* servers, not configured-but-disabled ones,
-  // so it matches the classic CLI banner (`sum(s.connected)` in
-  // hermes_cli/banner.py) and the "connected" label on the collapse toggle.
-  const mcpServers = info.mcp_servers ?? []
-  const mcpConnected = mcpServers.filter(s => s.connected).length
-
-  const toolsBody = () => {
-    const shown = toolEntries.slice(0, TOOLSETS_MAX)
-    const overflow = toolEntries.length - TOOLSETS_MAX
-
-    return (
-      <>
-        {shown.map(([k, vs]) => (
-          <Text key={k} wrap="truncate">
-            <Text color={t.color.muted}>{strip(k)}: </Text>
-            <Text color={t.color.text}>{truncLine(strip(k) + ': ', vs)}</Text>
-          </Text>
-        ))}
-        {overflow > 0 && <Text color={t.color.muted}>(and {overflow} more toolsets…)</Text>}
-      </>
-    )
-  }
-
-  // ── Collapsible MCP section ──
-  const mcpBody = () => (
-    <>
-      {(info.mcp_servers ?? []).map(s => (
-        <Text key={s.name} wrap="truncate">
-          <Text color={t.color.muted}>{`  ${s.name} `}</Text>
-          <Text color={t.color.muted}>{`[${s.transport}]`}</Text>
-          <Text color={t.color.muted}>: </Text>
-          {s.connected ? (
-            <Text color={t.color.text}>
-              {s.tools} tool{s.tools === 1 ? '' : 's'}
-            </Text>
-          ) : s.disabled || s.status === 'disabled' ? (
-            <Text color={t.color.muted}>disabled</Text>
-          ) : s.status === 'connecting' ? (
-            <Text color={t.color.warn}>connecting</Text>
-          ) : s.status === 'configured' ? (
-            <Text color={t.color.muted}>configured</Text>
-          ) : (
-            <Text color={t.color.error}>failed</Text>
-          )}
-        </Text>
-      ))}
-    </>
-  )
-
-  // ── System prompt body ──
-  const sysPromptLen = (info.system_prompt ?? '').length
-
-  const systemBody = () => {
-    if (sysPromptLen === 0) {
-      return <Text color={t.color.muted}>No system prompt loaded.</Text>
-    }
-
-    return <Text color={t.color.muted}>{info.system_prompt}</Text>
-  }
+  const w = Math.max(20, cols - 12)
 
   return (
     <Box borderColor={t.color.border} borderStyle="round" marginBottom={1} paddingX={2} paddingY={1}>
-      {wide && (
-        <Box flexDirection="column" marginRight={2} width={leftW}>
-          <ArtLines lines={heroLines} />
-          <Text />
-
-          <Text color={t.color.accent}>
-            {info.model.split('/').pop()}
-            <Text color={t.color.muted}> · Nous Research</Text>
-          </Text>
-
-          <Text color={t.color.muted} wrap="truncate-end">
-            {info.cwd || process.cwd()}
-          </Text>
-
-          {sid && (
-            <Text>
-              <Text color={t.color.sessionLabel}>Session: </Text>
-              <Text color={t.color.sessionBorder}>{sid}</Text>
-            </Text>
-          )}
-        </Box>
-      )}
-
       <Box flexDirection="column" width={w}>
-        {wide ? (
-          <Box justifyContent="center" marginBottom={1}>
-            <Text bold color={t.color.primary}>
-              {t.brand.name}
-              {info.version ? ` v${info.version}` : ''}
-              {info.release_date ? ` (${info.release_date})` : ''}
-            </Text>
-          </Box>
-        ) : (
-          // Narrow layout hides the hero column; surface model/cwd/session
-          // here so they aren't lost.
-          <Box flexDirection="column" marginBottom={1}>
-            <Text color={t.color.accent} wrap="truncate-end">
-              {info.model.split('/').pop()}
-              <Text color={t.color.muted}> · Nous Research</Text>
-            </Text>
-            <Text color={t.color.muted} wrap="truncate-end">
-              {info.cwd || process.cwd()}
-            </Text>
-            {sid && (
-              <Text wrap="truncate-end">
-                <Text color={t.color.sessionLabel}>Session: </Text>
-                <Text color={t.color.sessionBorder}>{sid}</Text>
-              </Text>
-            )}
-          </Box>
-        )}
-
-        {/* ── Tools (expanded by default) ── */}
-        <Box flexDirection="column" marginTop={1}>
-          <CollapseToggle onToggle={() => setToolsOpen(v => !v)} open={toolsOpen} t={t} title="Available Tools" />
-          {toolsOpen && toolsBody()}
+        <Box justifyContent="center" marginBottom={1}>
+          <Text bold color={t.color.primary}>
+            {t.brand.name}
+            {info.version ? ` v${info.version}` : ''}
+            {info.release_date ? ` (${info.release_date})` : ''}
+          </Text>
         </Box>
 
-        {/* ── Skills (collapsed by default) ── */}
-        <Box flexDirection="column" marginTop={1}>
-          <CollapseToggle
-            count={skillsTotal}
-            onToggle={() => setSkillsOpen(v => !v)}
-            open={skillsOpen}
-            suffix={
-              skillsCatCount > 0 ? `in ${skillsCatCount} categor${skillsCatCount === 1 ? 'y' : 'ies'}` : undefined
-            }
-            t={t}
-            title="Available Skills"
-          />
-          {skillsOpen && skillsBody()}
-        </Box>
-
-        {/* ── System Prompt (collapsed by default) ── */}
-        {sysPromptLen > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <CollapseToggle
-              onToggle={() => setSystemOpen(v => !v)}
-              open={systemOpen}
-              suffix={`— ${sysPromptLen.toLocaleString()} chars`}
-              t={t}
-              title="System Prompt"
-            />
-            {systemOpen && systemBody()}
-          </Box>
-        )}
-
-        {/* ── MCP Servers (collapsed by default) ── */}
-        {mcpServers.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            <CollapseToggle
-              count={mcpConnected}
-              onToggle={() => setMcpOpen(v => !v)}
-              open={mcpOpen}
-              suffix="connected"
-              t={t}
-              title="MCP Servers"
-            />
-            {mcpOpen && mcpBody()}
-          </Box>
-        )}
-
-        <Text />
-
-        <Text color={t.color.text}>
-          {toolsTotal} tools{' · '}
-          {skillsTotal} skills
-          {mcpConnected ? ` · ${mcpConnected} MCP` : ''}
-          {' · '}
-          <Text color={t.color.muted}>/help for commands</Text>
+        <Text color={t.color.accent} wrap="truncate-end">
+          {info.model.split('/').pop()}
         </Text>
 
-        {typeof info.update_behind === 'number' && info.update_behind > 0 && (
-          <Text bold color={t.color.warn}>
-            ! {info.update_behind} {info.update_behind === 1 ? 'commit' : 'commits'} behind
-            <Text bold={false} color={t.color.warn} dimColor>
-              {' '}
-              - run{' '}
-            </Text>
-            <Text bold color={t.color.warn}>
-              {info.update_command || 'hermes update'}
-            </Text>
-            <Text bold={false} color={t.color.warn} dimColor>
-              {' '}
-              to update
-            </Text>
+        <Text color={t.color.muted} wrap="truncate-end">
+          {info.cwd || process.cwd()}
+        </Text>
+
+        {sid && (
+          <Text wrap="truncate-end">
+            <Text color={t.color.sessionLabel}>Session: </Text>
+            <Text color={t.color.sessionBorder}>{sid}</Text>
           </Text>
         )}
       </Box>

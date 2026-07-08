@@ -66,6 +66,7 @@ OPENROUTER_MODELS: list[tuple[str, str]] = [
     # Xiaomi
     ("xiaomi/mimo-v2.5-pro",                   ""),
     # Tencent
+    ("tencent/hy3",                            ""),
     ("tencent/hy3-preview",                    ""),
     # StepFun
     ("stepfun/step-3.7-flash",                 ""),
@@ -77,6 +78,7 @@ OPENROUTER_MODELS: list[tuple[str, str]] = [
     ("openrouter/elephant-alpha",              "free"),
     ("openrouter/owl-alpha",                   "free"),
     ("poolside/laguna-m.1:free",               "free"),
+    ("tencent/hy3:free",                       "free"),
     ("tencent/hy3-preview:free",               "free"),
     ("nvidia/nemotron-3-super-120b-a12b:free", "free"),
     ("nvidia/nemotron-3-ultra-550b-a55b:free", "free"),
