@@ -119,8 +119,10 @@ function pick(record: Record<string, unknown>, keys: readonly string[]): unknown
 
 const SPENT_KEYS = ['spent', 'spent_tokens', 'tokens_spent', 'actual', 'used'] as const
 const BASELINE_KEYS = ['baseline', 'baseline_tokens', 'tokens_baseline', 'without_simplicio'] as const
-const SAVED_KEYS = ['saved', 'saved_tokens', 'tokens_saved', 'delta'] as const
-const PCT_KEYS = ['pct', 'percent', 'percentage', 'saved_pct', 'pct_saved'] as const
+// `saved_total` is the real key on `simplicio savings report --json`'s
+// per-record entries (they carry no spent/baseline, only the saved total).
+const SAVED_KEYS = ['saved', 'saved_total', 'saved_tokens', 'tokens_saved', 'delta'] as const
+const PCT_KEYS = ['pct', 'percent', 'percentage', 'saved_percent', 'saved_pct', 'pct_saved'] as const
 const PROOF_KEYS = ['proof_kind', 'proofKind', 'kind'] as const
 const TIMESTAMP_KEYS = ['timestamp', 'ts', 'recorded_at', 'created_at', 'time'] as const
 const SESSION_KEYS = ['session', 'session_id', 'sessionId'] as const
@@ -154,9 +156,19 @@ function totalsSource(report: Record<string, unknown>): Record<string, unknown> 
 }
 
 function eventsSource(report: Record<string, unknown>): unknown[] {
-  const list = pick(report, ['events', 'sessions', 'entries', 'items', 'records'])
+  // `events` in the runtime's `simplicio.savings-event/v1` report is a COUNT
+  // (integer), not the list -- the actual per-event array lives under
+  // `records` (or `sessions`/`entries`/`items` in other report shapes). Scan
+  // every candidate key and take the first one that is actually an array,
+  // instead of trusting the first key that merely exists.
+  for (const key of ['records', 'sessions', 'entries', 'items', 'events']) {
+    const value = report[key]
+    if (Array.isArray(value)) {
+      return value
+    }
+  }
 
-  return Array.isArray(list) ? list : []
+  return []
 }
 
 function parseEvent(raw: unknown, index: number): null | SavingsEvent {
@@ -281,24 +293,60 @@ export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsRepor
   const events = eventsSource(report)
     .map((raw, index) => parseEvent(raw, index))
     .filter((event): event is SavingsEvent => event !== null)
+  const dimensions = parseDimensions(report)
 
   // No explicit totals block? Fall back to summing whatever events carry
   // real numbers, so the hero cards aren't blank when only a flat event list
   // is present.
   const totalsAreEmpty = totals.spent === null && totals.baseline === null && totals.saved === null
-  const derivedTotals = totalsAreEmpty && events.length > 0 ? sumEventTotals(events) : totals
+  let derivedTotals = totalsAreEmpty && events.length > 0 ? sumEventTotals(events) : totals
+
+  // Still missing baseline (real per-event records carry only `saved_total`,
+  // no spent/baseline)? The runtime always reports a daily `time_series`
+  // dimension with real baseline_total/saved_total/saved_percent per day --
+  // sum that as a further honest fallback instead of leaving the hero blank.
+  if (derivedTotals.baseline === null && dimensions.timeSeries.length > 0) {
+    derivedTotals = sumTimeSeriesTotals(dimensions.timeSeries, derivedTotals)
+  }
 
   return {
-    dimensions: parseDimensions(report),
+    dimensions,
     events: [...events].sort((a, b) => (b.timestampMs ?? 0) - (a.timestampMs ?? 0)),
     hasSessionGranularity: events.some(event => event.session !== null || event.repo !== null),
     totals: derivedTotals
   }
 }
 
+function sumTimeSeriesTotals(timeSeries: readonly TimeSeriesPoint[], fallback: SavingsTotals): SavingsTotals {
+  let spent: null | number = null
+  let baseline: null | number = null
+  let saved: null | number = null
+
+  for (const point of timeSeries) {
+    if (point.actualTotal !== null) spent = (spent ?? 0) + point.actualTotal
+    if (point.baselineTotal !== null) baseline = (baseline ?? 0) + point.baselineTotal
+    if (point.savedTotal !== null) saved = (saved ?? 0) + point.savedTotal
+  }
+
+  if (saved === null && spent !== null && baseline !== null) {
+    saved = baseline - spent
+  }
+
+  const pct = saved !== null && baseline !== null && baseline > 0 ? Math.round((saved / baseline) * 100) : null
+
+  return {
+    baseline: baseline ?? fallback.baseline,
+    pct: pct ?? fallback.pct,
+    saved: saved ?? fallback.saved,
+    spent: spent ?? fallback.spent
+  }
+}
+
 function sumEventTotals(events: readonly SavingsEvent[]): SavingsTotals {
   let spent: null | number = null
   let baseline: null | number = null
+  let saved: null | number = null
+  let sawSaved = false
 
   for (const event of events) {
     if (event.spent !== null) {
@@ -308,9 +356,20 @@ function sumEventTotals(events: readonly SavingsEvent[]): SavingsTotals {
     if (event.baseline !== null) {
       baseline = (baseline ?? 0) + event.baseline
     }
+
+    // Sum `saved` directly when the record reports it -- real runtime
+    // records (e.g. `records[]` in `savings report`) carry only
+    // `saved_total`, no per-event spent/baseline breakdown to derive from.
+    if (event.saved !== null) {
+      saved = (saved ?? 0) + event.saved
+      sawSaved = true
+    }
   }
 
-  const saved = spent !== null && baseline !== null ? baseline - spent : null
+  if (!sawSaved && spent !== null && baseline !== null) {
+    saved = baseline - spent
+  }
+
   const pct = saved !== null && baseline !== null && baseline > 0 ? Math.round((saved / baseline) * 100) : null
 
   return { baseline, pct, saved, spent }

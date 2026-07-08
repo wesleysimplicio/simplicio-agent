@@ -65,6 +65,20 @@ describe('parseSavingsReport events', () => {
     })
   })
 
+  it('prefers `records` over an integer `events` count (real runtime shape)', () => {
+    // `simplicio savings report --json` returns `events` as a COUNT, not a
+    // list -- the actual per-event array is `records`. Regression test for
+    // a bug where the count silently won and the UI showed "no savings".
+    const parsed = parseSavingsReport({
+      events: 8,
+      // real `records[]` entries carry `saved_total`, not spent/baseline.
+      records: [{ saved_total: 2000 }]
+    })
+
+    expect(parsed.events).toHaveLength(1)
+    expect(parsed.events[0].saved).toBe(2000)
+  })
+
   it('reads proof_kind and only accepts the two known values', () => {
     const parsed = parseSavingsReport({
       events: [
