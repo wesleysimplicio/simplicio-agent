@@ -31,6 +31,33 @@
 
 ---
 
+## کارکردگی — ناپی گئی، وعدہ نہیں (Performance, measured)
+
+ہر مشترکہ ہاٹ پاتھ اصل `hermes-agent` سے تیز ہے — ایک جوڑی دار بینچ مارک سے
+تصدیق شدہ جو کسی بھی پروب کے سست ہونے پر ناکام (exit ≠ 0) ہو جاتا ہے۔
+پیمائش 2026-07-08 (Linux کنٹینر، Python 3.11):
+
+| Hot path | Simplicio Agent | original hermes-agent | speedup |
+|---|---|---|---|
+| JSON encode of a tool result | 2.8 µs | 33.1 µs | **12.0×** |
+| JSON parse of tool-call args | 0.6 µs | 1.8 µs | **3.1×** |
+| Tool-arg canonicalization (parse + sorted re-encode) | 1.2 µs | 5.2 µs | **4.5×** |
+| Token estimate over a 200-message history | 634 µs | 677 µs | **1.07×** |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
+
+مزید یہ کہ TOON کوڈیک یکساں tool-result arrays پر **60.9%** کم prompt tokens
+(عام نتائج پر 14.8%) اور prompt-cache مارکنگ **6.4×** تیز ناپی گئی۔ خود
+دہرائیں:
+
+```bash
+python scripts/benchmark_vs_upstream.py --upstream ../hermes-agent
+python scripts/benchmark_e2e.py
+```
+
+تفصیلات: [docs/performance.md](docs/performance.md)۔
+
+---
+
 ## فوری انسٹالیشن (Quick Install)
 
 ### لینکس (Linux)، میک او ایس (macOS)، ڈبلیو ایس ایل ٹو (WSL2)، ٹرمکس (Termux)

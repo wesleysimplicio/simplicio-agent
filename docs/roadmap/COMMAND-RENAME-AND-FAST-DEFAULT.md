@@ -42,20 +42,21 @@ default posture after this program), upstream on stdlib:
 
 | Probe | simplicio | hermes | speedup |
 |---|---|---|---|
-| json.dumps tool-result (default hot path) | 2.8 µs | 32.7 µs | **11.8×** |
-| json.loads tool-args (default hot path) | 0.6 µs | 1.8 µs | **3.0×** |
-| tool-arg canonicalize (loads+dumps sort_keys) | 1.1 µs | 5.1 µs | **4.4×** |
-| token estimate, 200-msg history | 636 µs | 676 µs | **1.06×** |
-| CLI cold import (`import hermes_cli.main`) | 68.9 ms | 122.6 ms | **1.78×** |
+| json.dumps tool-result (default hot path) | 2.8 µs | 33.1 µs | **12.0×** |
+| json.loads tool-args (default hot path) | 0.6 µs | 1.8 µs | **3.1×** |
+| tool-arg canonicalize (loads+dumps sort_keys) | 1.2 µs | 5.2 µs | **4.5×** |
+| token estimate, 200-msg history | 634 µs | 677 µs | **1.07×** |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
 
 The cold-import win came from cutting `hermes_cli.config` (~100 ms module
 body) out of the boot path entirely — it was pulled in by three thin edges:
 `main.py`'s `get_hermes_home` re-export import, `hermes_logging`'s
 `is_managed` (moved to `hermes_constants`, config re-exports), and
 `model_setup_flows`' module-level `clear_model_endpoint_credentials` (now a
-lazy proxy). Fork-only modules (rust_ext, serde/msgspec, uvloop, async_dag,
-http_pool, TOON, warm daemon, kernel_binding) are listed by the script as
-existence wins.
+lazy proxy) — plus a fourth deferral: `env_loader` no longer imports `utils`
+(→ PyYAML, ~12 ms) at module level. Fork-only modules (rust_ext,
+serde/msgspec, uvloop, async_dag, http_pool, TOON, warm daemon,
+kernel_binding) are listed by the script as existence wins.
 
 Module/command parity vs upstream, audited 2026-07-08: every upstream
 gateway platform exists here (built-in or under `plugins/platforms/` via

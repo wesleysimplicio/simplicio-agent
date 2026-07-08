@@ -37,6 +37,19 @@ the default (user decision 2026-07-08; wave 1 of
   `simplicio-agent`; internal module paths and the `HERMES_*` env contract
   still never change (the runtime reads 100+ of those vars).
 
+### Added
+
+- **`scripts/benchmark_vs_upstream.py`** — paired benchmark against an
+  original `hermes-agent` checkout that exits non-zero if any shared probe
+  is slower here. Measured 2026-07-08 (Linux, py3.11): JSON dumps 12.0×,
+  loads 3.1×, tool-arg canonicalize 4.5×, token estimate 1.07×, CLI cold
+  import 66.4 ms vs 117.6 ms (1.77×). The cold-import win cut
+  `hermes_cli.config` (~100 ms module body) out of the boot path via three
+  thin-edge fixes (`get_hermes_home` import, `is_managed` moved to
+  `hermes_constants`, lazy `clear_model_endpoint_credentials` proxy).
+  Results published in the READMEs (all 4 languages),
+  `docs/performance.md`, and `docs/roadmap/COMMAND-RENAME-AND-FAST-DEFAULT.md`.
+
 ## [0.23.0] - 2026-07-04
 
 Product launch hardening for the Simplicio Agent MCP server — gate the paid

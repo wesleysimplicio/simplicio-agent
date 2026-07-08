@@ -38,6 +38,39 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenR
 
 ---
 
+## Performance — measured, not promised
+
+Every shared hot path is faster than the original `hermes-agent`, verified by
+a paired benchmark that fails CI-style (exit ≠ 0) if any probe regresses.
+Measured 2026-07-08, Linux container, Python 3.11, both checkouts on their
+default dependency posture:
+
+| Hot path | Simplicio Agent | original hermes-agent | speedup |
+|---|---|---|---|
+| JSON encode of a tool result | 2.8 µs | 33.1 µs | **12.0×** |
+| JSON parse of tool-call args | 0.6 µs | 1.8 µs | **3.1×** |
+| Tool-arg canonicalization (parse + sorted re-encode) | 1.2 µs | 5.2 µs | **4.5×** |
+| Token estimate over a 200-message history | 634 µs | 677 µs | **1.07×** |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
+
+On top of that, modules the original simply doesn't have: a Rust hot-path
+extension (streaming tool-call parse), msgspec typed decode, uvloop
+default-on, an HTTP/2 connection pool, a DAG tool-batch executor, a warm
+daemon, and the TOON token codec — measured **60.9%** fewer prompt tokens on
+uniform tool-result arrays (14.8% on typical tool results), with
+prompt-cache marking **6.4×** faster than the legacy deepcopy path.
+
+Reproduce it yourself:
+
+```bash
+python scripts/benchmark_vs_upstream.py --upstream ../hermes-agent  # paired probes, fails if slower
+python scripts/benchmark_e2e.py                                     # per-module vs own fallbacks
+```
+
+Details, trade-offs, and what's on by default: [docs/performance.md](docs/performance.md).
+
+---
+
 ## Quick Install
 
 ### Linux, macOS, WSL2, Termux

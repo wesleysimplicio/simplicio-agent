@@ -29,6 +29,32 @@
 
 ---
 
+## 性能 — 实测数据，而非承诺
+
+每条共享热路径都比原版 `hermes-agent` 更快，由配对基准测试验证（任一探针
+变慢即以非零退出码失败）。测量于 2026-07-08（Linux 容器，Python 3.11）：
+
+| Hot path | Simplicio Agent | original hermes-agent | speedup |
+|---|---|---|---|
+| JSON encode of a tool result | 2.8 µs | 33.1 µs | **12.0×** |
+| JSON parse of tool-call args | 0.6 µs | 1.8 µs | **3.1×** |
+| Tool-arg canonicalization (parse + sorted re-encode) | 1.2 µs | 5.2 µs | **4.5×** |
+| Token estimate over a 200-message history | 634 µs | 677 µs | **1.07×** |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
+
+此外，TOON 编码在均匀 tool-result 数组上实测减少 **60.9%** 的 prompt token
+（典型 tool-result 为 14.8%），prompt-cache 标记比旧 deepcopy 路径快
+**6.4×**。复现方法：
+
+```bash
+python scripts/benchmark_vs_upstream.py --upstream ../hermes-agent
+python scripts/benchmark_e2e.py
+```
+
+详情见 [docs/performance.md](docs/performance.md)。
+
+---
+
 ## 快速安装
 
 ```bash

@@ -7,7 +7,10 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from utils import atomic_replace, fast_safe_load
+
+# NOTE: `utils` pulls in PyYAML at module import (~12 ms) and this module is
+# on every CLI boot path. Both utils helpers are used inside functions only,
+# so they are imported lazily at their call sites.
 
 
 # Env var name suffixes that indicate credential values.  These are the
@@ -194,6 +197,8 @@ def _sanitize_env_file_if_needed(path: Path) -> None:
                 dir=str(path.parent), suffix=".tmp", prefix=".env_"
             )
             try:
+                from utils import atomic_replace
+
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.writelines(sanitized)
                     f.flush()
@@ -370,6 +375,8 @@ def _load_secrets_config(home_path: Path) -> dict:
     except ImportError:
         return {}
     try:
+        from utils import fast_safe_load
+
         with open(config_path, "r", encoding="utf-8") as f:
             data = fast_safe_load(f) or {}
     except Exception:  # noqa: BLE001
