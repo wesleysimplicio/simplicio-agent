@@ -18,7 +18,7 @@ class TestBuildOrHeaders:
         from agent.auxiliary_client import build_or_headers
 
         headers = build_or_headers(or_config={"response_cache": False})
-        assert headers["HTTP-Referer"] == "https://simplicio.ai"
+        assert headers["HTTP-Referer"] == "simpleti.com.br/simplicio"
         assert headers["X-Title"] == "Simplicio Agent"
         assert headers["X-OpenRouter-Categories"] == "productivity,cli-agent"
 
