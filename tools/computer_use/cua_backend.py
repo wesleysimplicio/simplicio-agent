@@ -1354,12 +1354,21 @@ class CuaDriverBackend(ComputerUseBackend):
         return self._action("scroll", args)
 
     # ── Keyboard ───────────────────────────────────────────────────
-    def type_text(self, text: str) -> ActionResult:
+    def type_text(self, text: str, *, delivery_mode: str = "background") -> ActionResult:
         pid = self._active_pid
         if pid is None:
             return ActionResult(ok=False, action="type_text",
                                 message="No active window — call capture() first.")
-        return self._action("type_text", {"pid": pid, "text": text})
+        args: Dict[str, Any] = {"pid": pid, "text": text}
+        # Omit the key entirely for the default "background" mode rather than
+        # sending it explicitly — that's what today's (pre-delivery_mode)
+        # background behavior looks like on the wire, so older cua-driver
+        # builds that don't know about this param see an unchanged request.
+        # Only "foreground" is ever sent explicitly, to request the stronger
+        # SendInput delivery path when escalating past an unverified type.
+        if delivery_mode != "background":
+            args["delivery_mode"] = delivery_mode
+        return self._action("type_text", args)
 
     def key(self, keys: str) -> ActionResult:
         pid = self._active_pid

@@ -140,7 +140,32 @@ class ComputerUseBackend(ABC):
 
     # ── Keyboard ────────────────────────────────────────────────────
     @abstractmethod
-    def type_text(self, text: str) -> ActionResult: ...
+    def type_text(self, text: str, *, delivery_mode: str = "background") -> ActionResult:
+        """Type `text` into the currently focused control.
+
+        `delivery_mode` selects how keystrokes reach the target:
+          * "background" (default) — PostMessage-based delivery. Does not
+            steal focus or raise the target window (the product default —
+            computer_use should not yank focus away from whatever the user
+            is looking at just to type). The backend additionally tries to
+            read the control's value back via UI Automation (ValuePattern)
+            to confirm the text actually landed; when it can, the returned
+            `ActionResult.message` says so explicitly. When it can't (the
+            control isn't UIA-friendly, isn't foreground, etc.), `ok=True`
+            only means "delivered", not "confirmed" — the text may not have
+            landed. Callers that need certainty should retry with
+            `delivery_mode="foreground"`.
+          * "foreground" — SendInput-based delivery. Requires (and causes)
+            the target window to gain OS focus. Lands more reliably, but
+            does not self-report UI Automation read-back verification the
+            way background delivery does.
+
+        Backend implementations that have no notion of delivery mode may
+        omit the parameter from their override entirely; callers that pass
+        a non-default value to such a backend should expect a `TypeError`
+        and degrade accordingly (see tools/computer_use/tool.py's type
+        escalation logic).
+        """
 
     @abstractmethod
     def key(self, keys: str) -> ActionResult:

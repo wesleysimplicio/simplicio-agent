@@ -393,6 +393,74 @@ def _summarize_action(action: str, args: Dict[str, Any]) -> str:
     return action
 
 
+# Substring cua-driver's PostMessage ("background") delivery mode includes in
+# ActionResult.message once it manages to read the target control's value
+# back via UI Automation and confirm the typed text actually landed. Its
+# absence (with ok=True) means "delivered, not verified" — see
+# ComputerUseBackend.type_text's docstring.
+_UIA_VERIFIED_PHRASE = "verified via UIA read-back"
+
+
+def _type_with_escalation(backend: ComputerUseBackend, text: str) -> ActionResult:
+    """Type `text`, escalating background -> foreground delivery once when
+    the background attempt is ambiguous.
+
+    Background delivery (PostMessage) is the product default — it never
+    steals focus. But it can only self-verify the text landed when the
+    target control exposes UI Automation's ValuePattern and is foreground;
+    otherwise it reports ok=True without knowing whether the text actually
+    landed. That "succeeded but unverified" case is exactly the silent
+    maybe-failure this escalation exists to close: retry once with
+    `delivery_mode="foreground"` (SendInput), which lands more reliably.
+    A real failure (ok=False, e.g. "No active window") is not ambiguous —
+    don't retry it. Likewise, an already-verified success is not ambiguous
+    — don't retry it either, so the common/fast path stays a single call
+    with no added latency.
+    """
+    res = backend.type_text(text)
+    if not res.ok:
+        return res
+    if _UIA_VERIFIED_PHRASE in (res.message or ""):
+        return res
+
+    try:
+        res2 = backend.type_text(text, delivery_mode="foreground")
+    except TypeError:
+        # Backend doesn't support delivery_mode at all (e.g. _NoopBackend,
+        # a hand-rolled test double, or a future backend that hasn't grown
+        # this kwarg yet). Degrade gracefully: report the original
+        # background result rather than crashing the `type` action.
+        return res
+    except Exception as e:
+        logger.warning("computer_use: foreground type escalation errored: %s", e)
+        return ActionResult(
+            ok=res.ok, action=res.action,
+            message=(res.message or "") + f" [foreground escalation errored: {e}]",
+            capture=res.capture,
+            meta={**res.meta, "delivery_escalated": True, "delivery_escalation_ok": False},
+        )
+
+    if res2.ok:
+        # Escalation resolved the ambiguity — report the stronger result,
+        # tagged so callers/logs can see the fallback fired.
+        return ActionResult(
+            ok=True, action=res2.action,
+            message=(res2.message or "") + " [escalated to foreground]",
+            capture=res2.capture,
+            meta={**res2.meta, "delivery_escalated": True, "delivery_escalation_ok": True},
+        )
+
+    # Foreground retry also failed. A failed escalation attempt shouldn't
+    # turn an unverified-but-plausibly-successful background result into a
+    # hard failure — report the original background success, with a note.
+    return ActionResult(
+        ok=res.ok, action=res.action,
+        message=(res.message or "") + f" [foreground escalation also failed: {res2.message}]",
+        capture=res.capture,
+        meta={**res.meta, "delivery_escalated": True, "delivery_escalation_ok": False},
+    )
+
+
 def _dispatch(backend: ComputerUseBackend, action: str, args: Dict[str, Any]) -> Any:
     capture_after = bool(args.get("capture_after"))
 
@@ -470,7 +538,7 @@ def _dispatch(backend: ComputerUseBackend, action: str, args: Dict[str, Any]) ->
         return _maybe_follow_capture(backend, res, capture_after)
 
     if action == "type":
-        res = backend.type_text(args.get("text", ""))
+        res = _type_with_escalation(backend, args.get("text", ""))
         return _maybe_follow_capture(backend, res, capture_after)
 
     if action == "key":
