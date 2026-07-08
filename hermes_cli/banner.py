@@ -81,6 +81,33 @@ HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀�
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠈⣡⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]"""
 
+# Large ASCII wordmark for the Simplicio Agent branding.
+# Green (#7CFC00) for "SIMPLICIO" and gold (#FFD700) for "AGENT".
+SIMPLICIO_AGENT_LOGO = """[bold #7CFC00] ███████╗██╗███╗   ██╗███████╗██╗ ██████╗ ██████╗ ██╗[/]
+[bold #7CFC00] ██╔════╝██║████╗  ██║██╔════╝██║██╔════╝██╔═══██╗██║[/]
+[bold #7CFC00] ███████╗██║██╔██╗ ██║█████╗  ██║██║     ██║   ██║██║[/]
+[bold #7CFC00] ╚════██║██║██║╚██╗██║██╔══╝  ██║██║     ██║   ██║╚═╝[/]
+[bold #7CFC00] ███████║██║██║ ╚████║███████╗██║╚██████╗╚██████╔╝██╗[/]
+[bold #7CFC00] ╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚═╝ ╚═════╝ ╚═════╝ ╚═╝[/]
+[bold #FFD700]  █████╗  ██████╗ ██████╗ ███████╗████████╗[/]
+[bold #FFD700] ██╔══██╗██╔═══██╗██╔═══██╗██╔════╝╚══██╔══╝[/]
+[bold #FFD700] ███████║██║   ██║██║   ██║█████╗     ██║   [/]
+[bold #FFD700] ██╔══██║██║   ██║██║   ██║██╔══╝     ██║   [/]
+[bold #FFD700] ██║  ██║╚██████╔╝╚██████╔╝███████╗   ██║   [/]
+[bold #FFD700] ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝   ╚═╝   [/]"""
+
+
+def _is_simplicio_skin() -> bool:
+    """Return True when the active skin is the Simplicio Agent branding."""
+    try:
+        from hermes_cli.skin_engine import get_active_skin
+        _s = get_active_skin()
+        _name = (_s.get_branding("agent_name", "") or "").lower()
+        return "simplicio" in _name
+    except Exception:
+        return False
+
+
 
 
 # =========================================================================
@@ -642,12 +669,16 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     dim = _skin_color("banner_dim", "#B8860B")
     text = _skin_color("banner_text", "#FFF8DC")
     session_color = _skin_color("session_border", "#8B8682")
+    model_short = model.split("/")[-1] if "/" in model else model
 
-    # Use skin's custom caduceus art if provided
+    # Use skin's custom caduceus art if provided; otherwise no hero art on Simplicio Agent branding
     try:
         from hermes_cli.skin_engine import get_active_skin
         _bskin = get_active_skin()
-        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else HERMES_CADUCEUS
+        if _is_simplicio_skin():
+            _hero = ""
+        else:
+            _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else HERMES_CADUCEUS
     except Exception:
         _bskin = None
         _hero = HERMES_CADUCEUS
@@ -681,210 +712,15 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
         if len(model_short) > 28:
             model_short = model_short[:25] + "..."
         ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-        left_lines.append(f"[{accent}]{model_short}[/]{ctx_str}")
 
     if os.getenv("HERMES_YOLO_MODE"):
         left_lines.append(f"[bold red]⚠ YOLO mode[/] [dim {dim}]— all approval prompts bypassed[/]")
-    left_lines.append(f"[dim {dim}]{cwd}[/]")
-    if session_id:
-        left_lines.append(f"[dim {session_color}]Session: {session_id}[/]")
     left_content = "\n".join(left_lines)
 
-    right_lines = [f"[bold {accent}]Available Tools[/]"]
-    toolsets_dict: Dict[str, list] = {}
-
-    for tool in tools:
-        tool_name = tool["function"]["name"]
-        toolset = _display_toolset_name(get_toolset_for_tool(tool_name) or "other")
-        toolsets_dict.setdefault(toolset, []).append(tool_name)
-
-    for item in unavailable_toolsets:
-        toolset_id = item.get("id", item.get("name", "unknown"))
-        display_name = _display_toolset_name(toolset_id)
-        if display_name not in toolsets_dict:
-            toolsets_dict[display_name] = []
-        for tool_name in item.get("tools", []):
-            if tool_name not in toolsets_dict[display_name]:
-                toolsets_dict[display_name].append(tool_name)
-
-    sorted_toolsets = sorted(toolsets_dict.keys())
-    display_toolsets = sorted_toolsets[:8]
-    remaining_toolsets = len(sorted_toolsets) - 8
-
-    for toolset in display_toolsets:
-        tool_names = toolsets_dict[toolset]
-        colored_names = []
-        for name in sorted(tool_names):
-            if name in disabled_tools:
-                colored_names.append(f"[red]{name}[/]")
-            elif name in lazy_tools:
-                colored_names.append(f"[yellow]{name}[/]")
-            else:
-                colored_names.append(f"[{text}]{name}[/]")
-
-        tools_str = ", ".join(colored_names)
-        if len(", ".join(sorted(tool_names))) > 45:
-            short_names = []
-            length = 0
-            for name in sorted(tool_names):
-                if length + len(name) + 2 > 42:
-                    short_names.append("...")
-                    break
-                short_names.append(name)
-                length += len(name) + 2
-            colored_names = []
-            for name in short_names:
-                if name == "...":
-                    colored_names.append("[dim]...[/]")
-                elif name in disabled_tools:
-                    colored_names.append(f"[red]{name}[/]")
-                elif name in lazy_tools:
-                    colored_names.append(f"[yellow]{name}[/]")
-                else:
-                    colored_names.append(f"[{text}]{name}[/]")
-            tools_str = ", ".join(colored_names)
-
-        right_lines.append(f"[dim {dim}]{toolset}:[/] {tools_str}")
-
-    if remaining_toolsets > 0:
-        right_lines.append(f"[dim {dim}](and {remaining_toolsets} more toolsets...)[/]")
-
-    # MCP Servers section (only if configured)
-    try:
-        from tools.mcp_tool import get_mcp_status
-        mcp_status = get_mcp_status()
-    except Exception:
-        mcp_status = []
-
-    if mcp_status:
-        right_lines.append("")
-        right_lines.append(f"[bold {accent}]MCP Servers[/]")
-        for srv in mcp_status:
-            status = srv.get("status")
-            if srv["connected"]:
-                right_lines.append(
-                    f"[dim {dim}]{srv['name']}[/] [{text}]({srv['transport']})[/] "
-                    f"[dim {dim}]—[/] [{text}]{srv['tools']} tool(s)[/]"
-                )
-            elif srv.get("disabled") or status == "disabled":
-                right_lines.append(
-                    f"[dim {dim}]{srv['name']}[/] [dim]({srv['transport']})[/] "
-                    f"[dim {dim}]— disabled[/]"
-                )
-            elif status == "connecting":
-                right_lines.append(
-                    f"[dim {dim}]{srv['name']}[/] [dim]({srv['transport']})[/] "
-                    f"[yellow]— connecting[/]"
-                )
-            elif status == "configured":
-                right_lines.append(
-                    f"[dim {dim}]{srv['name']}[/] [dim]({srv['transport']})[/] "
-                    f"[dim {dim}]— configured[/]"
-                )
-            else:
-                right_lines.append(
-                    f"[red]{srv['name']}[/] [dim]({srv['transport']})[/] "
-                    f"[red]— failed[/]"
-                )
-
-    right_lines.append("")
-    right_lines.append(f"[bold {accent}]Available Skills[/]")
-    # The skills catalog is only reachable when the `skills` toolset is enabled
-    # (it exposes skill_view / skill_manage). When it's disabled — e.g. a Blank
-    # Slate install — the agent literally cannot load any skill, so advertising
-    # the on-disk catalog here is misleading. Reflect the real state instead.
-    _skills_enabled = (not _enabled_ts) or ("skills" in _enabled_ts)
-    if _skills_enabled:
-        skills_by_category = get_available_skills()
-        total_skills = sum(len(s) for s in skills_by_category.values())
-    else:
-        skills_by_category = {}
-        total_skills = 0
-
-    if not _skills_enabled:
-        right_lines.append(f"[dim {dim}]Skills toolset disabled[/]")
-    elif skills_by_category:
-        for category in sorted(skills_by_category.keys()):
-            skill_names = sorted(skills_by_category[category])
-            if len(skill_names) > 8:
-                display_names = skill_names[:8]
-                skills_str = ", ".join(display_names) + f" +{len(skill_names) - 8} more"
-            else:
-                skills_str = ", ".join(skill_names)
-            if len(skills_str) > 50:
-                skills_str = skills_str[:47] + "..."
-            right_lines.append(f"[dim {dim}]{category}:[/] [{text}]{skills_str}[/]")
-    else:
-        right_lines.append(f"[dim {dim}]No skills installed[/]")
-
-    right_lines.append("")
-    mcp_connected = sum(1 for s in mcp_status if s["connected"]) if mcp_status else 0
-    summary_parts = [f"{len(tools)} tools", f"{total_skills} skills"]
-    if mcp_connected:
-        summary_parts.append(f"{mcp_connected} MCP servers")
-    summary_parts.append("/help for commands")
-    # Indicate when the codex_app_server runtime is active so users
-    # understand why tool counts may not match what's actually reachable
-    # (codex builds its own tool list inside the spawned subprocess).
-    try:
-        from hermes_cli.codex_runtime_switch import get_current_runtime
-        from hermes_cli.config import load_config as _load_cfg
-        if get_current_runtime(_load_cfg()) == "codex_app_server":
-            right_lines.append(
-                f"[bold {accent}]Runtime:[/] [{text}]codex app-server[/] "
-                f"[dim {dim}](terminal/file ops/MCP run inside codex)[/]"
-            )
-    except Exception:
-        pass
-    # Show active profile name when not 'default'
-    try:
-        from hermes_cli.profiles import get_active_profile_name
-        _profile_name = get_active_profile_name()
-        if _profile_name and _profile_name != "default":
-            right_lines.append(f"[bold {accent}]Profile:[/] [{text}]{_profile_name}[/]")
-    except Exception:
-        pass  # Never break the banner over a profiles.py bug
-
-    right_lines.append(f"[dim {dim}]{' · '.join(summary_parts)}[/]")
-
-    # Update check — use prefetched result if available
-    try:
-        behind = get_update_result(timeout=0.5)
-        if behind is not None and behind != 0:
-            from hermes_cli.config import get_managed_update_command, recommended_update_command
-            if behind > 0:
-                commits_word = "commit" if behind == 1 else "commits"
-                right_lines.append(
-                    f"[bold yellow]⚠ {behind} {commits_word} behind[/]"
-                    f"[dim yellow] — run [bold]{recommended_update_command()}[/bold] to update[/]"
-                )
-            else:
-                # UPDATE_AVAILABLE_NO_COUNT: nix-built hermes; we know an update
-                # exists but not by how much, and we don't know how the user
-                # installed it (nix run, profile, system flake, home-manager).
-                managed_cmd = get_managed_update_command()
-                line = "[bold yellow]⚠ update available[/]"
-                if managed_cmd:
-                    line += f"[dim yellow] — run [bold]{managed_cmd}[/bold][/]"
-                right_lines.append(line)
-    except Exception:
-        pass  # Never break the banner over an update check
-
-    # Pip-install warning — `pip install hermes-agent` is not the supported
-    # install path (it exists on PyPI for internal/CI reasons, not end users).
-    # Such installs miss the git checkout + installer-managed deps, so updates,
-    # self-update, and issue triage don't behave correctly. Warn, don't block.
-    try:
-        from hermes_cli.config import detect_install_method
-        if detect_install_method() == "pip":
-            right_lines.append(
-                "[bold yellow]⚠ pip install not officially supported[/]"
-                "[dim yellow] — exists for reasons other than user install; "
-                "expect instability and an inability to support issues[/]"
-            )
-    except Exception:
-        pass  # Never break the banner over the install-method check
-
+    right_lines = [f"[{accent}]{model_short}[/]{ctx_str}"]
+    right_lines.append(f"[dim {dim}]{cwd}[/]")
+    if session_id:
+        right_lines.append(f"[dim {session_color}]Session: {session_id}[/]")
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
 
@@ -907,7 +743,11 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     console.print()
     term_width = shutil.get_terminal_size().columns
     if term_width >= 95:
-        _logo = _bskin.banner_logo if _bskin and hasattr(_bskin, 'banner_logo') and _bskin.banner_logo else HERMES_AGENT_LOGO
-        console.print(_logo)
-        console.print()
+        if _is_simplicio_skin():
+            console.print(SIMPLICIO_AGENT_LOGO)
+            console.print()
+        else:
+            _logo = _bskin.banner_logo if _bskin and hasattr(_bskin, 'banner_logo') and _bskin.banner_logo else HERMES_AGENT_LOGO
+            console.print(_logo)
+            console.print()
     console.print(outer_panel)
