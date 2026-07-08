@@ -18,9 +18,23 @@ class TestBuildOrHeaders:
         from agent.auxiliary_client import build_or_headers
 
         headers = build_or_headers(or_config={"response_cache": False})
-        assert headers["HTTP-Referer"] == "simpleti.com.br/simplicio"
-        assert headers["X-Title"] == "Simplicio Agent"
+        assert headers["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
+        assert headers["X-Title"] == "Hermes Agent"
         assert headers["X-OpenRouter-Categories"] == "productivity,cli-agent"
+
+    def test_attribution_override_via_env(self):
+        """Env vars override the default Hermes Agent attribution."""
+        import os
+
+        with patch.dict(os.environ, {
+            "OPENROUTER_X_TITLE": "Simplicio Agent",
+            "OPENROUTER_HTTP_REFERER": "simpleti.com.br/simplicio",
+        }):
+            from agent.auxiliary_client import build_or_headers
+
+            headers = build_or_headers(or_config={"response_cache": False})
+        assert headers["X-Title"] == "Simplicio Agent"
+        assert headers["HTTP-Referer"] == "simpleti.com.br/simplicio"
 
     def test_cache_enabled(self):
         """When response_cache is True, X-OpenRouter-Cache header is set."""

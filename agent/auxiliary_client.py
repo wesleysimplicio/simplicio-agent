@@ -409,9 +409,15 @@ _PROVIDERS_WITHOUT_VISION: frozenset = frozenset({
 # OpenRouter app attribution headers (base — always sent).
 # `X-Title` is the canonical attribution header OpenRouter's dashboard
 # reads; the previous `X-OpenRouter-Title` label was not recognized there.
+# Default attribution is "Hermes Agent" (the original Hermes binary).
+# A Simplicio Agent deployment overrides these via env vars:
+#   OPENROUTER_X_TITLE        -> X-Title value
+#   OPENROUTER_HTTP_REFERER   -> HTTP-Referer value
+import os as _os
+
 _OR_HEADERS_BASE = {
-    "HTTP-Referer": "simpleti.com.br/simplicio",
-    "X-Title": "Simplicio Agent",
+    "HTTP-Referer": _os.environ.get("OPENROUTER_HTTP_REFERER", "https://hermes-agent.nousresearch.com"),
+    "X-Title": _os.environ.get("OPENROUTER_X_TITLE", "Hermes Agent"),
     "X-OpenRouter-Categories": "productivity,cli-agent",
 }
 
