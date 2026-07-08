@@ -33,11 +33,32 @@ export interface SavingsEvent {
   model: null | string
 }
 
+export interface TimeSeriesPoint {
+  day: string
+  savedTotal: null | number
+  baselineTotal: null | number
+  actualTotal: null | number
+  savedPercent: null | number
+}
+
+export interface DimensionSlice {
+  key: string
+  savedTotal: null | number
+  savedPercent: null | number
+}
+
+export interface SavingsDimensions {
+  timeSeries: TimeSeriesPoint[]
+  byModel: DimensionSlice[]
+  byProof: DimensionSlice[]
+}
+
 export interface ParsedSavingsReport {
   totals: SavingsTotals
   events: SavingsEvent[]
   /** True when at least one event carries a session/repo/model tag. */
   hasSessionGranularity: boolean
+  dimensions: SavingsDimensions
 }
 
 const EMPTY_TOTALS: SavingsTotals = { spent: null, baseline: null, saved: null, pct: null }
@@ -161,9 +182,99 @@ function parseEvent(raw: unknown, index: number): null | SavingsEvent {
   }
 }
 
+const EMPTY_DIMENSIONS: SavingsDimensions = { byModel: [], byProof: [], timeSeries: [] }
+
+/**
+ * `report.dimensions` — daily time series plus per-model / per-proof-kind
+ * slices. Slices tolerate both shapes the CLI could emit: an array of
+ * `{key, saved_total, saved_percent}` entries or an object map
+ * `key -> {saved_total, saved_percent}`. Absent dimension = empty list
+ * (the UI skips the section; no placeholder is invented).
+ */
+function parseDimensionSlices(raw: unknown): DimensionSlice[] {
+  const entries: DimensionSlice[] = []
+
+  if (Array.isArray(raw)) {
+    for (const entry of raw) {
+      if (!isRecord(entry)) {
+        continue
+      }
+
+      const key = strOrNull(entry.key) ?? strOrNull(entry.name)
+
+      if (!key) {
+        continue
+      }
+
+      entries.push({
+        key,
+        savedPercent: numOrNull(pick(entry, ['saved_percent', 'savedPercent', 'pct'])),
+        savedTotal: numOrNull(pick(entry, ['saved_total', 'savedTotal', 'saved']))
+      })
+    }
+
+    return entries
+  }
+
+  if (isRecord(raw)) {
+    for (const [key, value] of Object.entries(raw)) {
+      if (isRecord(value)) {
+        entries.push({
+          key,
+          savedPercent: numOrNull(pick(value, ['saved_percent', 'savedPercent', 'pct'])),
+          savedTotal: numOrNull(pick(value, ['saved_total', 'savedTotal', 'saved']))
+        })
+      } else if (numOrNull(value) !== null) {
+        entries.push({ key, savedPercent: null, savedTotal: numOrNull(value) })
+      }
+    }
+  }
+
+  return entries
+}
+
+function parseDimensions(report: Record<string, unknown>): SavingsDimensions {
+  const dimensions = report.dimensions
+
+  if (!isRecord(dimensions)) {
+    return EMPTY_DIMENSIONS
+  }
+
+  const rawSeries = pick(dimensions, ['time_series', 'timeSeries'])
+  const timeSeries: TimeSeriesPoint[] = []
+
+  if (Array.isArray(rawSeries)) {
+    for (const entry of rawSeries) {
+      if (!isRecord(entry)) {
+        continue
+      }
+
+      const day = strOrNull(pick(entry, ['day', 'date']))
+
+      if (!day) {
+        continue
+      }
+
+      timeSeries.push({
+        actualTotal: numOrNull(pick(entry, ['actual_total', 'actualTotal', 'spent'])),
+        baselineTotal: numOrNull(pick(entry, ['baseline_total', 'baselineTotal', 'baseline'])),
+        day,
+        savedPercent: numOrNull(pick(entry, ['saved_percent', 'savedPercent', 'pct'])),
+        savedTotal: numOrNull(pick(entry, ['saved_total', 'savedTotal', 'saved']))
+      })
+    }
+  }
+
+  return {
+    byModel: parseDimensionSlices(pick(dimensions, ['by_model', 'byModel'])),
+    byProof: parseDimensionSlices(pick(dimensions, ['by_proof', 'byProof', 'by_proof_kind'])),
+    timeSeries
+  }
+}
+
 export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsReport {
   if (!isRecord(report)) {
-    return { events: [], hasSessionGranularity: false, totals: EMPTY_TOTALS }
+    return { dimensions: EMPTY_DIMENSIONS, events: [], hasSessionGranularity: false, totals: EMPTY_TOTALS }
   }
 
   const totals = extractTotals(totalsSource(report))
@@ -178,6 +289,7 @@ export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsRepor
   const derivedTotals = totalsAreEmpty && events.length > 0 ? sumEventTotals(events) : totals
 
   return {
+    dimensions: parseDimensions(report),
     events: [...events].sort((a, b) => (b.timestampMs ?? 0) - (a.timestampMs ?? 0)),
     hasSessionGranularity: events.some(event => event.session !== null || event.repo !== null),
     totals: derivedTotals
@@ -224,5 +336,24 @@ export function cumulativeSavedSeries(events: readonly SavingsEvent[]): Cumulati
     running += event.saved
 
     return { cumulativeSaved: running, timestampMs: event.timestampMs }
+  })
+}
+
+/** Cumulative-saved series from the report's daily time_series dimension.
+ * Days with no real saved figure or unparseable date are skipped. */
+export function cumulativeFromTimeSeries(series: readonly TimeSeriesPoint[]): CumulativePoint[] {
+  const usable = series
+    .map(point => ({ saved: point.savedTotal, timestampMs: Date.parse(point.day) }))
+    .filter((point): point is { saved: number; timestampMs: number } => {
+      return point.saved !== null && Number.isFinite(point.timestampMs)
+    })
+    .sort((a, b) => a.timestampMs - b.timestampMs)
+
+  let running = 0
+
+  return usable.map(point => {
+    running += point.saved
+
+    return { cumulativeSaved: running, timestampMs: point.timestampMs }
   })
 }

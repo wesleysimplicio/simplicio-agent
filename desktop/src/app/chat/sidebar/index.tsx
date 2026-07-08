@@ -95,7 +95,14 @@ import {
   setCurrentCwd
 } from '@/store/session'
 
-import { type AppView, ARTIFACTS_ROUTE, INTEGRATIONS_ROUTE, MESSAGING_ROUTE, SKILLS_ROUTE } from '../../routes'
+import {
+  type AppView,
+  ARTIFACTS_ROUTE,
+  INTEGRATIONS_ROUTE,
+  MESSAGING_ROUTE,
+  SAVINGS_ROUTE,
+  SKILLS_ROUTE
+} from '../../routes'
 import type { SidebarNavItem } from '../../types'
 
 import { countLabel } from './chrome'
@@ -145,7 +152,11 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
   },
   { id: 'messaging', label: '', icon: props => <Codicon name="comment" {...props} />, route: MESSAGING_ROUTE },
   { id: 'artifacts', label: '', icon: props => <Codicon name="files" {...props} />, route: ARTIFACTS_ROUTE },
-  { id: 'integrations', label: '', icon: props => <Codicon name="plug" {...props} />, route: INTEGRATIONS_ROUTE }
+  { id: 'integrations', label: '', icon: props => <Codicon name="plug" {...props} />, route: INTEGRATIONS_ROUTE },
+  // Token Economy is an overlay view (OVERLAY_VIEWS in routes.ts), but opening
+  // it is still just a navigate() — identical to openSavings() in
+  // use-overlay-routing and the command palette's `go(SAVINGS_ROUTE)`.
+  { id: 'savings', label: '', icon: props => <Codicon name="graph" {...props} />, route: SAVINGS_ROUTE }
 ]
 
 // Two modes via the `compact` height variant (styles.css):
@@ -1055,7 +1066,8 @@ export function ChatSidebar({
                   (item.id === 'skills' && currentView === 'skills') ||
                   (item.id === 'messaging' && currentView === 'messaging') ||
                   (item.id === 'artifacts' && currentView === 'artifacts') ||
-                  (item.id === 'integrations' && currentView === 'integrations')
+                  (item.id === 'integrations' && currentView === 'integrations') ||
+                  (item.id === 'savings' && currentView === 'savings')
 
                 const isNewSession = item.id === 'new-session'
 

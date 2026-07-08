@@ -188,18 +188,39 @@ async function main() {
     await page.keyboard.press('Escape').catch(() => {})
     await page.waitForTimeout(1200)
 
-    // ---- Savings panel via command palette.
-    await capture(page, 'savings-panel', 'savings panel: real ledger + measured/estimated evidence + MCP chip', async () => {
-      await page.keyboard.press('Control+k')
-      await page.waitForTimeout(800)
-      await page.keyboard.type('Token Economy', { delay: 40 })
-      await page.waitForTimeout(800)
-      await page.keyboard.press('Enter')
+    // ---- Savings cockpit via the new sidebar entry (first-class nav).
+    await capture(page, 'savings-panel', 'cockpit via sidebar: status cards + charts + neon burst (100%)', async () => {
+      await clickAny(page, ['text=/token economy/i', '[data-testid="nav-savings"]'])
       // First IPC cycle is slow (binary probe + doctor + memory status). Wait
       // for a real resolved value — the neural backend name — not a fixed nap.
       await page.waitForSelector('text=/sqlite-fts5/', { timeout: 60_000 }).catch(() => {})
       await page.waitForTimeout(1500)
     })
+
+    // ---- Daemon Stop -> confirm -> Start (real process control buttons).
+    await capture(page, 'daemon-stop', 'MCP card: Stop button + inline confirm -> daemon really stopped', async () => {
+      await clickAny(page, ['button:has-text("Stop")', 'button:has-text("Parar")'])
+      await page.waitForTimeout(600)
+      await clickAny(page, ['button:has-text("Confirm")', 'button:has-text("Confirmar")', 'text=/confirm stop/i'])
+      await page.waitForSelector('text=/stopped|parado/i', { timeout: 30_000 })
+      await page.waitForTimeout(800)
+    })
+    await capture(page, 'daemon-start', 'MCP card: Start button -> daemon running again (new pid)', async () => {
+      await clickAny(page, ['button:has-text("Start")', 'button:has-text("Iniciar")'])
+      await page.waitForSelector('text=/running|ativo|rodando/i', { timeout: 45_000 })
+      await page.waitForTimeout(800)
+    })
+
+    // ---- Diagnostics button opens the Setup Simplicio flow.
+    await capture(page, 'diagnostics-button', 'Diagnostics button -> doctor checklist overlay', async () => {
+      await clickAny(page, ['button:has-text("Diagnostics")', 'button:has-text("Diagnóstico")'])
+      await page.waitForSelector('text=/verificar novamente/i', { timeout: 30_000 })
+      await page.waitForSelector('text=/bin(á|a)rio|vers(ã|a)o|runtime v/i', { timeout: 45_000 }).catch(() => {})
+      await page.waitForTimeout(800)
+    })
+    // Close the overlay to continue (X button or Escape).
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(1000)
 
     // ---- Sessions drill-down inside the savings cockpit (command trail proof).
     await capture(page, 'savings-sessions', 'per-session timeline: commands used (surfaces), tokens, hash chain', async () => {

@@ -1,5 +1,5 @@
 {
-  "started_at": "2026-07-07T23:33:19.715Z",
+  "started_at": "2026-07-08T00:03:05.652Z",
   "steps": [
     {
       "n": 1,
@@ -53,32 +53,53 @@
     {
       "n": 8,
       "slug": "savings-panel",
-      "note": "savings panel: real ledger + measured/estimated evidence + MCP chip",
+      "note": "cockpit via sidebar: status cards + charts + neon burst (100%)",
       "status": "PASS",
       "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\08-savings-panel.png"
     },
     {
       "n": 9,
-      "slug": "savings-sessions",
-      "note": "per-session timeline: commands used (surfaces), tokens, hash chain",
+      "slug": "daemon-stop",
+      "note": "MCP card: Stop button + inline confirm -> daemon really stopped",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\09-savings-sessions.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\09-daemon-stop.png"
     },
     {
       "n": 10,
-      "slug": "integrations",
-      "note": "integrations: per-editor MCP status (real config detection)",
+      "slug": "daemon-start",
+      "note": "MCP card: Start button -> daemon running again (new pid)",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\10-integrations.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\10-daemon-start.png"
     },
     {
       "n": 11,
+      "slug": "diagnostics-button",
+      "note": "Diagnostics button -> doctor checklist overlay",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\11-diagnostics-button.png"
+    },
+    {
+      "n": 12,
+      "slug": "savings-sessions",
+      "note": "per-session timeline: commands used (surfaces), tokens, hash chain",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\12-savings-sessions.png"
+    },
+    {
+      "n": 13,
+      "slug": "integrations",
+      "note": "integrations: per-editor MCP status (real config detection)",
+      "status": "PASS",
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\13-integrations.png"
+    },
+    {
+      "n": 14,
       "slug": "mcp-deploy",
       "note": "deploy to all editors: real `simplicio mcp register` result",
       "status": "PASS",
-      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\11-mcp-deploy.png"
+      "file": "C:\\Users\\Z0059V7A\\m\\ai\\simplicio-agent\\.orchestrator\\evidence\\desktop\\14-mcp-deploy.png"
     }
   ],
   "dev_url": "http://127.0.0.1:5174",
-  "finished_at": "2026-07-07T23:37:40.363Z"
+  "finished_at": "2026-07-08T00:07:55.603Z"
 }

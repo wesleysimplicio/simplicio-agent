@@ -128,6 +128,7 @@ export type SidebarNavId =
   | 'integrations'
   | 'messaging'
   | 'new-session'
+  | 'savings'
   | 'settings'
   | 'skills'
 

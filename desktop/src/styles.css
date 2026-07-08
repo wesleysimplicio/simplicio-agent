@@ -757,6 +757,100 @@
   }
 }
 
+/* Neon Burst (savings >= 90%): one-shot radial particle explosion + shock
+   ring at the crossing moment, then a slow (<1Hz, photosensitivity-safe)
+   "super" aura while the value stays above the threshold. The burst is never
+   mounted under reduced motion (the hook freezes burstKey); the static badge
+   below replaces it. */
+@keyframes savings-burst-particle {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--burst-dx, 0), var(--burst-dy, 0)) scale(0.2);
+  }
+}
+
+.savings-burst-particle {
+  animation: savings-burst-particle 900ms cubic-bezier(0.17, 0.84, 0.44, 1) forwards;
+}
+
+@keyframes savings-burst-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--ring-scale, 110));
+  }
+}
+
+.savings-burst-ring {
+  transform-origin: center;
+  animation: savings-burst-ring 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Persistent >=90% state: slow alternating neon aura (2.2s cycle, well under
+   1Hz — never a strobe). */
+@keyframes savings-super-aura {
+  from {
+    filter: drop-shadow(0 0 0.25rem color-mix(in srgb, var(--savings-accent, #39ff14) 55%, transparent));
+  }
+  to {
+    filter: drop-shadow(0 0 0.7rem color-mix(in srgb, var(--savings-accent, #39ff14) 90%, transparent));
+  }
+}
+
+.savings-super {
+  animation: savings-super-aura 2.2s ease-in-out infinite alternate;
+}
+
+/* Tiny fixed-position sparkles twinkling at staggered phases. */
+@keyframes savings-sparkle {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+}
+
+.savings-sparkle {
+  animation: savings-sparkle 2.6s ease-in-out infinite;
+  background: var(--savings-accent, #39ff14);
+}
+
+/* Static fallback badge — hidden in full-motion mode (the aura carries the
+   state), shown under reduced motion instead of any animation. */
+.savings-super-badge {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .savings-burst-particle,
+  .savings-burst-ring,
+  .savings-sparkle {
+    animation: none;
+    opacity: 0;
+  }
+
+  .savings-super {
+    animation: none;
+    filter: drop-shadow(0 0 0.3rem color-mix(in srgb, var(--savings-accent, #39ff14) 60%, transparent));
+  }
+
+  .savings-super-badge {
+    display: inline-flex;
+    box-shadow: 0 0 0.4rem color-mix(in srgb, var(--savings-accent, #39ff14) 55%, transparent);
+  }
+}
+
 /* No focus rings, anywhere. Kills the native outline plus Tailwind's
    `focus-visible:ring-*` (a box-shadow driven by --tw-ring-*). Unlayered so it
    beats the utilities layer without !important on the outline. The composer /

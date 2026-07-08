@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ParsedSavingsReport } from '@/app/savings/parse'
@@ -7,17 +7,32 @@ import type { SavingsDataState, UseSavingsDataResult } from '@/app/savings/use-s
 import TokenMonitor from './TokenMonitor'
 
 const useSavingsDataMock = vi.hoisted(() => vi.fn())
+const startManualPostSetupMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/app/savings/use-savings-data', () => ({
   useSavingsData: useSavingsDataMock
 }))
 
+vi.mock('@/store/onboarding', () => ({
+  startManualPostSetup: startManualPostSetupMock
+}))
+
 function bridge(state: SavingsDataState): UseSavingsDataResult {
-  return { mcpStatus: null, refresh: () => {}, refreshing: false, state }
+  return {
+    doctor: { status: 'unavailable' },
+    mcp: { status: 'unavailable' },
+    mcpControl: { canControl: false, error: null, pending: false, start: () => {}, stop: () => {} },
+    memory: { status: 'unavailable' },
+    refresh: () => {},
+    refreshing: false,
+    sessions: { status: 'unavailable' },
+    state
+  }
 }
 
 function report(overrides: Partial<ParsedSavingsReport> = {}): ParsedSavingsReport {
   return {
+    dimensions: { byModel: [], byProof: [], timeSeries: [] },
     events: [],
     hasSessionGranularity: false,
     totals: { baseline: null, pct: null, saved: null, spent: null },
@@ -28,6 +43,7 @@ function report(overrides: Partial<ParsedSavingsReport> = {}): ParsedSavingsRepo
 afterEach(() => {
   cleanup()
   useSavingsDataMock.mockReset()
+  startManualPostSetupMock.mockReset()
 })
 
 // The acceptance rule this file guards: the panel NEVER invents a number.
@@ -47,7 +63,9 @@ describe('TokenMonitor (savings panel)', () => {
     useSavingsDataMock.mockReturnValue(bridge({ status: 'unavailable' }))
     render(<TokenMonitor onClose={() => {}} />)
 
-    expect(screen.getByText(/bridge|unavailable|indisponível/i)).toBeTruthy()
+    // Multiple honest "unavailable" surfaces exist now (report empty-state +
+    // one per status card) — assert at least one is on screen.
+    expect(screen.getAllByText(/bridge|unavailable|indisponível/i).length).toBeGreaterThan(0)
   })
 
   it('renders an explicit error state with retry when the report fails', () => {
@@ -100,5 +118,45 @@ describe('TokenMonitor (savings panel)', () => {
     // Proof-kind evidence is visible per event (badge labels from i18n).
     expect(screen.getAllByText('Measured').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Estimated').length).toBeGreaterThan(0)
+  })
+
+  it('header Diagnostics button dispatches the Setup Simplicio post-setup flow', () => {
+    useSavingsDataMock.mockReturnValue(bridge({ parsed: report(), status: 'ok' }))
+    render(<TokenMonitor onClose={() => {}} />)
+
+    fireEvent.click(screen.getByTitle('Diagnostics'))
+
+    expect(startManualPostSetupMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('MCP card daemon controls: stop asks inline confirmation, then calls the control', () => {
+    const stop = vi.fn()
+    const data = bridge({ parsed: report(), status: 'ok' })
+    data.mcp = { data: { restarts: 0, running: true }, status: 'ok' }
+    data.mcpControl = { canControl: true, error: null, pending: false, start: () => {}, stop }
+    useSavingsDataMock.mockReturnValue(data)
+    render(<TokenMonitor onClose={() => {}} />)
+
+    // First click arms the inline confirmation; nothing executes yet.
+    fireEvent.click(screen.getByText('Stop'))
+    expect(stop).not.toHaveBeenCalled()
+
+    // Second click within the window executes the stop.
+    fireEvent.click(screen.getByText('Confirm stop?'))
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('MCP card shows a primary Start button when the daemon is stopped, and the real action error', () => {
+    const start = vi.fn()
+    const data = bridge({ parsed: report(), status: 'ok' })
+    data.mcp = { data: { lastError: 'spawn ENOENT', restarts: 3, running: false }, status: 'ok' }
+    data.mcpControl = { canControl: true, error: 'start failed: exit 1', pending: false, start, stop: () => {} }
+    useSavingsDataMock.mockReturnValue(data)
+    render(<TokenMonitor onClose={() => {}} />)
+
+    fireEvent.click(screen.getByText('Start'))
+    expect(start).toHaveBeenCalledTimes(1)
+    // The failed action's real error is on the card.
+    expect(screen.getByText('start failed: exit 1')).toBeTruthy()
   })
 })

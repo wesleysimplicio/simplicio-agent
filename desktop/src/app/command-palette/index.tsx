@@ -52,6 +52,7 @@ import {
   setCommandPaletteOpen
 } from '@/store/command-palette'
 import { $bindings } from '@/store/keybinds'
+import { startManualPostSetup } from '@/store/onboarding'
 import { openPetGenerate } from '@/store/pet-generate'
 import { requestStartWorkSession } from '@/store/projects'
 import { runGatewayRestart } from '@/store/system-actions'
@@ -400,6 +401,18 @@ export function CommandPalette() {
             keywords: ['tokens', 'economy', 'cost', 'usage', 'ledger', 'evidence'],
             label: t.savings.title,
             run: go(SAVINGS_ROUTE)
+          },
+          {
+            // Re-opens the post-provider setup sequence (runtime doctor ->
+            // simulated Google sign-in -> simulated subscription) in the
+            // manual onboarding overlay. Product re-entry point: with a
+            // provider already configured, first-run onboarding never shows,
+            // so this is how those steps stay reachable.
+            icon: Settings2,
+            id: 'setup',
+            keywords: ['setup', 'onboarding', 'doctor', 'simplicio', 'runtime', 'google', 'assinatura', 'subscription'],
+            label: 'Setup Simplicio',
+            run: () => startManualPostSetup()
           }
         ]
       },

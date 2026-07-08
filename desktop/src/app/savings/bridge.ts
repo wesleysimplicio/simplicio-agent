@@ -34,6 +34,37 @@ export function isSavingsBridgeAvailable(): boolean {
   return getBridge() !== undefined
 }
 
+/**
+ * Synchronous capability probe — which bridge methods actually exist right
+ * now. This is what separates an honest "unavailable" (method truly not
+ * exposed by this build) from an in-flight fetch (method exists, IPC still
+ * resolving): the probe is a `typeof` check with no IPC round trip, so a
+ * surface whose method exists starts as 'loading', never as "bridge missing".
+ */
+export interface BridgeCapabilities {
+  bridge: boolean
+  doctorRun: boolean
+  mcpDaemonControl: boolean
+  mcpDaemonStatus: boolean
+  memoryStatus: boolean
+  savingsReport: boolean
+  savingsSessions: boolean
+}
+
+export function getBridgeCapabilities(): BridgeCapabilities {
+  const bridge = getBridge()
+
+  return {
+    bridge: bridge !== undefined,
+    doctorRun: typeof bridge?.doctorRun === 'function',
+    mcpDaemonControl: typeof bridge?.mcpDaemonStart === 'function' && typeof bridge?.mcpDaemonStop === 'function',
+    mcpDaemonStatus: typeof bridge?.mcpDaemonStatus === 'function',
+    memoryStatus: typeof bridge?.memoryStatus === 'function',
+    savingsReport: typeof bridge?.savingsReport === 'function',
+    savingsSessions: typeof bridge?.savingsSessions === 'function'
+  }
+}
+
 export async function fetchSavingsReport(): Promise<SavingsReportOutcome> {
   const bridge = getBridge()
 
@@ -54,16 +85,108 @@ export async function fetchSavingsReport(): Promise<SavingsReportOutcome> {
   }
 }
 
-export async function fetchMcpDaemonStatus(): Promise<McpDaemonStatus | null> {
+/** Shared outcome shape for the cockpit's bridge methods. */
+export type CockpitOutcome<T> = { kind: 'error'; error: string } | { kind: 'ok'; payload: T } | { kind: 'unavailable' }
+
+export async function fetchMcpDaemonStatus(): Promise<CockpitOutcome<McpDaemonStatus>> {
   const bridge = getBridge()
 
   if (!bridge) {
-    return null
+    return { kind: 'unavailable' }
   }
 
   try {
-    return await bridge.mcpDaemonStatus()
-  } catch {
-    return null
+    return { kind: 'ok', payload: await bridge.mcpDaemonStatus() }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err), kind: 'error' }
+  }
+}
+
+/** Supervised daemon start/stop; both resolve with the daemon's fresh status. */
+export async function controlMcpDaemon(action: 'start' | 'stop'): Promise<CockpitOutcome<McpDaemonStatus>> {
+  const bridge = getBridge()
+  const method = action === 'start' ? bridge?.mcpDaemonStart : bridge?.mcpDaemonStop
+
+  if (!bridge || typeof method !== 'function') {
+    return { kind: 'unavailable' }
+  }
+
+  try {
+    return { kind: 'ok', payload: await method.call(bridge) }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err), kind: 'error' }
+  }
+}
+
+export async function fetchDoctorRun(): Promise<CockpitOutcome<unknown>> {
+  const bridge = getBridge()
+
+  if (!bridge || typeof bridge.doctorRun !== 'function') {
+    return { kind: 'unavailable' }
+  }
+
+  try {
+    const result = await bridge.doctorRun()
+
+    if (result?.ok) {
+      return { kind: 'ok', payload: result.doctor }
+    }
+
+    return { error: result?.error || 'Unknown error from doctor bridge', kind: 'error' }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err), kind: 'error' }
+  }
+}
+
+export async function fetchMemoryStatus(): Promise<CockpitOutcome<unknown>> {
+  const bridge = getBridge()
+
+  if (!bridge || typeof bridge.memoryStatus !== 'function') {
+    return { kind: 'unavailable' }
+  }
+
+  try {
+    const result = await bridge.memoryStatus()
+
+    if (result?.ok) {
+      return { kind: 'ok', payload: result.memory }
+    }
+
+    return { error: result?.error || 'Unknown error from memory status bridge', kind: 'error' }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err), kind: 'error' }
+  }
+}
+
+export interface SessionsPayload {
+  sessions: unknown[]
+  skipped: number
+  sources: string[]
+}
+
+export async function fetchSavingsSessions(): Promise<CockpitOutcome<SessionsPayload>> {
+  const bridge = getBridge()
+
+  if (!bridge || typeof bridge.savingsSessions !== 'function') {
+    return { kind: 'unavailable' }
+  }
+
+  try {
+    const result = await bridge.savingsSessions()
+
+    if (result?.ok) {
+      return {
+        kind: 'ok',
+        payload: {
+          sessions: Array.isArray(result.sessions) ? result.sessions : [],
+          skipped: typeof result.skipped === 'number' ? result.skipped : 0,
+          sources: Array.isArray(result.sources) ? result.sources : []
+        }
+      }
+    }
+
+    return { error: result?.error || 'Unknown error from savings sessions bridge', kind: 'error' }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err), kind: 'error' }
   }
 }

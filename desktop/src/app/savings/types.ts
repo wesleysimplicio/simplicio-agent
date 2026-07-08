@@ -31,9 +31,42 @@ export interface McpDaemonStatus {
   lastError?: string
 }
 
+/** `simplicio doctor --json` payload — schema owned by the runtime, not stable. */
+export type DoctorRunResult = { ok: true; doctor: unknown } | { ok: false; error: string }
+
+/** `simplicio memory status --json` payload — schema `simplicio.memory-backend/v1`. */
+export type MemoryStatusResult = { ok: true; memory: unknown } | { ok: false; error: string }
+
+/** Per-run session groups read straight from the savings ledgers (no spawn). */
+export interface SavingsSessionsOk {
+  ok: true
+  sessions: unknown[]
+  skipped: number
+  sources: string[]
+}
+
+export interface SavingsSessionsErr {
+  ok: false
+  error: string
+  sessions?: unknown[]
+  skipped?: number
+  sources?: string[]
+}
+
+export type SavingsSessionsResult = SavingsSessionsErr | SavingsSessionsOk
+
 export interface SimplicioSavingsBridge {
   savingsReport: () => Promise<SavingsReportResult>
   mcpDaemonStatus: () => Promise<McpDaemonStatus>
+  // Cockpit extensions — optional because a given preload build may predate
+  // them; an absent method degrades to an honest "unavailable" state.
+  doctorRun?: () => Promise<DoctorRunResult>
+  memoryStatus?: () => Promise<MemoryStatusResult>
+  savingsSessions?: (opts?: { repoPath?: string }) => Promise<SavingsSessionsResult>
+  // Daemon control — the main process's supervised start/stop; both resolve
+  // with the daemon's fresh status.
+  mcpDaemonStart?: () => Promise<McpDaemonStatus>
+  mcpDaemonStop?: () => Promise<McpDaemonStatus>
 }
 
 /** `proof.kind` per `docs/SAVINGS_EVENT_SPEC.md` — measured beats estimated, never unlabeled. */

@@ -12,6 +12,7 @@ import {
   submitOAuthCode,
   validateProviderCredential
 } from '@/hermes'
+import { manualPostSetupPatch, nextPostSetupStatus } from '@/components/onboarding/post-setup'
 import { evaluateRuntimeReadiness, type RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { notify, notifyError } from '@/store/notifications'
 import type { ModelOptionProvider, OAuthProvider, OAuthStartResponse } from '@/types/hermes'
@@ -981,7 +982,11 @@ export function advanceFromDoctor() {
     return
   }
 
-  setFlow({ status: 'post_google' })
+  const next = nextPostSetupStatus(flow.status)
+
+  if (next) {
+    setFlow({ status: next })
+  }
 }
 
 // Records the simulated Google sign-in result. No real OAuth call is made —
@@ -998,7 +1003,27 @@ export function advanceFromGoogle() {
     return
   }
 
-  setFlow({ status: 'post_subscription' })
+  const next = nextPostSetupStatus(flow.status)
+
+  if (next) {
+    setFlow({ status: next })
+  }
+}
+
+// Re-enter the post-setup sequence (doctor -> simulated Google -> simulated
+// subscription) on demand from an already-configured app — the command
+// palette's "Setup Simplicio" entry (src/app/command-palette/index.tsx).
+// With a provider already configured at the gateway, the first-run overlay
+// never opens, which made these steps unreachable in E2E; this is the
+// product surface that keeps them accessible. Reuses the manual-mode overlay
+// (close affordance, configured===true bypass) and jumps straight to the
+// first post-setup step since a provider already exists — no picker.
+// The sequence then runs exactly as on first run: advanceFromDoctor ->
+// advanceFromGoogle -> finishPostSetup (which completes + closes normally,
+// clearing manual mode via completeDesktopOnboarding).
+export function startManualPostSetup() {
+  pendingProviderOAuthId = null
+  patch(manualPostSetupPatch())
 }
 
 // Records the simulated subscription result. Never gates anything — purely

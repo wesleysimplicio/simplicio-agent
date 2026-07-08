@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { cumulativeSavedSeries, parseSavingsReport } from './parse'
+import { cumulativeFromTimeSeries, cumulativeSavedSeries, parseSavingsReport } from './parse'
 
 describe('parseSavingsReport', () => {
   it('returns empty, honest defaults for a non-object report', () => {
     expect(parseSavingsReport(null)).toEqual({
+      dimensions: { byModel: [], byProof: [], timeSeries: [] },
       events: [],
       hasSessionGranularity: false,
       totals: { baseline: null, pct: null, saved: null, spent: null }
@@ -128,5 +129,63 @@ describe('cumulativeSavedSeries', () => {
     const series = cumulativeSavedSeries(parsed.events)
 
     expect(series).toEqual([{ cumulativeSaved: 10, timestampMs: Date.parse('2026-01-01T00:00:00Z') }])
+  })
+})
+
+describe('parseSavingsReport dimensions', () => {
+  it('parses time_series, by_model, and by_proof (array-of-entries shape)', () => {
+    const parsed = parseSavingsReport({
+      dimensions: {
+        by_model: [{ key: 'gemma4', saved_percent: 80, saved_total: 4000 }],
+        by_proof: [
+          { key: 'measured', saved_total: 3000 },
+          { key: 'estimated', saved_total: 1000 }
+        ],
+        time_series: [{ actual_total: 0, baseline_total: 500, day: '2026-07-07', saved_percent: 100, saved_total: 500 }]
+      }
+    })
+
+    expect(parsed.dimensions.timeSeries).toEqual([
+      { actualTotal: 0, baselineTotal: 500, day: '2026-07-07', savedPercent: 100, savedTotal: 500 }
+    ])
+    expect(parsed.dimensions.byModel).toEqual([{ key: 'gemma4', savedPercent: 80, savedTotal: 4000 }])
+    expect(parsed.dimensions.byProof.map(slice => slice.key)).toEqual(['measured', 'estimated'])
+  })
+
+  it('parses the object-map slice shape and skips unusable entries', () => {
+    const parsed = parseSavingsReport({
+      dimensions: {
+        by_model: { gemma4: { saved_total: 100 }, junk: 'nope', sonnet: 250 },
+        time_series: [{ saved_total: 1 }, 'garbage']
+      }
+    })
+
+    expect(parsed.dimensions.byModel).toEqual([
+      { key: 'gemma4', savedPercent: null, savedTotal: 100 },
+      { key: 'sonnet', savedPercent: null, savedTotal: 250 }
+    ])
+    // A day-less time_series point is dropped, never invented.
+    expect(parsed.dimensions.timeSeries).toEqual([])
+  })
+
+  it('reports empty dimensions when the report has none (UI skips the sections)', () => {
+    expect(parseSavingsReport({ totals: { spent: 1 } }).dimensions).toEqual({
+      byModel: [],
+      byProof: [],
+      timeSeries: []
+    })
+  })
+})
+
+describe('cumulativeFromTimeSeries', () => {
+  it('builds an ascending cumulative curve from daily saved totals', () => {
+    const series = cumulativeFromTimeSeries([
+      { actualTotal: null, baselineTotal: null, day: '2026-07-06', savedPercent: null, savedTotal: 100 },
+      { actualTotal: null, baselineTotal: null, day: '2026-07-05', savedPercent: null, savedTotal: 50 },
+      { actualTotal: null, baselineTotal: null, day: 'bad-date', savedPercent: null, savedTotal: 5 },
+      { actualTotal: null, baselineTotal: null, day: '2026-07-07', savedPercent: null, savedTotal: null }
+    ])
+
+    expect(series.map(point => point.cumulativeSaved)).toEqual([50, 150])
   })
 })

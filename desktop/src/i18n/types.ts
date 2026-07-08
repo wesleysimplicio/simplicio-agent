@@ -750,6 +750,38 @@ export interface Translations {
     emptyTitle: string
     emptyDesc: string
     loading: string
+    cockpit: {
+      mcpLabel: string
+      llmLabel: string
+      neuralLabel: string
+      runtimeLabel: string
+      running: string
+      stopped: string
+      checking: string
+      unavailable: string
+      bridgeMissing: string
+      startAction: string
+      stopAction: string
+      confirmStop: string
+      diagnostics: string
+      uptime: (duration: string) => string
+      local: string
+      remote: string
+      offlineFirst: string
+      noModel: string
+      memories: (count: string) => string
+      byModelTitle: string
+      byProofTitle: string
+      sessionsTitle: string
+      sessionsDesc: string
+      eventsCount: (count: number) => string
+      noEvents: string
+      savedShort: string
+      hashChainTooltip: string
+      sourceLabel: string
+      skippedLines: (count: number) => string
+      superSavingsAria: string
+    }
   }
 
   commandCenter: {

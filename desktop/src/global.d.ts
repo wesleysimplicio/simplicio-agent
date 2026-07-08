@@ -207,6 +207,12 @@ declare global {
       mcpDaemonStatus: () => Promise<McpDaemonStatus>
       mcpDaemonStart: () => Promise<McpDaemonStatus>
       mcpDaemonStop: () => Promise<McpDaemonStatus>
+      // Runtime cockpit: `simplicio memory status --json` (backend/guardian
+      // roster) and per-run savings sessions read directly from the
+      // append-only JSONL ledgers -- no spawn. `opts.repoPath` merges that
+      // repo's ledger with the home one (deduped by event id).
+      memoryStatus: () => Promise<MemoryStatusResult>
+      savingsSessions: (opts?: { repoPath?: string | null }) => Promise<SavingsSessionsResult>
     }
   }
 }
@@ -281,6 +287,69 @@ export interface McpDaemonStatus {
   // binary ("env:SIMPLICIO_BIN" | "path" | "local-bin" | "dev-fallback"), or
   // null before any resolution attempt.
   binSource: string | null
+}
+
+// `simplicio memory status --json` (schema `simplicio.memory-backend/v1`).
+// The payload is runtime-owned and not schema-pinned here -- known fields the
+// cockpit reads: status ("ready"), selected_backend ("sqlite-fts5"),
+// database (path), initialized, backend_order[],
+// operator_visibility.memory.memory_items, guardian_policy.guardians[]
+// ({name: Isa|Helo|Levi, status, role, decisions[]}).
+export interface MemoryStatusResult {
+  ok: boolean
+  memory?: Record<string, unknown>
+  error?: string
+  raw?: string
+}
+
+// One normalized `simplicio.savings-event/v1` ledger event inside a session
+// (electron/savings-ledger.cjs). Every field the raw event doesn't carry is
+// null -- never invented.
+export interface SavingsSessionEvent {
+  eventId: string | null
+  timestamp: string | null
+  surfaces: string[] | null
+  taskTitle: string | null
+  tokens: {
+    spent: number | null
+    baseline: number | null
+    saved: number | null
+  }
+  proofKind: string | null
+  eventHash: string | null
+  prevEventHash: string | null
+  model: string | null
+  provider: string | null
+}
+
+// A per-run grouping of ledger events (grouped by simplicio.run_id, falling
+// back to task.id, then 'unknown'). Totals sum only figures actually present
+// in the events; null when none are.
+export interface SavingsSession {
+  runId: string
+  title: string | null
+  repo: string | null
+  branch: string | null
+  startedAt: string | null
+  endedAt: string | null
+  totals: {
+    spent: number | null
+    baseline: number | null
+    saved: number | null
+  }
+  // Ordered by timestamp ascending.
+  events: SavingsSessionEvent[]
+}
+
+// Result of the direct JSONL ledger read (no spawn). `skipped` counts
+// unparseable ledger lines; `sources` lists the ledger files actually read.
+// Sessions are ordered by endedAt descending (newest first).
+export interface SavingsSessionsResult {
+  ok: boolean
+  sessions: SavingsSession[]
+  skipped: number
+  sources: string[]
+  error?: string
 }
 
 export interface DesktopMarketplaceSearchItem {
