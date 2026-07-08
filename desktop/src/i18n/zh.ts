@@ -1099,7 +1099,48 @@ export const zh: Translations = {
       sourceLabel: '来源：',
       skippedLines: count => `已跳过 ${count} 行无法解析的账本记录`,
       superSavingsAria: '节省超过 90%'
+    },
+    live: {
+      title: '实时活动',
+      subtitle: '直接来自运行时仪表盘的实时数据流——每一次运行，每一条命令。',
+      badgeLive: '实时',
+      badgeStatic: '进行中',
+      updatedNow: '刚刚更新',
+      updatedAgo: time => `${time} 前更新`,
+      eventsLabel: '事件数',
+      savedLabel: '已节省',
+      savedPctLabel: '节省率',
+      costSavedLabel: '节省费用',
+      timeseriesTitle: '活动趋势',
+      byProviderTitle: '按服务商',
+      byRepoTitle: '按仓库',
+      recentTitle: '最近事件',
+      recentEmpty: '尚无活动记录。',
+      recentSpentToSaved: (spent, saved) => `${spent} → 节省 ${saved}`,
+      unavailableTitle: '实时仪表盘不可用',
+      unavailableDesc: '当前版本尚未暴露实时仪表盘接口。请更新桌面应用以在此查看实时活动。',
+      startingTitle: '正在启动实时仪表盘…',
+      startingDesc: '正在启动 `simplicio dashboard`——只需片刻。',
+      errorTitle: '无法连接实时仪表盘',
+      retry: '重试',
+      retrying: '重试中…',
+      emptyTitle: '暂无实时活动',
+      emptyDesc: '运行一个由 Simplicio 支持的任务，几秒内即可在此看到。'
     }
+  },
+
+  computerUse: {
+    title: '电脑控制',
+    pauseAction: '暂停电脑控制',
+    resumeAction: '恢复电脑控制',
+    pausedStatus: '已暂停',
+    activeStatus: '运行中',
+    pausedHint: '代理不会控制您的鼠标或键盘。',
+    activeHint: '代理可以自动控制您的鼠标和键盘。',
+    pausedToast: '电脑控制已暂停',
+    resumedToast: '电脑控制已恢复——代理可以自动执行操作',
+    toggleFailed: '无法更新电脑控制状态',
+    statusLoadFailed: '无法读取电脑控制状态'
   },
 
   commandCenter: {

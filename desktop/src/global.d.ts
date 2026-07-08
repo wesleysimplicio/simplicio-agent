@@ -213,6 +213,19 @@ declare global {
       // repo's ledger with the home one (deduped by event id).
       memoryStatus: () => Promise<MemoryStatusResult>
       savingsSessions: (opts?: { repoPath?: string | null }) => Promise<SavingsSessionsResult>
+      // Supervised `simplicio dashboard start --port 0 --no-open --json` daemon
+      // (electron/dashboard-daemon.cjs) -- the runtime's embedded token-savings
+      // HTTP dashboard. Mirrors the mcpDaemon* bridge shape above.
+      dashboardStatus: () => Promise<DashboardStatus>
+      dashboardStart: () => Promise<DashboardStatus>
+      dashboardStop: () => Promise<DashboardStatus>
+      dashboardSummary: (opts?: DashboardSummaryQuery) => Promise<DashboardSummaryResult>
+      // Supervised `python -m hermes_cli.main mcp serve` daemon
+      // (electron/cua-mcp-daemon.cjs) -- exposes the computer-use toolset over
+      // MCP stdio. Mirrors the mcpDaemon*/dashboard* bridge shape above.
+      cuaMcpStatus: () => Promise<CuaMcpDaemonStatus>
+      cuaMcpStart: () => Promise<CuaMcpDaemonStatus>
+      cuaMcpStop: () => Promise<CuaMcpDaemonStatus>
     }
   }
 }
@@ -287,6 +300,128 @@ export interface McpDaemonStatus {
   // binary ("env:SIMPLICIO_BIN" | "path" | "local-bin" | "dev-fallback"), or
   // null before any resolution attempt.
   binSource: string | null
+}
+
+// Supervised `simplicio dashboard start --port 0 --no-open --json` daemon
+// status (electron/dashboard-daemon.cjs). `running` only flips true once the
+// child has printed its `SIMPLICIO_DASHBOARD_READY port=<N>` announcement
+// (src/dashboard_command.rs) -- a spawned-but-not-yet-announced child reports
+// `running:false` with a `pid` but no `port`. `startedAt` is ISO-8601, same
+// convention as McpDaemonStatus.
+export interface DashboardStatus {
+  running: boolean
+  port: number | null
+  pid: number | null
+  restarts: number
+  startedAt: string | null
+  // Explicit reason the daemon is down/last failed (e.g. "simplicio binary
+  // not found", "dashboard did not announce a port"), or null when there's
+  // nothing to report.
+  lastError: string | null
+  binSource: string | null
+}
+
+// Supervised `python -m hermes_cli.main mcp serve` daemon status
+// (electron/cua-mcp-daemon.cjs) -- exposes the computer-use toolset over MCP
+// stdio. FastMCP has no readiness port/announcement, so `running` flips true
+// as soon as the child spawns (unlike DashboardStatus). `startedAt` is
+// ISO-8601, same convention as McpDaemonStatus/DashboardStatus.
+export interface CuaMcpDaemonStatus {
+  running: boolean
+  pid: number | null
+  restarts: number
+  startedAt: string | null
+  // Explicit reason the daemon is down/last failed (e.g. "cua-mcp command
+  // resolver not configured"), or null when there's nothing to report.
+  lastError: string | null
+  // The resolved python command that was (or was last attempted to be) run,
+  // or null before any resolution attempt.
+  binSource: string | null
+}
+
+// Optional filters forwarded to `GET /api/summary` (src/dashboard_command.rs
+// summary_response). `from`/`to` are unix-seconds range bounds; omitted
+// fields are left out of the request querystring entirely (not sent as
+// empty).
+export interface DashboardSummaryQuery {
+  from?: number | string
+  to?: number | string
+  group?: 'hour' | 'day' | 'month'
+}
+
+// One row of a `by_*` breakdown in DashboardSummary. `events` is only present
+// on some breakdowns (see the runtime's `Agg` struct) -- kept optional rather
+// than fabricated.
+export interface DashboardSummaryBreakdownRow {
+  key: string
+  spent: number
+  baseline: number
+  saved: number
+  saved_pct: number
+  events?: number
+}
+
+export interface DashboardSummaryTimeseriesPoint {
+  bucket: string
+  spent: number
+  baseline: number
+  saved: number
+  saved_pct: number
+}
+
+export interface DashboardSummaryRecentEvent {
+  ts: string
+  task: string
+  provider: string
+  model: string
+  repo: string
+  surface: string
+  spent: number
+  saved: number
+}
+
+// `GET /api/summary` payload (schema `simplicio.savings-dashboard-api/v1`,
+// src/dashboard_command.rs build_summary()). The shape is runtime-owned; kept
+// honest here with only the fields the endpoint documents -- see the
+// `by_session`/`by_conversation` rows, which share DashboardSummaryBreakdownRow's
+// shape with the other `by_*` breakdowns.
+export interface DashboardSummary {
+  schema: string
+  generated_at: string
+  range: {
+    from: number | null
+    to: number | null
+    group: 'hour' | 'day' | 'month'
+  }
+  totals: {
+    events: number
+    spent: number
+    baseline: number
+    saved: number
+    saved_pct: number
+    cost_saved_usd: number
+  }
+  by_provider: DashboardSummaryBreakdownRow[]
+  by_model: DashboardSummaryBreakdownRow[]
+  by_repo: DashboardSummaryBreakdownRow[]
+  by_surface: DashboardSummaryBreakdownRow[]
+  by_task_source: DashboardSummaryBreakdownRow[]
+  by_session: DashboardSummaryBreakdownRow[]
+  by_conversation: DashboardSummaryBreakdownRow[]
+  timeseries: DashboardSummaryTimeseriesPoint[]
+  // Newest first, capped by the runtime's RECENT_CAP.
+  recent: DashboardSummaryRecentEvent[]
+}
+
+// Result of `dashboardSummary()` -- never throws; `ok:false` covers an
+// invalid/unavailable port, a non-2xx HTTP response, a network failure, and a
+// request timeout, distinguished only by the `error` message (no separate
+// error-code field, matching SavingsReportResult/DoctorResult's envelope
+// style elsewhere in this file).
+export interface DashboardSummaryResult {
+  ok: boolean
+  summary?: DashboardSummary
+  error?: string
 }
 
 // `simplicio memory status --json` (schema `simplicio.memory-backend/v1`).

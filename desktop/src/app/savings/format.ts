@@ -31,6 +31,10 @@ export function formatPct(value: null | number): string {
   return value === null ? UNKNOWN : `${Math.round(value)}%`
 }
 
+export function formatUsd(value: null | number): string {
+  return value === null ? UNKNOWN : `$${value.toFixed(2)}`
+}
+
 export function formatTimestamp(value: null | string): string {
   if (!value) {
     return UNKNOWN

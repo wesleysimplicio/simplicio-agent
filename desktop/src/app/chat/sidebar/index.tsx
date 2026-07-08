@@ -150,8 +150,9 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: props => <Codicon name="symbol-misc" {...props} />,
     route: SKILLS_ROUTE
   },
-  { id: 'messaging', label: '', icon: props => <Codicon name="comment" {...props} />, route: MESSAGING_ROUTE },
-  { id: 'artifacts', label: '', icon: props => <Codicon name="files" {...props} />, route: ARTIFACTS_ROUTE },
+  // Messaging/Artifacts are generic assistant-chat surfaces, out of scope for
+  // the Simplicio runtime cockpit product (2026-07-08 standing decision) --
+  // hidden from nav, not deleted (routes/components stay intact).
   { id: 'integrations', label: '', icon: props => <Codicon name="plug" {...props} />, route: INTEGRATIONS_ROUTE },
   // Token Economy is an overlay view (OVERLAY_VIEWS in routes.ts), but opening
   // it is still just a navigate() — identical to openSavings() in

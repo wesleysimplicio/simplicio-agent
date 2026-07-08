@@ -123,10 +123,19 @@ const {
 const { registerSimplicioIpc } = require('./simplicio-ipc.cjs')
 
 // Registers ipcMain handlers immediately (no need to wait for app.whenReady)
-// and owns the one supervised "simplicio serve --mcp --stdio" daemon for this
-// process's lifetime; started below in app.whenReady() and stopped in
-// before-quit so it's always active while the app runs, never orphaned.
-const simplicioMcpDaemon = registerSimplicioIpc(ipcMain)
+// and owns the one supervised "simplicio serve --mcp --stdio" daemon (plus,
+// attached as .dashboardDaemon, the "simplicio dashboard start" daemon, and
+// as .cuaMcpDaemon, the Python "hermes_cli.main mcp serve" daemon) for this
+// process's lifetime; all three are started below in app.whenReady() and
+// stopped in before-quit so they're always active while the app runs, never
+// orphaned. resolveCuaMcpCommand is a hoisted function declaration (defined
+// further down, beside createActiveBackend()) — safe to reference here
+// because it's only ever CALLED later, once the cua-mcp daemon actually
+// (re)spawns, by which point every module-level const it reads is already
+// initialized.
+const simplicioMcpDaemon = registerSimplicioIpc(ipcMain, { resolveCuaMcpCommand })
+const simplicioDashboardDaemon = simplicioMcpDaemon.dashboardDaemon
+const simplicioCuaMcpDaemon = simplicioMcpDaemon.cuaMcpDaemon
 
 let nodePty = null
 let nodePtyDir = null
@@ -167,6 +176,22 @@ function resolveBundledKernelBin() {
   const resourcesPath = process.resourcesPath
   if (!resourcesPath) return null
   const binName = IS_WINDOWS ? 'simplicio.exe' : 'simplicio'
+  const candidate = path.join(resourcesPath, 'bin', `${process.platform}-${process.arch}`, binName)
+  return fileExists(candidate) ? candidate : null
+}
+
+// Resolve the cua-driver (computer-use) binary bundled into the packaged app,
+// if present. Staged per-platform/arch by scripts/stage-cua-driver.cjs into
+// the SAME directory as the simplicio kernel above and shipped via the same
+// `bin` extraResources entry; tools/computer_use/cua_backend.py picks it up
+// through HERMES_CUA_DRIVER_CMD (see buildDesktopBackendEnv's `cuaDriverBin`
+// param). Dev mode has no process.resourcesPath / no staged binary, so this
+// returns null there and computer-use falls back to today's PATH-only lookup
+// — zero behavior change for developer checkouts or hosts without a bundle.
+function resolveBundledCuaDriverBin() {
+  const resourcesPath = process.resourcesPath
+  if (!resourcesPath) return null
+  const binName = IS_WINDOWS ? 'cua-driver.exe' : 'cua-driver'
   const candidate = path.join(resourcesPath, 'bin', `${process.platform}-${process.arch}`, binName)
   return fileExists(candidate) ? candidate : null
 }
@@ -1356,7 +1381,8 @@ function unwrapWindowsVenvHermesCommand(command, backendArgs) {
       hermesHome: HERMES_HOME,
       pythonPathEntries: [...(directoryExists(root) ? [root] : []), ...getVenvSitePackagesEntries(venvRoot)],
       venvRoot,
-      kernelBin: resolveBundledKernelBin()
+      kernelBin: resolveBundledKernelBin(),
+      cuaDriverBin: resolveBundledCuaDriverBin()
     }),
     kind: 'python',
     // Surfaced so backendSupportsServe() can read this runtime's source for the
@@ -2897,7 +2923,8 @@ function createPythonBackend(root, label, backendArgs, options = {}) {
       hermesHome: HERMES_HOME,
       pythonPathEntries: [root, ...getVenvSitePackagesEntries(venvRoot)],
       venvRoot,
-      kernelBin: resolveBundledKernelBin()
+      kernelBin: resolveBundledKernelBin(),
+      cuaDriverBin: resolveBundledCuaDriverBin()
     }),
     root,
     bootstrap: Boolean(options.bootstrap),
@@ -2922,11 +2949,44 @@ function createActiveBackend(backendArgs) {
       hermesHome: HERMES_HOME,
       pythonPathEntries: [ACTIVE_HERMES_ROOT, ...getVenvSitePackagesEntries(VENV_ROOT)],
       venvRoot: VENV_ROOT,
-      kernelBin: resolveBundledKernelBin()
+      kernelBin: resolveBundledKernelBin(),
+      cuaDriverBin: resolveBundledCuaDriverBin()
     }),
     root: ACTIVE_HERMES_ROOT,
     bootstrap: true,
     shell: false
+  }
+}
+
+// Command/env for the supervised cua-mcp daemon (electron/cua-mcp-daemon.cjs):
+// exposes the computer-use toolset over MCP stdio via
+// `python -m hermes_cli.main mcp serve`. Deliberately mirrors
+// createActiveBackend() above (same VENV_ROOT/ACTIVE_HERMES_ROOT python +
+// venvRoot + pythonPathEntries resolution, same env merge shape used at every
+// backend spawn site in this file) rather than the full resolveHermesBackend()
+// branch tree -- the MCP child always runs the canonical active install so it
+// stays in lockstep with buildDesktopBackendEnv's PATH/PYTHONPATH/
+// HERMES_KERNEL_BIN/HERMES_CUA_DRIVER_CMD wiring, without simplicio-ipc.cjs
+// (which owns the daemon) needing to duplicate any of main.cjs's backend
+// resolution. Passed into registerSimplicioIpc() as `resolveCuaMcpCommand`;
+// only actually invoked when the daemon (re)spawns, so it safely reads
+// HERMES_HOME/VENV_ROOT/ACTIVE_HERMES_ROOT even though they're declared later
+// in module-eval order than this function's own hoisted declaration.
+function resolveCuaMcpCommand() {
+  const venvPython = getVenvPython(VENV_ROOT)
+  const command = fileExists(venvPython) ? venvPython : findSystemPython()
+  const backendEnv = buildDesktopBackendEnv({
+    hermesHome: HERMES_HOME,
+    pythonPathEntries: [ACTIVE_HERMES_ROOT, ...getVenvSitePackagesEntries(VENV_ROOT)],
+    venvRoot: VENV_ROOT,
+    kernelBin: resolveBundledKernelBin(),
+    cuaDriverBin: resolveBundledCuaDriverBin()
+  })
+
+  return {
+    command,
+    args: ['-m', 'hermes_cli.main', 'mcp', 'serve'],
+    env: { ...process.env, HERMES_HOME, ...backendEnv }
   }
 }
 
@@ -7561,6 +7621,8 @@ app.whenReady().then(() => {
   configureSpellChecker()
   registerPowerResumeListeners()
   simplicioMcpDaemon.start()
+  simplicioDashboardDaemon.start()
+  simplicioCuaMcpDaemon.start()
   createWindow()
 
   // Win/Linux cold start: the launching hermes:// URL is in our own argv.
@@ -7635,6 +7697,13 @@ app.on('before-quit', () => {
   // Stop the supervised MCP daemon so its child (and any restart timer) don't
   // outlive the app.
   simplicioMcpDaemon.stop()
+  // Same for the dashboard daemon -- an orphaned dashboard process would keep
+  // its ephemeral port bound after the app quits.
+  simplicioDashboardDaemon.stop()
+  // Same for the cua-mcp daemon -- an orphaned Python MCP server would keep
+  // holding stdin/stdout pipes (and any computer-use driver it spawned) open
+  // after the app quits.
+  simplicioCuaMcpDaemon.stop()
 })
 
 app.on('window-all-closed', () => {

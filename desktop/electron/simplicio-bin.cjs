@@ -233,6 +233,10 @@ const DEFAULT_RUN_TIMEOUT_MS = 30000
  * @param {string[]} args
  * @param {object} [opts]
  * @param {number} [opts.timeoutMs] - Kill the child after this long (default 30s).
+ * @param {string} [opts.cwd] - Working directory for the child. The runtime
+ *   discovers `.simplicio/ledger` relative to its cwd, so callers that want
+ *   the HOME ledger (e.g. the savings report) must pass os.homedir() -- the
+ *   Electron process's own cwd has no ledger.
  * @param {{bin:string, source:string}} [opts.resolved] - Skip resolution and
  *   use this pre-resolved binary (tests / callers that already resolved once).
  */
@@ -265,7 +269,8 @@ function runSimplicio(args, opts = {}) {
       child = spawnFn(invocation.command, invocation.args, {
         windowsHide: true,
         windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe'],
+        ...(opts.cwd ? { cwd: opts.cwd } : {})
       })
     } catch (error) {
       resolve({ ok: false, stdout: '', stderr: error.message, code: null })

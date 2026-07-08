@@ -1,12 +1,16 @@
-import { useMemo } from 'react'
+import { useStore } from '@nanostores/react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Panel, PanelEmpty } from '@/app/overlays/panel'
+import { SAVINGS_ROUTE } from '@/app/routes'
 import { formatExactTokens, formatPct, formatTokens } from '@/app/savings/format'
 import { cumulativeFromTimeSeries, cumulativeSavedSeries } from '@/app/savings/parse'
 import { useSavingsData } from '@/app/savings/use-savings-data'
 import { PageLoader } from '@/components/page-loader'
 import { ByModelBars, ByProofDonut } from '@/components/savings/dimension-charts'
 import { HeroStat } from '@/components/savings/hero-stat'
+import { LiveActivity } from '@/components/savings/live-activity'
 import { McpStatusChip } from '@/components/savings/mcp-status-chip'
 import { SavingsChart } from '@/components/savings/savings-chart'
 import { SessionEventsTable } from '@/components/savings/session-events-table'
@@ -17,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useI18n } from '@/i18n'
 import { RefreshCw, Wrench } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { startManualPostSetup } from '@/store/onboarding'
+import { $desktopOnboarding, startManualPostSetup } from '@/store/onboarding'
 
 interface TokenMonitorProps {
   onClose: () => void
@@ -35,6 +39,34 @@ export default function TokenMonitor({ onClose }: TokenMonitorProps) {
   const { t } = useI18n()
   const s = t.savings
   const { doctor, mcp, mcpControl, memory, refresh, refreshing, sessions, state } = useSavingsData()
+  const navigate = useNavigate()
+
+  // Diagnostics opens the (first-run-shaped) onboarding overlay via
+  // startManualPostSetup(). That overlay renders as an opaque full-viewport
+  // layer (z-1300, solid background) stacked ON TOP of this panel — it never
+  // unmounts the savings route — but visually it looks like a replacement,
+  // and once the sequence finishes it drops the user wherever `manual`
+  // becoming false happens to leave the app (observed: Home), not back on
+  // this cockpit. `onboarding.manual` flips true<-manualPostSetupPatch()
+  // ->false via BOTH closeManualOnboarding() (cancel) and
+  // completeDesktopOnboarding() (finish) — so watching that single flag
+  // covers "closed early" and "completed" alike. The ref scopes the guard to
+  // a flow *this button* launched, so an unrelated manual onboarding
+  // (e.g. Settings -> Providers) never yanks the user into /savings.
+  const onboardingManual = useStore($desktopOnboarding).manual
+  const diagnosticsLaunchedRef = useRef(false)
+
+  useEffect(() => {
+    if (diagnosticsLaunchedRef.current && !onboardingManual) {
+      diagnosticsLaunchedRef.current = false
+      navigate(SAVINGS_ROUTE, { replace: true })
+    }
+  }, [navigate, onboardingManual])
+
+  const openDiagnostics = () => {
+    diagnosticsLaunchedRef.current = true
+    startManualPostSetup()
+  }
 
   const parsed = state.status === 'ok' ? state.parsed : null
   // Prefer the report's daily time_series dimension; fall back to building
@@ -84,7 +116,7 @@ export default function TokenMonitor({ onClose }: TokenMonitorProps) {
         </div>
         {/* Closes the loop "see status -> run the full diagnosis": jumps into
             the Setup Simplicio post-setup flow (doctor -> google -> subscription). */}
-        <Button onClick={() => startManualPostSetup()} size="xs" title={s.cockpit.diagnostics} variant="outline">
+        <Button onClick={openDiagnostics} size="xs" title={s.cockpit.diagnostics} variant="outline">
           <Wrench className="size-3.5" />
           {s.cockpit.diagnostics}
         </Button>
@@ -201,6 +233,12 @@ export default function TokenMonitor({ onClose }: TokenMonitorProps) {
           {sessions.status === 'error' && (
             <p className="text-[0.66rem] text-destructive/80">{sessions.error}</p>
           )}
+
+          {/* Independent of the savings-report state above: Live Activity has
+              its own bridge (`dashboardStatus`/`dashboardSummary`) and its own
+              unavailable/starting/loading/ok/error machinery, so it renders
+              unconditionally here rather than nested in the branches above. */}
+          <LiveActivity />
         </div>
       </div>
     </Panel>

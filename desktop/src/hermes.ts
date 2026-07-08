@@ -8,6 +8,7 @@ import type {
   AudioTranscriptionResponse,
   AuxiliaryModelsResponse,
   BackendUpdateCheckResponse,
+  ComputerUsePauseState,
   ComputerUseStatus,
   ConfigSchemaResponse,
   CronJob,
@@ -64,6 +65,7 @@ export type {
   AuxiliaryModelsResponse,
   BackendUpdateCheckResponse,
   ComputerUseCheck,
+  ComputerUsePauseState,
   ComputerUsePermissionSource,
   ComputerUseStatus,
   ConfigFieldSchema,
@@ -592,6 +594,26 @@ export function getComputerUseStatus(): Promise<ComputerUseStatus> {
   return window.hermesDesktop.api<ComputerUseStatus>({
     ...profileScoped(),
     path: '/api/tools/computer-use/status'
+  })
+}
+
+// The real killswitch on autonomous computer-use tool calls (default posture
+// is auto-approve/YOLO -- see assistant-ui/tool/approval.tsx's
+// APPROVAL_TOOLS -- so this pause flag, not per-action confirmation, is what
+// actually stops the agent from acting on the desktop).
+export function getComputerUsePaused(): Promise<ComputerUsePauseState> {
+  return window.hermesDesktop.api<ComputerUsePauseState>({
+    ...profileScoped(),
+    path: '/api/tools/computer-use/pause'
+  })
+}
+
+export function setComputerUsePaused(paused: boolean): Promise<ComputerUsePauseState> {
+  return window.hermesDesktop.api<ComputerUsePauseState>({
+    ...profileScoped(),
+    path: '/api/tools/computer-use/pause',
+    method: 'PUT',
+    body: { paused }
   })
 }
 

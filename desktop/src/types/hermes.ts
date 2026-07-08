@@ -730,6 +730,15 @@ export interface ComputerUseStatus {
   error: string | null
 }
 
+/** Shape of `GET /api/tools/computer-use/pause` and (structurally, ignoring
+ *  its extra `ok` field) `PUT /api/tools/computer-use/pause` -- the backend's
+ *  real killswitch gate on autonomous computer-use tool calls. Default
+ *  posture is auto-approve (YOLO); this is what actually stops the agent
+ *  from acting on the desktop, not per-action confirmation. */
+export interface ComputerUsePauseState {
+  paused: boolean
+}
+
 export interface SessionSearchResult {
   /** Lineage root of the matched conversation. Stable across compression and
    *  used as the durable pin id; falls back to session_id when absent. */

@@ -885,7 +885,48 @@ export const en: Translations = {
       sourceLabel: 'source:',
       skippedLines: count => `${count} unparseable ledger ${count === 1 ? 'line' : 'lines'} skipped`,
       superSavingsAria: 'savings above 90 percent'
+    },
+    live: {
+      title: 'Live Activity',
+      subtitle: 'Streaming straight from the runtime dashboard — every run, command by command.',
+      badgeLive: 'LIVE',
+      badgeStatic: 'Active',
+      updatedNow: 'updated now',
+      updatedAgo: time => `updated ${time} ago`,
+      eventsLabel: 'Events',
+      savedLabel: 'Saved',
+      savedPctLabel: 'Saved %',
+      costSavedLabel: 'Cost saved',
+      timeseriesTitle: 'Activity over time',
+      byProviderTitle: 'By provider',
+      byRepoTitle: 'By repo',
+      recentTitle: 'Recent',
+      recentEmpty: 'No activity recorded yet.',
+      recentSpentToSaved: (spent, saved) => `${spent} → ${saved} saved`,
+      unavailableTitle: 'Live dashboard unavailable',
+      unavailableDesc: 'This build does not expose the live dashboard bridge yet. Update the desktop app to see real-time activity here.',
+      startingTitle: 'Starting the live dashboard…',
+      startingDesc: 'Spinning up `simplicio dashboard` — this only takes a moment.',
+      errorTitle: 'Could not reach the live dashboard',
+      retry: 'Try again',
+      retrying: 'Trying…',
+      emptyTitle: 'No live activity yet',
+      emptyDesc: 'Run a Simplicio-backed task and it will show up here within seconds.'
     }
+  },
+
+  computerUse: {
+    title: 'Computer control',
+    pauseAction: 'Pause computer control',
+    resumeAction: 'Resume computer control',
+    pausedStatus: 'Paused',
+    activeStatus: 'Active',
+    pausedHint: 'The agent will not control your mouse or keyboard.',
+    activeHint: 'The agent can control your mouse and keyboard automatically.',
+    pausedToast: 'Computer control paused',
+    resumedToast: 'Computer control resumed — the agent can act automatically',
+    toggleFailed: 'Could not update computer control state',
+    statusLoadFailed: 'Could not read computer control state'
   },
 
   commandCenter: {

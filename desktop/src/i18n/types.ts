@@ -782,6 +782,51 @@ export interface Translations {
       skippedLines: (count: number) => string
       superSavingsAria: string
     }
+    live: {
+      title: string
+      subtitle: string
+      badgeLive: string
+      badgeStatic: string
+      updatedNow: string
+      updatedAgo: (time: string) => string
+      eventsLabel: string
+      savedLabel: string
+      savedPctLabel: string
+      costSavedLabel: string
+      timeseriesTitle: string
+      byProviderTitle: string
+      byRepoTitle: string
+      recentTitle: string
+      recentEmpty: string
+      recentSpentToSaved: (spent: string, saved: string) => string
+      unavailableTitle: string
+      unavailableDesc: string
+      startingTitle: string
+      startingDesc: string
+      errorTitle: string
+      retry: string
+      retrying: string
+      emptyTitle: string
+      emptyDesc: string
+    }
+  }
+
+  // Global killswitch on autonomous computer-use (mouse/keyboard control) tool
+  // calls. Default posture is auto-approve (YOLO) -- this pause flag, not
+  // per-action confirmation, is the real control (see
+  // getComputerUsePaused()/setComputerUsePaused() in hermes.ts).
+  computerUse: {
+    title: string
+    pauseAction: string
+    resumeAction: string
+    pausedStatus: string
+    activeStatus: string
+    pausedHint: string
+    activeHint: string
+    pausedToast: string
+    resumedToast: string
+    toggleFailed: string
+    statusLoadFailed: string
   }
 
   commandCenter: {

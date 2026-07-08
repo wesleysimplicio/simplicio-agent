@@ -88,7 +88,16 @@ function buildDesktopBackendEnv({
   // app needs: point it at the bundled binary instead of requiring a
   // separate host install. A caller-supplied HERMES_KERNEL_BIN in currentEnv
   // always wins (explicit override beats the bundled default).
-  kernelBin = null
+  kernelBin = null,
+  // Absolute path to a cua-driver (computer-use) binary bundled into the
+  // packaged app (see scripts/stage-cua-driver.cjs + the same `bin`
+  // extraResources entry as kernelBin above). tools/computer_use/cua_backend.py
+  // already honors HERMES_CUA_DRIVER_CMD as an override to its PATH-only
+  // resolution, so this is the only hook the desktop app needs: point it at
+  // the bundled binary instead of requiring a separate host install. A
+  // caller-supplied HERMES_CUA_DRIVER_CMD in currentEnv always wins (explicit
+  // override beats the bundled default).
+  cuaDriverBin = null
 } = {}) {
   const delimiter = delimiterForPlatform(platform)
   const currentPythonPath = currentEnv?.PYTHONPATH || ''
@@ -107,6 +116,10 @@ function buildDesktopBackendEnv({
 
   if (kernelBin && !currentEnv?.HERMES_KERNEL_BIN) {
     env.HERMES_KERNEL_BIN = kernelBin
+  }
+
+  if (cuaDriverBin && !currentEnv?.HERMES_CUA_DRIVER_CMD) {
+    env.HERMES_CUA_DRIVER_CMD = cuaDriverBin
   }
 
   return env

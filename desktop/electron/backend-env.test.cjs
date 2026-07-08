@@ -132,6 +132,57 @@ test('buildDesktopBackendEnv never overrides an explicit HERMES_KERNEL_BIN overr
   assert.equal(env.HERMES_KERNEL_BIN, undefined)
 })
 
+test('buildDesktopBackendEnv sets HERMES_CUA_DRIVER_CMD from a bundled cuaDriverBin path', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    pathModule: path.posix,
+    cuaDriverBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/cua-driver'
+  })
+
+  assert.equal(
+    env.HERMES_CUA_DRIVER_CMD,
+    '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/cua-driver'
+  )
+})
+
+test('buildDesktopBackendEnv leaves HERMES_CUA_DRIVER_CMD unset without a cuaDriverBin', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    pathModule: path.posix
+  })
+
+  assert.equal('HERMES_CUA_DRIVER_CMD' in env, false)
+})
+
+test('buildDesktopBackendEnv never overrides an explicit HERMES_CUA_DRIVER_CMD override', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin', HERMES_CUA_DRIVER_CMD: '/opt/homebrew/bin/cua-driver' },
+    platform: 'darwin',
+    pathModule: path.posix,
+    cuaDriverBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/cua-driver'
+  })
+
+  assert.equal(env.HERMES_CUA_DRIVER_CMD, undefined)
+})
+
+test('buildDesktopBackendEnv sets both HERMES_KERNEL_BIN and HERMES_CUA_DRIVER_CMD together', () => {
+  const env = buildDesktopBackendEnv({
+    currentEnv: { PATH: '/usr/bin:/bin' },
+    platform: 'darwin',
+    pathModule: path.posix,
+    kernelBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/simplicio',
+    cuaDriverBin: '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/cua-driver'
+  })
+
+  assert.equal(env.HERMES_KERNEL_BIN, '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/simplicio')
+  assert.equal(
+    env.HERMES_CUA_DRIVER_CMD,
+    '/Applications/Simplicio Agent.app/Contents/Resources/bin/darwin-arm64/cua-driver'
+  )
+})
+
 test('appendUniquePathEntries drops empty entries and keeps first occurrence', () => {
   assert.equal(appendUniquePathEntries([':/a::/b', ['/a', '/c']], { delimiter: ':' }), '/a:/b:/c')
 })

@@ -38,11 +38,17 @@ import type { ToolPart } from './fallback-model'
 // carries no structured args (only tool_id/name/context — see
 // tui_gateway/server.py::_on_tool_start), so we cannot join the approval to the
 // row by command string. But `approval.request` only ever fires from the
-// `terminal` / `execute_code` guards and the agent thread blocks on exactly one
-// approval at a time, so the single pending row of those tools IS the row that
-// raised it. The command/description text comes from `$approvalRequest` (the
-// event payload), which is the only place that data reliably exists.
-export const APPROVAL_TOOLS = new Set(['terminal', 'execute_code'])
+// `terminal` / `execute_code` / `computer_use` guards and the agent thread
+// blocks on exactly one approval at a time, so the single pending row of
+// those tools IS the row that raised it. The command/description text comes
+// from `$approvalRequest` (the event payload), which is the only place that
+// data reliably exists.
+//
+// computer_use's default posture is auto-approve (YOLO) -- see
+// getComputerUsePaused()/setComputerUsePaused() in hermes.ts, the real
+// killswitch -- so an approval request for it should be rare, but this row
+// must still render correctly on the odd occasion the backend asks.
+export const APPROVAL_TOOLS = new Set(['terminal', 'execute_code', 'computer_use'])
 
 // Canonical gateway choices (ui-tui/src/components/prompts.tsx).
 type ApprovalChoice = 'once' | 'session' | 'always' | 'deny'

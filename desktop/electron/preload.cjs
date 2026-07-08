@@ -235,5 +235,19 @@ contextBridge.exposeInMainWorld('simplicioSavings', {
   // ledgers (no spawn). `opts` may carry { repoPath } to merge that repo's
   // ledger with the home one.
   memoryStatus: () => ipcRenderer.invoke('simplicio:memory-status'),
-  savingsSessions: opts => ipcRenderer.invoke('simplicio:savings-sessions', opts)
+  savingsSessions: opts => ipcRenderer.invoke('simplicio:savings-sessions', opts),
+  // Supervised `simplicio dashboard start` daemon (electron/dashboard-daemon.cjs)
+  // -- the runtime's embedded token-savings HTTP dashboard. Mirrors the MCP
+  // daemon bridge shape above; dashboardSummary() resolves against whatever
+  // port the daemon itself last announced (never a renderer-supplied port).
+  dashboardStatus: () => ipcRenderer.invoke('simplicio:dashboard-status'),
+  dashboardStart: () => ipcRenderer.invoke('simplicio:dashboard-start'),
+  dashboardStop: () => ipcRenderer.invoke('simplicio:dashboard-stop'),
+  dashboardSummary: opts => ipcRenderer.invoke('simplicio:dashboard-summary', opts),
+  // Supervised `python -m hermes_cli.main mcp serve` daemon
+  // (electron/cua-mcp-daemon.cjs) -- exposes the computer-use toolset over
+  // MCP stdio. Mirrors the mcpDaemon*/dashboard* bridge shape above.
+  cuaMcpStatus: () => ipcRenderer.invoke('simplicio:cua-mcp-status'),
+  cuaMcpStart: () => ipcRenderer.invoke('simplicio:cua-mcp-start'),
+  cuaMcpStop: () => ipcRenderer.invoke('simplicio:cua-mcp-stop')
 })

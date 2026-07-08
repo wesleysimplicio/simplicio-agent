@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { ComputerUsePauseControl } from '@/components/computer-use/pause-control'
 import { PageLoader } from '@/components/page-loader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -341,7 +342,10 @@ export function SkillsView({ setStatusbarItemGroup: _setStatusbarItemGroup, ...p
                         </div>
                       )}
                       {expanded && toolset.name === 'computer_use' && (
-                        <ComputerUsePanel onConfiguredChange={refreshToolsets} />
+                        <>
+                          <ComputerUsePauseControl />
+                          <ComputerUsePanel onConfiguredChange={refreshToolsets} />
+                        </>
                       )}
                       {expanded && <ToolsetConfigPanel onConfiguredChange={refreshToolsets} toolset={toolset.name} />}
                     </div>

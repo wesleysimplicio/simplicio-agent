@@ -1,21 +1,63 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ParsedSavingsReport } from '@/app/savings/parse'
 import type { SavingsDataState, UseSavingsDataResult } from '@/app/savings/use-savings-data'
 
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+
 import TokenMonitor from './TokenMonitor'
 
 const useSavingsDataMock = vi.hoisted(() => vi.fn())
 const startManualPostSetupMock = vi.hoisted(() => vi.fn())
+// A minimal, mutable nanostores-shaped atom good enough for @nanostores/react
+// useStore() (it reads `.value`/`.get()` and calls `.listen(cb)`) — this test
+// only needs `.manual` to flip and listeners to be notified.
+const desktopOnboardingMock = vi.hoisted(() => {
+  const listeners = new Set<(value: { manual: boolean }) => void>()
+  const store = {
+    get: () => store.value,
+    listen: (fn: (value: { manual: boolean }) => void) => {
+      listeners.add(fn)
+
+      return () => listeners.delete(fn)
+    },
+    set: (next: { manual: boolean }) => {
+      store.value = next
+      listeners.forEach(fn => fn(next))
+    },
+    value: { manual: false }
+  }
+
+  return store
+})
 
 vi.mock('@/app/savings/use-savings-data', () => ({
   useSavingsData: useSavingsDataMock
 }))
 
 vi.mock('@/store/onboarding', () => ({
+  $desktopOnboarding: desktopOnboardingMock,
   startManualPostSetup: startManualPostSetupMock
 }))
+
+// A route stub standing in for the app's "Home" (new-chat) route, so the
+// navigation-guard regression test can assert TokenMonitor did NOT strand
+// the user there — the exact symptom reported ("cai na Home").
+function HomeStub() {
+  return <div data-testid="home-stub">home</div>
+}
+
+function renderPanel(props: { onClose?: () => void } = {}) {
+  return render(
+    <MemoryRouter initialEntries={['/savings']}>
+      <Routes>
+        <Route element={<HomeStub />} path="/" />
+        <Route element={<TokenMonitor onClose={props.onClose ?? (() => {})} />} path="/savings" />
+      </Routes>
+    </MemoryRouter>
+  )
+}
 
 function bridge(state: SavingsDataState): UseSavingsDataResult {
   return {
@@ -44,6 +86,7 @@ afterEach(() => {
   cleanup()
   useSavingsDataMock.mockReset()
   startManualPostSetupMock.mockReset()
+  desktopOnboardingMock.set({ manual: false })
 })
 
 // The acceptance rule this file guards: the panel NEVER invents a number.
@@ -52,7 +95,7 @@ afterEach(() => {
 describe('TokenMonitor (savings panel)', () => {
   it('renders an explicit empty state when the ledger has no data — no invented figures', () => {
     useSavingsDataMock.mockReturnValue(bridge({ parsed: report(), status: 'ok' }))
-    const { container } = render(<TokenMonitor onClose={() => {}} />)
+    const { container } = renderPanel()
 
     expect(screen.getByText(/no savings (are |)recorded|No savings recorded yet/i)).toBeTruthy()
     // Not a single fabricated numeric stat on screen.
@@ -61,7 +104,7 @@ describe('TokenMonitor (savings panel)', () => {
 
   it('renders an explicit unavailable state when the desktop bridge is missing', () => {
     useSavingsDataMock.mockReturnValue(bridge({ status: 'unavailable' }))
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     // Multiple honest "unavailable" surfaces exist now (report empty-state +
     // one per status card) — assert at least one is on screen.
@@ -70,7 +113,7 @@ describe('TokenMonitor (savings panel)', () => {
 
   it('renders an explicit error state with retry when the report fails', () => {
     useSavingsDataMock.mockReturnValue(bridge({ error: 'savings report exited 1', status: 'error' }))
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     expect(screen.getByText('savings report exited 1')).toBeTruthy()
   })
@@ -113,7 +156,7 @@ describe('TokenMonitor (savings panel)', () => {
         status: 'ok'
       })
     )
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     // Proof-kind evidence is visible per event (badge labels from i18n).
     expect(screen.getAllByText('Measured').length).toBeGreaterThan(0)
@@ -122,7 +165,7 @@ describe('TokenMonitor (savings panel)', () => {
 
   it('header Diagnostics button dispatches the Setup Simplicio post-setup flow', () => {
     useSavingsDataMock.mockReturnValue(bridge({ parsed: report(), status: 'ok' }))
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     fireEvent.click(screen.getByTitle('Diagnostics'))
 
@@ -135,7 +178,7 @@ describe('TokenMonitor (savings panel)', () => {
     data.mcp = { data: { restarts: 0, running: true }, status: 'ok' }
     data.mcpControl = { canControl: true, error: null, pending: false, start: () => {}, stop }
     useSavingsDataMock.mockReturnValue(data)
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     // First click arms the inline confirmation; nothing executes yet.
     fireEvent.click(screen.getByText('Stop'))
@@ -152,11 +195,50 @@ describe('TokenMonitor (savings panel)', () => {
     data.mcp = { data: { lastError: 'spawn ENOENT', restarts: 3, running: false }, status: 'ok' }
     data.mcpControl = { canControl: true, error: 'start failed: exit 1', pending: false, start, stop: () => {} }
     useSavingsDataMock.mockReturnValue(data)
-    render(<TokenMonitor onClose={() => {}} />)
+    renderPanel()
 
     fireEvent.click(screen.getByText('Start'))
     expect(start).toHaveBeenCalledTimes(1)
     // The failed action's real error is on the card.
     expect(screen.getByText('start failed: exit 1')).toBeTruthy()
+  })
+
+  // Regression for the reported bug: Diagnostics opens the onboarding
+  // overlay (an opaque full-viewport layer stacked over this panel, not a
+  // route change) via startManualPostSetup(). Once that flow ends — either
+  // completed or cancelled, both flip $desktopOnboarding.manual back to
+  // false — the user must land back on Token Economy, never on Home.
+  describe('Diagnostics return-to-cockpit guard', () => {
+    it('navigates back to /savings once the flow it launched completes ($desktopOnboarding.manual: true -> false)', () => {
+      useSavingsDataMock.mockReturnValue(bridge({ parsed: report(), status: 'ok' }))
+      renderPanel()
+
+      fireEvent.click(screen.getByTitle('Diagnostics'))
+      expect(startManualPostSetupMock).toHaveBeenCalledTimes(1)
+
+      // The flow opens (manual: true) — simulate completeDesktopOnboarding()
+      // / closeManualOnboarding() firing later, either from a real finish or
+      // a cancel; both just flip this one flag.
+      act(() => desktopOnboardingMock.set({ manual: true }))
+      act(() => desktopOnboardingMock.set({ manual: false }))
+
+      // Still on the cockpit — never fell through to the Home stub.
+      expect(screen.getByText('Token Economy')).toBeTruthy()
+      expect(screen.queryByTestId('home-stub')).toBeNull()
+    })
+
+    it('does not react to an unrelated manual onboarding flow (e.g. Settings -> Providers) that this button never launched', () => {
+      useSavingsDataMock.mockReturnValue(bridge({ parsed: report(), status: 'ok' }))
+      renderPanel()
+
+      // manual flips true/false WITHOUT the Diagnostics button ever being
+      // clicked — the guard must stay inert (no navigation attempted; the
+      // panel simply keeps rendering, which this asserts indirectly since a
+      // stray navigate to an unmounted route would throw/blank the screen).
+      act(() => desktopOnboardingMock.set({ manual: true }))
+      act(() => desktopOnboardingMock.set({ manual: false }))
+
+      expect(screen.getByText('Token Economy')).toBeTruthy()
+    })
   })
 })

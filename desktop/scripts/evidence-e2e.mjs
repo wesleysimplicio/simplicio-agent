@@ -218,8 +218,14 @@ async function main() {
       await page.waitForSelector('text=/bin(á|a)rio|vers(ã|a)o|runtime v/i', { timeout: 45_000 }).catch(() => {})
       await page.waitForTimeout(800)
     })
-    // Close the overlay to continue (X button or Escape).
+    // Close whatever is open, then re-enter the cockpit explicitly -- known
+    // issue: Diagnostics can navigate away from the Token Economy overlay
+    // instead of stacking over it (tracked separately), so don't assume the
+    // panel is still open for the remaining savings-cockpit steps.
     await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(800)
+    await clickAny(page, ['text=/token economy/i', '[data-testid="nav-savings"]']).catch(() => {})
+    await page.waitForSelector('text=/sqlite-fts5/', { timeout: 30_000 }).catch(() => {})
     await page.waitForTimeout(1000)
 
     // ---- Sessions drill-down inside the savings cockpit (command trail proof).
@@ -231,6 +237,17 @@ async function main() {
       if (await card.isVisible().catch(() => false)) await card.click().catch(() => {})
       await page.waitForTimeout(1500)
     })
+
+    // ---- Live Activity: real-time pulsing section fed by `web-dashboard`.
+    // Capture twice across a poll boundary (3s interval) so the second shot
+    // proves the data actually moved, not just that the section renders.
+    await capture(page, 'live-activity-1', 'Live Activity: LIVE badge + heartbeat + recent feed (poll 1)', async () => {
+      const heading = page.locator('text=/live activity/i').first()
+      await heading.scrollIntoViewIfNeeded({ timeout: 10_000 })
+      await page.waitForTimeout(500)
+    })
+    await page.waitForTimeout(4000) // cross at least one 3s poll boundary
+    await capture(page, 'live-activity-2', 'Live Activity after a poll cycle (proves the pulse is real, not static)')
 
     // ---- Integrations screen via sidebar plug icon.
     await capture(page, 'integrations', 'integrations: per-editor MCP status (real config detection)', async () => {
