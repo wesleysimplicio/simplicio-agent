@@ -8183,33 +8183,47 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                         provider=self.provider,
                     )
                 _cprint("  ✨ (◕‿◕)✨ Fresh start! Screen cleared and conversation reset.\n")
-                # Show a random tip on new session
+                # Show a random tip on new session (skip on Simplicio Agent branding)
                 try:
-                    from hermes_cli.tips import get_random_tip
-                    _tip = get_random_tip()
-                    try:
-                        from hermes_cli.skin_engine import get_active_skin
-                        _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
-                    except Exception:
-                        _tip_color = "#B8860B"
-                    cc.print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
+                    from hermes_cli.skin_engine import get_active_skin
+                    _skin_name = (get_active_skin().get_branding("agent_name", "") or "").lower()
+                    _show_tip = "simplicio" not in _skin_name
                 except Exception:
-                    pass
+                    _show_tip = True
+                if _show_tip:
+                    try:
+                        from hermes_cli.tips import get_random_tip
+                        _tip = get_random_tip()
+                        try:
+                            from hermes_cli.skin_engine import get_active_skin
+                            _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
+                        except Exception:
+                            _tip_color = "#B8860B"
+                        cc.print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
+                    except Exception:
+                        pass
             else:
                 self.show_banner()
                 print("  ✨ (◕‿◕)✨ Fresh start! Screen cleared and conversation reset.\n")
-                # Show a random tip on new session
+                # Show a random tip on new session (skip on Simplicio Agent branding)
                 try:
-                    from hermes_cli.tips import get_random_tip
-                    _tip = get_random_tip()
-                    try:
-                        from hermes_cli.skin_engine import get_active_skin
-                        _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
-                    except Exception:
-                        _tip_color = "#B8860B"
-                    self._console_print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
+                    from hermes_cli.skin_engine import get_active_skin
+                    _skin_name = (get_active_skin().get_branding("agent_name", "") or "").lower()
+                    _show_tip = "simplicio" not in _skin_name
                 except Exception:
-                    pass
+                    _show_tip = True
+                if _show_tip:
+                    try:
+                        from hermes_cli.tips import get_random_tip
+                        _tip = get_random_tip()
+                        try:
+                            from hermes_cli.skin_engine import get_active_skin
+                            _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
+                        except Exception:
+                            _tip_color = "#B8860B"
+                        self._console_print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
+                    except Exception:
+                        pass
         elif canonical == "history":
             self.show_history()
         elif canonical == "title":
