@@ -32,7 +32,7 @@ Chromium cache — pure GUI state, safe to remove on a GUI uninstall.
 
 The functions here are deliberately import-light and side-effect-free at
 import time so the Electron main process can shell out to
-``hermes uninstall --gui`` (and friends) without paying for the full CLI.
+``simplicio-agent uninstall --gui`` (and friends) without paying for the full CLI.
 """
 
 import os

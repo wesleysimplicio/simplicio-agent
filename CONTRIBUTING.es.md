@@ -43,9 +43,9 @@ Las habilidades incluidas (en `skills/`) se envían con cada instalación de Her
 - Manejo de documentos, investigación web, flujos de trabajo de desarrollo comunes, administración de sistemas
 - Usadas regularmente por una amplia gama de personas
 
-Si tu habilidad es oficial y útil pero no universalmente necesaria (ej., una integración de servicio de pago, una dependencia pesada), ponla en **`optional-skills/`** — se envía con el repositorio pero no está activada por defecto. Los usuarios pueden descubrirla a través de `hermes skills browse` (etiquetada como "oficial") e instalarla con `hermes skills install` (sin advertencia de terceros, confianza integrada).
+Si tu habilidad es oficial y útil pero no universalmente necesaria (ej., una integración de servicio de pago, una dependencia pesada), ponla en **`optional-skills/`** — se envía con el repositorio pero no está activada por defecto. Los usuarios pueden descubrirla a través de `simplicio-agent skills browse` (etiquetada como "oficial") e instalarla con `simplicio-agent skills install` (sin advertencia de terceros, confianza integrada).
 
-Si tu habilidad es especializada, contribuida por la comunidad o de nicho, es mejor para un **Skills Hub** — súbela a un registro de habilidades y compártela en el [Discord de Nous Research](https://discord.gg/NousResearch). Los usuarios pueden instalarla con `hermes skills install`.
+Si tu habilidad es especializada, contribuida por la comunidad o de nicho, es mejor para un **Skills Hub** — súbela a un registro de habilidades y compártela en el [Discord de Nous Research](https://discord.gg/NousResearch). Los usuarios pueden instalarla con `simplicio-agent skills install`.
 
 ---
 
@@ -57,7 +57,7 @@ Los plugins de memoria independientes:
 
 - Implementan el mismo ABC `MemoryProvider` (`agent/memory_provider.py`) — `sync_turn`, `prefetch`, `shutdown` y opcionalmente `post_setup(hermes_home, config)` para integración con el asistente de configuración
 - Usan el mismo sistema de descubrimiento — `discover_memory_providers()` los recoge desde directorios de plugins de usuario/proyecto y entry points de pip
-- Se integran con `hermes memory setup` a través de `post_setup()` — sin necesidad de tocar el código base
+- Se integran con `simplicio-agent memory setup` a través de `post_setup()` — sin necesidad de tocar el código base
 - Pueden registrar sus propios subcomandos CLI a través de `register_cli(subparser)` en un archivo `cli.py`
 - Obtienen todos los mismos hooks de ciclo de vida y plomería de configuración que los proveedores incluidos en el árbol
 
@@ -114,8 +114,8 @@ mkdir -p ~/.local/bin
 ln -sf "$(pwd)/venv/bin/hermes" ~/.local/bin/hermes
 
 # Verificar
-hermes doctor
-hermes chat -q "Hola"
+simplicio-agent doctor
+simplicio-agent chat -q "Hola"
 ```
 
 ### Ejecutar tests
@@ -582,7 +582,7 @@ test(tools): añadir tests unitarios para file_operations
 ## Reportar Issues
 
 - Usa [GitHub Issues](https://github.com/NousResearch/hermes-agent/issues)
-- Incluye: SO, versión de Python, versión de Hermes (`hermes version`), traza de error completa
+- Incluye: SO, versión de Python, versión de Hermes (`simplicio-agent version`), traza de error completa
 - Incluye pasos para reproducir
 - Verifica los issues existentes antes de crear duplicados
 - Para vulnerabilidades de seguridad, por favor reporta de forma privada

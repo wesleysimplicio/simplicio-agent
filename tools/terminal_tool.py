@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 # long-running subprocesses immediately instead of blocking until timeout.
 # ---------------------------------------------------------------------------
 from tools.interrupt import is_interrupted, _interrupt_event  # noqa: F401 — re-exported
-# display_hermes_home imported lazily at call site (stale-module safety during hermes update)
+# display_hermes_home imported lazily at call site (stale-module safety during simplicio-agent update)
 
 
 
@@ -2231,7 +2231,7 @@ def terminal_tool(
         # restart|stop targeting hermes-gateway) must never run inside the
         # gateway process itself. The restart would SIGTERM the gateway, which
         # kills this very subprocess before it can complete — the service may
-        # never restart. This mirrors the `hermes gateway restart` guard in
+        # never restart. This mirrors the `simplicio-agent gateway restart` guard in
         # hermes_cli/gateway.py and the cron-path guard in hermes_cli/cron.py,
         # but applies unconditionally (force=True cannot help here).
         if os.environ.get("_HERMES_GATEWAY") == "1":
@@ -2244,7 +2244,7 @@ def terminal_tool(
                         "Blocked: cannot restart or stop the gateway from inside the "
                         "gateway process. The gateway would kill this command before "
                         "it could complete (SIGTERM propagates to child processes). "
-                        "Run `hermes gateway restart` from a separate shell outside "
+                        "Run `simplicio-agent gateway restart` from a separate shell outside "
                         "the running gateway."
                     ),
                     "status": "error",

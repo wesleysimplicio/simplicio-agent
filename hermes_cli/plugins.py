@@ -191,7 +191,7 @@ VALID_HOOKS: Set[str] = {
     # SQLite write lock). Observers only: return values are ignored.
     #
     # WHICH PROCESS each fires in matters, because kanban workers run as
-    # separate `hermes -p <profile> chat -q` subprocesses:
+    # separate `simplicio-agent -p <profile> chat -q` subprocesses:
     #   - kanban_task_claimed   -> the DISPATCHER process (gateway-embedded
     #                              dispatcher or `hermes kanban dispatch`),
     #                              right before the worker subprocess spawns.
@@ -305,7 +305,7 @@ class PluginManifest:
     #              (untrusted code).
     kind: str = "standalone"
     # Registry key — path-derived, used by ``plugins.enabled``/``disabled``
-    # lookups and by ``hermes plugins list``. For a flat plugin at
+    # lookups and by ``simplicio-agent plugins list``. For a flat plugin at
     # ``plugins/disk-cleanup/`` the key is ``disk-cleanup``; for a nested
     # category plugin at ``plugins/image_gen/openai/`` the key is
     # ``image_gen/openai``. When empty, falls back to ``name``.
@@ -507,7 +507,7 @@ class PluginContext:
         handler_fn: Callable | None = None,
         description: str = "",
     ) -> None:
-        """Register a CLI subcommand (e.g. ``hermes honcho ...``).
+        """Register a CLI subcommand (e.g. ``simplicio-agent honcho ...``).
 
         The *setup_fn* receives an argparse subparser and should add any
         arguments/sub-subparsers.  If *handler_fn* is provided it is set
@@ -1013,7 +1013,7 @@ class PluginContext:
         Plugins use this to declare their own auxiliary tasks without touching
         core files. After registration, the task:
 
-          - Appears in the ``hermes model → Configure auxiliary models`` picker
+          - Appears in the ``simplicio-agent model → Configure auxiliary models`` picker
           - Has its provider/model/base_url/api_key bridged from config.yaml to
             ``AUXILIARY_<KEY_UPPER>_*`` env vars at gateway startup
           - Gets default routing fields (provider="auto", model="", etc.) merged
@@ -1392,7 +1392,7 @@ class PluginManager:
             # heavy, platform-specific SDKs at module level (lark_oapi,
             # microsoft_teams, discord.py, slack_bolt, ...), so eagerly loading
             # all ~20 of them added several seconds to every `hermes`
-            # invocation — including plain `hermes chat`, which never touches a
+            # invocation — including plain `simplicio-agent chat`, which never touches a
             # gateway platform. Instead we register a cheap deferred loader in
             # the platform_registry keyed on the platform name; the real module
             # is imported only when the gateway / cron / setup / send_message
@@ -1413,7 +1413,7 @@ class PluginManager:
             if not is_enabled:
                 loaded = LoadedPlugin(manifest=manifest, enabled=False)
                 loaded.error = (
-                    "not enabled in config (run `hermes plugins enable {}` to activate)"
+                    "not enabled in config (run `simplicio-agent plugins enable {}` to activate)"
                     .format(lookup_key)
                 )
                 self._plugins[lookup_key] = loaded
@@ -1665,13 +1665,13 @@ class PluginManager:
         The platform adapter module is imported only when the gateway / cron /
         setup / send_message path first asks the ``platform_registry`` for this
         platform. Until then we record a lightweight ``LoadedPlugin`` so
-        ``hermes plugins list`` still shows the platform as available, and we
+        ``simplicio-agent plugins list`` still shows the platform as available, and we
         hand the registry a loader that runs the normal eager-load path.
         """
         lookup_key = manifest.key or manifest.name
         platform_name = self._platform_name_from_manifest(manifest)
 
-        # Record an enabled placeholder for introspection (`hermes plugins
+        # Record an enabled placeholder for introspection (`simplicio-agent plugins
         # list`). The real module load swaps in a fully-populated LoadedPlugin
         # (tools/hooks/commands attribution) when the loader fires.
         loaded = LoadedPlugin(manifest=manifest, enabled=True)
@@ -1736,7 +1736,7 @@ class PluginManager:
                 # plugins, which mis-credited a plugin that registered a hook /
                 # middleware / tool name an earlier plugin had already used:
                 # the shared name was attributed to the first plugin only, so
-                # later plugins under-reported in `hermes plugins list`.
+                # later plugins under-reported in `simplicio-agent plugins list`.
                 _tools_before = set(self._plugin_tool_names)
                 _hook_counts_before = {
                     h: len(cbs) for h, cbs in self._hooks.items()
@@ -2244,7 +2244,7 @@ def get_plugin_auxiliary_tasks() -> List[Dict[str, Any]]:
 def get_plugin_toolsets() -> List[tuple]:
     """Return plugin toolsets as ``(key, label, description)`` tuples.
 
-    Used by the ``hermes tools`` TUI so plugin-provided toolsets appear
+    Used by the ``simplicio-agent tools`` TUI so plugin-provided toolsets appear
     alongside the built-in ones and can be toggled on/off per platform.
     """
     manager = get_plugin_manager()

@@ -9,7 +9,7 @@ Covers two things:
    ``_preload_provider_metadata`` used to unconditionally return
    ``["deepseek", "openai", "anthropic"]``; ``_preload_mcp_fingerprints``
    used to unconditionally return ``{}``).
-2. The ``hermes daemon`` CLI subcommand is registered and reachable, and a
+2. The ``simplicio-agent daemon`` CLI subcommand is registered and reachable, and a
    real start/status/stop round trip over the UNIX socket works.
 """
 

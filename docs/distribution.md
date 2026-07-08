@@ -68,7 +68,7 @@ Wrapper Python para o binario compilado. packaging/pypi/.
 
 `desktop/` (electron-builder, mac/win/linux) existe e e mantido ativamente —
 a linha acima ("Electron .app ainda nao existe") estava desatualizada. O app
-spawna o backend Python (`hermes serve`) via venv; o kernel `simplicio`
+spawna o backend Python (`simplicio-agent serve`) via venv; o kernel `simplicio`
 (Rust) e resolvido por PATH (`tools/kernel_binding.py`, override
 `HERMES_KERNEL_BIN`). Desde 2026-07-06, `npm run build:*`/`dist:*` em
 `desktop/` tambem embala o binario `simplicio` do host

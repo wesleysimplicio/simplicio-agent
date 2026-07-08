@@ -166,7 +166,7 @@ def _log_signal(signum: int, frame) -> None:
 #
 # SIGPIPE and SIGHUP don't exist on Windows; guard each installation
 # with hasattr so ``python -m tui_gateway.entry`` (spawned by
-# ``hermes --tui``) imports cleanly there.  SIGBREAK (Windows' Ctrl+Break)
+# ``simplicio-agent --tui``) imports cleanly there.  SIGBREAK (Windows' Ctrl+Break)
 # is installed when available as a weaker equivalent of SIGHUP.
 if hasattr(signal, "SIGPIPE"):
     signal.signal(signal.SIGPIPE, signal.SIG_IGN)
@@ -241,9 +241,9 @@ def mcp_discovery_in_flight() -> bool:
     and the banner/tool count will be stale until they arrive.
 
     There are two independent discovery-thread owners by surface: the stdio
-    ``hermes --tui`` path spawns ITS thread here (``_mcp_discovery_thread``),
+    ``simplicio-agent --tui`` path spawns ITS thread here (``_mcp_discovery_thread``),
     while the desktop app + dashboard WebSocket sidecar (``tui_gateway/ws.py``)
-    and ``hermes dashboard`` spawn theirs via
+    and ``simplicio-agent dashboard`` spawn theirs via
     ``hermes_cli.mcp_startup.start_background_mcp_discovery``. The late-refresh
     scheduler imports this function regardless of surface, so it MUST consult
     both — checking only the entry thread left the desktop/dashboard surfaces

@@ -268,7 +268,7 @@ def read_suppressed_names() -> Set[str]:
     """Built-in skills the curator pruned — the re-seeder must leave archived.
 
     One skill name per line in ``~/.hermes/skills/.curator_suppressed``. This is
-    what makes pruning a built-in durable: without it, ``hermes update`` would
+    what makes pruning a built-in durable: without it, ``simplicio-agent update`` would
     re-copy the bundled skill on the next sync.
     """
     path = _suppressed_file()
@@ -386,8 +386,8 @@ def list_archived_skill_names() -> List[str]:
     """Enumerate skills in ``~/.hermes/skills/.archive/``.
 
     Archive layout is flat (``.archive/<skill>/``) as set by ``archive_skill``,
-    so the directory name is the skill name. Used by ``hermes curator
-    list-archived`` to help users pass a name to ``hermes curator restore``.
+    so the directory name is the skill name. Used by ``simplicio-agent curator
+    list-archived`` to help users pass a name to ``simplicio-agent curator restore``.
     """
     archive_root = _archive_dir()
     if not archive_root.exists():

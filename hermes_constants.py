@@ -15,6 +15,69 @@ from pathlib import Path
 
 _profile_fallback_warned: bool = False
 _UNSET = object()
+
+# Canonical user-facing CLI command. Internal code stays Hermes (module
+# paths, HERMES_* env contract — the runtime reads it), but every string a
+# user sees points at this command. `hermes` remains a deprecated alias.
+CANONICAL_CLI_NAME = "simplicio-agent"
+_DEPRECATED_CLI_BASENAMES = frozenset({"hermes", "hermes-agent", "hermes-acp"})
+
+
+def cli_name() -> str:
+    """Return the command name to show in user-facing hints.
+
+    Always the canonical ``simplicio-agent``: even when the process was
+    launched through a deprecated ``hermes*`` alias, hints steer users to the
+    canonical command (the alias keeps working; the nudge is the point).
+    """
+    return CANONICAL_CLI_NAME
+
+
+def invoked_via_deprecated_alias() -> bool:
+    """True when argv[0]'s basename is one of the deprecated hermes aliases."""
+    try:
+        return Path(sys.argv[0]).name in _DEPRECATED_CLI_BASENAMES
+    except Exception:
+        return False
+
+
+# Managed-install detection lives here (not hermes_cli.config) because the
+# logging bootstrap needs it on every CLI boot and config's module body costs
+# ~100 ms to import. hermes_cli.config re-exports these for its callers.
+_MANAGED_TRUE_VALUES = ("true", "1", "yes")
+_MANAGED_SYSTEM_NAMES = {
+    "brew": "Homebrew",
+    "homebrew": "Homebrew",
+    "nix": "NixOS",
+    "nixos": "NixOS",
+}
+
+
+def get_managed_system() -> "str | None":
+    """Return the package manager owning this install, if any."""
+    raw = os.getenv("HERMES_MANAGED", "").strip()
+    if raw:
+        normalized = raw.lower()
+        if normalized in _MANAGED_TRUE_VALUES:
+            return "NixOS"
+        return _MANAGED_SYSTEM_NAMES.get(normalized, raw)
+
+    managed_marker = get_hermes_home() / ".managed"
+    if managed_marker.exists():
+        return "NixOS"
+    return None
+
+
+def is_managed() -> bool:
+    """Check if this install is package-manager-managed.
+
+    Two signals: the HERMES_MANAGED env var (set by the systemd service),
+    or a .managed marker file in HERMES_HOME (set by the NixOS activation
+    script, so interactive shells also see it).
+    """
+    return get_managed_system() is not None
+
+
 _HERMES_HOME_OVERRIDE: ContextVar[str | object] = ContextVar(
     "_HERMES_HOME_OVERRIDE", default=_UNSET
 )
@@ -301,7 +364,7 @@ def node_tool_runnable(path: str | None) -> bool:
     ``HERMES_HOME``). A partial upgrade or interrupted install can leave
     ``bin/npm`` behind while ``lib/cli.js`` is missing — the wrapper exists but
     immediately throws ``MODULE_NOT_FOUND``. ``find_hermes_node_executable``
-    used to trust file presence alone, so ``hermes update`` would pick that
+    used to trust file presence alone, so ``simplicio-agent update`` would pick that
     broken npm and fail the Node refresh / web UI build.
 
     Probe with ``--version`` (same pattern as :func:`agent_browser_runnable`) so
@@ -540,7 +603,7 @@ def agent_browser_runnable(path: str | None) -> bool:
     agent-browser's npm ``postinstall`` re-points a *global* install symlink
     (e.g. ``/opt/homebrew/bin/agent-browser``) at our local
     ``node_modules/agent-browser/bin/...`` binary, which then disappears on the
-    next ``hermes update`` — leaving a **dangling symlink** that ``which`` still
+    next ``simplicio-agent update`` — leaving a **dangling symlink** that ``which`` still
     reports but exec fails on with exit 127 (issue #48521). Callers that trust
     such a path silently break every browser tool.
 

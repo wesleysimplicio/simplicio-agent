@@ -1266,7 +1266,7 @@ class TestProfileRestoration:
 
         # Wrappers should contain the right content
         coder_wrapper = (wrapper_dir / "coder").read_text()
-        assert "hermes -p coder" in coder_wrapper
+        assert "simplicio-agent -p coder" in coder_wrapper
 
     def test_import_skips_profile_dirs_without_config(self, tmp_path, monkeypatch):
         """Import doesn't create wrappers for profile dirs without config."""
@@ -1590,7 +1590,7 @@ class TestQuickSnapshot:
         assert snap_id is not None
 
 # ---------------------------------------------------------------------------
-# Pre-update backup (hermes update safety net)
+# Pre-update backup (simplicio-agent update safety net)
 # ---------------------------------------------------------------------------
 
     # -- security: path traversal regression coverage -----------------------
@@ -1865,7 +1865,7 @@ class TestQuickSnapshotProjectsKanban:
 
 
 class TestPreUpdateBackup:
-    """Tests for create_pre_update_backup — the auto-backup ``hermes update``
+    """Tests for create_pre_update_backup — the auto-backup ``simplicio-agent update``
     runs before touching anything."""
 
     @pytest.fixture
@@ -2062,7 +2062,7 @@ class TestRunPreUpdateBackup:
         assert len(backups) == 1
 
     def test_default_disabled_is_silent(self, hermes_home, capsys):
-        """With the default (``pre_update_backup: false``), ``hermes update``
+        """With the default (``pre_update_backup: false``), ``simplicio-agent update``
         does NOT create a backup and stays silent — zipping a large
         HERMES_HOME can add minutes to every update. Users who want the
         #48200 safety net opt in via the config knob or ``--backup``.
@@ -2146,12 +2146,12 @@ class TestRunPreUpdateBackup:
 
 
 # ---------------------------------------------------------------------------
-# Pre-migration backup (hermes claw migrate safety net)
+# Pre-migration backup (simplicio-agent claw migrate safety net)
 # ---------------------------------------------------------------------------
 
 class TestPreMigrationBackup:
     """Tests for create_pre_migration_backup — the auto-backup
-    ``hermes claw migrate`` runs before mutating ~/.hermes/."""
+    ``simplicio-agent claw migrate`` runs before mutating ~/.hermes/."""
 
     @pytest.fixture
     def hermes_home(self, tmp_path):
@@ -2250,7 +2250,7 @@ class TestPreMigrationBackup:
 # ---------------------------------------------------------------------------
 
 class TestRestoreCronJobsIfEmptied:
-    """`hermes update` config migration can leave cron/jobs.json valid-but-empty,
+    """`simplicio-agent update` config migration can leave cron/jobs.json valid-but-empty,
     silently dropping every scheduled job. `restore_cron_jobs_if_emptied` is the
     post-migration safety net that restores from the pre-update snapshot."""
 

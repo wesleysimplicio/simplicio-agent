@@ -1,6 +1,6 @@
 """SelfHostedOIDCProvider — generic self-hosted OpenID Connect dashboard auth.
 
-A standards-compliant OpenID Connect Relying Party for the ``hermes dashboard``
+A standards-compliant OpenID Connect Relying Party for the ``simplicio-agent dashboard``
 OAuth gate. Unlike the bundled ``nous`` provider (which encodes Nous Portal's
 bespoke contract — ``agent:{instance_id}`` client ids, a custom access-token
 JWT, the ``x-nous-refresh-token`` header, an ``oauth_contract_version`` claim),

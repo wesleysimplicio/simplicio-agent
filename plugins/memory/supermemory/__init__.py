@@ -556,7 +556,7 @@ class SupermemoryMemoryProvider(MemoryProvider):
         return bool(os.environ.get("SUPERMEMORY_API_KEY", ""))
 
     def get_config_schema(self):
-        # Only prompt for the API key during `hermes memory setup`.
+        # Only prompt for the API key during `simplicio-agent memory setup`.
         # All other options are documented for $HERMES_HOME/supermemory.json
         # or the SUPERMEMORY_CONTAINER_TAG env var.
         return [

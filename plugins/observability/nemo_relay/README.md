@@ -38,7 +38,7 @@ https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format
 Enable the plugin before setting export options:
 
 ```bash
-hermes plugins enable observability/nemo_relay
+simplicio-agent plugins enable observability/nemo_relay
 ```
 
 The `HERMES_NEMO_RELAY_*` environment variables below only configure an
@@ -49,7 +49,7 @@ agent run will use:
 
 ```bash
 env HERMES_HOME=/tmp/hermes-nemo-relay-test \
-  hermes plugins enable observability/nemo_relay
+  simplicio-agent plugins enable observability/nemo_relay
 ```
 
 Runs started with `--ignore_user_config` skip the enabled-plugin state from
@@ -57,15 +57,15 @@ Runs started with `--ignore_user_config` skip the enabled-plugin state from
 loads `observability/nemo_relay` explicitly another way.
 
 `HERMES_HOME` is the Hermes profile/config home used by both
-`hermes plugins enable ...` and the later `hermes chat ...` run. If unset,
+`simplicio-agent plugins enable ...` and the later `simplicio-agent chat ...` run. If unset,
 Hermes uses the user's default home, usually `~/.hermes`. For isolated smoke
 tests, choose any writable temporary directory and use the same value for every
 command in that test:
 
 ```bash
 export HERMES_HOME=/tmp/hermes-nemo-relay-test
-hermes plugins enable observability/nemo_relay
-hermes chat --query 'Reply exactly ok' --provider custom --model qwen3.6:35b
+simplicio-agent plugins enable observability/nemo_relay
+simplicio-agent chat --query 'Reply exactly ok' --provider custom --model qwen3.6:35b
 ```
 
 For source checkouts, make sure the `hermes` command you run is built from the
@@ -74,8 +74,8 @@ new bundled plugins from your working tree.
 
 ```bash
 uv sync --extra nemo-relay
-uv run hermes plugins enable observability/nemo_relay
-uv run hermes chat --query 'Reply exactly ok' --provider custom --model qwen3.6:35b
+uv run simplicio-agent plugins enable observability/nemo_relay
+uv run simplicio-agent chat --query 'Reply exactly ok' --provider custom --model qwen3.6:35b
 ```
 
 To ship the updated CLI into another environment, build and install a fresh
@@ -85,7 +85,7 @@ wheel from this checkout, then install the official NeMo Relay runtime extra:
 uv build --wheel
 python -m pip install --force-reinstall dist/hermes_agent-*.whl
 python -m pip install "nemo-relay==0.3"
-hermes plugins enable observability/nemo_relay
+simplicio-agent plugins enable observability/nemo_relay
 ```
 
 The plugin fails open when `nemo-relay` is not installed. Install and test it against the official NeMo Relay 0.3 PyPI distribution:
@@ -240,7 +240,7 @@ export HERMES_NEMO_RELAY_ATIF_AGENT_NAME='Hermes Agent E2E'
 export HERMES_NEMO_RELAY_ATIF_AGENT_VERSION=docs-example
 export HERMES_NEMO_RELAY_ATIF_SUBAGENT_EXPORT_MODE=all
 
-hermes chat \
+simplicio-agent chat \
   --query 'Use delegate_task exactly once. Ask the child subagent to use the terminal tool exactly once to run printf docs_nested_leaf_function. After the child returns, reply with exactly: parent received nested subagent result.' \
   --provider custom \
   --model qwen3.6:35b \
@@ -325,7 +325,7 @@ export HERMES_NEMO_RELAY_ATIF_FILENAME_TEMPLATE='parallel-tools-atif-{session_id
 export HERMES_NEMO_RELAY_ATIF_AGENT_NAME='Hermes Agent E2E'
 export HERMES_NEMO_RELAY_ATIF_AGENT_VERSION=docs-example
 
-hermes chat \
+simplicio-agent chat \
   --query 'Use exactly two read_file tool calls in the same assistant message. Read alpha.txt and beta.txt. Do not call terminal. After both tool results are available, reply with exactly: parallel tools complete.' \
   --provider custom \
   --model qwen3.6:35b \
@@ -496,7 +496,7 @@ TOML
 
 export HERMES_NEMO_RELAY_PLUGINS_TOML=/tmp/hermes-middleware-test/nemo-relay/plugins.toml
 
-hermes chat \
+simplicio-agent chat \
   --query 'Use the terminal tool exactly once to run printf middleware_execution_ok. Then reply with exactly the command output.' \
   --provider custom \
   --model qwen3.6:35b \

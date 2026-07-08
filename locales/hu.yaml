@@ -215,7 +215,7 @@ gateway:
 
   restart:
     in_progress:           "⏳ Az átjáró újraindítása már folyamatban van..."
-    restarting:            "♻ Átjáró újraindítása. Ha 60 másodpercen belül nem kapsz értesítést, indítsd újra a konzolból a `hermes gateway restart` paranccsal."
+    restarting:            "♻ Átjáró újraindítása. Ha 60 másodpercen belül nem kapsz értesítést, indítsd újra a konzolból a `simplicio-agent gateway restart` paranccsal."
 
   resume:
     db_unavailable:        "A munkamenet-adatbázis nem érhető el."
@@ -312,9 +312,9 @@ Future messages in this room will use that transcript until `/reset` or another 
     invalid_count:         "Érvénytelen szám \"{arg}\" — használd a /undo vagy /undo N parancsot."
 
   update:
-    platform_not_messaging:  "✗ A /update csak üzenetküldő platformokról érhető el. Futtasd a `hermes update` parancsot a terminálból."
+    platform_not_messaging:  "✗ A /update csak üzenetküldő platformokról érhető el. Futtasd a `simplicio-agent update` parancsot a terminálból."
     not_git_repo:            "✗ Nem git-tárhely — frissítés nem lehetséges."
-    hermes_cmd_not_found:    "✗ Nem sikerült megtalálni a `hermes` parancsot. A Hermes fut, de a frissítőparancs nem találta a futtatható fájlt a PATH-on vagy a jelenlegi Python interpreteren keresztül. Próbáld futtatni a `hermes update` parancsot manuálisan a terminálban."
+    hermes_cmd_not_found:    "✗ Nem sikerült megtalálni a `hermes` parancsot. A Hermes fut, de a frissítőparancs nem találta a futtatható fájlt a PATH-on vagy a jelenlegi Python interpreteren keresztül. Próbáld futtatni a `simplicio-agent update` parancsot manuálisan a terminálban."
     start_failed:            "✗ Nem sikerült elindítani a frissítést: {error}"
     starting:                "⚕ Hermes frissítés indítása… A folyamatot itt fogom közvetíteni."
 

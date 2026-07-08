@@ -6,7 +6,7 @@ NousResearch/hermes-agent.
 
 Métricas:
   - import-time total (sys.modules snapshot)
-  - TTFP real: tempo do comando `hermes --version` e `hermes chat --yes`
+  - TTFP real: tempo do comando `simplicio-agent --version` e `simplicio-agent chat --yes`
   - Contagem de módulos pesados no boot mínimo
   - Cobertura lazy-import nos gateways/TUI/tools
 
@@ -128,11 +128,11 @@ def measure_import_time(module: str = "hermes_cli") -> ColdStartResult:
 # Medição 2: TTFP end-to-end via subprocess version
 # ---------------------------------------------------------------------------
 def measure_ttfp_version(iterations: int = 5) -> ColdStartResult:
-    """Mede TTFP do comando ``hermes --version`` com subprocess."""
+    """Mede TTFP do comando ``simplicio-agent --version`` com subprocess."""
     hermes_bin = REPO_ROOT / "venv/bin/hermes" if (REPO_ROOT / "venv/bin/hermes").exists() else _shutil_which("hermes")
     if not hermes_bin:
         return ColdStartResult(
-            scenario="hermes --version TTFP",
+            scenario="simplicio-agent --version TTFP",
             import_time_s=0.0,
             notes="hermes binary not found in PATH or venv",
             hw=_hw_annotation(),
@@ -151,7 +151,7 @@ def measure_ttfp_version(iterations: int = 5) -> ColdStartResult:
 
     median = statistics.median(times)
     return ColdStartResult(
-        scenario=f"hermes --version TTFP (best-of-{iterations})",
+        scenario=f"simplicio-agent --version TTFP (best-of-{iterations})",
         import_time_s=round(median, 4),
         module_count=0,
         notes=f"Raw times: {[round(t, 4) for t in times]}",

@@ -65,7 +65,7 @@ HERMES_DIR = get_hermes_home().resolve()
 CRON_DIR = HERMES_DIR / "cron"
 JOBS_FILE = CRON_DIR / "jobs.json"
 # Heartbeat file the in-process ticker touches on every loop iteration. The
-# gateway process and the (separate) ``hermes cron status`` process share it
+# gateway process and the (separate) ``simplicio-agent cron status`` process share it
 # so status can tell whether the ticker THREAD is alive, not just whether the
 # gateway PROCESS exists — a ticker that dies silently inside a live gateway
 # would otherwise report healthy (#32612, #32895).
@@ -75,7 +75,7 @@ TICKER_HEARTBEAT_FILE = CRON_DIR / "ticker_heartbeat"
 TICKER_SUCCESS_FILE = CRON_DIR / "ticker_last_success"
 # Default ticker loop interval (seconds). The single source of truth shared by
 # the in-process ticker (cron/scheduler_provider.py) and the staleness
-# threshold in `hermes cron status` (hermes_cli/cron.py), so the two never
+# threshold in `simplicio-agent cron status` (hermes_cli/cron.py), so the two never
 # drift apart.
 TICKER_INTERVAL_SECONDS = 60
 
@@ -563,14 +563,14 @@ def compute_next_run(schedule: Dict[str, Any], last_run_at: Optional[str] = None
 
 
 # =============================================================================
-# Ticker heartbeat (liveness signal for `hermes cron status`)
+# Ticker heartbeat (liveness signal for `simplicio-agent cron status`)
 # =============================================================================
 
 def _atomic_write_epoch(path: Path) -> None:
     """Atomically write the current epoch time to ``path``.
 
     Uses the same tmpfile + ``atomic_replace`` pattern as ``save_jobs`` so a
-    concurrent reader in another process (``hermes cron status``) never sees a
+    concurrent reader in another process (``simplicio-agent cron status``) never sees a
     torn/truncated file. Best-effort: failures are swallowed by callers.
     """
     ensure_dirs()
@@ -594,7 +594,7 @@ def record_ticker_heartbeat(success: bool = False) -> None:
 
     The ticker calls this once per loop iteration. ``success=True`` additionally
     bumps the *last successful tick* marker. We track two distinct signals so
-    `hermes cron status` can tell a thread that is merely *alive and looping*
+    `simplicio-agent cron status` can tell a thread that is merely *alive and looping*
     (heartbeat fresh, success stale) from one that is actually *firing jobs*
     (both fresh) — a ticker stuck failing every tick would otherwise keep the
     plain heartbeat fresh and falsely report healthy (#32612, #32895).

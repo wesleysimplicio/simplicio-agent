@@ -6,25 +6,53 @@ Every module in this list is **additive and degrades gracefully**: with the
 optional dependency or flag absent, the code path falls back to the
 pre-existing stdlib/pure-Python behavior — nothing breaks, it's just slower.
 
-Run `hermes doctor` to see the live status of every module below (section
+Run `simplicio-agent doctor` to see the live status of every module below (section
 "Performance Modules").
 
 ## Quick answer: what's on by default?
 
 | Install | What you get |
 |---|---|
-| `pip install hermes-agent` (or `.` from source) | `httpx` (core dep) so `agent.net.HttpPool` works, but **no HTTP/2** unless `h2` is pulled in transitively; no fast JSON, no uvloop, no fast tokenizer, no Rust extension. |
-| `pip install "hermes-agent[fast]"` | + `orjson`, `msgspec`, `uvloop` (skipped on Windows). This is the extra to reach for in production. |
+| `scripts/install.sh`, `install.ps1` (tier `[all]`), Docker image | **Fast paths ON by default** (2026-07-08): `orjson`, `msgspec`, `uvloop` (skipped on Windows) come with the install — `[all]` now includes `[fast]`. |
+| `pip install hermes-agent` (bare, or `.` from source) | The lean base: `httpx` (core dep) so `agent.net.HttpPool` works, but **no HTTP/2** unless `h2` is pulled in transitively; no fast JSON, no uvloop, no fast tokenizer, no Rust extension. Pure-Python fallbacks everywhere. |
+| `pip install "hermes-agent[fast]"` | + `orjson`, `msgspec`, `uvloop` explicitly, on top of a bare pip install. |
 | `pip install "hermes-agent[fast]" && pip install "httpx[http2]"` | + real HTTP/2 multiplexing for `HttpPool`. |
 | Build `rust_ext/` with `maturin` (`pip install -e ".[dev]"` then `maturin develop -m rust_ext/Cargo.toml`) | + native Rust hot path for streaming tool-call parsing / token estimation. |
 
-None of this is installed by default and the installer (`install.sh` /
-`install.ps1`) does not currently request `[fast]`. That's a deliberate,
-reviewed decision, not an oversight: the base install has to stay lean for
-constrained targets (Termux/Android, minimal containers), and every fast
-path is safe to skip. If you're running Simplicio in production and care
-about latency, install `[fast]` yourself — `hermes doctor` will tell you
-what you're missing.
+Since 2026-07-08 the supported installers default to the fast stack; the
+**opt-out** is `SIMPLICIO_AGENT_LEAN=1` for `install.sh` (constrained targets:
+Termux/Android, minimal containers), or simply `pip install hermes-agent`
+without extras — every fast path degrades gracefully to its pure-Python
+fallback, nothing breaks. This inverts the earlier lean-by-default decision:
+production latency is now the default posture, leanness is the explicit
+choice. `simplicio-agent doctor` shows the live status of every module below.
+
+## Measured: faster than the original hermes-agent on every shared probe
+
+`scripts/benchmark_vs_upstream.py` runs paired probes against an original
+`hermes-agent` checkout — each side in its own subprocess/sys.path, on its
+own default dependency posture — and **exits non-zero if any shared probe is
+slower here**. Measured 2026-07-08 (Linux container, Python 3.11):
+
+| Probe | simplicio-agent | original hermes-agent | speedup |
+|---|---|---|---|
+| json.dumps tool-result (default hot path) | 2.8 µs | 33.1 µs | 12.0× |
+| json.loads tool-args (default hot path) | 0.6 µs | 1.8 µs | 3.1× |
+| tool-arg canonicalize (loads + dumps sort_keys) | 1.2 µs | 5.2 µs | 4.5× |
+| token estimate, 200-message history | 634 µs | 677 µs | 1.07× |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | 1.77× |
+
+The script also lists the fork-only modules (rust_ext, serde/msgspec, uvloop,
+async_dag, http_pool, TOON codec, warm daemon, kernel_binding) so "every
+point covered" is auditable rather than silently skipped. Upstream has none
+of the modules in this document — the comparison above covers the code paths
+both sides share.
+
+The cold-import margin comes from keeping `hermes_cli.config` (~100 ms
+module body) out of the boot path (see `hermes_constants.is_managed`, the
+`get_hermes_home` import in `hermes_cli/main.py`, and the lazy
+`clear_model_endpoint_credentials` proxy in `model_setup_flows.py`) — plus
+upstream-inherited work: lazy platform adapters and no heavy modules at boot.
 
 ## Module reference
 
@@ -42,8 +70,8 @@ what you're missing.
 | `agent/tracing/` | always available (no `opentelemetry-sdk` dependency) | spans are simply not emitted anywhere consuming them | wired around the streaming API call |
 | `agent/telemetry/` | always available (stdlib-only, no secrets) | N/A | `agent.serde` used for its receipts read/write when available |
 | `agent/simplicio_prompt.py` | env var only | prompt unmodified | `HERMES_SIMPLICIO_PROMPT=1` (or `SIMPLICIO_PROMPT` / `YOOL_TUPLE_FULL_RUNTIME`); **off by default** |
-| `hermes_cli/daemon.py` (warm daemon) | manual | every `hermes` invocation pays cold-start plugin discovery | `hermes daemon start` |
-| `plugins/token_saver/` | plugin enabled | terminal/tool output not compacted | enable via `hermes plugins` |
+| `hermes_cli/daemon.py` (warm daemon) | manual | every `hermes` invocation pays cold-start plugin discovery | `simplicio-agent daemon start` |
+| `plugins/token_saver/` | plugin enabled | terminal/tool output not compacted | enable via `simplicio-agent plugins` |
 
 ## `agent/net` (`HttpPool`): why it's unwired, and why it stays
 

@@ -99,7 +99,7 @@ Generate a setup script (`setup.sh`) and run it. The script:
 
 1. Creates the project workspace (`~/projects/video-pipeline/<slug>/`)
 2. Copies any provided assets into `taste/`, `audio/`, `assets/`
-3. Creates each Hermes profile via `hermes profile create --clone`
+3. Creates each Hermes profile via `simplicio-agent profile create --clone`
 4. Writes per-profile `SOUL.md` (personality + role definition)
 5. Configures profile YAML (toolsets, always_load skills, cwd)
 6. Writes `brief.md`, `TEAM.md`, and `taste/` content
@@ -117,7 +117,7 @@ Run `setup.sh`. Then provide the user with monitoring commands:
 ```bash
 hermes kanban watch --tenant <project-tenant>     # live events
 hermes kanban list  --tenant <project-tenant>     # board snapshot
-hermes dashboard                                   # visual board UI
+simplicio-agent dashboard                                   # visual board UI
 ```
 
 The director profile takes over from here, decomposing the work and routing

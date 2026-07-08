@@ -363,7 +363,7 @@ cmd_simplicio_pull_perf() {
   # ORDERING GUARD: warn (dry-run) / block (apply) if Turbo is behind upstream.
   _ordering_guard || {
     if [ "$APPLY" -eq 1 ]; then
-      die "Ordering guard tripped: Turbo has NOT absorbed the latest Hermes. Run 'turbo-absorb-hermes --apply' first."
+      die "Ordering guard tripped: Turbo has NOT absorbed the latest Hermes. Run 'turbo-absorb-simplicio-agent --apply' first."
     fi
   }
 
@@ -402,7 +402,7 @@ _ordering_guard() {
   behind="$(git -C "$TURBO_REPO" rev-list --count "HEAD..$upstream_ref" 2>/dev/null || echo 0)"
   if [ "${behind:-0}" -gt 0 ]; then
     log_warn "Ordering guard: Turbo is BEHIND upstream Hermes by $behind commit(s)."
-    log_review "Turbo must absorb Hermes FIRST. Run: $0 turbo-absorb-hermes --apply"
+    log_review "Turbo must absorb Hermes FIRST. Run: $0 turbo-absorb-simplicio-agent --apply"
     return 1
   fi
   log_ok "Ordering guard: Turbo is at/ahead of upstream Hermes. Safe to pull perf delta."

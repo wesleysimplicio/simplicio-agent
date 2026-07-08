@@ -60,7 +60,7 @@ Example: `q3-product-teaser`, `ascii-mood-loop`, `interview-cut-2026-q1`.
 The setup script does six things in order:
 
 1. **Create workspace tree** — all directories above
-2. **Create profiles** — `hermes profile create <name> --clone`
+2. **Create profiles** — `simplicio-agent profile create <name> --clone`
 3. **Configure profiles** — patch each profile's
    `~/.hermes/profiles/<name>/config.yaml` to set toolsets, always_load skills,
    and `cwd`
@@ -73,7 +73,7 @@ See `assets/setup.sh.tmpl` for the skeleton.
 ### Profile creation pattern
 
 ```bash
-hermes profile create director --clone 2>/dev/null || true
+simplicio-agent profile create director --clone 2>/dev/null || true
 ```
 
 The `--clone` flag clones from the active profile (preserving model, base

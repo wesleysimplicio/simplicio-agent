@@ -7,7 +7,10 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from utils import atomic_replace, fast_safe_load
+
+# NOTE: `utils` pulls in PyYAML at module import (~12 ms) and this module is
+# on every CLI boot path. Both utils helpers are used inside functions only,
+# so they are imported lazily at their call sites.
 
 
 # Env var name suffixes that indicate credential values.  These are the
@@ -23,7 +26,7 @@ _WARNED_KEYS: set[str] = set()
 
 # Map of env-var name → source label ("bitwarden", etc.) for credentials
 # that were injected by an external secret source during load_hermes_dotenv().
-# Used by setup / `hermes model` flows to label detected credentials so
+# Used by setup / `simplicio-agent model` flows to label detected credentials so
 # users understand WHERE a key came from when their .env doesn't contain it
 # directly (otherwise the "credentials detected ✓" line looks identical to
 # the .env case and they don't know Bitwarden is wired up).
@@ -137,7 +140,7 @@ def _sanitize_loaded_credentials() -> None:
             "rich-text editor, or web page that substituted lookalike\n"
             "  Unicode glyphs for ASCII letters. If authentication fails "
             "(e.g. \"API key not valid\"), re-copy the key from the\n"
-            "  provider's dashboard and run `hermes setup` (or edit the "
+            "  provider's dashboard and run `simplicio-agent setup` (or edit the "
             ".env file in a plain-text editor).",
             file=sys.stderr,
         )
@@ -194,6 +197,8 @@ def _sanitize_env_file_if_needed(path: Path) -> None:
                 dir=str(path.parent), suffix=".tmp", prefix=".env_"
             )
             try:
+                from utils import atomic_replace
+
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.writelines(sanitized)
                     f.flush()
@@ -332,7 +337,7 @@ def _apply_external_secret_sources(home_path: Path) -> None:
         # and might have the same copy-paste corruption as a manually
         # edited .env (see #6843).
         _sanitize_loaded_credentials()
-        # Remember where these came from so the setup / `hermes model`
+        # Remember where these came from so the setup / `simplicio-agent model`
         # flows can label detected credentials with "(from Bitwarden)" —
         # otherwise users see "credentials ✓" with no hint that the value
         # came from BSM rather than .env.
@@ -370,6 +375,8 @@ def _load_secrets_config(home_path: Path) -> dict:
     except ImportError:
         return {}
     try:
+        from utils import fast_safe_load
+
         with open(config_path, "r", encoding="utf-8") as f:
             data = fast_safe_load(f) or {}
     except Exception:  # noqa: BLE001

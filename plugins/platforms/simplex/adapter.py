@@ -39,7 +39,7 @@ Optional environment variables:
                                Telegram's text batching.
 
 The ``websockets`` Python package is imported lazily — the plugin is
-discoverable and ``hermes setup`` can describe it even when websockets is
+discoverable and ``simplicio-agent setup`` can describe it even when websockets is
 not installed. ``check_requirements()`` returns False until the package
 is present, so the gateway will not attempt to instantiate the adapter.
 """
@@ -1168,8 +1168,8 @@ async def _standalone_send(
     """Open an ephemeral WebSocket to the daemon, send, and close.
 
     Used by ``tools/send_message_tool._send_via_adapter`` when the gateway
-    runner is not in this process (e.g. ``hermes cron`` running as a
-    separate process from ``hermes gateway``). Without this hook,
+    runner is not in this process (e.g. ``simplicio-agent cron`` running as a
+    separate process from ``simplicio-agent gateway``). Without this hook,
     ``deliver=simplex`` cron jobs fail with "No live adapter for platform".
 
     ``thread_id`` and ``force_document`` are accepted for signature parity
@@ -1219,7 +1219,7 @@ async def _standalone_send(
 
 
 def interactive_setup() -> None:
-    """Minimal stdin wizard for ``hermes setup gateway`` → SimpleX.
+    """Minimal stdin wizard for ``simplicio-agent setup gateway`` → SimpleX.
 
     Prompts for the WebSocket URL and the optional allowlist / groups /
     auto-accept / home channel. Writes to ``~/.hermes/.env`` via

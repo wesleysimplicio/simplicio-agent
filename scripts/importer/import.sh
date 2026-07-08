@@ -438,7 +438,7 @@ cmd_turbo() {
   behind="$(git -C "$TURBO_REPO" rev-list --count "HEAD..upstream/main" 2>/dev/null || echo "0")"
   if [ "${behind:-0}" -gt 0 ]; then
     log_warn "Turbo está $behind commit(s) ATRÁS do upstream Hermes."
-    log_review "Execute primeiro: scripts/sync/ecosystem-sync.sh turbo-absorb-hermes --apply"
+    log_review "Execute primeiro: scripts/sync/ecosystem-sync.sh turbo-absorb-simplicio-agent --apply"
     log_review "Ou ignore este aviso se já verificou manualmente."
     hr
   else

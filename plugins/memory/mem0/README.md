@@ -10,18 +10,18 @@ Server-side LLM fact extraction with semantic search and hybrid multi-signal ret
 ## Setup
 
 ```bash
-hermes memory setup    # select "mem0"
+simplicio-agent memory setup    # select "mem0"
 ```
 
 Or manually:
 ```bash
-hermes config set memory.provider mem0
+simplicio-agent config set memory.provider mem0
 echo "MEM0_API_KEY=your-key" >> ~/.hermes/.env
 ```
 
 ## Config
 
-Behavioral settings live in `$HERMES_HOME/mem0.json` (set them via `hermes memory setup`). Only the secret `MEM0_API_KEY` belongs in `~/.hermes/.env`.
+Behavioral settings live in `$HERMES_HOME/mem0.json` (set them via `simplicio-agent memory setup`). Only the secret `MEM0_API_KEY` belongs in `~/.hermes/.env`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
@@ -37,7 +37,7 @@ Run Mem0 locally with your own LLM, embedder, and vector store.
 ### Interactive Setup
 
 ```bash
-hermes memory setup
+simplicio-agent memory setup
 # Select "mem0" → "Open Source (self-hosted)"
 # Follow prompts for LLM, embedder, and vector store
 ```
@@ -45,7 +45,7 @@ hermes memory setup
 ### Agent-Driven Setup (Flags)
 
 ```bash
-hermes memory setup mem0 --mode oss \
+simplicio-agent memory setup mem0 --mode oss \
   --oss-llm openai --oss-llm-key sk-... \
   --oss-vector qdrant
 ```
@@ -75,7 +75,7 @@ hermes memory setup mem0 --mode oss \
 ### Platform to OSS
 
 ```bash
-hermes memory setup mem0 --mode oss --oss-llm-key sk-...
+simplicio-agent memory setup mem0 --mode oss --oss-llm-key sk-...
 ```
 
 Or edit `$HERMES_HOME/mem0.json` directly:
@@ -93,13 +93,13 @@ Or edit `$HERMES_HOME/mem0.json` directly:
 ### OSS to Platform
 
 ```bash
-hermes memory setup mem0 --mode platform --api-key sk-...
+simplicio-agent memory setup mem0 --mode platform --api-key sk-...
 ```
 
 ### Dry Run (preview without writing)
 
 ```bash
-hermes memory setup mem0 --mode oss --oss-llm-key sk-... --dry-run
+simplicio-agent memory setup mem0 --mode oss --oss-llm-key sk-... --dry-run
 ```
 
 ## Tools

@@ -38,7 +38,7 @@ This skill is a concise operating guide, not the complete source of truth for ev
 
 Good verification targets:
 
-- CLI commands: `hermes --help`, `hermes <command> --help`, and `hermes_cli/main.py`
+- CLI commands: `simplicio-agent --help`, `hermes <command> --help`, and `hermes_cli/main.py`
 - User documentation: https://hermes-agent.nousresearch.com/docs/
 - Source tree: https://github.com/NousResearch/hermes-agent
 
@@ -55,16 +55,16 @@ pip install hermes-agent       # or: uv pip install hermes-agent
 hermes
 
 # Single query
-hermes chat -q "What is the capital of France?"
+simplicio-agent chat -q "What is the capital of France?"
 
 # Setup wizard  /  pick model+provider  /  health check
-hermes setup
-hermes model
-hermes doctor
+simplicio-agent setup
+simplicio-agent model
+simplicio-agent doctor
 
 # Other surfaces
 hermes desktop                 # launch the native desktop app (alias: hermes gui)
-hermes dashboard               # web admin panel + embedded chat
+simplicio-agent dashboard               # web admin panel + embedded chat
 hermes proxy                   # OpenAI-compatible local proxy backed by your OAuth provider
 ```
 
@@ -92,7 +92,7 @@ No subcommand defaults to `chat`.
 ### Chat
 
 ```
-hermes chat [flags]
+simplicio-agent chat [flags]
   -q, --query TEXT          Single query, non-interactive
   -m, --model MODEL         Model (e.g. anthropic/claude-sonnet-4)
   -t, --toolsets LIST       Comma-separated toolsets
@@ -106,66 +106,66 @@ hermes chat [flags]
 ### Configuration
 
 ```
-hermes setup [section]      Interactive wizard (model|terminal|gateway|tools|agent)
-hermes model                Interactive model/provider picker
-hermes config               View current config
-hermes config edit          Open config.yaml in $EDITOR
-hermes config set KEY VAL   Set a config value
-hermes config path          Print config.yaml path
-hermes config env-path      Print .env path
-hermes config check         Check for missing/outdated config
-hermes config migrate       Update config with new options
-hermes doctor [--fix]       Check dependencies and config
-hermes status [--all]       Show component status
+simplicio-agent setup [section]      Interactive wizard (model|terminal|gateway|tools|agent)
+simplicio-agent model                Interactive model/provider picker
+simplicio-agent config               View current config
+simplicio-agent config edit          Open config.yaml in $EDITOR
+simplicio-agent config set KEY VAL   Set a config value
+simplicio-agent config path          Print config.yaml path
+simplicio-agent config env-path      Print .env path
+simplicio-agent config check         Check for missing/outdated config
+simplicio-agent config migrate       Update config with new options
+simplicio-agent doctor [--fix]       Check dependencies and config
+simplicio-agent status [--all]       Show component status
 ```
 
-Credentials (OAuth + API keys, with pooling) are managed under `hermes auth` — see the Credentials & Pools section below.
+Credentials (OAuth + API keys, with pooling) are managed under `simplicio-agent auth` — see the Credentials & Pools section below.
 
 ### Tools & Skills
 
 ```
-hermes tools                Interactive tool enable/disable (curses UI)
-hermes tools list           Show all tools and status
-hermes tools enable NAME    Enable a toolset
-hermes tools disable NAME   Disable a toolset
+simplicio-agent tools                Interactive tool enable/disable (curses UI)
+simplicio-agent tools list           Show all tools and status
+simplicio-agent tools enable NAME    Enable a toolset
+simplicio-agent tools disable NAME   Disable a toolset
 
-hermes skills list          List installed skills
-hermes skills search QUERY  Search the skills hub
-hermes skills install ID    Install a skill (ID can be a hub identifier OR a direct https://…/SKILL.md URL; pass --name to override when frontmatter has no name)
-hermes skills inspect ID    Preview without installing
-hermes skills config        Enable/disable skills per platform
-hermes skills check         Check for updates
-hermes skills update        Update outdated skills
-hermes skills uninstall N   Remove a hub skill
-hermes skills publish PATH  Publish to registry
-hermes skills browse        Browse all available skills
-hermes skills tap add REPO  Add a GitHub repo as skill source
+simplicio-agent skills list          List installed skills
+simplicio-agent skills search QUERY  Search the skills hub
+simplicio-agent skills install ID    Install a skill (ID can be a hub identifier OR a direct https://…/SKILL.md URL; pass --name to override when frontmatter has no name)
+simplicio-agent skills inspect ID    Preview without installing
+simplicio-agent skills config        Enable/disable skills per platform
+simplicio-agent skills check         Check for updates
+simplicio-agent skills update        Update outdated skills
+simplicio-agent skills uninstall N   Remove a hub skill
+simplicio-agent skills publish PATH  Publish to registry
+simplicio-agent skills browse        Browse all available skills
+simplicio-agent skills tap add REPO  Add a GitHub repo as skill source
 ```
 
 ### MCP Servers
 
 ```
-hermes mcp serve            Run Hermes as an MCP server
-hermes mcp add NAME         Add an MCP server (--url or --command)
-hermes mcp remove NAME      Remove an MCP server
-hermes mcp list             List configured servers
-hermes mcp test NAME        Test connection
-hermes mcp configure NAME   Toggle tool selection
+simplicio-agent mcp serve            Run Hermes as an MCP server
+simplicio-agent mcp add NAME         Add an MCP server (--url or --command)
+simplicio-agent mcp remove NAME      Remove an MCP server
+simplicio-agent mcp list             List configured servers
+simplicio-agent mcp test NAME        Test connection
+simplicio-agent mcp configure NAME   Toggle tool selection
 ```
 
 How the built-in MCP client connects servers (stdio/HTTP), auto-discovers
 their tools, and exposes them as first-class tools, plus catalog install
-(`hermes mcp install <name>`): `skill_view(name="hermes-agent", file_path="references/native-mcp.md")`.
+(`simplicio-agent mcp install <name>`): `skill_view(name="hermes-agent", file_path="references/native-mcp.md")`.
 
 ### Gateway (Messaging Platforms)
 
 ```
-hermes gateway run          Start gateway foreground
-hermes gateway install      Install as background service
-hermes gateway start/stop   Control the service
-hermes gateway restart      Restart the service
-hermes gateway status       Check status
-hermes gateway setup        Configure platforms
+simplicio-agent gateway run          Start gateway foreground
+simplicio-agent gateway install      Install as background service
+simplicio-agent gateway start/stop   Control the service
+simplicio-agent gateway restart      Restart the service
+simplicio-agent gateway status       Check status
+simplicio-agent gateway setup        Configure platforms
 ```
 
 Supported platforms (20+): Telegram, Discord, Slack, WhatsApp (Baileys bridge + official Business Cloud API), iMessage (Photon — `hermes photon setup`, the BlueBubbles successor with no Mac relay), Signal, Email, SMS, Matrix, Mattermost, Microsoft Teams, LINE, SimpleX, ntfy, Google Chat, Home Assistant, DingTalk, Feishu, WeCom, Weixin (WeChat), Raft (agent network), API Server, Webhooks. Open WebUI connects via the API Server adapter. Most adapters ship under `plugins/platforms/`, so new ones drop in without touching core.
@@ -175,25 +175,25 @@ Platform docs: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/
 ### Sessions
 
 ```
-hermes sessions list        List recent sessions
-hermes sessions browse      Interactive picker
-hermes sessions export OUT  Export to JSONL
-hermes sessions rename ID T Rename a session
-hermes sessions delete ID   Delete a session
-hermes sessions prune       Clean up old sessions (--older-than N days)
-hermes sessions stats       Session store statistics
+simplicio-agent sessions list        List recent sessions
+simplicio-agent sessions browse      Interactive picker
+simplicio-agent sessions export OUT  Export to JSONL
+simplicio-agent sessions rename ID T Rename a session
+simplicio-agent sessions delete ID   Delete a session
+simplicio-agent sessions prune       Clean up old sessions (--older-than N days)
+simplicio-agent sessions stats       Session store statistics
 ```
 
 ### Cron Jobs
 
 ```
-hermes cron list            List jobs (--all for disabled)
-hermes cron create SCHED    Create: '30m', 'every 2h', '0 9 * * *'
-hermes cron edit ID         Edit schedule, prompt, delivery
-hermes cron pause/resume ID Control job state
-hermes cron run ID          Trigger on next tick
-hermes cron remove ID       Delete a job
-hermes cron status          Scheduler status
+simplicio-agent cron list            List jobs (--all for disabled)
+simplicio-agent cron create SCHED    Create: '30m', 'every 2h', '0 9 * * *'
+simplicio-agent cron edit ID         Edit schedule, prompt, delivery
+simplicio-agent cron pause/resume ID Control job state
+simplicio-agent cron run ID          Trigger on next tick
+simplicio-agent cron remove ID       Delete a job
+simplicio-agent cron status          Scheduler status
 ```
 
 ### Webhooks
@@ -211,26 +211,26 @@ patterns: `skill_view(name="hermes-agent", file_path="references/webhooks.md")`.
 ### Profiles
 
 ```
-hermes profile list         List all profiles
-hermes profile create NAME  Create (--clone, --clone-all, --clone-from)
-hermes profile use NAME     Set sticky default
-hermes profile delete NAME  Delete a profile
-hermes profile show NAME    Show details
-hermes profile alias NAME   Manage wrapper scripts
-hermes profile rename A B   Rename a profile
-hermes profile export NAME  Export to tar.gz
-hermes profile import FILE  Import from archive
+simplicio-agent profile list         List all profiles
+simplicio-agent profile create NAME  Create (--clone, --clone-all, --clone-from)
+simplicio-agent profile use NAME     Set sticky default
+simplicio-agent profile delete NAME  Delete a profile
+simplicio-agent profile show NAME    Show details
+simplicio-agent profile alias NAME   Manage wrapper scripts
+simplicio-agent profile rename A B   Rename a profile
+simplicio-agent profile export NAME  Export to tar.gz
+simplicio-agent profile import FILE  Import from archive
 ```
 
 ### Credentials & Pools
 
 ```
-hermes auth                 Interactive credential manager
-hermes auth add [PROVIDER]  Add OAuth or API-key credential
+simplicio-agent auth                 Interactive credential manager
+simplicio-agent auth add [PROVIDER]  Add OAuth or API-key credential
                             (e.g. nous, openai-codex, qwen-oauth, anthropic)
-hermes auth list [PROVIDER] List pooled credentials
-hermes auth remove P INDEX  Remove by provider + index
-hermes auth reset PROVIDER  Clear exhaustion status
+simplicio-agent auth list [PROVIDER] List pooled credentials
+simplicio-agent auth remove P INDEX  Remove by provider + index
+simplicio-agent auth reset PROVIDER  Clear exhaustion status
 ```
 
 Multiple credentials per provider form a pool that rotates automatically and skips exhausted keys.
@@ -239,24 +239,24 @@ Multiple credentials per provider form a pool that rotates automatically and ski
 
 ```
 hermes insights [--days N]  Usage analytics
-hermes update               Update to latest version
+simplicio-agent update               Update to latest version
 hermes desktop / gui        Launch the native desktop app
-hermes dashboard            Web admin panel + embedded chat
+simplicio-agent dashboard            Web admin panel + embedded chat
 hermes proxy                OpenAI-compatible local proxy backed by an OAuth provider
 hermes portal               Quick setup / sign in via Nous Portal
 hermes kanban <verb>        Multi-agent work-queue board (init/create/list/show/assign/…)
 hermes pairing list/approve/revoke  DM authorization
-hermes plugins list/install/remove  Plugin management
+simplicio-agent plugins list/install/remove  Plugin management
 hermes secrets bitwarden …  External secret store (Bitwarden Secrets Manager)
-hermes memory setup/status/off  Memory provider config
+simplicio-agent memory setup/status/off  Memory provider config
 hermes send                 Send a one-off message through a gateway platform
 hermes completion bash|zsh  Shell completions
-hermes acp                  ACP server (IDE integration)
-hermes claw migrate         Migrate from OpenClaw
-hermes uninstall            Uninstall Hermes
+simplicio-agent acp                  ACP server (IDE integration)
+simplicio-agent claw migrate         Migrate from OpenClaw
+simplicio-agent uninstall            Uninstall Hermes
 ```
 
-For the full, authoritative command list run `hermes --help` (and `hermes <command> --help`). Plugin- and provider-supplied subcommands (e.g. `hermes photon setup` for iMessage) only appear once their plugin is installed/active.
+For the full, authoritative command list run `simplicio-agent --help` (and `hermes <command> --help`). Plugin- and provider-supplied subcommands (e.g. `hermes photon setup` for iMessage) only appear once their plugin is installed/active.
 
 ---
 
@@ -381,7 +381,7 @@ Profiles use `~/.hermes/profiles/<name>/` with the same layout.
 
 ### Config Sections
 
-Edit with `hermes config edit` or `hermes config set section.key value`.
+Edit with `simplicio-agent config edit` or `simplicio-agent config set section.key value`.
 
 | Section | Key options |
 |---------|-------------|
@@ -402,14 +402,14 @@ Full config reference: https://hermes-agent.nousresearch.com/docs/user-guide/con
 
 ### Providers
 
-20+ providers supported. Set via `hermes model` or `hermes setup`.
+20+ providers supported. Set via `simplicio-agent model` or `simplicio-agent setup`.
 
 | Provider | Auth | Key env var |
 |----------|------|-------------|
 | OpenRouter | API key | `OPENROUTER_API_KEY` |
 | Anthropic | API key | `ANTHROPIC_API_KEY` |
-| Nous Portal | OAuth | `hermes auth` |
-| OpenAI Codex | OAuth | `hermes auth` |
+| Nous Portal | OAuth | `simplicio-agent auth` |
+| OpenAI Codex | OAuth | `simplicio-agent auth` |
 | GitHub Copilot | Token | `COPILOT_GITHUB_TOKEN` |
 | Google Gemini | API key | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
 | DeepSeek | API key | `DEEPSEEK_API_KEY` |
@@ -424,7 +424,7 @@ Full config reference: https://hermes-agent.nousresearch.com/docs/user-guide/con
 | Kilo Code | API key | `KILOCODE_API_KEY` |
 | OpenCode Zen | API key | `OPENCODE_ZEN_API_KEY` |
 | OpenCode Go | API key | `OPENCODE_GO_API_KEY` |
-| Qwen OAuth | OAuth | `hermes auth add qwen-oauth` |
+| Qwen OAuth | OAuth | `simplicio-agent auth add qwen-oauth` |
 | Custom endpoint | Config | `model.base_url` + `model.api_key` in config.yaml |
 | GitHub Copilot ACP | External | `COPILOT_CLI_PATH` or Copilot CLI |
 
@@ -432,7 +432,7 @@ Full provider docs: https://hermes-agent.nousresearch.com/docs/integrations/prov
 
 ### Toolsets
 
-Enable/disable via `hermes tools` (interactive) or `hermes tools enable/disable NAME`.
+Enable/disable via `simplicio-agent tools` (interactive) or `simplicio-agent tools enable/disable NAME`.
 
 | Toolset | What it provides |
 |---------|-----------------|
@@ -490,7 +490,7 @@ Hermes injects project-level instructions into the system prompt by reading cont
 
 - **Use `.hermes.md`** when you want Hermes-specific behavior that lives above the cwd (root + subtree), or when you want rules to inherit from a parent directory. The parent walk stops at the git root, so a home-level `.hermes.md` won't leak into every project (a git repo's root is the boundary).
 - **Use `AGENTS.md`** when the same project will also be worked on by other agents (Codex, Claude Code, OpenCode). Those tools all have their own conventions for `AGENTS.md`, and the "cwd only" contract keeps the file portable.
-- **Don't put project rules in `~/.hermes/AGENTS.md`** (or any other home-level location). When Hermes runs with that directory as cwd, the file loads — but only for that one directory. For cross-project context, use `SOUL.md` (in `$HERMES_HOME`, identity-only) or install a skill via `hermes skills install`.
+- **Don't put project rules in `~/.hermes/AGENTS.md`** (or any other home-level location). When Hermes runs with that directory as cwd, the file loads — but only for that one directory. For cross-project context, use `SOUL.md` (in `$HERMES_HOME`, identity-only) or install a skill via `simplicio-agent skills install`.
 
 ### Size and truncation
 
@@ -502,7 +502,7 @@ All context files pass through the threat-pattern scanner before reaching the sy
 
 ### Disable for one session
 
-`hermes --ignore-rules` skips auto-injection of all project context files (`.hermes.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`) **and** `SOUL.md` identity, plus user config, plugins, and MCP servers. Use it to isolate whether a problem is your setup or Hermes itself.
+`simplicio-agent --ignore-rules` skips auto-injection of all project context files (`.hermes.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`) **and** `SOUL.md` identity, plus user config, plugins, and MCP servers. Use it to isolate whether a problem is your setup or Hermes itself.
 
 ### Example: a small `.hermes.md`
 
@@ -531,14 +531,14 @@ Common "why is Hermes doing X to my output / tool calls / commands?" toggles —
 Secret redaction is **on by default** — tool output (terminal stdout, `read_file`, web content, subagent summaries, etc.) is scanned for strings that look like API keys, tokens, and secrets before it enters the conversation context and logs. Leave it enabled for normal use:
 
 ```bash
-hermes config set security.redact_secrets true       # keep enabled globally
+simplicio-agent config set security.redact_secrets true       # keep enabled globally
 ```
 
 **Restart required.** `security.redact_secrets` is snapshotted at import time — toggling it mid-session (e.g. via `export HERMES_REDACT_SECRETS=false` from a tool call) will NOT take effect for the running process. Tell the user to change it in config from a terminal, then start a new session. This is deliberate — it prevents an LLM from flipping the toggle on itself mid-task.
 
 Disable only when you deliberately need raw credential-like strings for debugging or redactor development:
 ```bash
-hermes config set security.redact_secrets false
+simplicio-agent config set security.redact_secrets false
 ```
 
 ### PII redaction in gateway messages
@@ -546,8 +546,8 @@ hermes config set security.redact_secrets false
 Separate from secret redaction. When enabled, the gateway hashes user IDs and strips phone numbers from the session context before it reaches the model:
 
 ```bash
-hermes config set privacy.redact_pii true    # enable
-hermes config set privacy.redact_pii false   # disable (default)
+simplicio-agent config set privacy.redact_pii true    # enable
+simplicio-agent config set privacy.redact_pii false   # disable (default)
 ```
 
 ### Command approval prompts
@@ -559,12 +559,12 @@ By default (`approvals.mode: manual`), Hermes prompts the user before running sh
 - `off` — skip all approval prompts (equivalent to `--yolo`)
 
 ```bash
-hermes config set approvals.mode smart       # recommended middle ground
-hermes config set approvals.mode off         # bypass everything (not recommended)
+simplicio-agent config set approvals.mode smart       # recommended middle ground
+simplicio-agent config set approvals.mode off         # bypass everything (not recommended)
 ```
 
 Per-invocation bypass without changing config:
-- `hermes --yolo …`
+- `simplicio-agent --yolo …`
 - `export HERMES_YOLO_MODE=1`
 
 Note: YOLO / `approvals.mode: off` does NOT turn off secret redaction. They are independent.
@@ -575,7 +575,7 @@ Some shell-hook integrations require explicit allowlisting before they fire. Man
 
 ### Disabling the web/browser/image-gen tools
 
-To keep the model away from network or media tools entirely, open `hermes tools` and toggle per-platform. Takes effect on next session (`/reset`). See the Tools & Skills section above.
+To keep the model away from network or media tools entirely, open `simplicio-agent tools` and toggle per-platform. Takes effect on next session (`/reset`). See the Tools & Skills section above.
 
 ---
 
@@ -632,10 +632,10 @@ Run additional Hermes processes as fully independent subprocesses — separate s
 ### One-Shot Mode
 
 ```
-terminal(command="hermes chat -q 'Research GRPO papers and write summary to ~/research/grpo.md'", timeout=300)
+terminal(command="simplicio-agent chat -q 'Research GRPO papers and write summary to ~/research/grpo.md'", timeout=300)
 
 # Background for long tasks:
-terminal(command="hermes chat -q 'Set up CI/CD for ~/myapp'", background=true)
+terminal(command="simplicio-agent chat -q 'Set up CI/CD for ~/myapp'", background=true)
 ```
 
 ### Interactive PTY Mode (via tmux)
@@ -663,11 +663,11 @@ terminal(command="tmux send-keys -t agent1 '/exit' Enter && sleep 2 && tmux kill
 
 ```
 # Agent A: backend
-terminal(command="tmux new-session -d -s backend -x 120 -y 40 'hermes -w'", timeout=10)
+terminal(command="tmux new-session -d -s backend -x 120 -y 40 'simplicio-agent -w'", timeout=10)
 terminal(command="sleep 8 && tmux send-keys -t backend 'Build REST API for user management' Enter", timeout=15)
 
 # Agent B: frontend
-terminal(command="tmux new-session -d -s frontend -x 120 -y 40 'hermes -w'", timeout=10)
+terminal(command="tmux new-session -d -s frontend -x 120 -y 40 'simplicio-agent -w'", timeout=10)
 terminal(command="sleep 8 && tmux send-keys -t frontend 'Build React dashboard for user management' Enter", timeout=15)
 
 # Check progress, relay context between them
@@ -679,10 +679,10 @@ terminal(command="tmux send-keys -t frontend 'Here is the API schema from the ba
 
 ```
 # Resume most recent session
-terminal(command="tmux new-session -d -s resumed 'hermes --continue'", timeout=10)
+terminal(command="tmux new-session -d -s resumed 'simplicio-agent --continue'", timeout=10)
 
 # Resume specific session
-terminal(command="tmux new-session -d -s resumed 'hermes --resume 20260225_143052_a1b2c3'", timeout=10)
+terminal(command="tmux new-session -d -s resumed 'simplicio-agent --resume 20260225_143052_a1b2c3'", timeout=10)
 ```
 
 ### Tips
@@ -690,7 +690,7 @@ terminal(command="tmux new-session -d -s resumed 'hermes --resume 20260225_14305
 - **Prefer `delegate_task` for quick subtasks** — less overhead than spawning a full process
 - **Use `-w` (worktree mode)** when spawning agents that edit code — prevents git conflicts
 - **Set timeouts** for one-shot mode — complex tasks can take 5-10 minutes
-- **Use `hermes chat -q` for fire-and-forget** — no PTY needed
+- **Use `simplicio-agent chat -q` for fire-and-forget** — no PTY needed
 - **Use tmux for interactive sessions** — raw PTY mode has `\r` vs `\n` issues with prompt_toolkit
 - **For scheduled tasks**, use the `cronjob` tool instead of spawning — handles delivery and retry
 
@@ -724,7 +724,7 @@ Config: `delegation.*` in `config.yaml`.
 ### Cron (scheduled jobs)
 
 Durable scheduler — `cron/jobs.py` + `cron/scheduler.py`. Drive it via
-the `cronjob` tool, the `hermes cron` CLI (`list`, `add`, `edit`,
+the `cronjob` tool, the `simplicio-agent cron` CLI (`list`, `add`, `edit`,
 `pause`, `resume`, `run`, `remove`), or the `/cron` slash command.
 
 - **Schedules:** duration (`"30m"`, `"2h"`), "every" phrase
@@ -748,7 +748,7 @@ Background maintenance for agent-created skills. Tracks usage, marks
 idle skills stale, archives stale ones, keeps a pre-run tar.gz backup
 so nothing is lost.
 
-- **CLI:** `hermes curator <verb>` — `status`, `run`, `pause`, `resume`,
+- **CLI:** `simplicio-agent curator <verb>` — `status`, `run`, `pause`, `resume`,
   `pin`, `unpin`, `archive`, `restore`, `prune`, `backup`, `rollback`.
 - **Slash:** `/curator <subcommand>` mirrors the CLI.
 - **Scope:** only touches skills with `created_by: "agent"` provenance.
@@ -758,7 +758,7 @@ so nothing is lost.
 - **Cost:** the deterministic inactivity/prune sweep runs for free. The
   aux-model "consolidate overlapping skills into umbrellas" pass is
   **off by default** — opt in with `curator.consolidate: true` or
-  `hermes curator run --consolidate`. Routine background curation costs
+  `simplicio-agent curator run --consolidate`. Routine background curation costs
   zero tokens.
 - **Telemetry:** sidecar at `~/.hermes/skills/.usage.json` holds
   per-skill `use_count`, `view_count`, `patch_count`,
@@ -809,10 +809,10 @@ Beyond the CLI and gateway, a few things worth knowing about:
   rebindable shortcuts, native notifications, live subagent watch-windows,
   VS Code Marketplace themes, and per-profile remote-gateway login (OAuth
   or username/password) so a thin local GUI can drive a heavy remote agent.
-- **Web dashboard** (`hermes dashboard`) — full admin panel: configure
+- **Web dashboard** (`simplicio-agent dashboard`) — full admin panel: configure
   every messaging channel, the MCP catalog, webhooks/hooks, memory, and a
   complete profile builder (model + skills + MCPs) from the browser, plus
-  an embedded `hermes --tui` chat. Secured behind an OAuth/token gate.
+  an embedded `simplicio-agent --tui` chat. Secured behind an OAuth/token gate.
 - **OpenAI-compatible proxy** (`hermes proxy`) — exposes a
   `http://localhost:port` OpenAI API backed by whichever OAuth provider
   you're signed into (Claude Pro, ChatGPT Pro, SuperGrok). Point Codex
@@ -852,7 +852,7 @@ To inspect how your terminal reports a keystroke, run
 
 **HTTP 400 "No models provided" on first run** — `config.yaml` was saved with
 a UTF-8 BOM (Notepad does this). Re-save as UTF-8 without BOM;
-`hermes config edit` writes correctly.
+`simplicio-agent config edit` writes correctly.
 
 ### `execute_code` / Sandbox
 
@@ -899,15 +899,15 @@ and logs — avoids shell-escaping backslashes in bash.
 3. In gateway: `/restart`. In CLI: exit and relaunch.
 
 ### Tool not available
-1. `hermes tools` — check if toolset is enabled for your platform
+1. `simplicio-agent tools` — check if toolset is enabled for your platform
 2. Some tools need env vars (check `.env`)
 3. `/reset` after enabling tools
 
 ### Model/provider issues
-1. `hermes doctor` — check config and dependencies
-2. `hermes auth` — re-authenticate OAuth providers (or `hermes auth add <provider>`)
+1. `simplicio-agent doctor` — check config and dependencies
+2. `simplicio-agent auth` — re-authenticate OAuth providers (or `simplicio-agent auth add <provider>`)
 3. Check `.env` has the right API key
-4. **Copilot 403**: `gh auth login` tokens do NOT work for Copilot API. You must use the Copilot-specific OAuth device code flow via `hermes model` → GitHub Copilot.
+4. **Copilot 403**: `gh auth login` tokens do NOT work for Copilot API. You must use the Copilot-specific OAuth device code flow via `simplicio-agent model` → GitHub Copilot.
 
 ### Changes not taking effect
 - **Tools/skills:** `/reset` starts a new session with updated toolset
@@ -915,9 +915,9 @@ and logs — avoids shell-escaping backslashes in bash.
 - **Code changes:** Restart the CLI or gateway process
 
 ### Skills not showing
-1. `hermes skills list` — verify installed
-2. `hermes skills config` — check platform enablement
-3. Load explicitly: `/skill name` or `hermes -s name`
+1. `simplicio-agent skills list` — verify installed
+2. `simplicio-agent skills config` — check platform enablement
+3. Load explicitly: `/skill name` or `simplicio-agent -s name`
 
 ### Gateway issues
 Check logs first:
@@ -938,8 +938,8 @@ Common gateway problems:
 ### Auxiliary models not working
 If `auxiliary` tasks (vision, compression, session_search) fail silently, the `auto` provider can't find a backend. Either set `OPENROUTER_API_KEY` or `GOOGLE_API_KEY`, or explicitly configure each auxiliary task's provider:
 ```bash
-hermes config set auxiliary.vision.provider <your_provider>
-hermes config set auxiliary.vision.model <model_name>
+simplicio-agent config set auxiliary.vision.provider <your_provider>
+simplicio-agent config set auxiliary.vision.model <model_name>
 ```
 
 ---
@@ -948,20 +948,20 @@ hermes config set auxiliary.vision.model <model_name>
 
 | Looking for... | Location |
 |----------------|----------|
-| Config options | `hermes config edit` or [Configuration docs](https://hermes-agent.nousresearch.com/docs/user-guide/configuration) |
-| Available tools | `hermes tools list` or [Tools reference](https://hermes-agent.nousresearch.com/docs/reference/tools-reference) |
+| Config options | `simplicio-agent config edit` or [Configuration docs](https://hermes-agent.nousresearch.com/docs/user-guide/configuration) |
+| Available tools | `simplicio-agent tools list` or [Tools reference](https://hermes-agent.nousresearch.com/docs/reference/tools-reference) |
 | Slash commands | `/help` in session or [Slash commands reference](https://hermes-agent.nousresearch.com/docs/reference/slash-commands) |
-| Skills catalog | `hermes skills browse` or [Skills catalog](https://hermes-agent.nousresearch.com/docs/reference/skills-catalog) |
-| Provider setup | `hermes model` or [Providers guide](https://hermes-agent.nousresearch.com/docs/integrations/providers) |
-| Platform setup | `hermes gateway setup` or [Messaging docs](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) |
-| MCP servers | `hermes mcp list` or [MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
-| Profiles | `hermes profile list` or [Profiles docs](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) |
-| Cron jobs | `hermes cron list` or [Cron docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) |
-| Memory | `hermes memory status` or [Memory docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) |
-| Env variables | `hermes config env-path` or [Env vars reference](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) |
-| CLI commands | `hermes --help` or [CLI reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands) |
+| Skills catalog | `simplicio-agent skills browse` or [Skills catalog](https://hermes-agent.nousresearch.com/docs/reference/skills-catalog) |
+| Provider setup | `simplicio-agent model` or [Providers guide](https://hermes-agent.nousresearch.com/docs/integrations/providers) |
+| Platform setup | `simplicio-agent gateway setup` or [Messaging docs](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/) |
+| MCP servers | `simplicio-agent mcp list` or [MCP guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) |
+| Profiles | `simplicio-agent profile list` or [Profiles docs](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) |
+| Cron jobs | `simplicio-agent cron list` or [Cron docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) |
+| Memory | `simplicio-agent memory status` or [Memory docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) |
+| Env variables | `simplicio-agent config env-path` or [Env vars reference](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) |
+| CLI commands | `simplicio-agent --help` or [CLI reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands) |
 | Gateway logs | `~/.hermes/logs/gateway.log` |
-| Session files | `hermes sessions browse` (reads state.db) |
+| Session files | `simplicio-agent sessions browse` (reads state.db) |
 | Source code | `~/.hermes/hermes-agent/` |
 
 ---

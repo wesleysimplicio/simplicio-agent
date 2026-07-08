@@ -238,10 +238,16 @@ def _gateway_command_subcommand(command: str | None) -> str | None:
             return "run"
 
     joined = " ".join(tokens)
+    # Both command names host the gateway: the canonical `simplicio-agent`
+    # and the deprecated `hermes` alias (processes may be running under
+    # either, including gateways started before an update).
+    _cli_basenames = (
+        "simplicio-agent", "simplicio-agent.exe", "hermes", "hermes.exe",
+    )
     has_gateway_entry = (
         "hermes_cli.main" in joined
         or "hermes_cli/main.py" in joined
-        or any(t.rsplit("/", 1)[-1] in ("hermes", "hermes.exe") for t in tokens)
+        or any(t.rsplit("/", 1)[-1] in _cli_basenames for t in tokens)
     )
     if not has_gateway_entry:
         return None
@@ -266,7 +272,7 @@ def _gateway_command_subcommand(command: str | None) -> str | None:
         if token != "gateway":
             continue
         if i + 1 >= len(filtered):
-            return "run"  # bare `hermes gateway` defaults to `run`
+            return "run"  # bare `simplicio-agent gateway` defaults to `run`
         return filtered[i + 1]
     return None
 
@@ -775,7 +781,7 @@ def write_runtime_status(
         payload["active_agents"] = parse_active_agents(active_agents)
     if served_profiles is not _UNSET:
         # Profiles this gateway multiplexes (multi-profile mode). Absent/empty
-        # for a single-profile gateway. Lets `hermes status` show per-profile
+        # for a single-profile gateway. Lets `simplicio-agent status` show per-profile
         # coverage without a second probe.
         payload["served_profiles"] = list(served_profiles or [])
 
@@ -1207,7 +1213,7 @@ def _consume_pid_marker_for_self(
     # platforms without ``/proc`` (macOS, native Windows — the very
     # platform the planned-stop watcher exists for). Requiring a non-None
     # match there would make every consume return False, so a legitimate
-    # ``hermes gateway stop`` on Windows would be misclassified as an
+    # ``simplicio-agent gateway stop`` on Windows would be misclassified as an
     # unexpected ``UNKNOWN`` exit (exit 1) and revived by the service
     # manager. So: when both start_times are known they must match; when
     # either is unknown, fall back to PID equality alone (bounded by the

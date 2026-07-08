@@ -1,4 +1,4 @@
-"""Tests for `hermes chat --safe-mode` — pristine troubleshooting runs.
+"""Tests for `simplicio-agent chat --safe-mode` — pristine troubleshooting runs.
 
 Inspired by Claude Code v2.1.169's ``--safe-mode`` flag (June 2026), which
 disables all customizations (CLAUDE.md, plugins, skills, hooks, MCP) for
@@ -106,7 +106,7 @@ class TestSafeModeMCP:
 
 
 class TestSafeModeParser:
-    """--safe-mode must parse on both the root parser and `hermes chat`."""
+    """--safe-mode must parse on both the root parser and `simplicio-agent chat`."""
 
     def test_chat_subcommand_accepts_flag(self):
         from hermes_cli._parser import build_top_level_parser

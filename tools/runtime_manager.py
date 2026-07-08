@@ -383,7 +383,7 @@ def bootstrap_session() -> Optional[str]:
     network fetch at every chat startup is a supply-chain and latency
     hazard the user never consented to). Installing/updating the kernel is
     exclusively ``ensure_runtime(install=True)``, reached via
-    ``hermes doctor --fix`` -- that command *is* the explicit consent.
+    ``simplicio-agent doctor --fix`` -- that command *is* the explicit consent.
     Returns a one-line warning (with the doctor fix instruction) for the
     caller to print, or ``None`` when the kernel is healthy. Never raises,
     never blocks startup on anything beyond the local handshake.
@@ -402,7 +402,7 @@ def bootstrap_session() -> Optional[str]:
         where = f" ({status.bin_path} [{status.source}])" if status.present else ""
         return (
             f"simplicio kernel unavailable: {status.detail or 'not found'}{where} "
-            f"-- pinned >= {status.min_version}. Run 'hermes doctor --fix' to "
+            f"-- pinned >= {status.min_version}. Run 'simplicio-agent doctor --fix' to "
             "install/update it."
         )
     except Exception as exc:  # startup must never crash on the handshake

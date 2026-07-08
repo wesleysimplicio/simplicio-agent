@@ -11,9 +11,9 @@ SessionDB) and degrades gracefully — never raises — if the underlying system
 isn't available in a given environment.
 
 Subcommands:
-    hermes daemon start [--profile desktop|car] [--socket PATH]
-    hermes daemon stop  [--socket PATH]
-    hermes daemon status [--socket PATH]
+    simplicio-agent daemon start [--profile desktop|car] [--socket PATH]
+    simplicio-agent daemon stop  [--socket PATH]
+    simplicio-agent daemon status [--socket PATH]
 
 Fallback: when the daemon socket is missing or unresponsive, callers MUST
 re-execute the cold path. Never block UX on a warm daemon.
@@ -195,7 +195,7 @@ def _serve(sock_path: Path, profile: str) -> int:
     srv.listen(8)
     os.chmod(sock_path, 0o600)
 
-    print(f"hermes daemon ready profile={profile} socket={sock_path}", flush=True)
+    print(f"simplicio-agent daemon ready profile={profile} socket={sock_path}", flush=True)
 
     try:
         while True:

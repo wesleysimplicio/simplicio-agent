@@ -974,7 +974,7 @@ class SessionDB:
         self._fts_unavailable_warned = True
         logger.warning(
             "SQLite FTS5 unavailable for %s; full-text session search "
-            "disabled. Run `hermes update` to rebuild the venv with a "
+            "disabled. Run `simplicio-agent update` to rebuild the venv with a "
             "current Python (managed uv guarantees FTS5). "
             "(underlying error: %s)",
             self.db_path,
@@ -4700,7 +4700,7 @@ class SessionDB:
         A session is considered empty when it has no messages and no
         user-assigned title. Used by CLI exit / session-rotation paths so
         immediately-started-and-quit sessions don't pile up in ``/resume``
-        and ``hermes sessions list`` output. (Pattern ported from
+        and ``simplicio-agent sessions list`` output. (Pattern ported from
         google-gemini/gemini-cli#27770.)
 
         The emptiness check and delete run in one transaction, so a message

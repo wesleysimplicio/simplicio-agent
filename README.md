@@ -1,10 +1,16 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Hermes Agent" width="100%">
+  <img src="assets/banner.png" alt="Simplicio Agent" width="100%">
 </p>
 
-# Hermes Agent ☤
+# Simplicio Agent
+
+**Simplicio Agent = Hermes Turbo Agent core + Simplicio Runtime (Rust
+determinism kernel).** Canonical command: `simplicio-agent` (`hermes` keeps
+working as a deprecated alias). Fork of
+[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent).
+
 <p align="center">
-  <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a> | <a href="https://hermes-agent.nousresearch.com/">Hermes Desktop</a>
+  <a href="https://github.com/wesleysimplicio/simplicio-agent">Simplicio Agent</a> | <a href="desktop/">Simplicio Desktop</a>
 </p>
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
@@ -18,7 +24,7 @@
 
 **The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
-Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenRouter, OpenAI, your own endpoint, and [many others](https://hermes-agent.nousresearch.com/docs/integrations/providers). Switch with `hermes model` — no code changes, no lock-in.
+Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenRouter, OpenAI, your own endpoint, and [many others](https://hermes-agent.nousresearch.com/docs/integrations/providers). Switch with `simplicio-agent model` — no code changes, no lock-in.
 
 <table>
 <tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
@@ -29,6 +35,39 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenR
 <tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Singularity, Modal, and Daytona. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
 <tr><td><b>Research-ready</b></td><td>Batch trajectory generation, trajectory compression for training the next generation of tool-calling models.</td></tr>
 </table>
+
+---
+
+## Performance — measured, not promised
+
+Every shared hot path is faster than the original `hermes-agent`, verified by
+a paired benchmark that fails CI-style (exit ≠ 0) if any probe regresses.
+Measured 2026-07-08, Linux container, Python 3.11, both checkouts on their
+default dependency posture:
+
+| Hot path | Simplicio Agent | original hermes-agent | speedup |
+|---|---|---|---|
+| JSON encode of a tool result | 2.8 µs | 33.1 µs | **12.0×** |
+| JSON parse of tool-call args | 0.6 µs | 1.8 µs | **3.1×** |
+| Tool-arg canonicalization (parse + sorted re-encode) | 1.2 µs | 5.2 µs | **4.5×** |
+| Token estimate over a 200-message history | 634 µs | 677 µs | **1.07×** |
+| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
+
+On top of that, modules the original simply doesn't have: a Rust hot-path
+extension (streaming tool-call parse), msgspec typed decode, uvloop
+default-on, an HTTP/2 connection pool, a DAG tool-batch executor, a warm
+daemon, and the TOON token codec — measured **60.9%** fewer prompt tokens on
+uniform tool-result arrays (14.8% on typical tool results), with
+prompt-cache marking **6.4×** faster than the legacy deepcopy path.
+
+Reproduce it yourself:
+
+```bash
+python scripts/benchmark_vs_upstream.py --upstream ../hermes-agent  # paired probes, fails if slower
+python scripts/benchmark_e2e.py                                     # per-module vs own fallbacks
+```
+
+Details, trade-offs, and what's on by default: [docs/performance.md](docs/performance.md).
 
 ---
 
@@ -106,14 +145,14 @@ For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://
 
 ```bash
 hermes              # Interactive CLI — start a conversation
-hermes model        # Choose your LLM provider and model
-hermes tools        # Configure which tools are enabled
-hermes config set   # Set individual config values
-hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
-hermes setup        # Run the full setup wizard (configures everything at once)
-hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
-hermes update       # Update to the latest version
-hermes doctor       # Diagnose any issues
+simplicio-agent model        # Choose your LLM provider and model
+simplicio-agent tools        # Configure which tools are enabled
+simplicio-agent config set   # Set individual config values
+simplicio-agent gateway      # Start the messaging gateway (Telegram, Discord, etc.)
+simplicio-agent setup        # Run the full setup wizard (configures everything at once)
+simplicio-agent claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
+simplicio-agent update       # Update to the latest version
+simplicio-agent doctor       # Diagnose any issues
 ```
 
 📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
@@ -130,7 +169,7 @@ Hermes works with whatever provider you want — that's not changing. But if you
 One command from a fresh install:
 
 ```bash
-hermes setup --portal
+simplicio-agent setup --portal
 ```
 
 That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `hermes portal info`. Full details on the [Tool Gateway docs page](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
@@ -145,7 +184,7 @@ Hermes has two entry points: start the terminal UI with `hermes`, or run the gat
 
 | Action                         | CLI                                           | Messaging platforms                                                              |
 | ------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| Start chatting                 | `hermes`                                      | Run `hermes gateway setup` + `hermes gateway start`, then send the bot a message |
+| Start chatting                 | `hermes`                                      | Run `simplicio-agent gateway setup` + `simplicio-agent gateway start`, then send the bot a message |
 | Start fresh conversation       | `/new` or `/reset`                            | `/new` or `/reset`                                                               |
 | Change model                   | `/model [provider:model]`                     | `/model [provider:model]`                                                        |
 | Set a personality              | `/personality [name]`                         | `/personality [name]`                                                            |
@@ -187,15 +226,15 @@ All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes
 
 If you're coming from OpenClaw, Hermes can automatically import your settings, memories, skills, and API keys.
 
-**During first-time setup:** The setup wizard (`hermes setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
+**During first-time setup:** The setup wizard (`simplicio-agent setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
 
 **Anytime after install:**
 
 ```bash
-hermes claw migrate              # Interactive migration (full preset)
-hermes claw migrate --dry-run    # Preview what would be migrated
-hermes claw migrate --preset user-data   # Migrate without secrets
-hermes claw migrate --overwrite  # Overwrite existing conflicts
+simplicio-agent claw migrate              # Interactive migration (full preset)
+simplicio-agent claw migrate --dry-run    # Preview what would be migrated
+simplicio-agent claw migrate --preset user-data   # Migrate without secrets
+simplicio-agent claw migrate --overwrite  # Overwrite existing conflicts
 ```
 
 What gets imported:
@@ -209,7 +248,7 @@ What gets imported:
 - **TTS assets** — workspace audio files
 - **Workspace instructions** — AGENTS.md (with `--workspace-target`)
 
-See `hermes claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
+See `simplicio-agent claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
 
 ---
 
@@ -219,7 +258,7 @@ We welcome contributions! See the [Contributing Guide](https://hermes-agent.nous
 
 Quick start for contributors — use the standard installer, then work from the
 full git checkout it creates at `$HERMES_HOME/hermes-agent` (usually
-`~/.hermes/hermes-agent`). This matches the layout used by `hermes update`, the
+`~/.hermes/hermes-agent`). This matches the layout used by `simplicio-agent update`, the
 managed venv, lazy dependencies, gateway, and docs tooling.
 
 ```bash

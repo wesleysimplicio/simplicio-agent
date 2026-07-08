@@ -42,7 +42,7 @@ def test_show_status_termux_gateway_section_skips_systemctl(monkeypatch, capsys,
 
     output = capsys.readouterr().out
     assert "Manager:      Termux / manual process" in output
-    assert "Start with:   hermes gateway" in output
+    assert "Start with:   simplicio-agent gateway" in output
     assert "systemd (user)" not in output
 
 
@@ -159,7 +159,7 @@ def _base_xai_mocks(monkeypatch, tmp_path):
 
 
 class TestShowStatusXaiOAuth:
-    """xAI OAuth row in hermes status."""
+    """xAI OAuth row in simplicio-agent status."""
 
     # ------------------------------------------------------------------
     # Logged-in branch
@@ -268,7 +268,7 @@ class TestShowStatusXaiOAuth:
         status_mod.show_status(SimpleNamespace(all=False, deep=False))
         out = capsys.readouterr().out
 
-        assert "not logged in (run: hermes auth add xai-oauth)" in out
+        assert "not logged in (run: simplicio-agent auth add xai-oauth)" in out
 
     def test_not_logged_in_shows_error(self, monkeypatch, capsys, tmp_path):
         import hermes_cli.auth as auth_mod
@@ -351,4 +351,4 @@ class TestShowStatusXaiOAuth:
         out = capsys.readouterr().out
 
         assert "xAI OAuth" in out
-        assert "not logged in (run: hermes auth add xai-oauth)" in out
+        assert "not logged in (run: simplicio-agent auth add xai-oauth)" in out

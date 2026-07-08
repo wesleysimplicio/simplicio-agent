@@ -6,10 +6,10 @@ Config files are stored in ~/.hermes/ for easy access:
 - ~/.hermes/.env         - API keys and secrets
 
 This module provides:
-- hermes config          - Show current configuration
-- hermes config edit     - Open config in editor
-- hermes config set      - Set a specific value
-- hermes config wizard   - Re-run setup wizard
+- simplicio-agent config          - Show current configuration
+- simplicio-agent config edit     - Open config in editor
+- simplicio-agent config set      - Set a specific value
+- simplicio-agent config wizard   - Re-run setup wizard
 """
 
 import copy
@@ -45,7 +45,7 @@ def _backup_corrupt_config(config_path: Path) -> Optional[Path]:
     When the YAML can't be parsed, ``load_config()`` silently falls back to
     ``DEFAULT_CONFIG`` and the user's broken file stays on disk untouched.
     That file is still the user's only copy of their intended overrides — if
-    they re-run the setup wizard or ``hermes config set`` (which rewrites
+    they re-run the setup wizard or ``simplicio-agent config set`` (which rewrites
     ``config.yaml``), the broken-but-recoverable content is gone for good.
 
     This snapshots the corrupted file to ``config.yaml.corrupt.<ts>.bak`` so
@@ -103,13 +103,13 @@ def _warn_config_parse_failure(config_path: Path, exc: Exception) -> None:
     scrolled off-screen on the first invocation and was never seen again.
 
     Now: warn once per (path, mtime_ns, size) on stderr **and** in
-    ``agent.log`` / ``errors.log`` at WARNING level so ``hermes logs``
+    ``agent.log`` / ``errors.log`` at WARNING level so ``simplicio-agent logs``
     surfaces it. Re-warns automatically if the file changes (different
     mtime/size), so users editing the config see the next failure. On the
     first warning for a given broken file we also snapshot it to a
     timestamped ``.bak`` (best-effort) so the user's recoverable content
     survives any later rewrite of ``config.yaml`` by the setup wizard or
-    ``hermes config set``.
+    ``simplicio-agent config set``.
     """
     try:
         st = config_path.stat()
@@ -132,7 +132,7 @@ def _warn_config_parse_failure(config_path: Path, exc: Exception) -> None:
         msg += f" A copy of the corrupted file was saved to {backup_path}."
     logger.warning(msg)
     try:
-        sys.stderr.write(f"⚠️  hermes config: {msg}\n")
+        sys.stderr.write(f"⚠️  simplicio-agent config: {msg}\n")
         sys.stderr.flush()
     except Exception:
         pass
@@ -152,12 +152,12 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 #   ``PYTHONUSERBASE`` — Python interpreter init. Hermes itself starts
 #   from one of these on every restart.
 # * ``NODE_OPTIONS`` / ``NODE_PATH`` — Node interpreter; affects npm,
-#   ``hermes update``, the TUI build.
+#   ``simplicio-agent update``, the TUI build.
 # * ``PATH`` — too broad to allow. The dashboard never needs to rewrite
 #   the operator's PATH; if a tool can't be found, the fix is to add an
 #   absolute path in the integration config, not to mutate PATH globally.
 # * ``GIT_SSH_COMMAND`` / ``GIT_EXEC_PATH`` — git rewrites that fire
-#   on every plugin install / ``hermes update``.
+#   on every plugin install / ``simplicio-agent update``.
 # * ``BROWSER`` / ``EDITOR`` / ``VISUAL`` / ``PAGER`` — commands the
 #   shell or CLI invokes implicitly. Wrong values here = RCE on next
 #   ``$EDITOR``.
@@ -284,8 +284,8 @@ _EXTRA_ENV_KEYS = frozenset({
     "MATRIX_REQUIRE_MENTION", "MATRIX_FREE_RESPONSE_ROOMS", "MATRIX_AUTO_THREAD", "MATRIX_DM_AUTO_THREAD",
     "MATRIX_RECOVERY_KEY",
     # Langfuse observability plugin — optional tuning keys + standard SDK vars.
-    # Activation is via plugins.enabled (opt-in through `hermes plugins enable
-    # observability/langfuse` or `hermes tools → Langfuse`); credentials gate
+    # Activation is via plugins.enabled (opt-in through `simplicio-agent plugins enable
+    # observability/langfuse` or `simplicio-agent tools → Langfuse`); credentials gate
     # the plugin at runtime.
     "HERMES_LANGFUSE_ENV",
     "HERMES_LANGFUSE_RELEASE",
@@ -306,38 +306,15 @@ from hermes_cli.default_soul import DEFAULT_SOUL_MD, is_legacy_template_soul
 # Managed mode (NixOS declarative config)
 # =============================================================================
 
-_MANAGED_TRUE_VALUES = ("true", "1", "yes")
-_MANAGED_SYSTEM_NAMES = {
-    "brew": "Homebrew",
-    "homebrew": "Homebrew",
-    "nix": "NixOS",
-    "nixos": "NixOS",
-}
-
-
-def get_managed_system() -> Optional[str]:
-    """Return the package manager owning this install, if any."""
-    raw = os.getenv("HERMES_MANAGED", "").strip()
-    if raw:
-        normalized = raw.lower()
-        if normalized in _MANAGED_TRUE_VALUES:
-            return "NixOS"
-        return _MANAGED_SYSTEM_NAMES.get(normalized, raw)
-
-    managed_marker = get_hermes_home() / ".managed"
-    if managed_marker.exists():
-        return "NixOS"
-    return None
-
-
-def is_managed() -> bool:
-    """Check if Hermes is running in package-manager-managed mode.
-
-    Two signals: the HERMES_MANAGED env var (set by the systemd service),
-    or a .managed marker file in HERMES_HOME (set by the NixOS activation
-    script, so interactive shells also see it).
-    """
-    return get_managed_system() is not None
+# Moved to hermes_constants (import-safe, no module-body cost) so the logging
+# bootstrap can use them without importing this module on every CLI boot.
+# Re-exported here for the existing callers.
+from hermes_constants import (  # noqa: E402,F401
+    _MANAGED_SYSTEM_NAMES,
+    _MANAGED_TRUE_VALUES,
+    get_managed_system,
+    is_managed,
+)
 
 
 _NIX_UPDATE_MSG = "Update your Nix flake input and rebuild (e.g. nix flake update, nixos-rebuild, or home-manager switch)"
@@ -389,7 +366,7 @@ def detect_install_method(project_root: Optional[Path] = None) -> str:
     containerised gateway and a host install share one ``$HERMES_HOME``, a
     home-scoped stamp is a single slot describing two different installs:
     the container stamps ``docker`` on every boot, the host install then reads
-    ``docker`` and ``hermes update`` refuses to run ("doesn't apply inside the
+    ``docker`` and ``simplicio-agent update`` refuses to run ("doesn't apply inside the
     Docker container") even though the host binary is a perfectly updatable
     git/pip install. Scoping the stamp to the install tree gives each install
     its own truthful marker.
@@ -423,7 +400,7 @@ def detect_install_method(project_root: Optional[Path] = None) -> str:
     # 2. Legacy home-scoped stamp — back-compat. Ignore a ``docker`` value
     #    when we are not actually containerised: that is the signature of a
     #    host install whose shared $HERMES_HOME was stamped by a co-located
-    #    container, and honouring it wrongly blocks ``hermes update``.
+    #    container, and honouring it wrongly blocks ``simplicio-agent update``.
     try:
         method = (
             (get_hermes_home() / ".install_method")
@@ -489,7 +466,7 @@ def is_uv_tool_install() -> bool:
     NOT consult ``uv tool list``: it would also return True when
     ``hermes-agent`` happens to be uv-tool-installed on the machine while
     the *active* Hermes is a regular pip/venv install, causing
-    ``hermes update`` to upgrade the wrong copy. It would also block on a
+    ``simplicio-agent update`` to upgrade the wrong copy. It would also block on a
     subprocess call (~seconds) just to compute a recommendation string.
     """
     def _has_uv_tool_marker(path: str) -> bool:
@@ -518,7 +495,7 @@ def recommended_update_command_for_method(method: str) -> str:
         if shutil.which("uv"):
             return "uv pip install --upgrade hermes-agent"
         return "pip install --upgrade hermes-agent"
-    return "hermes update"
+    return "simplicio-agent update"
 
 
 def recommended_update_command() -> str:
@@ -530,7 +507,7 @@ def recommended_update_command() -> str:
     return recommended_update_command_for_method(method)
 
 
-# Long-form text for ``hermes update`` / ``--check`` when running inside the
+# Long-form text for ``simplicio-agent update`` / ``--check`` when running inside the
 # Docker image.  Surfaced by ``cmd_update`` and ``_cmd_update_check`` in
 # hermes_cli/main.py; lives here so the wording stays consistent and we
 # don't grow two slightly-different copies.
@@ -546,7 +523,7 @@ def recommended_update_command() -> str:
 #     helper spells that out, with notes on tag pinning and config
 #     persistence so users don't get blindsided.
 _DOCKER_UPDATE_MESSAGE = """\
-✗ ``hermes update`` doesn't apply inside the Docker container.
+✗ ``simplicio-agent update`` doesn't apply inside the Docker container.
 
 Hermes Agent runs as a published image (nousresearch/hermes-agent), not a
 git checkout — the container has no working tree to pull into.  Update by
@@ -573,7 +550,7 @@ Notes:
 
 
 def format_docker_update_message() -> str:
-    """Return the user-facing message for ``hermes update`` inside Docker.
+    """Return the user-facing message for ``simplicio-agent update`` inside Docker.
 
     Centralised so ``cmd_update`` (the apply path) and ``_cmd_update_check``
     (the dry-run path) share the same wording.  See ``_DOCKER_UPDATE_MESSAGE``
@@ -1228,7 +1205,7 @@ DEFAULT_CONFIG = {
     #   - enabled: True -> False   (opt-in; most users never use /rollback)
     #   - max_snapshots: 50 -> 20  (now actually enforced via ref rewrite)
     #   - auto_prune:   False -> True (orphans/stale pruned automatically)
-    # Opt in via ``hermes chat --checkpoints`` or set enabled=True here.
+    # Opt in via ``simplicio-agent chat --checkpoints`` or set enabled=True here.
     "checkpoints": {
         "enabled": False,
         # Max checkpoints to keep per working directory.  Pre-v2 this only
@@ -1378,7 +1355,7 @@ DEFAULT_CONFIG = {
     # Kanban subsystem (orchestrator workers + dispatcher-driven child tasks).
     # See tools/kanban_tools.py and hermes_cli/kanban_db.py for the actual
     # implementations. Per-platform notification opt-out is handled by the
-    # kanban dashboard (see ``hermes dashboard`` -> Notifications).
+    # kanban dashboard (see ``simplicio-agent dashboard`` -> Notifications).
     "kanban": {
         # Auto-subscribe the originating gateway/TUI session to task
         # completion + block events when ``kanban_create`` is called from
@@ -1562,7 +1539,7 @@ DEFAULT_CONFIG = {
         },
         # Profile describer — auto-generates a 1-2 sentence description
         # of what a profile is good at. Invoked by
-        # ``hermes profile describe <name> --auto`` and the dashboard's
+        # ``simplicio-agent profile describe <name> --auto`` and the dashboard's
         # auto-generate button. Short, cheap call.
         "profile_describer": {
             "provider": "auto",
@@ -1575,7 +1552,7 @@ DEFAULT_CONFIG = {
         # Curator — skill-usage review fork. Timeout is generous because the
         # review pass can take several minutes on reasoning models (umbrella
         # building over hundreds of candidate skills). "auto" = use main chat
-        # model; override via `hermes model` → auxiliary → Curator to route
+        # model; override via `simplicio-agent model` → auxiliary → Curator to route
         # to a cheaper aux model (e.g. openrouter google/gemini-3-flash-preview).
         "curator": {
             "provider": "auto",
@@ -1654,18 +1631,18 @@ DEFAULT_CONFIG = {
         # behavior of showing tool-call summaries inline.
         "resume_skip_tool_only": True,
         "busy_input_mode": "interrupt",  # interrupt | queue | steer
-        # Which interface bare `hermes` (and `hermes chat`) launches by default:
+        # Which interface bare `hermes` (and `simplicio-agent chat`) launches by default:
         #   "cli" — the classic prompt_toolkit REPL (default, preserves prior behavior)
         #   "tui" — the modern Ink TUI (same as passing `--tui`)
         # Explicit flags always win over this setting: `--cli` forces the classic
         # REPL and `--tui` (or HERMES_TUI=1) forces the TUI regardless of config.
         "interface": "cli",
-        # When true, `hermes --tui` auto-resumes the most recent human-
+        # When true, `simplicio-agent --tui` auto-resumes the most recent human-
         # facing session on launch instead of forging a fresh one.
-        # Mirrors `hermes -c` muscle memory.  Default off so existing
+        # Mirrors `simplicio-agent -c` muscle memory.  Default off so existing
         # users aren't surprised.  HERMES_TUI_RESUME=<id> always wins.
         "tui_auto_resume_recent": False,
-        # When true (default), `hermes --tui` drops a one-time hint
+        # When true (default), `simplicio-agent --tui` drops a one-time hint
         # ("subagents working · /agents to watch live") the first time a turn
         # starts delegating, nudging the user toward the live spawn-tree
         # dashboard. Set false to suppress the hint.
@@ -2237,7 +2214,7 @@ DEFAULT_CONFIG = {
     # and patch drift. Runs inactivity-triggered from session start — no
     # cron daemon.
     #
-    # See `hermes curator status` for the last run summary.
+    # See `simplicio-agent curator status` for the last run summary.
     "curator": {
         "enabled": True,
         # How long to wait between curator runs (hours).  Default: 7 days.
@@ -2254,12 +2231,12 @@ DEFAULT_CONFIG = {
         # (mark stale / archive long-unused skills) and skips the forked
         # aux-model review entirely — no umbrella-building, no aux-model cost.
         # Set to true to opt back into merging overlapping skills into
-        # class-level umbrellas. `hermes curator run --consolidate` overrides
+        # class-level umbrellas. `simplicio-agent curator run --consolidate` overrides
         # this for a single invocation.
         "consolidate": False,
         # Also prune (archive) bundled built-in skills after the inactivity
         # period, not just agent-created ones. ON by default. Built-ins are
-        # normally restored on every `hermes update`, so pruning them only
+        # normally restored on every `simplicio-agent update`, so pruning them only
         # sticks because a suppression list tells the re-seeder to leave them
         # archived. Hub-installed skills are NEVER pruned here — they have an
         # external upstream owner. Built-ins accrue usage telemetry and their
@@ -2271,7 +2248,7 @@ DEFAULT_CONFIG = {
         # Pre-run backup: before every real curator pass (dry-run is
         # skipped), snapshot ~/.hermes/skills/ into
         # ~/.hermes/skills/.curator_backups/<utc-iso>/skills.tar.gz so the
-        # user can roll back with `hermes curator rollback`.
+        # user can roll back with `simplicio-agent curator rollback`.
         "backup": {
             "enabled": True,
             "keep": 5,  # retain last N regular snapshots
@@ -2476,7 +2453,7 @@ DEFAULT_CONFIG = {
         # Acknowledged supply-chain security advisories. Each entry is the
         # ID of an advisory the user has read and acted on (uninstalled the
         # compromised package, rotated credentials). Acked advisories no
-        # longer trigger the startup banner. Add via `hermes doctor --ack
+        # longer trigger the startup banner. Add via `simplicio-agent doctor --ack
         # <id>`; remove by editing the list directly. See
         # ``hermes_cli/security_advisories.py`` for the catalog.
         "acked_advisories": [],
@@ -2556,7 +2533,7 @@ DEFAULT_CONFIG = {
     # Kanban multi-agent coordination — controls the dispatcher loop that
     # spawns workers for ready tasks. The dispatcher ticks every N seconds
     # (default 60), reclaims stale claims, promotes dependency-satisfied
-    # todos to ready, and fires `hermes -p <assignee> chat -q ...` for
+    # todos to ready, and fires `simplicio-agent -p <assignee> chat -q ...` for
     # each claimable ready task. One dispatcher per profile is sufficient;
     # running more than one on the same kanban.db will race for claims.
     "kanban": {
@@ -2677,7 +2654,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "url": "https://hermes-agent.nousresearch.com/docs/api/model-catalog.json",
         # Disk cache TTL in hours.  Beyond this, the CLI refetches on the
-        # next /model or `hermes model` invocation; network failures
+        # next /model or `simplicio-agent model` invocation; network failures
         # silently fall back to the stale cache.
         "ttl_hours": 1,
         # Optional per-provider override URLs for third parties that want
@@ -2847,7 +2824,7 @@ DEFAULT_CONFIG = {
         # silently deleting it could surprise users.  Opt in explicitly.
         "auto_prune": False,
         # How many days of ended-session history to keep.  Matches the
-        # default of ``hermes sessions prune``.
+        # default of ``simplicio-agent sessions prune``.
         "retention_days": 90,
         # VACUUM after a prune that actually deleted rows.  SQLite does not
         # reclaim disk space on DELETE — freed pages are just reused on
@@ -2884,13 +2861,13 @@ DEFAULT_CONFIG = {
         "profile_build": "ask",
     },
 
-    # ``hermes update`` behaviour.
+    # ``simplicio-agent update`` behaviour.
     "updates": {
         # Run a full ``hermes backup``-style zip of HERMES_HOME before every
-        # ``hermes update``.  Backups land in ``<HERMES_HOME>/backups/`` and
+        # ``simplicio-agent update``.  Backups land in ``<HERMES_HOME>/backups/`` and
         # can be restored with ``hermes import <path>``.  Off by default:
         # zipping a large HERMES_HOME (sessions DB, caches, skills) can add
-        # minutes to every update.  The #48200 incident — a ``hermes update
+        # minutes to every update.  The #48200 incident — a ``simplicio-agent update
         # --yes`` run that computed a wrong path and silently wiped the
         # user's ``.env``, ``MEMORY.md``, ``kanban.db``, custom skills, and
         # scripts — is the reason this knob exists; enable it (here, or via
@@ -2902,7 +2879,7 @@ DEFAULT_CONFIG = {
         # disable backups entirely, set ``pre_update_backup: false`` above
         # rather than ``backup_keep: 0``.
         "backup_keep": 5,
-        # What `hermes update` does with uncommitted local changes to the
+        # What `simplicio-agent update` does with uncommitted local changes to the
         # source tree when it runs NON-interactively — i.e. triggered from
         # the desktop/chat app or the gateway, where there's no TTY to answer
         # a restore prompt. Interactive (terminal) updates are unaffected:
@@ -2971,7 +2948,7 @@ DEFAULT_CONFIG = {
     # X (Twitter) Search via xAI's built-in x_search Responses tool.
     # The tool registers when xAI credentials are available (SuperGrok
     # OAuth or XAI_API_KEY) AND the x_search toolset is enabled in
-    # `hermes tools`. These settings tune the backing Responses API call.
+    # `simplicio-agent tools`. These settings tune the backing Responses API call.
     "x_search": {
         # xAI model used for the Responses call. grok-4.20-reasoning is
         # the recommended default; any Grok model with x_search tool
@@ -3467,7 +3444,7 @@ OPTIONAL_ENV_VARS = {
         "category": "provider",
     },
     "AZURE_FOUNDRY_BASE_URL": {
-        "description": "Azure Foundry base URL (set via 'hermes model' for endpoint-specific config)",
+        "description": "Azure Foundry base URL (set via 'simplicio-agent model' for endpoint-specific config)",
         "prompt": "Azure Foundry base URL",
         "url": None,
         "password": False,
@@ -4375,7 +4352,7 @@ def get_missing_skill_config_vars() -> List[Dict[str, Any]]:
         all_vars = discover_all_skill_config_vars()
     except Exception as e:
         # A malformed SKILL.md, unreadable external skill dir, or similar
-        # should never break `hermes update`.  Skill-config prompting is a
+        # should never break `simplicio-agent update`.  Skill-config prompting is a
         # post-migration nicety, not a blocker.
         import logging
         logging.getLogger(__name__).debug(
@@ -4801,7 +4778,7 @@ def validate_config_structure(config: Optional[Dict[str, Any]] = None) -> List["
         try:
             config = load_config()
         except Exception:
-            return [ConfigIssue("error", "Could not load config.yaml", "Run 'hermes setup' to create a valid config")]
+            return [ConfigIssue("error", "Could not load config.yaml", "Run 'simplicio-agent setup' to create a valid config")]
 
     issues: List[ConfigIssue] = []
 
@@ -4951,7 +4928,7 @@ def print_config_warnings(config: Optional[Dict[str, Any]] = None) -> None:
     for ci in issues:
         marker = "\033[31m✗\033[0m" if ci.severity == "error" else "\033[33m⚠\033[0m"
         lines.append(f"  {marker} {ci.message}")
-    lines.append("  \033[2mRun 'hermes doctor' for fix suggestions.\033[0m")
+    lines.append("  \033[2mRun 'simplicio-agent doctor' for fix suggestions.\033[0m")
     sys.stderr.write("\n".join(lines) + "\n\n")
 
 
@@ -5010,7 +4987,7 @@ def _persist_migration(config: Dict[str, Any]) -> None:
     them at read time, so writing them adds nothing and actively shadows future
     default changes (see ``save_config``'s docstring). Materialising defaults on
     every version bump is what rewrote hand-curated configs into full
-    DEFAULT_CONFIG dumps (the "hermes update / hermes -p blows up my config"
+    DEFAULT_CONFIG dumps (the "simplicio-agent update / simplicio-agent -p blows up my config"
     reports).
 
     Every migration step MUST route its write through this helper instead of
@@ -5364,7 +5341,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                 else:
                     print(
                         "  ✓ Plugins now opt-in: no existing plugins to grandfather. "
-                        "Use `hermes plugins enable <name>` to activate."
+                        "Use `simplicio-agent plugins enable <name>` to activate."
                     )
 
     # ── Version 22 → 23: seed curator defaults + create logs/curator/ ──
@@ -5373,7 +5350,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
     # unification under `auxiliary.curator`) never wrote the curator section
     # to disk. The runtime deep-merge in `load_config()` fills defaults at
     # read time, so the curator *functions*; but users can't see/edit the
-    # settings in their `config.yaml`, and `hermes curator status` has no
+    # settings in their `config.yaml`, and `simplicio-agent curator status` has no
     # stable logs dir to point at until the first run mkdir's it.
     #
     # This migration:
@@ -5439,7 +5416,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                 if not quiet:
                     print(
                         "  ✓ Curator settings now available "
-                        f"({', '.join(added_curator)}) — edit via `hermes config set`"
+                        f"({', '.join(added_curator)}) — edit via `simplicio-agent config set`"
                     )
             if added_aux:
                 results["config_added"].append(
@@ -5448,7 +5425,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                 if not quiet:
                     print(
                         "  ✓ auxiliary.curator settings now available "
-                        f"({', '.join(added_aux)}) — edit via `hermes config set`"
+                        f"({', '.join(added_aux)}) — edit via `simplicio-agent config set`"
                     )
 
     # ── Version 24 → 25: lower model_catalog TTL 24h → 1h ──
@@ -5502,7 +5479,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
     # is supplied by load_config()'s deep-merge at read time, and persisting a
     # default-valued key would only bloat a lean config (it gets stripped on
     # save anyway). Existing installs that WANT the old always-consolidate
-    # behavior set it to true explicitly via `hermes config set`.
+    # behavior set it to true explicitly via `simplicio-agent config set`.
 
     # ── Version 30 → 31: switch verify_on_stop OFF (one-time) ──
     # verify_on_stop defaulted to the "auto" sentinel (surface-aware: on for
@@ -5694,7 +5671,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                         print(f"  ✓ Saved {name}")
                     print()
             else:
-                print("  Set later with: hermes config set <key> <value>")
+                print("  Set later with: simplicio-agent config set <key> <value>")
     
     # Check for missing config fields.
     #
@@ -5702,7 +5679,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
     # DEFAULT_CONFIG at read time, so a missing key already takes effect with
     # its default (see _persist_migration's invariant). We surface the list for
     # the informational "N new config option(s) available" display in
-    # `hermes update`, but only the version bump is persisted.
+    # `simplicio-agent update`, but only the version bump is persisted.
     missing_config = get_missing_config_fields()
     if missing_config:
         results["config_added"].extend(field["key"] for field in missing_config)
@@ -5753,7 +5730,7 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                 print()
             _persist_migration(config)
         else:
-            print("  Set later with: hermes config set <key> <value>")
+            print("  Set later with: simplicio-agent config set <key> <value>")
 
     return results
 
@@ -5984,7 +5961,7 @@ def _normalize_root_model_keys(config: Dict[str, Any]) -> Dict[str, Any]:
     confusion on subsequent loads.
 
     Also aliases ``api_base`` → ``base_url`` (issue #8919). ``api_base`` is the
-    intuitive name OpenAI-SDK / LiteLLM users reach for, and ``hermes config set``
+    intuitive name OpenAI-SDK / LiteLLM users reach for, and ``simplicio-agent config set``
     blindly accepts any dotted key — so ``model.api_base`` got written, confirmed,
     and then silently ignored by the runtime resolver (which reads only
     ``model.base_url``), causing requests to fall back to OpenRouter. We migrate
@@ -5997,7 +5974,7 @@ def _normalize_root_model_keys(config: Dict[str, Any]) -> Dict[str, Any]:
     but ``model.name`` was not, so a custom-provider config like
     ``model: {name: <id>, provider: <custom>}`` resolved to an empty model and
     the API request went out with ``model=`` (HTTP 400 from OpenAI-compatible
-    backends) — while display paths (``hermes status``/``dump``) read ``name``
+    backends) — while display paths (``simplicio-agent status``/``dump``) read ``name``
     and *showed* the model, making the failure silent. Normalizing here (the
     single load/save chokepoint) means every reader, present and future, sees a
     populated ``default`` and the stale alias is migrated out of config.yaml on
@@ -6451,8 +6428,8 @@ _FALLBACK_COMMENT = """
 #
 # Supported providers:
 #   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
+#   openai-codex (OAuth — simplicio-agent auth) — OpenAI Codex
+#   nous         (OAuth — simplicio-agent auth) — Nous Portal
 #   zai          (ZAI_API_KEY)         — Z.AI / GLM
 #   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
 #   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
@@ -6483,8 +6460,8 @@ _COMMENTED_SECTIONS = """
 #
 # Supported providers:
 #   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
+#   openai-codex (OAuth — simplicio-agent auth) — OpenAI Codex
+#   nous         (OAuth — simplicio-agent auth) — Nous Portal
 #   zai          (ZAI_API_KEY)         — Z.AI / GLM
 #   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
 #   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
@@ -6634,9 +6611,9 @@ def load_env() -> Dict[str, str]:
 
     The parsed dict is memoised keyed on the .env file mtime, because
     ``get_env_value()`` is called dozens-to-hundreds of times per
-    interactive menu render (`hermes tools`, `hermes setup`, status
+    interactive menu render (`simplicio-agent tools`, `simplicio-agent setup`, status
     panels). Sanitisation is O(lines × known-keys), so re-parsing the
-    same file on every call was burning ~300ms of CPU per `hermes tools`
+    same file on every call was burning ~300ms of CPU per `simplicio-agent tools`
     menu paint on top of the OAuth-refresh slowness. The mtime check
     invalidates the cache when the user edits .env mid-process.
     """
@@ -7267,7 +7244,7 @@ def show_config():
         if _env_ghost is not None and str(_env_ghost).strip() != str(_cfg_max_turns).strip():
             print(color(
                 f"                ⚠ .env has stale HERMES_MAX_ITERATIONS={_env_ghost} "
-                f"(run 'hermes doctor --fix' to remove)",
+                f"(run 'simplicio-agent doctor --fix' to remove)",
                 Colors.YELLOW,
             ))
     except Exception:
@@ -7389,9 +7366,9 @@ def show_config():
 
     print()
     print(color("─" * 60, Colors.DIM))
-    print(color("  hermes config edit     # Edit config file", Colors.DIM))
-    print(color("  hermes config set <key> <value>", Colors.DIM))
-    print(color("  hermes setup           # Run setup wizard", Colors.DIM))
+    print(color("  simplicio-agent config edit     # Edit config file", Colors.DIM))
+    print(color("  simplicio-agent config set <key> <value>", Colors.DIM))
+    print(color("  simplicio-agent setup           # Run setup wizard", Colors.DIM))
     print()
 
 
@@ -7503,7 +7480,7 @@ def set_config_value(key: str, value: str):
 
     _set_nested(user_config, key, value)
     # Normalize the api_base → base_url alias at set-time too (issue #8919),
-    # so a fresh `hermes config set model.api_base ...` lands on the canonical
+    # so a fresh `simplicio-agent config set model.api_base ...` lands on the canonical
     # key the runtime resolver actually reads, instead of being silently
     # ignored. Mirrors the load-time migration in _normalize_root_model_keys.
     _alias_norm = key.strip().lower()
@@ -7523,7 +7500,7 @@ def set_config_value(key: str, value: str):
         save_env_value(env_var, _terminal_env_value(value))
 
     # Mask the echoed value when the (possibly nested) key is credential-shaped
-    # — e.g. `hermes config set model.api_key cfut_...` routes to config.yaml
+    # — e.g. `simplicio-agent config set model.api_key cfut_...` routes to config.yaml
     # (lowercase, so it misses the .env api_keys list above) and would otherwise
     # print the raw secret to the terminal.
     _leaf_key = key.rsplit(".", 1)[-1].lower()
@@ -7553,12 +7530,12 @@ def config_command(args):
         key = getattr(args, 'key', None)
         value = getattr(args, 'value', None)
         if not key or value is None:
-            print("Usage: hermes config set <key> <value>")
+            print("Usage: simplicio-agent config set <key> <value>")
             print()
             print("Examples:")
-            print("  hermes config set model anthropic/claude-sonnet-4")
-            print("  hermes config set terminal.backend docker")
-            print("  hermes config set OPENROUTER_API_KEY sk-or-...")
+            print("  simplicio-agent config set model anthropic/claude-sonnet-4")
+            print("  simplicio-agent config set terminal.backend docker")
+            print("  simplicio-agent config set OPENROUTER_API_KEY sk-or-...")
             sys.exit(1)
         set_config_value(key, value)
     
@@ -7658,7 +7635,7 @@ def config_command(args):
         if missing_config:
             print()
             print(color(f"  {len(missing_config)} new config option(s) available", Colors.YELLOW))
-            print("    Run 'hermes config migrate' to add them")
+            print("    Run 'simplicio-agent config migrate' to add them")
         
         print()
     
@@ -7666,13 +7643,13 @@ def config_command(args):
         print(f"Unknown config command: {subcmd}")
         print()
         print("Available commands:")
-        print("  hermes config           Show current configuration")
-        print("  hermes config edit      Open config in editor")
-        print("  hermes config set <key> <value>   Set a config value")
-        print("  hermes config check     Check for missing/outdated config")
-        print("  hermes config migrate   Update config with new options")
-        print("  hermes config path      Show config file path")
-        print("  hermes config env-path  Show .env file path")
+        print("  simplicio-agent config           Show current configuration")
+        print("  simplicio-agent config edit      Open config in editor")
+        print("  simplicio-agent config set <key> <value>   Set a config value")
+        print("  simplicio-agent config check     Check for missing/outdated config")
+        print("  simplicio-agent config migrate   Update config with new options")
+        print("  simplicio-agent config path      Show config file path")
+        print("  simplicio-agent config env-path  Show .env file path")
         sys.exit(1)
 
 
@@ -7721,7 +7698,7 @@ _inject_profile_env_vars()
 # ── Platform-plugin env var injection ────────────────────────────────────────
 # Bundled platform plugins under ``plugins/platforms/*/plugin.yaml`` declare
 # their required env vars via ``requires_env``.  This mirror of
-# ``_inject_profile_env_vars`` surfaces them in ``hermes config`` UI so users
+# ``_inject_profile_env_vars`` surfaces them in ``simplicio-agent config`` UI so users
 # can configure Teams / IRC / Google Chat without the core repo ever needing
 # to know they exist.
 #

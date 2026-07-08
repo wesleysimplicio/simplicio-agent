@@ -582,7 +582,7 @@ def test_install_startup_fallback_does_not_auto_spawn_when_gateway_stopped(monke
     assert ("next_steps", None) in calls
     out = capsys.readouterr().out
     assert "gateway not started now" in out
-    assert "hermes --profile alice gateway start" in out
+    assert "simplicio-agent --profile alice gateway start" in out
 
 
 def test_install_access_denied_declined_elevation_uses_startup_fallback(monkeypatch, tmp_path, capsys):
@@ -695,7 +695,7 @@ def test_uninstall_access_denied_declined_keeps_task_and_cleans_files(monkeypatc
 #
 # Background: on Windows, asyncio.add_signal_handler raises NotImplementedError,
 # so the gateway's SIGTERM handler (which drains in-flight agents and writes
-# resume_pending=True) never fires when `hermes gateway stop` kills the
+# resume_pending=True) never fires when `simplicio-agent gateway stop` kills the
 # process. The fix: stop() writes the planned_stop_marker first, waits for
 # the gateway's marker-watcher thread to drain + exit cleanly, then escalates
 # to taskkill if drain times out.
@@ -798,7 +798,7 @@ def test_stop_escalates_to_force_kill_when_drain_times_out(monkeypatch):
 
     Drain timeout = gateway is stuck or unresponsive. Without the
     taskkill /T /F escalation, the gateway stays alive and the next
-    `hermes gateway start` fails with "another instance is running".
+    `simplicio-agent gateway start` fails with "another instance is running".
     """
     pid = 77777
     events = []

@@ -1,4 +1,4 @@
-"""``hermes journey`` — what Hermes has learned, on a timeline.
+"""``simplicio-agent journey`` — what Hermes has learned, on a timeline.
 
 A terminal-native rendition of the desktop Star Map / Memory Graph: a horizontal
 timeline bar chart of learned skills and memories over time (oldest at top,
@@ -339,7 +339,7 @@ def cmd_journey(args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
-    _p = argparse.ArgumentParser(prog="hermes journey")
+    _p = argparse.ArgumentParser(prog="simplicio-agent journey")
     register_cli(_p)
     _a = _p.parse_args()
     sys.exit(_a.func(_a))

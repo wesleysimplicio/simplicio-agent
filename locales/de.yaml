@@ -215,7 +215,7 @@ gateway:
 
   restart:
     in_progress:           "⏳ Gateway-Neustart läuft bereits..."
-    restarting:            "♻ Gateway wird neu gestartet. Falls Sie nicht innerhalb von 60 Sekunden benachrichtigt werden, starten Sie über die Konsole mit `hermes gateway restart` neu."
+    restarting:            "♻ Gateway wird neu gestartet. Falls Sie nicht innerhalb von 60 Sekunden benachrichtigt werden, starten Sie über die Konsole mit `simplicio-agent gateway restart` neu."
 
   resume:
     db_unavailable:        "Sitzungsdatenbank nicht verfügbar."
@@ -312,9 +312,9 @@ Future messages in this room will use that transcript until `/reset` or another 
     invalid_count:         "Ungültige Anzahl \"{arg}\" — verwenden Sie /undo oder /undo N."
 
   update:
-    platform_not_messaging:  "✗ /update ist nur auf Messaging-Plattformen verfügbar. Führen Sie `hermes update` im Terminal aus."
+    platform_not_messaging:  "✗ /update ist nur auf Messaging-Plattformen verfügbar. Führen Sie `simplicio-agent update` im Terminal aus."
     not_git_repo:            "✗ Kein Git-Repository — Update nicht möglich."
-    hermes_cmd_not_found:    "✗ Der Befehl `hermes` konnte nicht gefunden werden. Hermes läuft, aber der Update-Befehl konnte das ausführbare Programm weder im PATH noch über den aktuellen Python-Interpreter finden. Versuchen Sie, `hermes update` manuell im Terminal auszuführen."
+    hermes_cmd_not_found:    "✗ Der Befehl `hermes` konnte nicht gefunden werden. Hermes läuft, aber der Update-Befehl konnte das ausführbare Programm weder im PATH noch über den aktuellen Python-Interpreter finden. Versuchen Sie, `simplicio-agent update` manuell im Terminal auszuführen."
     start_failed:            "✗ Update konnte nicht gestartet werden: {error}"
     starting:                "⚕ Hermes-Update wird gestartet… Ich streame den Fortschritt hier."
 

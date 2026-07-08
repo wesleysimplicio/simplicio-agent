@@ -20,16 +20,16 @@ Use this skill when a user wants to move their OpenClaw setup into Hermes Agent 
 For a quick, non-interactive migration, use the built-in CLI command:
 
 ```bash
-hermes claw migrate              # Full interactive migration
-hermes claw migrate --dry-run    # Preview what would be migrated
-hermes claw migrate --preset user-data   # Migrate without secrets
-hermes claw migrate --overwrite  # Overwrite existing conflicts
-hermes claw migrate --source /custom/path/.openclaw  # Custom source
+simplicio-agent claw migrate              # Full interactive migration
+simplicio-agent claw migrate --dry-run    # Preview what would be migrated
+simplicio-agent claw migrate --preset user-data   # Migrate without secrets
+simplicio-agent claw migrate --overwrite  # Overwrite existing conflicts
+simplicio-agent claw migrate --source /custom/path/.openclaw  # Custom source
 ```
 
 The CLI command runs the same migration script described below. Use this skill (via the agent) when you want an interactive, guided migration with dry-run previews and per-item conflict resolution.
 
-**First-time setup:** The `hermes setup` wizard automatically detects `~/.openclaw` and offers migration before configuration begins.
+**First-time setup:** The `simplicio-agent setup` wizard automatically detects `~/.openclaw` and offers migration before configuration begins.
 
 ## What this skill does
 

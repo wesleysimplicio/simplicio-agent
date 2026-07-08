@@ -2,8 +2,8 @@
 
 ``hermes_cli.main`` skips eager plugin discovery at argparse-setup time
 when the invocation is clearly targeting a known built-in subcommand.
-This saves 500-650ms on ``hermes --help``, ``hermes version``,
-``hermes logs``, etc., by not importing ``google.cloud.pubsub_v1``,
+This saves 500-650ms on ``simplicio-agent --help``, ``simplicio-agent version``,
+``simplicio-agent logs``, etc., by not importing ``google.cloud.pubsub_v1``,
 ``aiohttp``, ``grpc``, and friends.
 
 Two invariants:
@@ -39,7 +39,7 @@ from hermes_cli.main import (
 
 
 def _live_subcommand_names() -> set[str]:
-    """Run ``hermes --help`` in-process and parse the subcommand block.
+    """Run ``simplicio-agent --help`` in-process and parse the subcommand block.
 
     We patch ``_plugin_cli_discovery_needed`` to always return False so
     plugin-registered commands aren't included — we're validating the

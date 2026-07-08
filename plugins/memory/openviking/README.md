@@ -11,7 +11,7 @@ Context database by Volcengine (ByteDance) with filesystem-style knowledge hiera
 ## Setup
 
 ```bash
-hermes memory setup    # select "openviking"
+simplicio-agent memory setup    # select "openviking"
 ```
 
 The setup can link to an existing `~/.openviking/ovcli.conf`, copy its current
@@ -20,7 +20,7 @@ not exist.
 
 Or manually:
 ```bash
-hermes config set memory.provider openviking
+simplicio-agent config set memory.provider openviking
 echo "OPENVIKING_ENDPOINT=http://localhost:1933" >> ~/.hermes/.env
 ```
 

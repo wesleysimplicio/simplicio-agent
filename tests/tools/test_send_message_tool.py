@@ -2899,8 +2899,8 @@ class _FakePlatform:
 class TestSendViaAdapterStandaloneFallback:
     """Coverage for the out-of-process plugin-platform send path.
 
-    When the gateway runner is not in this process (e.g. ``hermes cron``
-    runs separately from ``hermes gateway``), ``_send_via_adapter`` should
+    When the gateway runner is not in this process (e.g. ``simplicio-agent cron``
+    runs separately from ``simplicio-agent gateway``), ``_send_via_adapter`` should
     fall through to the plugin's ``standalone_sender_fn`` registered on
     its ``PlatformEntry``.  Without the hook, the existing error string
     is returned (with a more helpful tail).

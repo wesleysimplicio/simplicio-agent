@@ -466,14 +466,14 @@ DANGEROUS_PATTERNS = [
     # Gateway lifecycle protection: prevent the agent from killing its own
     # gateway process.  These commands trigger a gateway restart/stop that
     # terminates all running agents mid-work.  Allow global flags between
-    # `hermes` and `gateway` (e.g. `hermes -p ade gateway restart`) so a
+    # `hermes` and `gateway` (e.g. `simplicio-agent -p ade gateway restart`) so a
     # profile flag can't slip the agent past the guard.
-    (r'\bhermes\s+(?:-{1,2}\S+(?:\s+\S+)?\s+)*gateway\s+(stop|restart)\b', "stop/restart hermes gateway (kills running agents)"),
-    (r'\bhermes\s+update\b', "hermes update (restarts gateway, kills running agents)"),
+    (r'\bhermes\s+(?:-{1,2}\S+(?:\s+\S+)?\s+)*gateway\s+(stop|restart)\b', "stop/restart simplicio-agent gateway (kills running agents)"),
+    (r'\bhermes\s+update\b', "simplicio-agent update (restarts gateway, kills running agents)"),
     # Docker container lifecycle — any user with docker.sock mounted (a common
     # Docker Compose pattern) gives the agent the ability to restart/stop/kill
     # containers without approval.  These are agent-initiated lifecycle operations
-    # that should always require user consent, just like `hermes gateway restart`
+    # that should always require user consent, just like `simplicio-agent gateway restart`
     # already does for the gateway process.
     (r'\bdocker\s+compose\s+(restart|stop|kill|down)\b', "docker compose restart/stop/kill/down (container lifecycle)"),
     (r'\bdocker\s+(restart|stop|kill)\b', "docker restart/stop/kill (container lifecycle)"),
@@ -491,7 +491,7 @@ DANGEROUS_PATTERNS = [
     (r'\bkill\b.*\$\(\s*(pgrep|pidof)\b', "kill process via pgrep/pidof expansion (self-termination)"),
     (r'\bkill\b.*`\s*(pgrep|pidof)\b', "kill process via backtick pgrep/pidof expansion (self-termination)"),
     # launchctl-driven gateway stop/restart on macOS. The agent can bypass
-    # the `hermes gateway stop|restart` pattern above by driving launchd
+    # the `simplicio-agent gateway stop|restart` pattern above by driving launchd
     # directly against the service label (commonly `ai.hermes.gateway`).
     # Catch the operations that stop, restart, or unload it.
     (r'\blaunchctl\s+(stop|kickstart|bootout|unload|kill|disable|remove)\b.*\b(hermes|ai\.hermes)\b', "stop/restart hermes launchd service (kills running agents)"),
@@ -1433,7 +1433,7 @@ def check_dangerous_command(command: str, env_type: str,
     # detector with `simplicio gate classify` -- can only ADD a block on top
     # of what's below, never bypass it. ADR-0003: action_gate defaults to
     # mode="required", so an absent/unverified kernel is NOT a no-op here --
-    # it fails closed with an actionable BLOCKED message ('hermes doctor
+    # it fails closed with an actionable BLOCKED message ('simplicio-agent doctor
     # --fix'). Only when the binding is explicitly relaxed to mode="auto" or
     # "off" in config.yaml does this return None and defer to the legacy
     # flow unchanged. See tools/kernel_binding.py.

@@ -359,7 +359,7 @@ def evaluate_action_gate(
                     "BLOCKED: kernel_binding.action_gate.mode is 'required' but no "
                     f"healthy simplicio kernel is available ({why}). Refusing to fall "
                     "back to an ungated approval for a flagged-dangerous command "
-                    f"({description or pattern_key}). Run 'hermes doctor --fix' to "
+                    f"({description or pattern_key}). Run 'simplicio-agent doctor --fix' to "
                     "install/update the kernel, or set "
                     "kernel_binding.action_gate.mode to 'auto'/'off' to change this."
                 ),

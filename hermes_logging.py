@@ -228,12 +228,12 @@ class _ComponentFilter(logging.Filter):
 
 
 # Logger name prefixes that belong to each component.
-# Used by _ComponentFilter and exposed for ``hermes logs --component``.
+# Used by _ComponentFilter and exposed for ``simplicio-agent logs --component``.
 COMPONENT_PREFIXES = {
     # ``plugins.platforms`` covers messaging-platform adapters that migrated
     # out of ``gateway/platforms/`` into bundled plugins (#41112) — they are
     # still gateway components and their logs belong in gateway.log / match
-    # ``hermes logs --component gateway``.
+    # ``simplicio-agent logs --component gateway``.
     "gateway": ("gateway", "hermes_plugins", "plugins.platforms"),
     "agent": ("agent", "run_agent", "model_tools", "batch_runner"),
     "tools": ("tools",),
@@ -434,7 +434,9 @@ class _ManagedRotatingFileHandler(RotatingFileHandler):
     """
 
     def __init__(self, *args, **kwargs):
-        from hermes_cli.config import is_managed
+        # From hermes_constants, NOT hermes_cli.config: config's module body
+        # costs ~100 ms and this runs during logging bootstrap on every boot.
+        from hermes_constants import is_managed
         self._managed = is_managed()
         super().__init__(*args, **kwargs)
         # Snapshot the inode of the currently open stream so emit() can

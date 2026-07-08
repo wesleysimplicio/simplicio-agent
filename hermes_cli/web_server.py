@@ -95,7 +95,7 @@ try:
     from pydantic import BaseModel
 except ImportError:
     # First try lazy-installing the dashboard extras. Only the user actually
-    # running `hermes dashboard` needs fastapi+uvicorn; lazy install keeps
+    # running `simplicio-agent dashboard` needs fastapi+uvicorn; lazy install keeps
     # them out of every other install path. After install, re-import.
     try:
         from tools.lazy_deps import ensure as _lazy_ensure
@@ -132,8 +132,8 @@ _log = logging.getLogger(__name__)
 def _start_desktop_cron_ticker(stop_event: "threading.Event", interval: int = 60) -> None:
     """Tick the cron scheduler from inside the desktop dashboard backend.
 
-    The scheduler tick loop normally lives in ``hermes gateway run`` — but the
-    desktop app spawns a ``hermes dashboard`` backend, not a gateway, so a cron
+    The scheduler tick loop normally lives in ``simplicio-agent gateway run`` — but the
+    desktop app spawns a ``simplicio-agent dashboard`` backend, not a gateway, so a cron
     a user creates in the app would never fire. We run the resolved cron
     scheduler provider here (no live adapters; delivery falls back to the
     per-platform send path).
@@ -858,7 +858,7 @@ class ModelAssignment(BaseModel):
     # Optional API key for a custom/local endpoint. Persisted to
     # ``model.api_key`` (where the runtime resolver reads it) so a self-hosted
     # endpoint that requires auth works from the GUI — mirrors the key the
-    # ``hermes model`` custom flow collects. Honored only on the main slot for
+    # ``simplicio-agent model`` custom flow collects. Honored only on the main slot for
     # custom/local providers.
     api_key: str = ""
     confirm_expensive_model: bool = False
@@ -1393,7 +1393,7 @@ def _default_hermes_root_is_opt_data() -> bool:
 
 
 def _dashboard_local_update_managed_externally() -> bool:
-    """Return true when the dashboard should not offer ``hermes update``.
+    """Return true when the dashboard should not offer ``simplicio-agent update``.
 
     Containerized dashboards are updated by the outer launcher/image, not by an
     in-browser local update action. Keep this dashboard capability separate
@@ -1402,7 +1402,7 @@ def _dashboard_local_update_managed_externally() -> bool:
 
     However, when the install method is ``git`` (a bind-mounted checkout inside
     a container — e.g. the hermes-webui image sharing the Hermes source tree),
-    the dashboard's ``hermes update`` button is the correct update path and
+    the dashboard's ``simplicio-agent update`` button is the correct update path and
     should not be suppressed. Other containerized install methods remain
     externally managed unless their apply path is proven safe inside the
     running container filesystem.
@@ -2215,7 +2215,7 @@ async def get_status(profile: Optional[str] = None):
         )
 
         # Dashboard auth gate (Phase 7): surface whether the gate is engaged
-        # and which providers are registered so ``hermes status`` and the
+        # and which providers are registered so ``simplicio-agent status`` and the
         # SPA's StatusPage can show "OAuth gate ON via Nous Research" or
         # "loopback only — no auth gate" with no extra round trips.
         auth_required = bool(getattr(app.state, "auth_required", False))
@@ -2405,7 +2405,7 @@ async def get_system_stats():
 #
 # The curator periodically reviews skills (archive stale, prune, pin).  The
 # dashboard surfaces its state and the pause/resume/run-now controls that
-# `hermes curator` exposes.
+# `simplicio-agent curator` exposes.
 # ---------------------------------------------------------------------------
 
 
@@ -2779,7 +2779,7 @@ def _gateway_subcommand(profile: Optional[str], verb: str) -> List[str]:
 
 
 def _gateway_display_command(profile: Optional[str], verb: str) -> str:
-    return " ".join(["hermes", *_gateway_subcommand(profile, verb)])
+    return " ".join(["simplicio-agent", *_gateway_subcommand(profile, verb)])
 
 
 # Slack member IDs (users U..., Enterprise Grid W...). Kept in sync with the
@@ -2820,12 +2820,12 @@ def _validate_messaging_env_value(platform_id: str, key: str, value: str) -> Non
 
 
 def _spawn_gateway_restart(profile: Optional[str] = None) -> Tuple[subprocess.Popen, bool]:
-    """Spawn ``hermes gateway restart``, reusing an in-flight restart.
+    """Spawn ``simplicio-agent gateway restart``, reusing an in-flight restart.
 
     Multiple dashboard paths can request a restart in quick succession
     (restart button double-click, or a stale cached frontend firing its own
     restart after the server already auto-restarted post-onboarding). Two
-    concurrent ``hermes gateway restart`` children race each other on the
+    concurrent ``simplicio-agent gateway restart`` children race each other on the
     manual kill-and-start path, so reuse the live one instead.
 
     Returns ``(proc, reused)``.
@@ -2864,7 +2864,7 @@ def _restart_gateway_after_webhook_enable(profile: Optional[str] = None) -> dict
 
 @app.post("/api/gateway/restart")
 async def restart_gateway(profile: Optional[str] = None):
-    """Kick off a ``hermes gateway restart`` in the background."""
+    """Kick off a ``simplicio-agent gateway restart`` in the background."""
     try:
         proc, _reused = _spawn_gateway_restart(profile)
     except HTTPException:
@@ -2954,7 +2954,7 @@ async def gateway_drain(request: Request):
 
 @app.post("/api/hermes/update")
 async def update_hermes():
-    """Kick off ``hermes update`` in the background."""
+    """Kick off ``simplicio-agent update`` in the background."""
     if _dashboard_local_update_managed_externally():
         message = (
             "Hermes updates are managed outside this dashboard in "
@@ -2987,7 +2987,7 @@ async def update_hermes():
     try:
         proc = _spawn_hermes_action(["update"], "hermes-update")
     except Exception as exc:
-        _log.exception("Failed to spawn hermes update")
+        _log.exception("Failed to spawn simplicio-agent update")
         raise HTTPException(status_code=500, detail=f"Failed to start update: {exc}")
     return {
         "ok": True,
@@ -3050,7 +3050,7 @@ async def check_hermes_update(force: bool = False):
 
     Powers the dashboard's "check before you update" flow: the System page
     shows the commit-behind count and asks the user to confirm before
-    ``POST /api/hermes/update`` actually runs ``hermes update``.
+    ``POST /api/hermes/update`` actually runs ``simplicio-agent update``.
 
     Returns:
         install_method: 'git' | 'pip' | 'docker' | 'nixos' | 'homebrew' | ...
@@ -4117,7 +4117,7 @@ def get_model_options(profile: Optional[str] = None, refresh: bool = False):
         # include_unconfigured + picker_hints + canonical_order mirror the
         # tui_gateway `model.options` JSON-RPC handler exactly, so every GUI
         # surface fed by this endpoint (Settings → Model, the first-run
-        # onboarding picker) sees the SAME full provider universe `hermes model`
+        # onboarding picker) sees the SAME full provider universe `simplicio-agent model`
         # exposes — not just the authenticated subset. Unconfigured providers
         # come back as skeleton rows carrying `authenticated=False` +
         # `auth_type`/`key_env`/`warning` so the GUI can render a setup
@@ -4143,7 +4143,7 @@ def get_model_options(profile: Optional[str] = None, refresh: bool = False):
 def get_recommended_default_model(provider: str = ""):
     """Return the recommended default model for a freshly-authenticated provider.
 
-    Mirrors the model-curation `hermes model` does so GUI onboarding lands on a
+    Mirrors the model-curation `simplicio-agent model` does so GUI onboarding lands on a
     sensible default instead of blindly taking the first curated entry. For
     Nous this honors the user's free/paid tier: free users get a free model,
     paid users get the full curated default. For any other provider it falls
@@ -4435,7 +4435,7 @@ def _apply_model_assignment_sync(
         save_config(cfg)
 
         # Register a named ``custom_providers`` entry for a custom/local
-        # endpoint, mirroring the ``hermes model`` custom flow
+        # endpoint, mirroring the ``simplicio-agent model`` custom flow
         # (_save_custom_provider). Without this the endpoint only lives in
         # ``model.*`` and the picker has no proper ready row for it — the
         # GUI then surfaces a "needs setup" dead-end on the bare ``custom``
@@ -4699,7 +4699,7 @@ def _catalog_provider_env_metadata() -> dict:
 
     Returns ``{env_var: {provider, provider_label, description, url, is_password,
     advanced}}`` for every API-key provider in the unified ``provider_catalog()``
-    (i.e. the ``hermes model`` universe). This is what lets the desktop Keys tab
+    (i.e. the ``simplicio-agent model`` universe). This is what lets the desktop Keys tab
     render a card for a provider even when its env var was never hand-added to
     ``OPTIONAL_ENV_VARS`` — closing the drift where CLI-configurable providers
     (openai-api, kilocode, novita, tencent-tokenhub, copilot, …) were missing
@@ -4765,7 +4765,7 @@ def _catalog_provider_env_metadata() -> dict:
         # AWS-SDK providers (Bedrock) authenticate via the AWS credential chain
         # rather than a pasted API key, so they have no api_key_env_vars. Tag
         # their AWS_* settings to the provider card so they still appear on the
-        # Keys tab (otherwise Bedrock — a `hermes model` provider — would be
+        # Keys tab (otherwise Bedrock — a `simplicio-agent model` provider — would be
         # invisible in the desktop app).
         if d.auth_type == "aws_sdk":
             for aws_var in ("AWS_REGION", "AWS_PROFILE"):
@@ -4809,7 +4809,7 @@ async def get_env_vars(profile: Optional[str] = None):
             "channel_managed": var_name in channel_keys,
             # Provider grouping hints derived from the unified provider catalog
             # so the desktop Keys tab groups by the SAME provider identity the
-            # CLI `hermes model` picker uses (not desktop-only prefix guesses).
+            # CLI `simplicio-agent model` picker uses (not desktop-only prefix guesses).
             "provider": cat_meta.get("provider", ""),
             "provider_label": cat_meta.get("provider_label", ""),
             # True when this key exists in the user's .env but is NOT in any
@@ -5339,11 +5339,11 @@ _MESSAGING_ENV_FALLBACKS: dict[str, dict[str, Any]] = {
         "password": True,
     },
     "WEIXIN_ACCOUNT_ID": {
-        "description": "iLink Bot account ID obtained through QR login in hermes gateway setup",
+        "description": "iLink Bot account ID obtained through QR login in simplicio-agent gateway setup",
         "prompt": "iLink Bot account ID",
     },
     "WEIXIN_TOKEN": {
-        "description": "iLink Bot token obtained through QR login in hermes gateway setup",
+        "description": "iLink Bot token obtained through QR login in simplicio-agent gateway setup",
         "prompt": "iLink Bot token",
         "password": True,
     },
@@ -6185,7 +6185,7 @@ async def test_messaging_platform(platform_id: str, profile: Optional[str] = Non
 # connected, plus a disconnect button. The actual login flow (PKCE for
 # Anthropic, device-code for Nous/Codex) still runs in the CLI for now;
 # Phase 2 will add in-browser flows. For unconnected providers we return
-# the canonical ``hermes auth add <provider>`` command so the dashboard
+# the canonical ``simplicio-agent auth add <provider>`` command so the dashboard
 # can surface a one-click copy.
 
 
@@ -6347,7 +6347,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         "id": "nous",
         "name": "Nous Portal",
         "flow": "device_code",
-        "cli_command": "hermes auth add nous",
+        "cli_command": "simplicio-agent auth add nous",
         "docs_url": "https://portal.nousresearch.com",
         "status_fn": None,  # dispatched via auth.get_nous_auth_status
     },
@@ -6355,7 +6355,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         "id": "openai-codex",
         "name": "OpenAI OAuth (ChatGPT)",
         "flow": "device_code",
-        "cli_command": "hermes auth add openai-codex",
+        "cli_command": "simplicio-agent auth add openai-codex",
         "docs_url": "https://platform.openai.com/docs",
         "status_fn": None,  # dispatched via auth.get_codex_auth_status
     },
@@ -6363,7 +6363,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         "id": "qwen-oauth",
         "name": "Qwen (via Qwen CLI)",
         "flow": "external",
-        "cli_command": "hermes auth add qwen-oauth",
+        "cli_command": "simplicio-agent auth add qwen-oauth",
         "docs_url": "https://github.com/QwenLM/qwen-code",
         "status_fn": None,  # dispatched via auth.get_qwen_auth_status
     },
@@ -6376,7 +6376,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         # as Nous's device-code flow; the PKCE bit is a security
         # extension that doesn't change the operator experience.
         "flow": "device_code",
-        "cli_command": "hermes auth add minimax-oauth",
+        "cli_command": "simplicio-agent auth add minimax-oauth",
         "docs_url": "https://www.minimax.io",
         "status_fn": None,  # dispatched via auth.get_minimax_oauth_auth_status
     },
@@ -6387,7 +6387,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         # callback server, the client opens the browser, and the redirect
         # lands back on the loopback listener — no code to copy/paste.
         "flow": "loopback",
-        "cli_command": "hermes auth add xai-oauth",
+        "cli_command": "simplicio-agent auth add xai-oauth",
         "docs_url": "https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth",
         "status_fn": None,  # dispatched via auth.get_xai_oauth_auth_status
     },
@@ -6406,7 +6406,7 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
         "id": "anthropic",
         "name": "Anthropic API Key",
         "flow": "pkce",
-        "cli_command": "hermes auth add anthropic",
+        "cli_command": "simplicio-agent auth add anthropic",
         "docs_url": "https://docs.claude.com/en/api/getting-started",
         "status_fn": _anthropic_oauth_status,
     },
@@ -6562,14 +6562,14 @@ def _build_oauth_catalog() -> list[Dict[str, Any]]:
          PKCE card and the synthetic claude-code subscription row, which are not
          catalog providers), and
       2. every accounts-tab provider in the unified ``provider_catalog()`` (the
-         ``hermes model`` universe) — so any OAuth/external provider added as a
+         ``simplicio-agent model`` universe) — so any OAuth/external provider added as a
          plugin appears automatically, with sensible defaults, even if no
          explicit card was written for it.
 
     The explicit catalog wins on metadata; the unified catalog guarantees we
     never silently drop a provider the CLI picker offers. Order: explicit cards
     first (their curated order), then any catalog-only providers appended in
-    ``hermes model`` order.
+    ``simplicio-agent model`` order.
     """
     rows: list[Dict[str, Any]] = []
     seen: set[str] = set()
@@ -6582,7 +6582,7 @@ def _build_oauth_catalog() -> list[Dict[str, Any]]:
         rows.append(dict(entry))
 
     # 2. Catalog accounts-providers not already covered — keeps the Accounts tab
-    #    in lockstep with the `hermes model` universe (zero-edit for new plugins).
+    #    in lockstep with the `simplicio-agent model` universe (zero-edit for new plugins).
     try:
         from hermes_cli.provider_catalog import provider_catalog
         for d in provider_catalog():
@@ -6593,7 +6593,7 @@ def _build_oauth_catalog() -> list[Dict[str, Any]]:
                 "id": d.slug,
                 "name": d.label,
                 "flow": "external",
-                "cli_command": f"hermes auth add {d.slug}",
+                "cli_command": f"simplicio-agent auth add {d.slug}",
                 "docs_url": d.signup_url or "",
                 "status_fn": None,
             })
@@ -6624,7 +6624,7 @@ async def list_oauth_providers(profile: Optional[str] = None):
           has_refresh_token bool
 
     Membership is derived from the unified provider_catalog() so this stays in
-    sync with the `hermes model` picker; _OAUTH_OVERRIDES supplies per-provider
+    sync with the `simplicio-agent model` picker; _OAUTH_OVERRIDES supplies per-provider
     flow/status/cli metadata.
     """
     with _profile_scope(profile):
@@ -6767,7 +6767,7 @@ _oauth_sessions: Dict[str, Dict[str, Any]] = {}
 _oauth_sessions_lock = threading.Lock()
 
 # Import OAuth constants from canonical source instead of duplicating.
-# Guarded so hermes web still starts if anthropic_adapter is unavailable;
+# Guarded so simplicio-agent web still starts if anthropic_adapter is unavailable;
 # Phase 2 endpoints will return 501 in that case.
 try:
     from agent.anthropic_adapter import (
@@ -6843,7 +6843,7 @@ def _save_anthropic_oauth_creds(access_token: str, refresh_token: str, expires_a
     """Persist Anthropic PKCE creds to both Hermes file AND credential pool.
 
     Mirrors what auth_commands.add_command does so the dashboard flow leaves
-    the system in the same state as ``hermes auth add anthropic``.
+    the system in the same state as ``simplicio-agent auth add anthropic``.
     """
     from agent.anthropic_adapter import _HERMES_OAUTH_FILE
     payload = {
@@ -7194,7 +7194,7 @@ async def _start_device_code_flow(
 # binds a 127.0.0.1 callback server, the client opens the authorize URL in
 # the browser, and the redirect lands back on the loopback listener. The
 # background worker waits for that callback, exchanges the code, and persists
-# the tokens exactly like `hermes auth add xai-oauth`.
+# the tokens exactly like `simplicio-agent auth add xai-oauth`.
 _XAI_LOOPBACK_TIMEOUT_SECONDS = 300.0
 
 
@@ -7362,7 +7362,7 @@ def _xai_loopback_worker(session_id: str) -> None:
 def _add_xai_oauth_pool_entry(
     access_token: str, refresh_token: str, base_url: str, last_refresh: str
 ) -> None:
-    """Mirror `hermes auth add xai-oauth`'s credential-pool insert.
+    """Mirror `simplicio-agent auth add xai-oauth`'s credential-pool insert.
 
     Best-effort: the auth-store write in _save_xai_oauth_tokens is the source
     of truth for runtime resolution; the pool entry only matters for the
@@ -7477,7 +7477,7 @@ def _minimax_poller(session_id: str) -> None:
     auth_state dict that ``_minimax_oauth_login`` (the CLI flow) builds
     and persists via ``_minimax_save_auth_state`` — so the dashboard
     path leaves the system in the same state as
-    ``hermes auth add minimax-oauth``.
+    ``simplicio-agent auth add minimax-oauth``.
     """
     from hermes_cli.auth import (
         _minimax_poll_token,
@@ -7996,7 +7996,7 @@ async def delete_empty_sessions_endpoint(profile: Optional[str] = None):
 
 @app.get("/api/sessions/stats")
 async def get_session_stats(profile: Optional[str] = None):
-    """Session-store statistics for the Sessions page (mirrors `hermes sessions stats`).
+    """Session-store statistics for the Sessions page (mirrors `simplicio-agent sessions stats`).
 
     Registered before ``/api/sessions/{session_id}`` so the literal ``stats``
     path isn't captured as a session id by the parameterized route.
@@ -8173,7 +8173,7 @@ class SessionPrune(BaseModel):
 
 @app.post("/api/sessions/prune")
 async def prune_sessions_endpoint(body: SessionPrune):
-    """Delete ended sessions older than N days (mirrors `hermes sessions prune`)."""
+    """Delete ended sessions older than N days (mirrors `simplicio-agent sessions prune`)."""
     if body.older_than_days < 1:
         raise HTTPException(status_code=400, detail="older_than_days must be >= 1")
     profile_home = _cron_profile_home(body.profile)[1] if body.profile else get_hermes_home()
@@ -8859,7 +8859,7 @@ async def instantiate_blueprint(body: AutomationBlueprintInstantiate, profile: s
 # MCP server endpoints — list / add / remove / test.
 #
 # Wraps the same config data layer the CLI uses (hermes_cli.mcp_config), so
-# servers managed here show up under `hermes mcp list` and vice versa.  Secrets
+# servers managed here show up under `simplicio-agent mcp list` and vice versa.  Secrets
 # in stdio `env` blocks are redacted on read; the agent picks them up from
 # config.yaml at session start exactly as with CLI-added servers.
 # ---------------------------------------------------------------------------
@@ -9046,7 +9046,7 @@ async def list_mcp_catalog(profile: Optional[str] = None):
 
     Each entry reports whether it's already installed and enabled so the UI
     can show install / enabled state inline.  This is the same catalog
-    `hermes mcp catalog` / `hermes mcp install` read.  ``profile`` scopes
+    `simplicio-agent mcp catalog` / `simplicio-agent mcp install` read.  ``profile`` scopes
     the installed/enabled annotations (the catalog itself is repo-shipped
     and identical for every profile).
     """
@@ -9437,7 +9437,7 @@ async def set_webhook_enabled(name: str, body: WebhookEnabledToggle):
 #
 # restart + update already exist above; these complete the lifecycle so a
 # remote admin can bring the gateway up or down without shell access.  Both
-# spawn the real `hermes gateway <verb>` so behaviour matches the CLI exactly.
+# spawn the real `simplicio-agent gateway <verb>` so behaviour matches the CLI exactly.
 # Status is already surfaced by /api/status (gateway_running/state/platforms).
 # ---------------------------------------------------------------------------
 
@@ -9586,7 +9586,7 @@ async def remove_credential_pool_entry(provider: str, index: int):
 #
 # Selecting a provider only writes config.memory.provider (full interactive
 # provider setup, with its API-key prompts, stays on the CLI via
-# `hermes memory setup`).  The dashboard covers the common admin actions:
+# `simplicio-agent memory setup`).  The dashboard covers the common admin actions:
 # see which provider is active, switch the built-in store on/off, and wipe
 # built-in memory files.
 # ---------------------------------------------------------------------------
@@ -9650,7 +9650,7 @@ async def set_memory_provider(body: MemoryProviderSelect):
         if provider not in valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown memory provider '{provider}'. Run `hermes memory setup` to configure a new one.",
+                detail=f"Unknown memory provider '{provider}'. Run `simplicio-agent memory setup` to configure a new one.",
             )
 
     cfg = load_config()
@@ -10195,7 +10195,7 @@ async def update_skills_hub(
     return {"ok": True, "pid": proc.pid, "name": "skills-update"}
 
 
-# Human-readable labels for each hub source id (matches `hermes skills search`
+# Human-readable labels for each hub source id (matches `simplicio-agent skills search`
 # provenance).  Keep in sync with create_source_router()'s source list.
 _SKILL_HUB_SOURCE_LABELS = {
     "official": "Official (Nous)",
@@ -10544,7 +10544,7 @@ class ProfileCreate(BaseModel):
     # Empty list = leave the seeded bundle untouched (legacy behaviour).
     keep_skills: List[str] = []
     # Skills-hub identifiers to install into the new profile. Installed async
-    # via a subprocess scoped to the profile (`hermes -p <name> skills install`)
+    # via a subprocess scoped to the profile (`simplicio-agent -p <name> skills install`)
     # because skills_hub.SKILLS_DIR is import-time-bound and the HERMES_HOME
     # override can't redirect it. Returns spawned PIDs for the UI to poll.
     hub_skills: List[str] = []
@@ -10670,7 +10670,7 @@ def _resolve_profile_dir(name: str) -> Path:
 def _profile_setup_command(name: str) -> str:
     """Return the shell command used to configure a profile in the CLI."""
     _resolve_profile_dir(name)
-    return "hermes setup" if name == "default" else f"{name} setup"
+    return "simplicio-agent setup" if name == "default" else f"{name} setup"
 
 
 def _write_profile_model(profile_dir: Path, provider: str, model: str) -> None:
@@ -10917,7 +10917,7 @@ async def get_active_profile_endpoint():
     """Return the sticky active profile and the profile this dashboard
     process is currently running as.
 
-    ``active`` is the sticky default written by ``hermes profile use`` —
+    ``active`` is the sticky default written by ``simplicio-agent profile use`` —
     the profile new CLI invocations pick up. ``current`` is the profile
     the running dashboard/gateway is scoped to (derived from HERMES_HOME).
     """
@@ -10935,7 +10935,7 @@ async def get_active_profile_endpoint():
 
 @app.post("/api/profiles/active")
 async def set_active_profile_endpoint(body: ProfileActiveUpdate):
-    """Set the sticky active profile (mirrors ``hermes profile use``).
+    """Set the sticky active profile (mirrors ``simplicio-agent profile use``).
 
     Note: this does not retarget the already-running dashboard process —
     it changes which profile subsequent CLI commands and gateways use.
@@ -11113,7 +11113,7 @@ async def update_profile_model_endpoint(name: str, body: ProfileModelUpdate):
 @app.post("/api/profiles/{name}/describe-auto")
 async def describe_profile_auto_endpoint(name: str, body: ProfileDescribeAuto):
     """Auto-generate a profile's description via the auxiliary LLM
-    (``auxiliary.profile_describer``). Mirrors ``hermes profile describe
+    (``auxiliary.profile_describer``). Mirrors ``simplicio-agent profile describe
     <name> --auto``.
 
     A failed generation (no aux client, LLM error, …) is returned as
@@ -11405,7 +11405,7 @@ async def toggle_toolset(name: str, body: ToolsetToggle, profile: Optional[str] 
     """Enable/disable a configurable toolset for the desktop (cli) platform.
 
     Persists to ``platform_toolsets.cli`` via the same ``_save_platform_tools``
-    helper the CLI ``hermes tools`` picker uses, so the GUI and CLI stay in
+    helper the CLI ``simplicio-agent tools`` picker uses, so the GUI and CLI stay in
     lockstep. Scoped to ``body.profile`` when provided. Returns 400 for
     unknown toolset keys.
     """
@@ -11436,7 +11436,7 @@ async def toggle_toolset(name: str, body: ToolsetToggle, profile: Optional[str] 
 async def get_toolset_config(name: str, profile: Optional[str] = None):
     """Return the provider matrix + key status for a toolset's config panel.
 
-    Surfaces the same provider rows the CLI ``hermes tools`` picker shows
+    Surfaces the same provider rows the CLI ``simplicio-agent tools`` picker shows
     (via ``_visible_providers``), each with its ``env_vars`` annotated with
     current ``is_set`` state so the GUI can render provider selection + key
     entry. Toolsets without a ``TOOL_CATEGORIES`` entry return an empty
@@ -11507,7 +11507,7 @@ async def select_toolset_provider(
     """Persist a provider selection for a toolset (no key prompting).
 
     Delegates to ``apply_provider_selection`` — the shared, non-interactive
-    core extracted from the CLI configurator — so the GUI and ``hermes tools``
+    core extracted from the CLI configurator — so the GUI and ``simplicio-agent tools``
     write identical config keys (``web.backend``, ``tts.provider``, etc.).
     API keys and post-setup flows are handled by separate endpoints. Returns
     400 for unknown toolset or provider names.
@@ -11541,7 +11541,7 @@ async def save_toolset_env(name: str, body: ToolsetEnvUpdate, profile: Optional[
     """Persist API keys for a toolset's provider env vars.
 
     Writes each ``key: value`` to ``~/.hermes/.env`` via ``save_env_value`` —
-    the same store ``hermes tools`` writes when it prompts for keys. Keys are
+    the same store ``simplicio-agent tools`` writes when it prompts for keys. Keys are
     validated against the env-var allowlist for the toolset's category (the
     union of every visible provider's ``env_vars``), so the GUI can't write an
     arbitrary env var through this endpoint. A blank value is treated as
@@ -11605,12 +11605,12 @@ async def run_toolset_post_setup(
     Post-setup hooks (npm install for browser/Camofox, pip install for
     KittenTTS/Piper/ddgs, cua-driver fetch, etc.) are long-running and
     text-output, so this follows the spawn-action pattern: it launches
-    ``hermes tools post-setup <key>`` and the frontend tails the log via
+    ``simplicio-agent tools post-setup <key>`` and the frontend tails the log via
     ``GET /api/actions/tools-post-setup/status``. The ``key`` is validated
     against the declared post-setup allowlist before spawning. Returns 400
     for unknown toolset or post-setup key.
 
-    ``profile`` spawns the hook as ``hermes -p <profile> tools post-setup``.
+    ``profile`` spawns the hook as ``simplicio-agent -p <profile> tools post-setup``.
     Most hooks install machine-level artifacts (repo node_modules, shared
     pip packages) where the scope is inert, but hooks that read config or
     write per-profile state must see the same HERMES_HOME the rest of the
@@ -11999,7 +11999,7 @@ async def get_models_analytics(days: int = 30, profile: Optional[str] = None):
 # ---------------------------------------------------------------------------
 # /api/pty — PTY-over-WebSocket bridge for the dashboard "Chat" tab.
 #
-# The endpoint spawns the same ``hermes --tui`` binary the CLI uses, behind
+# The endpoint spawns the same ``simplicio-agent --tui`` binary the CLI uses, behind
 # a POSIX pseudo-terminal, and forwards bytes + resize escapes across a
 # WebSocket.  The browser renders the ANSI through xterm.js (see
 # web/src/pages/ChatPage.tsx).
@@ -12285,7 +12285,7 @@ def _resolve_chat_argv(
 ) -> tuple[list[str], Optional[str], Optional[dict]]:
     """Resolve the argv + cwd + env for the chat PTY.
 
-    Default: whatever ``hermes --tui`` would run.  Tests monkeypatch this
+    Default: whatever ``simplicio-agent --tui`` would run.  Tests monkeypatch this
     function to inject a tiny fake command (``cat``, ``sh -c 'printf …'``)
     so nothing has to build Node or the TUI bundle.
 
@@ -12313,7 +12313,7 @@ def _resolve_chat_argv(
     process (the TUI and the ``tui_gateway.entry`` it launches) resolves
     ``get_hermes_home()`` from that env var at its own import, so the child
     binds the profile's config, skills, memory, and state.db from the start
-    — the same propagation ``hermes -p <name>`` performs. The in-process
+    — the same propagation ``simplicio-agent -p <name>`` performs. The in-process
     ``HERMES_TUI_GATEWAY_URL`` attach is SKIPPED for scoped chats: the
     dashboard's in-memory gateway runs under the dashboard's own profile,
     so a profile-scoped chat must spawn its own gateway subprocess.
@@ -13576,7 +13576,7 @@ def _merged_plugins_hub() -> Dict[str, Any]:
                     entry = registry.get_entry(tname)
                     if entry and entry.check_fn and not entry.check_fn():
                         auth_required = True
-                        auth_command = f"hermes auth {name}"
+                        auth_command = f"simplicio-agent auth {name}"
                         break
             except Exception:
                 pass
@@ -14090,7 +14090,7 @@ def start_server(
                 "    (hash with: python -c \"from "
                 "plugins.dashboard_auth.basic import hash_password; "
                 "print(hash_password('your-password'))\")\n"
-                "  • OAuth: run `hermes dashboard register` (Nous Portal) or "
+                "  • OAuth: run `simplicio-agent dashboard register` (Nous Portal) or "
                 "install a DashboardAuthProvider plugin.\n"
                 "There is no unauthenticated public-bind option — to keep it "
                 "local, bind 127.0.0.1 and tunnel in (SSH / Tailscale)."

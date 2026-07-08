@@ -2095,7 +2095,7 @@ def _find_agent_browser(*, validate: bool = True) -> str:
     # Every candidate below is validated with ``agent_browser_runnable`` before
     # it is cached. A bare ``shutil.which`` hit is NOT trusted: agent-browser's
     # npm postinstall re-points a global install symlink at our local
-    # node_modules binary, which disappears on the next ``hermes update`` and
+    # node_modules binary, which disappears on the next ``simplicio-agent update`` and
     # leaves a dangling link that ``which`` still reports but exec fails on with
     # exit 127 (issue #48521). Validating lets a dead candidate fall through to
     # the next working resolution (extended PATH → local .bin → npx) instead of

@@ -17,7 +17,7 @@ def has_xai_credentials() -> bool:
     """Cheap probe — return True when xAI credentials are *likely* usable.
 
     Deliberately avoids :func:`resolve_xai_http_credentials` so callers in
-    hot-paint paths (``hermes tools`` repaint, tool-registration scans,
+    hot-paint paths (``simplicio-agent tools`` repaint, tool-registration scans,
     ``WebSearchProvider.is_available()``) don't incur disk locks or — in
     the OAuth path — a network token refresh. The ABC contract on
     :meth:`agent.web_search_provider.WebSearchProvider.is_available`

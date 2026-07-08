@@ -26,7 +26,7 @@ try:
     import hermes_bootstrap  # noqa: F401
 except ModuleNotFoundError:
     # Graceful fallback when hermes_bootstrap isn't registered in the venv
-    # yet — happens during partial ``hermes update`` where git-reset landed
+    # yet — happens during partial ``simplicio-agent update`` where git-reset landed
     # new code but ``uv pip install -e .`` didn't finish.  Missing bootstrap
     # means UTF-8 stdio setup is skipped on Windows; POSIX is unaffected.
     pass
@@ -70,7 +70,7 @@ def _launch_cwd_for_session(source: str) -> Optional[str]:
     """Working directory to stamp on a new session row, or None.
 
     Only local CLI sessions get a recorded cwd: the directory the process was
-    launched from is meaningful for ``hermes -c`` / ``--resume`` (relaunch
+    launched from is meaningful for ``simplicio-agent -c`` / ``--resume`` (relaunch
     where you left off). Gateway/cron/remote-backend sessions have no stable
     host cwd to restore, so they record nothing.
 
@@ -782,7 +782,7 @@ class AIAgent:
         all non-forced output is suppressed.
 
         ``suppress_status_output`` is a stricter CLI automation mode used by
-        parseable single-query flows such as ``hermes chat -q``. In that mode,
+        parseable single-query flows such as ``simplicio-agent chat -q``. In that mode,
         all status/diagnostic prints routed through ``_vprint`` are suppressed
         so stdout stays machine-readable.
         """
@@ -3010,7 +3010,7 @@ class AIAgent:
             self._credits_session_start_micros = state.remaining_micros
         if _dev:
             # HERMES_DEV_CREDITS: stream each capture to agent.log — watch live with
-            # `hermes logs -f` (grep 'credits ▸'). Dev-only; silent for normal users.
+            # `simplicio-agent logs -f` (grep 'credits ▸'). Dev-only; silent for normal users.
             spent = self.get_credits_spent_micros()
             used = state.used_fraction
             logger.info(
@@ -3909,7 +3909,7 @@ class AIAgent:
         # Guard against silent account swap.
         #
         # When an agent is using a non-singleton credential — e.g. a manual
-        # pool entry (``hermes auth add xai-oauth``) whose tokens belong to
+        # pool entry (``simplicio-agent auth add xai-oauth``) whose tokens belong to
         # a different account than the loopback_pkce singleton, or an agent
         # constructed with an explicit ``api_key=`` arg — force-refreshing
         # the singleton here and adopting its tokens silently re-routes the

@@ -342,17 +342,22 @@ else
 fi
 
 # ============================================================================
-# PATH setup — symlink hermes into a user-facing bin dir
+# PATH setup — symlink simplicio-agent (+ deprecated hermes alias) into a
+# user-facing bin dir
 # ============================================================================
 
-echo -e "${CYAN}→${NC} Setting up hermes command..."
+echo -e "${CYAN}→${NC} Setting up simplicio-agent command..."
 
+AGENT_BIN="$SCRIPT_DIR/venv/bin/simplicio-agent"
 HERMES_BIN="$SCRIPT_DIR/venv/bin/hermes"
+# Older venvs may predate the simplicio-agent entry point.
+[ -x "$AGENT_BIN" ] || AGENT_BIN="$HERMES_BIN"
 COMMAND_LINK_DIR="$(get_command_link_dir)"
 COMMAND_LINK_DISPLAY_DIR="$(get_command_link_display_dir)"
 mkdir -p "$COMMAND_LINK_DIR"
-ln -sf "$HERMES_BIN" "$COMMAND_LINK_DIR/hermes"
-echo -e "${GREEN}✓${NC} Symlinked hermes → $COMMAND_LINK_DISPLAY_DIR/hermes"
+ln -sf "$AGENT_BIN" "$COMMAND_LINK_DIR/simplicio-agent"
+ln -sf "$AGENT_BIN" "$COMMAND_LINK_DIR/hermes"
+echo -e "${GREEN}✓${NC} Symlinked simplicio-agent → $COMMAND_LINK_DISPLAY_DIR/simplicio-agent (hermes kept as deprecated alias)"
 
 if is_termux; then
     export PATH="$COMMAND_LINK_DIR:$PATH"
@@ -670,7 +675,7 @@ echo "Next steps:"
 echo ""
 if is_termux; then
     echo "  1. Run the setup wizard to configure API keys:"
-    echo "     hermes setup"
+    echo "     simplicio-agent setup"
     echo ""
     echo "  2. Start chatting:"
     echo "     hermes"
@@ -680,21 +685,21 @@ else
     echo "     source $SHELL_CONFIG"
     echo ""
     echo "  2. Run the setup wizard to configure API keys:"
-    echo "     hermes setup"
+    echo "     simplicio-agent setup"
     echo ""
     echo "  3. Start chatting:"
     echo "     hermes"
     echo ""
 fi
 echo "Other commands:"
-echo "  hermes status        # Check configuration"
+echo "  simplicio-agent status        # Check configuration"
 if is_termux; then
-    echo "  hermes gateway       # Run gateway in foreground"
+    echo "  simplicio-agent gateway       # Run gateway in foreground"
 else
-    echo "  hermes gateway install # Install gateway service (messaging + cron)"
+    echo "  simplicio-agent gateway install # Install gateway service (messaging + cron)"
 fi
-echo "  hermes cron list     # View scheduled jobs"
-echo "  hermes doctor        # Diagnose issues"
+echo "  simplicio-agent cron list     # View scheduled jobs"
+echo "  simplicio-agent doctor        # Diagnose issues"
 echo "  simplicio version    # Simplicio Runtime version"
 echo "  simplicio runtime map --repo . --for-llm markdown  # Orientação do repo"
 echo ""

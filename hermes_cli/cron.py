@@ -21,12 +21,16 @@ from hermes_cli.colors import Colors, color
 # Deliberately specific — a bare "gateway ... restart" catch-all would block
 # legitimate prompts that merely mention an unrelated gateway (e.g. "summarize
 # the API gateway logs and report restart events").
+# Both CLI names are live: `simplicio-agent` (canonical) and `hermes`
+# (deprecated alias) — a cron job or terminal command may use either.
+# `simplicio-agent` also contains no bare "hermes" substring, so each
+# alternation needs both names explicitly.
 _GATEWAY_LIFECYCLE_PATTERNS = re.compile(
     r"(?i)"
-    r"(hermes\s+gateway\s+(restart|stop|start))"
-    r"|(launchctl\s+(kickstart|unload|load|stop|restart)\s+.*hermes)"
-    r"|(systemctl\s+(-\S+\s+)*(restart|stop|start)\s+.*hermes)"
-    r"|(p?kill\s+.*hermes.*gateway)"
+    r"((simplicio-agent|hermes)\s+gateway\s+(restart|stop|start))"
+    r"|(launchctl\s+(kickstart|unload|load|stop|restart)\s+.*(hermes|simplicio-agent))"
+    r"|(systemctl\s+(-\S+\s+)*(restart|stop|start)\s+.*(hermes|simplicio-agent))"
+    r"|(p?kill\s+.*(hermes|simplicio-agent).*gateway)"
 )
 
 
@@ -100,9 +104,9 @@ def _warn_if_gateway_not_running() -> None:
         return
 
     print(color("  ⚠  Gateway is not running — jobs won't fire automatically.", Colors.YELLOW))
-    print(color("     Start it with: hermes gateway install", Colors.DIM))
-    print(color("                    sudo hermes gateway install --system  # Linux servers", Colors.DIM))
-    print(color("     Check status:  hermes cron status", Colors.DIM))
+    print(color("     Start it with: simplicio-agent gateway install", Colors.DIM))
+    print(color("                    sudo simplicio-agent gateway install --system  # Linux servers", Colors.DIM))
+    print(color("     Check status:  simplicio-agent cron status", Colors.DIM))
 
 
 def cron_list(show_all: bool = False):
@@ -113,7 +117,7 @@ def cron_list(show_all: bool = False):
 
     if not jobs:
         print(color("No scheduled jobs.", Colors.DIM))
-        print(color("Create one with 'hermes cron create ...' or the /cron command in chat.", Colors.DIM))
+        print(color("Create one with 'simplicio-agent cron create ...' or the /cron command in chat.", Colors.DIM))
         return
 
     print()
@@ -253,7 +257,7 @@ def cron_status():
                 Colors.YELLOW,
             ))
             print(f"  PID: {', '.join(map(str, pids))}")
-            print("  Cron jobs may NOT be firing. Restart: hermes gateway restart")
+            print("  Cron jobs may NOT be firing. Restart: simplicio-agent gateway restart")
         elif hb_age is not None and ok_age is not None and ok_age > STALE_AFTER:
             # Loop is alive (fresh heartbeat) but no tick has SUCCEEDED in a
             # long time → ticks are failing every iteration.
@@ -273,9 +277,9 @@ def cron_status():
         print(color("✗ Gateway is not running — cron jobs will NOT fire", Colors.RED))
         print()
         print("  To enable automatic execution:")
-        print("    hermes gateway install    # Install as a user service")
-        print("    sudo hermes gateway install --system  # Linux servers: boot-time system service")
-        print("    hermes gateway            # Or run in foreground")
+        print("    simplicio-agent gateway install    # Install as a user service")
+        print("    sudo simplicio-agent gateway install --system  # Linux servers: boot-time system service")
+        print("    simplicio-agent gateway            # Or run in foreground")
 
     print()
 
@@ -314,7 +318,7 @@ def cron_create(args):
             "Blocked: cron job contains a gateway lifecycle command "
             "(restart/stop/kill).\n"
             "This is blocked to prevent restart loops (#30719).\n"
-            "Use `hermes gateway restart` from a shell outside the gateway.",
+            "Use `simplicio-agent gateway restart` from a shell outside the gateway.",
             Colors.RED,
         ))
         return 1
@@ -473,5 +477,5 @@ def cron_command(args):
         return _job_action("remove", args.job_id, "Removed")
 
     print(f"Unknown cron command: {subcmd}")
-    print("Usage: hermes cron [list|create|edit|pause|resume|run|remove|status|tick]")
+    print("Usage: simplicio-agent cron [list|create|edit|pause|resume|run|remove|status|tick]")
     sys.exit(1)

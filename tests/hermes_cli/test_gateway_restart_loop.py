@@ -26,9 +26,9 @@ class TestGatewayLifecyclePattern:
     """Verify the regex catches gateway lifecycle commands."""
 
     @pytest.mark.parametrize("text", [
-        "hermes gateway restart",
-        "hermes gateway stop",
-        "hermes gateway start",
+        "simplicio-agent gateway restart",
+        "simplicio-agent gateway stop",
+        "simplicio-agent gateway start",
         "hermes  gateway  restart",         # double spaces
         "Hermez Gateway Restart".lower().replace("z", "s"),  # case handled
         "HERMES GATEWAY RESTART",           # uppercase
@@ -48,7 +48,7 @@ class TestGatewayLifecyclePattern:
         assert _contains_gateway_lifecycle_command(text), f"Should match: {text!r}"
 
     @pytest.mark.parametrize("text", [
-        "kill hermes gateway process",
+        "kill simplicio-agent gateway process",
         "pkill -f hermes.*gateway",
     ])
     def test_kill_commands(self, text):
@@ -56,9 +56,9 @@ class TestGatewayLifecyclePattern:
 
     @pytest.mark.parametrize("text", [
         "restart the server application",
-        "hermes cron list",
-        "hermes update",
-        "hermes config set model claude",
+        "simplicio-agent cron list",
+        "simplicio-agent update",
+        "simplicio-agent config set model claude",
         "echo 'just a normal cron job'",
         "run the backup script",
         "gateway is running fine",
@@ -85,7 +85,7 @@ class TestCronCreateLifecycleBlock:
         args = Namespace(
             cron_command="create",
             schedule="30m",
-            prompt="Upgrade hermes then run hermes gateway restart",
+            prompt="Upgrade hermes then run simplicio-agent gateway restart",
             name=None,
             deliver=None,
             repeat=None,
@@ -195,7 +195,7 @@ class TestCronCreateLifecycleBlock:
 # ---------------------------------------------------------------------------
 
 class TestGatewaySelfTargetingGuard:
-    """Verify hermes gateway stop/restart refuse when _HERMES_GATEWAY=1."""
+    """Verify simplicio-agent gateway stop/restart refuse when _HERMES_GATEWAY=1."""
 
     def test_stop_refuses_inside_gateway(self, monkeypatch):
         monkeypatch.setenv("_HERMES_GATEWAY", "1")
@@ -301,7 +301,7 @@ class TestTerminalToolGatewayLifecycleGuard:
         "systemctl restart hermes-gateway",
         "systemctl --user restart hermes-gateway",
         "systemctl stop hermes-gateway.service",
-        "hermes gateway restart",
+        "simplicio-agent gateway restart",
         "launchctl kickstart gui/501/ai.hermes.gateway",
         "pkill -f hermes.*gateway",
     ])
