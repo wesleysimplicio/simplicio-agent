@@ -24,6 +24,11 @@ Wiring
                     tool. Model-agnostic.
 * `capture.py`    — screenshot post-processing (PNG coercion, sizing, SOM
                     overlay if the backend did not).
+* `killswitch.py` — process-level runtime pause. The model has no tool that
+                    reaches it; only the desktop REST endpoint
+                    (`PUT /api/tools/computer-use/pause`) or an equivalent
+                    gateway control can flip it — the anti-prompt-injection
+                    safety floor beneath the tool's YOLO-default approval.
 
 The outer integration points (multimodal tool-result plumbing, screenshot
 eviction in the Anthropic adapter, image-aware token estimation, the

@@ -48,6 +48,7 @@ import sys
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 
+from tools.computer_use import killswitch
 from tools.computer_use.backend import (
     ActionResult,
     CaptureResult,
@@ -182,6 +183,26 @@ def reset_backend_for_tests() -> None:  # pragma: no cover
     _always_allow = set()
 
 
+def _teardown_backend_for_killswitch() -> None:
+    """Best-effort stop + drop the cached backend when the killswitch pauses
+    computer_use mid-session, so the cua-driver subprocess is actually
+    released rather than left idle and drivable the instant someone unpauses.
+
+    Narrower than :func:`reset_backend_for_tests`: this only releases the
+    backend. It deliberately leaves approval/session state
+    (``_session_auto_approve`` / ``_always_allow``) untouched — resuming the
+    killswitch later must not silently grant a fresh auto-approve window.
+    """
+    global _backend
+    with _backend_lock:
+        if _backend is not None:
+            try:
+                _backend.stop()
+            except Exception:
+                logger.debug("computer_use: backend teardown on pause failed", exc_info=True)
+        _backend = None
+
+
 class _NoopBackend(ComputerUseBackend):  # pragma: no cover
     """Test/CI stub. Records calls; returns trivial results."""
 
@@ -265,6 +286,21 @@ def handle_computer_use(args: Dict[str, Any], **kwargs) -> Any:
                     "hint": "Destructive system shortcuts are hard-blocked.",
                 })
 
+    # Killswitch — a hard runtime stop the model cannot bypass (see
+    # tools.computer_use.killswitch's module docstring for the full
+    # rationale). Checked before approval so a paused killswitch can't be
+    # routed around by a "always approve" session state; killswitch and
+    # approval are separate axes. Safe actions (capture/wait/list_apps)
+    # never reach this branch — the desktop stays observable while paused,
+    # it just can't be driven.
+    if action in _DESTRUCTIVE_ACTIONS and killswitch.is_paused():
+        _teardown_backend_for_killswitch()
+        return json.dumps({
+            "error": "Computer control is paused (killswitch). Resume it in Simplicio to continue.",
+            "action": action,
+            "paused": True,
+        })
+
     # Approval gate (destructive actions only).
     if action in _DESTRUCTIVE_ACTIONS:
         err = _request_approval(action, args)
@@ -297,8 +333,25 @@ def _request_approval(action: str, args: Dict[str, Any]) -> Optional[str]:
         return None
     cb = _approval_callback
     if cb is None:
-        # No CLI approval wired — default allow. Gateway approval is handled
-        # one layer out via the normal tool-approval infra.
+        # INTENTIONAL YOLO DEFAULT. Neither the desktop app nor the gateway
+        # wires an approval callback here (via set_approval_callback), so
+        # every destructive action auto-approves once it reaches this
+        # point — background computer control has to act without a human
+        # confirming every single click. This is a deliberate product
+        # decision, not a gap to "fix" by making it deny-by-default.
+        #
+        # The actual safety floor for this tool is NOT this approval check:
+        #   1. tools.computer_use.killswitch — a hard runtime pause the
+        #      model has no tool to flip (enforced earlier in
+        #      handle_computer_use, before approval is even consulted).
+        #   2. _BLOCKED_KEY_COMBOS / _BLOCKED_TYPE_PATTERNS — unconditional
+        #      hard blocks that apply regardless of approval or pause state.
+        # A future per-action gateway-approval mode (prompting before every
+        # destructive action, the way terminal commands do) could wire a
+        # blocking callback into set_approval_callback() here — the
+        # frontend already reserves 'computer_use' in its APPROVAL_TOOLS
+        # set for that — but it is not implemented yet; this is only the
+        # seam.
         return None
     summary = _summarize_action(action, args)
     try:

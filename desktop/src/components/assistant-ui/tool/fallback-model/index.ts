@@ -162,6 +162,10 @@ const TOOL_META: Record<ToolTitleKey, ToolMetaSpec> = {
     icon: 'question',
     tone: 'agent'
   },
+  computer_use: {
+    icon: 'monitor',
+    tone: 'agent'
+  },
   cronjob: {
     icon: 'watch',
     tone: 'agent'
@@ -339,6 +343,7 @@ const COUNT_NOUN_BY_ARRAY: Record<(typeof COUNT_ARRAY_KEYS)[number], string> = {
 
 const DEFAULT_COUNT_NOUN_BY_TOOL: Record<string, string> = {
   browser_snapshot: 'item',
+  computer_use: 'app',
   list_files: 'file',
   search_files: 'result',
   session_search_recall: 'result',
@@ -729,8 +734,55 @@ function toolPreviewTarget(toolName: string, args: Record<string, unknown>, resu
   return ''
 }
 
+// Shared envelope produced by tools that return `{ _multimodal: true, content:
+// [...], text_summary }` (OpenAI-style multi-part tool content — see
+// `tools/computer_use/tool.py`). Any tool using this shape benefits from
+// unwrapping it here rather than special-casing per tool.
+function multimodalContentParts(result: Record<string, unknown>): Record<string, unknown>[] {
+  if (result._multimodal !== true || !Array.isArray(result.content)) {
+    return []
+  }
+
+  return result.content.filter(isRecord)
+}
+
+function multimodalImageUrl(result: Record<string, unknown>): string {
+  for (const part of multimodalContentParts(result)) {
+    if (part.type !== 'image_url') {
+      continue
+    }
+
+    const imageUrl = part.image_url
+
+    if (isRecord(imageUrl) && typeof imageUrl.url === 'string' && imageUrl.url.trim()) {
+      return imageUrl.url.trim()
+    }
+  }
+
+  return ''
+}
+
+function multimodalTextSummary(result: Record<string, unknown>): string {
+  if (result._multimodal !== true) {
+    return ''
+  }
+
+  if (typeof result.text_summary === 'string' && result.text_summary.trim()) {
+    return result.text_summary.trim()
+  }
+
+  for (const part of multimodalContentParts(result)) {
+    if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+      return part.text.trim()
+    }
+  }
+
+  return ''
+}
+
 function toolImageUrl(args: Record<string, unknown>, result: Record<string, unknown>): string {
   const candidate =
+    multimodalImageUrl(result) ||
     firstStringField(result, ['image_url', 'url', 'path', 'image_path']) ||
     firstStringField(args, ['image_url', 'url', 'path'])
 
@@ -827,6 +879,12 @@ function fallbackDetailText(args: unknown, result: unknown): string {
   }
 
   if (result !== undefined) {
+    const multimodalText = multimodalTextSummary(parseMaybeObject(result))
+
+    if (multimodalText) {
+      return multimodalText
+    }
+
     return formatToolResultSummary(result) || minimalValueSummary(result)
   }
 
@@ -914,12 +972,27 @@ function cronjobDetail(argsRecord: Record<string, unknown>, resultRecord: Record
   return lines.length ? lines.join('\n') : fallbackDetailText(argsRecord, resultRecord)
 }
 
+// Optional polish: `type`/`set_value` results can carry
+// `meta.delivery_escalated` when the backend had to retry input delivery via
+// a slower, verified path (UIA read-back). Surfaced as a quiet subtitle line
+// under the action-aware title rather than a dedicated badge — see
+// `keepSubtitleWithTitle` in buildToolView.
+function computerUseDeliveryNote(resultRecord: Record<string, unknown>): string {
+  const meta = resultRecord.meta
+
+  return isRecord(meta) && meta.delivery_escalated === true ? 'Delivery escalated to verify it landed' : ''
+}
+
 function toolSubtitle(
   part: ToolPart,
   argsRecord: Record<string, unknown>,
   resultRecord: Record<string, unknown>
 ): string {
   const toolName = part.toolName
+
+  if (toolName === 'computer_use') {
+    return computerUseDeliveryNote(resultRecord)
+  }
 
   if (toolName === 'browser_navigate') {
     const url =
@@ -1047,6 +1120,20 @@ function toolDetailText(
     const snapshot = firstStringField(resultRecord, ['snapshot'])
 
     return snapshot ? summarizeBrowserSnapshot(snapshot) : fallbackDetailText(argsRecord, resultRecord)
+  }
+
+  if (part.toolName === 'computer_use') {
+    // Non-multimodal captures (mode='ax', or the image-missing fallback) put
+    // the human-readable AX/SOM index in `summary` — prefer it over the
+    // generic field-by-field dump, which would otherwise repeat the same
+    // mode/width/height/app fields the summary text already states.
+    // Multimodal captures (mode='som'/'vision') are handled generically by
+    // fallbackDetailText()'s `_multimodal` check below.
+    const summary = firstStringField(resultRecord, ['summary'])
+
+    if (summary) {
+      return summary
+    }
   }
 
   if (part.toolName === 'terminal' || part.toolName === 'execute_code') {
@@ -1256,6 +1343,129 @@ function titlePartsFromAction(title: string, action?: string): ToolTitleParts {
   }
 }
 
+// `computer_use` args carry the actual verb (`action`) plus contextual
+// fields (`app`, `text`, `element`, `coordinate`, `direction`, `keys`) — see
+// `tools/computer_use/schema.py`. This renders each action as a single
+// human-readable line instead of the generic "Controlled desktop" title.
+function computerUseAppOrScreen(args: Record<string, unknown>): string {
+  return firstStringField(args, ['app']) || 'the screen'
+}
+
+function computerUseClickTarget(args: Record<string, unknown>): string {
+  const app = firstStringField(args, ['app'])
+
+  if (app) {
+    return app
+  }
+
+  const element = args.element
+
+  if (typeof element === 'number' && Number.isFinite(element)) {
+    return `element #${element}`
+  }
+
+  const coordinate = args.coordinate
+
+  if (Array.isArray(coordinate) && coordinate.length === 2) {
+    return `(${coordinate[0]}, ${coordinate[1]})`
+  }
+
+  return 'the screen'
+}
+
+// [gerund, past] pairs for the click-family actions.
+const COMPUTER_USE_CLICK_VERBS: Record<string, [string, string]> = {
+  click: ['Clicking', 'Clicked'],
+  double_click: ['Double-clicking', 'Double-clicked'],
+  middle_click: ['Middle-clicking', 'Middle-clicked'],
+  right_click: ['Right-clicking', 'Right-clicked']
+}
+
+function computerUseTitle(
+  action: string,
+  args: Record<string, unknown>,
+  verb: (gerund: string, past: string) => string
+): { action: string; title: string } | null {
+  if (action === 'capture') {
+    const label = verb('Looking at', 'Looked at')
+
+    return { action: label, title: `${label} ${computerUseAppOrScreen(args)}` }
+  }
+
+  const clickVerbs = COMPUTER_USE_CLICK_VERBS[action]
+
+  if (clickVerbs) {
+    const label = verb(clickVerbs[0], clickVerbs[1])
+
+    return { action: label, title: `${label} ${computerUseClickTarget(args)}` }
+  }
+
+  if (action === 'type') {
+    const label = verb('Typing', 'Typed')
+    const text = firstStringField(args, ['text'])
+
+    return { action: label, title: text ? `${label} "${compactPreview(text, 40)}"` : `${label} text` }
+  }
+
+  if (action === 'scroll') {
+    const label = verb('Scrolling', 'Scrolled')
+    const direction = firstStringField(args, ['direction']) || 'down'
+    const app = firstStringField(args, ['app'])
+
+    return { action: label, title: app ? `${label} ${direction} in ${app}` : `${label} ${direction}` }
+  }
+
+  if (action === 'key') {
+    const label = verb('Pressing', 'Pressed')
+    const keys = firstStringField(args, ['keys'])
+
+    return { action: label, title: keys ? `${label} ${keys}` : `${label} a key` }
+  }
+
+  if (action === 'set_value') {
+    const label = verb('Setting', 'Set')
+    const value = firstStringField(args, ['value'])
+
+    return { action: label, title: value ? `${label} value to "${compactPreview(value, 40)}"` : `${label} value` }
+  }
+
+  if (action === 'drag') {
+    const label = verb('Dragging', 'Dragged')
+
+    return { action: label, title: label }
+  }
+
+  if (action === 'focus_app') {
+    const label = verb('Switching to', 'Switched to')
+    const app = firstStringField(args, ['app'])
+
+    return { action: label, title: app ? `${label} ${app}` : `${label} app` }
+  }
+
+  if (action === 'list_apps') {
+    const label = verb('Listing', 'Listed')
+
+    return { action: label, title: `${label} open apps` }
+  }
+
+  if (action === 'wait') {
+    const label = verb('Waiting', 'Waited')
+    const seconds = numberValue(args.seconds)
+
+    return { action: label, title: seconds !== null ? `${label} ${seconds}s` : label }
+  }
+
+  // Unknown/future action — titleize it rather than crash or fall through
+  // to a generic "Controlled desktop" that hides which action actually ran.
+  if (!action) {
+    return null
+  }
+
+  const label = titleForTool(action)
+
+  return { action: label, title: label }
+}
+
 function dynamicTitle(
   part: ToolPart,
   args: Record<string, unknown>,
@@ -1266,6 +1476,13 @@ function dynamicTitle(
 
   const titledAction = (action: string, title: string): ToolTitleParts =>
     titlePartsFromAction(title, part.result === undefined ? action : undefined)
+
+  if (part.toolName === 'computer_use') {
+    const action = firstStringField(args, ['action']).toLowerCase()
+    const built = computerUseTitle(action, args, verb)
+
+    return built ? titledAction(built.action, built.title) : fallback
+  }
 
   if (part.toolName === 'web_extract') {
     const url = findFirstUrl(args, result)
@@ -1381,7 +1598,8 @@ export function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
   const keepSubtitleWithTitle =
     part.toolName === 'terminal' ||
     part.toolName === 'execute_code' ||
-    (isFileEditTool(part.toolName) && Boolean(baseSubtitle.trim()))
+    (isFileEditTool(part.toolName) && Boolean(baseSubtitle.trim())) ||
+    (part.toolName === 'computer_use' && Boolean(baseSubtitle.trim()))
 
   const subtitle = titleEnriched && !error && !keepSubtitleWithTitle ? '' : baseSubtitle
   const detailBody = stripDividerLines(toolDetailText(part, argsRecord, resultRecord))

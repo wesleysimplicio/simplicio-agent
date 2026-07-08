@@ -2278,6 +2278,7 @@ export const ja = defineLocale({
         },
         browser_type: { done: 'ページに入力しました', pending: 'ページに入力中', pendingAction: '入力中' },
         clarify: { done: '質問しました', pending: '質問中', pendingAction: '質問中' },
+        computer_use: { done: 'デスクトップを操作しました', pending: 'デスクトップを操作中', pendingAction: '操作中' },
         cronjob: { done: 'Cron ジョブ', pending: 'Cron ジョブをスケジュール中', pendingAction: 'スケジュール中' },
         edit_file: { done: 'ファイルを編集しました', pending: 'ファイルを編集中', pendingAction: '編集中' },
         execute_code: { done: 'コードを実行しました', pending: 'スクリプト作成中', pendingAction: 'スクリプト作成中' },

@@ -1023,7 +1023,27 @@ export const zh: Translations = {
     configPathUnknown: '未报告配置路径',
     stateConnected: '已连接',
     stateInstalled: '已安装，未连接',
-    stateNotInstalled: '未安装'
+    stateNotInstalled: '未安装',
+    mcpLive: {
+      heading: '实时 MCP 连接',
+      subtitle: '哪些 MCP 客户端此刻真正处于连接状态，以及它们使用过的工具。',
+      updatedNow: '刚刚更新',
+      updatedAgo: time => `${time} 前更新`,
+      loading: '正在检查实时 MCP 连接…',
+      unavailableTitle: '实时状态不可用',
+      unavailableDesc: error => error,
+      emptyTitle: '当前没有已连接的 MCP 客户端',
+      emptyDesc: '打开 Claude Code、Claude Desktop、Cursor 或其他指向此服务器的 MCP 客户端后，会在此处显示。',
+      connectedBadge: '已连接',
+      disconnectedBadge: '已断开',
+      connectedSince: time => `已连接 ${time}`,
+      pidLabel: pid => `PID ${pid}`,
+      versionLabel: version => `v${version}`,
+      toolsUsedLabel: '已使用的工具',
+      noToolsYet: '尚未调用任何工具',
+      unknownClient: '未知客户端',
+      liveNowTooltip: '当前通过 MCP 连接中'
+    }
   },
 
   savings: {
@@ -2475,6 +2495,7 @@ export const zh: Translations = {
         browser_take_screenshot: { done: '已捕获截图', pending: '正在捕获截图', pendingAction: '正在捕获' },
         browser_type: { done: '已在页面输入', pending: '正在页面输入', pendingAction: '正在输入' },
         clarify: { done: '已提问', pending: '正在提问', pendingAction: '正在提问' },
+        computer_use: { done: '已控制桌面', pending: '正在控制桌面', pendingAction: '正在控制' },
         cronjob: { done: 'Cron 任务', pending: '正在安排 Cron 任务', pendingAction: '正在安排' },
         edit_file: { done: '已编辑文件', pending: '正在编辑文件', pendingAction: '正在编辑' },
         execute_code: { done: '已运行代码', pending: '正在编写脚本', pendingAction: '正在编写脚本' },

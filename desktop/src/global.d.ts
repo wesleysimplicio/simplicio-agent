@@ -213,6 +213,13 @@ declare global {
       // repo's ledger with the home one (deduped by event id).
       memoryStatus: () => Promise<MemoryStatusResult>
       savingsSessions: (opts?: { repoPath?: string | null }) => Promise<SavingsSessionsResult>
+      // `simplicio mcp status --json` -- live MCP client connections (pid,
+      // the clientInfo the MCP handshake received, liveness, tools called).
+      // The live complement to `editorsDetect()`'s static installed/
+      // registered-in-config view. May resolve `ok:false` on a runtime build
+      // that doesn't implement the subcommand yet -- an honest "unavailable",
+      // never a fabricated connection (see McpConnectionsResult below).
+      mcpConnections: () => Promise<McpConnectionsResult>
       // Supervised `simplicio dashboard start --port 0 --no-open --json` daemon
       // (electron/dashboard-daemon.cjs) -- the runtime's embedded token-savings
       // HTTP dashboard. Mirrors the mcpDaemon* bridge shape above.
@@ -433,6 +440,25 @@ export interface DashboardSummaryResult {
 export interface MemoryStatusResult {
   ok: boolean
   memory?: Record<string, unknown>
+  error?: string
+  raw?: string
+}
+
+// `simplicio mcp status --json` (schema `simplicio.mcp-status/v1`). The
+// payload is runtime-owned and not schema-pinned here (known fields, as
+// emitted -- snake_case: `connections[]` of {pid, client_name,
+// client_version, repo, connected_at, alive, last_tool_call_at,
+// tools_used[]}, plus `generated_at`) -- the renderer normalizes via
+// `src/app/integrations/mcp-connections-presentation.ts`'s parseMcpStatus(),
+// which is honest about `null` for any field a given runtime build doesn't
+// populate. An older runtime binary that predates this subcommand resolves
+// `ok:false` ("unknown mcp subcommand 'status'") -- callers must treat that
+// as "live status unavailable", never fabricating a connection. Confirmed
+// working live against a freshly-built simplicio-runtime binary on
+// 2026-07-08 (real connections/generated_at returned).
+export interface McpConnectionsResult {
+  ok: boolean
+  status?: Record<string, unknown>
   error?: string
   raw?: string
 }

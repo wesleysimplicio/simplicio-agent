@@ -920,7 +920,7 @@ class TestE2EPermissions:
 
 
 # ---------------------------------------------------------------------------
-# 4. TOOL LISTING — verify all 10 tools are registered
+# 4. TOOL LISTING — verify all 11 tools are registered
 # ---------------------------------------------------------------------------
 
 class TestToolRegistration:
@@ -934,6 +934,10 @@ class TestToolRegistration:
             "attachments_fetch", "events_poll", "events_wait",
             "messages_send", "channels_list",
             "permissions_list_open", "permissions_respond",
+            # computer_use (Fase 3): safety-gated desktop control, reusing
+            # tools.computer_use.tool.handle_computer_use — see
+            # mcp_serve._computer_use_mcp_refusal for the MCP-level gate.
+            "computer_use",
         }
         assert expected == tool_names, f"Missing: {expected - tool_names}, Extra: {tool_names - expected}"
 

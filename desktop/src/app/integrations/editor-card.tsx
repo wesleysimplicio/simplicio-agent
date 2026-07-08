@@ -25,13 +25,20 @@ interface EditorCardProps {
   index: number
   entered: boolean
   copy: Translations['integrations']
+  // True when the live MCP connections poll (`mcp-connections-section.tsx`,
+  // `simplicio mcp status`) has an alive connection whose clientInfo matches
+  // this editor (see `matchesEditor` in mcp-connections-presentation.ts).
+  // Purely a cosmetic cross-reference on top of `editor.registered` — never
+  // changes `editorConnectionState`/the card's tone, since "live right now"
+  // and "registered in config" are two honest, independently-sourced facts.
+  live?: boolean
 }
 
 // One card per editor/agent the backend can see. Every visual cue —
 // border/background tint, the status dot, and the label — is driven purely by
 // `editor.installed` / `editor.registered` as reported this poll; nothing here
 // is optimistic or cached across a deploy attempt.
-export function EditorCard({ editor, index, entered, copy }: EditorCardProps) {
+export function EditorCard({ editor, index, entered, copy, live = false }: EditorCardProps) {
   const state = editorConnectionState(editor)
 
   return (
@@ -46,7 +53,19 @@ export function EditorCard({ editor, index, entered, copy }: EditorCardProps) {
       )}
       style={{ transitionDelay: entered ? `${Math.min(index * 40, 320)}ms` : '0ms' }}
     >
-      <EditorMonogram id={editor.id} name={editor.name} />
+      <span className="relative shrink-0">
+        <EditorMonogram id={editor.id} name={editor.name} />
+        {live && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-0.5 -top-0.5 grid size-2.5 place-items-center"
+            title={copy.mcpLive.liveNowTooltip}
+          >
+            <span className="absolute inline-flex size-2.5 animate-ping rounded-full bg-emerald-500/70 motion-reduce:hidden" />
+            <span className="relative size-1.5 rounded-full bg-emerald-500 ring-2 ring-(--ui-bg-secondary)" />
+          </span>
+        )}
+      </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">

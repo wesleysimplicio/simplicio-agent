@@ -38,7 +38,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("simplicio.mcp_serve")
 
@@ -448,6 +448,115 @@ class EventBridge:
                 latest = max(all_ts)
                 if latest > last_seen:
                     self._last_poll_timestamps[session_key] = latest
+
+
+# ---------------------------------------------------------------------------
+# computer_use safety gate + result mapping (Fase 3)
+#
+# An external MCP client (Cursor, Claude Code, any other editor wired to
+# this stdio server) driving the desktop is the largest prompt-injection
+# surface `computer_use` has, so it is locked down harder here than the
+# rest of this bridge's tool surface. Both helpers below are plain module
+# functions (no `mcp` import at module scope) so the safety decision itself
+# stays unit-testable even in environments where the `mcp` package isn't
+# installed — only `_computer_use_result_to_mcp_content` needs it, and that
+# import is deferred to the call site.
+# ---------------------------------------------------------------------------
+
+# Opt-in for non-safe (destructive) computer_use actions over MCP. Unset/
+# falsy => only capture/wait/list_apps are reachable from this transport.
+_COMPUTER_CONTROL_ALLOW_ENV = "SIMPLICIO_MCP_ALLOW_COMPUTER_CONTROL"
+
+
+def _computer_control_allowed_via_env() -> bool:
+    """True when the operator opted into non-safe computer_use actions over MCP."""
+    from utils import env_var_enabled
+
+    return env_var_enabled(_COMPUTER_CONTROL_ALLOW_ENV)
+
+
+def _computer_use_mcp_refusal(action: str) -> Optional[str]:
+    """Return a refusal message for ``action`` over the MCP surface, or ``None`` to allow.
+
+    Two independent, defense-in-depth checks (``handle_computer_use`` itself
+    also enforces the killswitch — see ``tools.computer_use.tool`` — so this
+    is belt-and-suspenders, not the only gate):
+
+      1. Safe-actions-only by default. Only ``capture`` / ``wait`` /
+         ``list_apps`` (``tools.computer_use.tool._SAFE_ACTIONS``) run
+         without an explicit opt-in. Everything else requires
+         ``SIMPLICIO_MCP_ALLOW_COMPUTER_CONTROL`` to be truthy.
+      2. The runtime killswitch is always honored for non-safe actions,
+         opt-in or not — see ``tools.computer_use.killswitch``.
+    """
+    from tools.computer_use import killswitch
+    from tools.computer_use.tool import _SAFE_ACTIONS
+
+    normalized = (action or "").strip().lower()
+    if normalized in _SAFE_ACTIONS:
+        return None
+
+    if not _computer_control_allowed_via_env():
+        return (
+            f"computer_use action {normalized!r} is disabled over MCP by "
+            f"default — only capture/wait/list_apps are allowed from this "
+            f"transport. Set {_COMPUTER_CONTROL_ALLOW_ENV}=1 in the "
+            f"Simplicio Agent process environment to let an MCP client "
+            f"drive the desktop."
+        )
+
+    if killswitch.is_paused():
+        return (
+            "Computer control is paused (killswitch). Resume it in "
+            "Simplicio to continue."
+        )
+
+    return None
+
+
+def _computer_use_result_to_mcp_content(result: Any) -> List[Any]:
+    """Map ``handle_computer_use``'s return shape into MCP content blocks.
+
+    ``handle_computer_use`` returns either a JSON string (text-only results:
+    wait, key, list_apps, errors, ...) or a dict marked ``_multimodal``
+    (screenshot + summary — see ``tools/computer_use/tool.py``'s module
+    docstring for the exact envelope shape). FastMCP tool functions may
+    return a list of content blocks directly and have them passed through
+    as-is, so build that list explicitly instead of collapsing the
+    screenshot into a text-only note.
+    """
+    from mcp.types import ImageContent, TextContent
+
+    if isinstance(result, dict) and result.get("_multimodal"):
+        blocks: List[Any] = []
+        for part in result.get("content") or []:
+            if not isinstance(part, dict):
+                continue
+            ptype = part.get("type")
+            if ptype == "text":
+                text = part.get("text") or ""
+                if text:
+                    blocks.append(TextContent(type="text", text=text))
+            elif ptype == "image_url":
+                url = (part.get("image_url") or {}).get("url") or ""
+                header, _, b64 = url.partition(",")
+                mime = "image/png"
+                if header.startswith("data:"):
+                    mime = header[len("data:"):].split(";")[0] or "image/png"
+                if b64:
+                    blocks.append(ImageContent(type="image", data=b64, mimeType=mime))
+        if blocks:
+            return blocks
+        # A malformed/empty envelope shouldn't surface empty content.
+        summary = result.get("text_summary") or "computer_use returned an empty result"
+        return [TextContent(type="text", text=str(summary))]
+
+    if isinstance(result, str):
+        return [TextContent(type="text", text=result)]
+
+    # Any other shape (shouldn't normally happen) — best-effort JSON dump so
+    # the caller still gets something instead of a serialization crash.
+    return [TextContent(type="text", text=json.dumps(result))]
 
 
 # ---------------------------------------------------------------------------
@@ -865,6 +974,122 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
 
         result = bridge.respond_to_approval(id, decision)
         return json.dumps(result, indent=2)
+
+    # -- computer_use --------------------------------------------------
+    #
+    # Safety-gated — see `_computer_use_mcp_refusal` above. Defaults to
+    # SAFE ACTIONS ONLY (capture/wait/list_apps); every other action needs
+    # SIMPLICIO_MCP_ALLOW_COMPUTER_CONTROL=1 AND an unpaused killswitch.
+    # Reuses `tools.computer_use.tool.handle_computer_use` verbatim rather
+    # than reimplementing action dispatch.
+
+    @mcp.tool()
+    def computer_use(
+        action: str,
+        mode: Optional[str] = None,
+        app: Optional[str] = None,
+        max_elements: Optional[int] = None,
+        element: Optional[int] = None,
+        coordinate: Optional[List[int]] = None,
+        button: Optional[str] = None,
+        modifiers: Optional[List[str]] = None,
+        from_element: Optional[int] = None,
+        to_element: Optional[int] = None,
+        from_coordinate: Optional[List[int]] = None,
+        to_coordinate: Optional[List[int]] = None,
+        direction: Optional[str] = None,
+        amount: Optional[int] = None,
+        value: Optional[str] = None,
+        text: Optional[str] = None,
+        keys: Optional[str] = None,
+        seconds: Optional[float] = None,
+        raise_window: Optional[bool] = None,
+        capture_after: Optional[bool] = None,
+    ) -> List[Any]:
+        """Drive the desktop in the background via cua-driver.
+
+        Screenshots, mouse, keyboard, scroll, drag — without stealing the
+        user's cursor or keyboard focus. Preferred workflow: call with
+        action='capture' (mode='som' gives numbered element overlays), then
+        click by `element` index.
+
+        SAFETY: by default only capture/wait/list_apps run over MCP. Every
+        other action is refused unless the Simplicio Agent process has
+        SIMPLICIO_MCP_ALLOW_COMPUTER_CONTROL=1 set, and is refused
+        regardless while the computer_use killswitch is paused (flip it
+        from the Simplicio desktop app, or `PUT /api/tools/computer-use/pause`).
+
+        Args:
+            action: capture, click, double_click, right_click, middle_click,
+                drag, scroll, type, key, set_value, wait, list_apps, or
+                focus_app.
+            mode: For action='capture' — 'som' (screenshot + numbered
+                element overlays, default), 'vision' (plain screenshot), or
+                'ax' (accessibility tree only, no image).
+            app: Optional app name/bundle ID to scope the capture/action to.
+                Pass 'screen' or 'desktop' for the OS shell surface.
+            max_elements: Cap on the AX `elements` array from capture
+                (default 100, max 1000).
+            element: 1-based SOM index from the last capture — preferred
+                click/scroll/drag target over raw coordinates.
+            coordinate: [x, y] pixel target, only when no element index is
+                available.
+            button: Mouse button for click actions — left, right, or middle.
+            modifiers: Modifier keys held during the action (cmd, shift,
+                option/alt, ctrl, win, ...).
+            from_element: Source element index for action='drag'.
+            to_element: Target element index for action='drag'.
+            from_coordinate: Source [x, y] for action='drag'.
+            to_coordinate: Target [x, y] for action='drag'.
+            direction: Scroll direction — up, down, left, right.
+            amount: Scroll wheel ticks (default 3).
+            value: New value for action='set_value' (dropdown label or
+                slider value).
+            text: Text to type for action='type'.
+            keys: Key combo for action='key', e.g. 'cmd+s', 'escape'.
+            seconds: Seconds to wait for action='wait' (max 30).
+            raise_window: For action='focus_app' — bring the window to
+                front (disrupts the user). Default false.
+            capture_after: If true, include a follow-up capture in the
+                response after the action runs.
+        """
+        refusal = _computer_use_mcp_refusal(action)
+        if refusal is not None:
+            from mcp.types import TextContent
+
+            return [TextContent(type="text", text=json.dumps({"error": refusal}))]
+
+        from tools.computer_use.tool import handle_computer_use
+
+        call_args = {
+            "action": action,
+            "mode": mode,
+            "app": app,
+            "max_elements": max_elements,
+            "element": element,
+            "coordinate": coordinate,
+            "button": button,
+            "modifiers": modifiers,
+            "from_element": from_element,
+            "to_element": to_element,
+            "from_coordinate": from_coordinate,
+            "to_coordinate": to_coordinate,
+            "direction": direction,
+            "amount": amount,
+            "value": value,
+            "text": text,
+            "keys": keys,
+            "seconds": seconds,
+            "raise_window": raise_window,
+            "capture_after": capture_after,
+        }
+        # Drop unset optional params rather than passing them through as
+        # explicit Nones — handle_computer_use / _dispatch read some of
+        # these via `args.get(key, default)`, which only falls back to
+        # `default` when the key is ABSENT, not when it's present-but-None.
+        call_args = {k: v for k, v in call_args.items() if v is not None}
+        result = handle_computer_use(call_args)
+        return _computer_use_result_to_mcp_content(result)
 
     return mcp
 

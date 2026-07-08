@@ -26,6 +26,78 @@ export const LOCALE_OPTIONS = [
     name: '日本語',
     englishName: 'Japanese',
     configValue: 'ja'
+  },
+  {
+    id: 'es',
+    name: 'Español',
+    englishName: 'Spanish',
+    configValue: 'es'
+  },
+  {
+    id: 'fr',
+    name: 'Français',
+    englishName: 'French',
+    configValue: 'fr'
+  },
+  {
+    id: 'it',
+    name: 'Italiano',
+    englishName: 'Italian',
+    configValue: 'it'
+  },
+  {
+    id: 'pt-BR',
+    name: 'Português (Brasil)',
+    englishName: 'Portuguese (Brazil)',
+    configValue: 'pt-BR'
+  },
+  {
+    id: 'ru',
+    name: 'Русский',
+    englishName: 'Russian',
+    configValue: 'ru'
+  },
+  {
+    id: 'pl',
+    name: 'Polski',
+    englishName: 'Polish',
+    configValue: 'pl'
+  },
+  {
+    id: 'ko',
+    name: '한국어',
+    englishName: 'Korean',
+    configValue: 'ko'
+  },
+  {
+    id: 'id',
+    name: 'Bahasa Indonesia',
+    englishName: 'Indonesian',
+    configValue: 'id'
+  },
+  {
+    id: 'ms',
+    name: 'Bahasa Melayu',
+    englishName: 'Malay',
+    configValue: 'ms'
+  },
+  {
+    id: 'hi',
+    name: 'हिन्दी',
+    englishName: 'Hindi',
+    configValue: 'hi'
+  },
+  {
+    id: 'ar',
+    name: 'العربية',
+    englishName: 'Arabic',
+    configValue: 'ar'
+  },
+  {
+    id: 'he',
+    name: 'עברית',
+    englishName: 'Hebrew',
+    configValue: 'he'
   }
 ] as const satisfies readonly { configValue: string; englishName: string; id: Locale; name: string }[]
 
@@ -62,7 +134,53 @@ const LOCALE_ALIASES: Record<string, Locale> = {
   zh_hant_hk: 'zh-hant',
   ja: 'ja',
   'ja-jp': 'ja',
-  ja_jp: 'ja'
+  ja_jp: 'ja',
+  es: 'es',
+  'es-es': 'es',
+  es_es: 'es',
+  'es-mx': 'es',
+  es_mx: 'es',
+  'es-419': 'es',
+  es_419: 'es',
+  fr: 'fr',
+  'fr-fr': 'fr',
+  fr_fr: 'fr',
+  'fr-ca': 'fr',
+  fr_ca: 'fr',
+  it: 'it',
+  'it-it': 'it',
+  it_it: 'it',
+  pt: 'pt-BR',
+  'pt-br': 'pt-BR',
+  pt_br: 'pt-BR',
+  'pt-pt': 'pt-BR',
+  pt_pt: 'pt-BR',
+  ru: 'ru',
+  'ru-ru': 'ru',
+  ru_ru: 'ru',
+  pl: 'pl',
+  'pl-pl': 'pl',
+  pl_pl: 'pl',
+  ko: 'ko',
+  'ko-kr': 'ko',
+  ko_kr: 'ko',
+  id: 'id',
+  'id-id': 'id',
+  id_id: 'id',
+  in: 'id',
+  ms: 'ms',
+  'ms-my': 'ms',
+  ms_my: 'ms',
+  hi: 'hi',
+  'hi-in': 'hi',
+  hi_in: 'hi',
+  ar: 'ar',
+  'ar-sa': 'ar',
+  ar_sa: 'ar',
+  he: 'he',
+  'he-il': 'he',
+  he_il: 'he',
+  iw: 'he'
 }
 
 export function isLocale(value: unknown): value is Locale {

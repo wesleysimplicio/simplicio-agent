@@ -4,11 +4,12 @@
  * simplicio-ipc.cjs
  *
  * Wires the "Simplicio Savings" surface (savings report, doctor, editor MCP
- * detection/registration, the always-on MCP stdio daemon) into the main
- * process's ipcMain, and owns the one supervised McpDaemon instance for the
- * app's lifetime. main.cjs calls registerSimplicioIpc(ipcMain, opts) once at
- * module init (registration doesn't need `app.whenReady()`), then drives the
- * returned daemon's start()/stop() from `app.whenReady()` / `before-quit`.
+ * detection/registration, live MCP client connections, the always-on MCP
+ * stdio daemon) into the main process's ipcMain, and owns the one supervised
+ * McpDaemon instance for the app's lifetime. main.cjs calls
+ * registerSimplicioIpc(ipcMain, opts) once at module init (registration
+ * doesn't need `app.whenReady()`), then drives the returned daemon's
+ * start()/stop() from `app.whenReady()` / `before-quit`.
  */
 
 const os = require('node:os')
@@ -87,6 +88,29 @@ function memoryStatus(runner) {
 }
 
 /**
+ * `simplicio mcp status --json` (schema `simplicio.mcp-status/v1`: which MCP
+ * clients -- Claude Code, Claude Desktop, Cursor, etc. -- are ACTUALLY
+ * connected right now: pid, the clientInfo the MCP handshake received,
+ * liveness, and the tools each has called). This is the live complement to
+ * `simplicio:editors-detect`, which only reports static "installed in
+ * config" state. Resolves `{ok:true, status}` on success.
+ *
+ * An older runtime binary that predates this subcommand exits non-zero with
+ * an empty stdout ("unknown mcp subcommand 'status'") -- that already
+ * surfaces as an honest `{ok:false, error}` via runJsonCommand (empty stdout
+ * + non-zero exit), so this function needs no special-casing: an
+ * older-or-current binary degrades cleanly, and a binary that implements it
+ * (confirmed live against a freshly-built simplicio-runtime binary on
+ * 2026-07-08 -- real `connections`/`generated_at` returned) works without
+ * any change here. Never fabricate a connection when this resolves ok:false.
+ *
+ * @param {Function} [runner] - runSimplicio stand-in (tests).
+ */
+function mcpConnections(runner) {
+  return runJsonCommand(['mcp', 'status', '--json'], 'simplicio mcp status', 'status', runner)
+}
+
+/**
  * Register every IPC handler for the Simplicio Savings surface and start (but
  * do not yet spawn) the supervised MCP daemon.
  *
@@ -127,6 +151,7 @@ function registerSimplicioIpc(ipcMain, opts = {}) {
   ipcMain.handle('simplicio:mcp-daemon-start', () => daemon.start())
   ipcMain.handle('simplicio:mcp-daemon-stop', () => daemon.stop())
   ipcMain.handle('simplicio:memory-status', () => memoryStatus())
+  ipcMain.handle('simplicio:mcp-connections', () => mcpConnections())
   // Direct ledger read -- no spawn, no LLM. `request` may carry an optional
   // repoPath whose per-repo ledger is merged (deduped by event_id) with the
   // home ledger.
@@ -167,5 +192,6 @@ module.exports = {
   savingsReport,
   doctorRun,
   memoryStatus,
+  mcpConnections,
   resolveSimplicioBin
 }

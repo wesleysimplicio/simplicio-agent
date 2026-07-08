@@ -138,12 +138,9 @@ const NON_SESSION_LOAD_STEP = 10
 const NEW_SESSION_KBD = comboTokens('mod+n')
 
 const SIDEBAR_NAV: SidebarNavItem[] = [
-  {
-    id: 'new-session',
-    label: '',
-    icon: props => <Codicon name="robot" {...props} />,
-    action: 'new-session'
-  },
+  // New session is a chat-app affordance, out of scope for the Simplicio
+  // runtime cockpit product (2026-07-08 standing decision) -- hidden from
+  // nav, not deleted (the 'new-session' action still exists for Ctrl+N etc.).
   {
     id: 'skills',
     label: '',

@@ -3,7 +3,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { registerSimplicioIpc, savingsReport, doctorRun, memoryStatus } = require('./simplicio-ipc.cjs')
+const { registerSimplicioIpc, savingsReport, doctorRun, memoryStatus, mcpConnections } = require('./simplicio-ipc.cjs')
 
 // A minimal ipcMain fake: records handlers by channel and lets the test
 // invoke them directly, so this doesn't need a real electron runtime.
@@ -83,6 +83,7 @@ test('registerSimplicioIpc registers every documented channel', () => {
       'simplicio:dashboard-summary',
       'simplicio:doctor',
       'simplicio:editors-detect',
+      'simplicio:mcp-connections',
       'simplicio:mcp-daemon-start',
       'simplicio:mcp-daemon-status',
       'simplicio:mcp-daemon-stop',
@@ -293,6 +294,67 @@ test('memoryStatus resolves {ok:false, error} when the binary is missing', async
   assert.equal(result.ok, false)
   assert.equal(result.error, 'simplicio binary not found')
   assert.equal('memory' in result, false)
+})
+
+test('mcpConnections resolves {ok:true, status:<parsed json>} on success', async () => {
+  const runner = async args => {
+    assert.deepEqual(args, ['mcp', 'status', '--json'])
+    return {
+      ok: true,
+      stdout: JSON.stringify({
+        schema: 'simplicio.mcp-status/v1',
+        connections: [{ pid: 123, client_name: 'Claude Code', alive: true }],
+        generated_at: 1751990400
+      }),
+      stderr: '',
+      code: 0
+    }
+  }
+  const result = await mcpConnections(runner)
+  assert.equal(result.ok, true)
+  assert.equal(result.status.schema, 'simplicio.mcp-status/v1')
+  assert.equal(result.status.connections.length, 1)
+  assert.equal(result.status.connections[0].client_name, 'Claude Code')
+})
+
+// The real observed shape (2026-07-08) on a runtime binary that doesn't yet
+// implement `mcp status`: exits 1, empty stdout, the error on stderr. This
+// must resolve the same honest ok:false the other commands use -- never a
+// thrown exception, never a fabricated connection list.
+test('mcpConnections resolves {ok:false, error} when the subcommand does not exist yet', async () => {
+  const runner = async args => {
+    assert.deepEqual(args, ['mcp', 'status', '--json'])
+    return {
+      ok: false,
+      stdout: '',
+      stderr: "simplicio: unknown mcp subcommand 'status' (use add|list|remove|catalog|search|install|auth|token|logout)",
+      code: 1
+    }
+  }
+  const result = await mcpConnections(runner)
+  assert.equal(result.ok, false)
+  assert.match(result.error, /unknown mcp subcommand/)
+  assert.equal('status' in result, false)
+})
+
+test('mcpConnections resolves {ok:false, error} when the binary is missing', async () => {
+  const runner = async () => ({ ok: false, stdout: '', stderr: 'simplicio binary not found', code: null })
+  const result = await mcpConnections(runner)
+  assert.equal(result.ok, false)
+  assert.equal(result.error, 'simplicio binary not found')
+})
+
+test('simplicio:mcp-connections handler invokes the real runSimplicio-backed mcpConnections()', async () => {
+  const ipcMain = makeFakeIpcMain()
+  registerSimplicioIpc(ipcMain, { daemon: makeFakeDaemon() })
+  const result = await ipcMain.invoke('simplicio:mcp-connections')
+  // No real binary assumption here (this is the electron test suite, not an
+  // integration test) -- just assert the handler is wired and returns the
+  // honest ok/error envelope shape, same as the other bridged commands.
+  assert.equal(typeof result.ok, 'boolean')
+  if (!result.ok) {
+    assert.equal(typeof result.error, 'string')
+  }
 })
 
 test('simplicio:savings-sessions handler forwards the optional repoPath and returns the ledger shape', async () => {

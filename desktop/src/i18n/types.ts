@@ -5,7 +5,23 @@
 // partial locales should use `defineLocale()` so missing desktop-only strings
 // fall back to English while new keys remain type-checked.
 
-export type Locale = 'en' | 'zh' | 'zh-hant' | 'ja'
+export type Locale =
+  | 'en'
+  | 'zh'
+  | 'zh-hant'
+  | 'ja'
+  | 'ar'
+  | 'es'
+  | 'fr'
+  | 'he'
+  | 'hi'
+  | 'id'
+  | 'it'
+  | 'ko'
+  | 'ms'
+  | 'pl'
+  | 'pt-BR'
+  | 'ru'
 
 export type ToolTitleKey =
   | 'browser_click'
@@ -15,6 +31,7 @@ export type ToolTitleKey =
   | 'browser_take_screenshot'
   | 'browser_type'
   | 'clarify'
+  | 'computer_use'
   | 'cronjob'
   | 'edit_file'
   | 'execute_code'
@@ -1201,6 +1218,29 @@ export interface Translations {
     stateConnected: string
     stateInstalled: string
     stateNotInstalled: string
+    // Live MCP connections section -- the real-time complement to the static
+    // installed/registered grid above: which editor/agent processes are
+    // ACTUALLY connected right now (`simplicio mcp status --json`).
+    mcpLive: {
+      heading: string
+      subtitle: string
+      updatedNow: string
+      updatedAgo: (time: string) => string
+      loading: string
+      unavailableTitle: string
+      unavailableDesc: (error: string) => string
+      emptyTitle: string
+      emptyDesc: string
+      connectedBadge: string
+      disconnectedBadge: string
+      connectedSince: (time: string) => string
+      pidLabel: (pid: number) => string
+      versionLabel: (version: string) => string
+      toolsUsedLabel: string
+      noToolsYet: string
+      unknownClient: string
+      liveNowTooltip: string
+    }
   }
 
   sidebar: {

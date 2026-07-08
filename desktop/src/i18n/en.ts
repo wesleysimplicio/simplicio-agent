@@ -1447,7 +1447,27 @@ export const en: Translations = {
     configPathUnknown: 'No config path reported',
     stateConnected: 'Connected',
     stateInstalled: 'Installed, not connected',
-    stateNotInstalled: 'Not installed'
+    stateNotInstalled: 'Not installed',
+    mcpLive: {
+      heading: 'Active MCP connections',
+      subtitle: 'Which MCP clients are actually connected right now, and what they’ve used.',
+      updatedNow: 'updated now',
+      updatedAgo: time => `updated ${time} ago`,
+      loading: 'Checking live MCP connections…',
+      unavailableTitle: 'Live status unavailable',
+      unavailableDesc: error => error,
+      emptyTitle: 'No MCP client connected right now',
+      emptyDesc: 'Open Claude Code, Claude Desktop, Cursor, or another MCP client pointed at this server to see it here.',
+      connectedBadge: 'Connected',
+      disconnectedBadge: 'Disconnected',
+      connectedSince: time => `connected ${time} ago`,
+      pidLabel: pid => `PID ${pid}`,
+      versionLabel: version => `v${version}`,
+      toolsUsedLabel: 'Tools used',
+      noToolsYet: 'No tools called yet',
+      unknownClient: 'Unknown client',
+      liveNowTooltip: 'Connected right now via MCP'
+    }
   },
 
   sidebar: {
@@ -2319,6 +2339,7 @@ export const en: Translations = {
         },
         browser_type: { done: 'Typed on page', pending: 'Typing on page', pendingAction: 'Typing' },
         clarify: { done: 'Asked a question', pending: 'Asking a question', pendingAction: 'Asking' },
+        computer_use: { done: 'Controlled desktop', pending: 'Controlling desktop', pendingAction: 'Controlling' },
         cronjob: { done: 'Cron job', pending: 'Scheduling cron job', pendingAction: 'Scheduling' },
         edit_file: { done: 'Edited file', pending: 'Editing file', pendingAction: 'Editing' },
         execute_code: { done: 'Ran code', pending: 'Scripting', pendingAction: 'Scripting' },
