@@ -81,9 +81,22 @@ HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀�
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠈⣡⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
 [#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]"""
 
-# Wordmark for the Simplicio Agent branding — plain text, no ASCII art.
-# Green (#7CFC00) for "Simplicio" and gold (#FFD700) for "Agent".
-SIMPLICIO_AGENT_LOGO = "[bold #7CFC00]Simplicio[/] [bold #FFD700]Agent[/]"
+# Large ASCII wordmark for the Simplicio Agent branding (banner font, 6 rows).
+# Green (#7CFC00) for "SIMPLICIO" and gold (#FFD700) for "AGENT".
+SIMPLICIO_AGENT_LOGO = (
+    "[bold #7CFC00]#####   ### ##    ## #####   ##        ###  #####   ###  #####  [/]\n"
+    "[bold #7CFC00]##   ##  ### ###  ### ##   ## ##        ### ##   ##  ### ##   ## [/]\n"
+    "[bold #7CFC00]##    #  ### ###  ### ##   ## ##        ### ##        ### ##   ## [/]\n"
+    "[bold #7CFC00]##    #  ### ## ## ## ####### ##        ### ##        ### ##   ## [/]\n"
+    "[bold #7CFC00]##    #  ### ## ## ## ##    # ##        ### ##   ##  ### ##   ## [/]\n"
+    "[bold #7CFC00]######   ### ##    ## ##    # ######    ###  #####   ###  #####  [/]\n"
+    "[bold #FFD700] ##   ##  #####  ####### ##    ## ####### [/]\n"
+    "[bold #FFD700]## ## ## ##   ## ##    # ##    ##   ##    [/]\n"
+    "[bold #FFD700]## ## ## ##       ##    # ##  ## #   ##    [/]\n"
+    "[bold #FFD700]######## ##  ### ##    # ## ##  #   ##    [/]\n"
+    "[bold #FFD700]##    ## ##   ## ##    # ##     ##   ##    [/]\n"
+    "[bold #FFD700]##    ##  #####  ####### ##     ##   ##    [/]"
+)
 
 
 def _is_simplicio_skin() -> bool:
