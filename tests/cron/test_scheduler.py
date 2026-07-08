@@ -2935,8 +2935,8 @@ class TestParallelTick:
         assert seen["dc-job"] == {"platform": "discord", "chat_id": "222"}
 
     def test_max_parallel_env_var(self, monkeypatch):
-        """HERMES_CRON_MAX_PARALLEL=1 should restore serial behaviour."""
-        monkeypatch.setenv("HERMES_CRON_MAX_PARALLEL", "1")
+        """SIMPLICIO_AGENT_CRON_MAX_PARALLEL=1 should restore serial behaviour."""
+        monkeypatch.setenv("SIMPLICIO_AGENT_CRON_MAX_PARALLEL", "1")
         call_times = []
 
         def mock_run_job(job):

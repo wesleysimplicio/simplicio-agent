@@ -2887,14 +2887,19 @@ def tick(verbose: bool = True, adapters=None, loop=None, sync: bool = True) -> i
             advance_next_run(job["id"])
 
         # Resolve max parallel workers: env var > config.yaml > unbounded.
-        # Set HERMES_CRON_MAX_PARALLEL=1 to restore old serial behaviour.
+        # Canonical env var is SIMPLICIO_AGENT_CRON_MAX_PARALLEL; HERMES_CRON_MAX_PARALLEL
+        # is kept as a silent legacy fallback (no plan to remove) for existing setups.
+        # Set SIMPLICIO_AGENT_CRON_MAX_PARALLEL=1 to restore old serial behaviour.
         _max_workers: Optional[int] = None
         try:
-            _env_par = os.getenv("HERMES_CRON_MAX_PARALLEL", "").strip()
+            _env_par = (
+                os.getenv("SIMPLICIO_AGENT_CRON_MAX_PARALLEL", "").strip()
+                or os.getenv("HERMES_CRON_MAX_PARALLEL", "").strip()
+            )
             if _env_par:
                 _max_workers = int(_env_par) or None
         except (ValueError, TypeError):
-            logger.warning("Invalid HERMES_CRON_MAX_PARALLEL value; defaulting to unbounded")
+            logger.warning("Invalid SIMPLICIO_AGENT_CRON_MAX_PARALLEL value; defaulting to unbounded")
         if _max_workers is None:
             try:
                 _ucfg = load_config() or {}
