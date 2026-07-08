@@ -1,4 +1,4 @@
-"""``hermes dashboard`` / ``hermes serve`` subcommand parsers.
+"""``simplicio-agent dashboard`` / ``simplicio-agent serve`` subcommand parsers.
 
 ``dashboard`` is the browser web UI; ``serve`` is the same gateway, headless —
 what the desktop app and remote backends run. Both share one handler
@@ -69,8 +69,8 @@ def _add_server_runtime_args(parser) -> None:
     # start-a-server flags above (if both are passed, --stop / --status win
     # because they exit before the server is started).  The server has no
     # service manager and no PID file, so these scan the process table for
-    # `hermes dashboard` / `hermes serve` cmdlines and SIGTERM them directly —
-    # the same path `hermes update` uses to clean up stale servers.
+    # `simplicio-agent dashboard` / `simplicio-agent serve` cmdlines and SIGTERM them directly —
+    # the same path `simplicio-agent update` uses to clean up stale servers.
     parser.add_argument(
         "--stop",
         action="store_true",
@@ -107,7 +107,7 @@ def build_dashboard_parser(
         "--no-open", action="store_true", help="Don't open browser automatically"
     )
     # Backward-compat shim: older Hermes desktop app shells (<= 0.15.x) spawn the
-    # backend as `hermes dashboard --no-open --tui --host ... --port ...`. The
+    # backend as `simplicio-agent dashboard --no-open --tui --host ... --port ...`. The
     # `--tui` flag was removed from this subcommand in cae6b5486 (embedded chat is
     # always on now). When a user's CLI updates past that commit but their desktop
     # app binary has not, argparse used to hard-error with "unrecognized arguments:
@@ -150,9 +150,9 @@ def build_dashboard_parser(
     )
     serve_parser.set_defaults(func=cmd_dashboard, no_open=True)
 
-    # `hermes dashboard register` — register a self-hosted dashboard OAuth
+    # `simplicio-agent dashboard register` — register a self-hosted dashboard OAuth
     # client with Nous Portal and write the client_id into ~/.hermes/.env.
-    # Nested subparser so bare `hermes dashboard` keeps launching the server
+    # Nested subparser so bare `simplicio-agent dashboard` keeps launching the server
     # (set_defaults(func=cmd_dashboard) above remains the default).
     dashboard_subparsers = dashboard_parser.add_subparsers(
         dest="dashboard_subcommand"
@@ -164,7 +164,7 @@ def build_dashboard_parser(
             "Register this install as a self-hosted dashboard with your Nous "
             "Portal account. Creates an OAuth client, writes "
             "HERMES_DASHBOARD_OAUTH_CLIENT_ID into ~/.hermes/.env, and prints "
-            "how to engage the login gate. Requires being logged in (hermes setup)."
+            "how to engage the login gate. Requires being logged in (simplicio-agent setup)."
         ),
     )
     dashboard_register_parser.add_argument(

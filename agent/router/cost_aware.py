@@ -1,6 +1,6 @@
 """Cost-aware multi-tier router. Improves what upstream Hermes does.
 
-Upstream Hermes lets you swap models via ``hermes model`` but does NOT track
+Upstream Hermes lets you swap models via ``simplicio-agent model`` but does NOT track
 $/req nor auto-route by cost. Every prompt — trivial or frontier-class —
 hits whatever model is selected. That is real money wasted on simple intents.
 

@@ -42,41 +42,41 @@ def _inherited_flag(parser, *args, **kwargs):
 _EPILOGUE = """
 Examples:
     hermes                        Start interactive chat
-    hermes chat -q "Hello"        Single query mode
-    hermes --tui                  Launch the modern TUI (or set display.interface: tui)
-    hermes --cli                  Force the classic REPL (overrides display.interface: tui)
-    hermes -c                     Resume the most recent session
-    hermes -c "my project"        Resume a session by name (latest in lineage)
-    hermes --resume <session_id>  Resume a specific session by ID
-    hermes setup                  Run setup wizard
-    hermes logout                 Clear stored authentication
-    hermes auth add <provider>    Add a pooled credential
-    hermes auth list              List pooled credentials
-    hermes auth remove <p> <t>    Remove pooled credential by index, id, or label
-    hermes auth reset <provider>  Clear exhaustion status for a provider
-    hermes model                  Select default model
-    hermes fallback [list]        Show fallback provider chain
-    hermes fallback add           Add a fallback provider (same picker as `hermes model`)
-    hermes fallback remove        Remove a fallback provider from the chain
-    hermes config                 View configuration
-    hermes config edit            Edit config in $EDITOR
-    hermes config set model gpt-4 Set a config value
-    hermes gateway                Run messaging gateway
-    hermes -s hermes-agent-dev,github-auth
-    hermes -w                     Start in isolated git worktree
-    hermes gateway install        Install gateway background service
-    hermes sessions list          List past sessions
-    hermes sessions browse        Interactive session picker
-    hermes sessions rename ID T   Rename/title a session
-    hermes logs                   View agent.log (last 50 lines)
-    hermes logs -f                Follow agent.log in real time
-    hermes logs errors            View errors.log
-    hermes logs --since 1h        Lines from the last hour
+    simplicio-agent chat -q "Hello"        Single query mode
+    simplicio-agent --tui                  Launch the modern TUI (or set display.interface: tui)
+    simplicio-agent --cli                  Force the classic REPL (overrides display.interface: tui)
+    simplicio-agent -c                     Resume the most recent session
+    simplicio-agent -c "my project"        Resume a session by name (latest in lineage)
+    simplicio-agent --resume <session_id>  Resume a specific session by ID
+    simplicio-agent setup                  Run setup wizard
+    simplicio-agent logout                 Clear stored authentication
+    simplicio-agent auth add <provider>    Add a pooled credential
+    simplicio-agent auth list              List pooled credentials
+    simplicio-agent auth remove <p> <t>    Remove pooled credential by index, id, or label
+    simplicio-agent auth reset <provider>  Clear exhaustion status for a provider
+    simplicio-agent model                  Select default model
+    simplicio-agent fallback [list]        Show fallback provider chain
+    simplicio-agent fallback add           Add a fallback provider (same picker as `simplicio-agent model`)
+    simplicio-agent fallback remove        Remove a fallback provider from the chain
+    simplicio-agent config                 View configuration
+    simplicio-agent config edit            Edit config in $EDITOR
+    simplicio-agent config set model gpt-4 Set a config value
+    simplicio-agent gateway                Run messaging gateway
+    simplicio-agent -s hermes-agent-dev,github-auth
+    simplicio-agent -w                     Start in isolated git worktree
+    simplicio-agent gateway install        Install gateway background service
+    simplicio-agent sessions list          List past sessions
+    simplicio-agent sessions browse        Interactive session picker
+    simplicio-agent sessions rename ID T   Rename/title a session
+    simplicio-agent logs                   View agent.log (last 50 lines)
+    simplicio-agent logs -f                Follow agent.log in real time
+    simplicio-agent logs errors            View errors.log
+    simplicio-agent logs --since 1h        Lines from the last hour
     hermes debug share             Upload debug report for support
-    hermes update                 Update to latest version
-    hermes dashboard              Start web UI dashboard (port 9119)
-    hermes dashboard --stop       Stop running dashboard processes
-    hermes dashboard --status     List running dashboard processes
+    simplicio-agent update                 Update to latest version
+    simplicio-agent dashboard              Start web UI dashboard (port 9119)
+    simplicio-agent dashboard --stop       Stop running dashboard processes
+    simplicio-agent dashboard --status     List running dashboard processes
 
 For more help on a command:
     hermes <command> --help
@@ -116,7 +116,7 @@ def build_top_level_parser():
     # --model / --provider are accepted at the top level so they can pair
     # with -z without needing the `chat` subcommand.  If neither -z nor a
     # subcommand consumes them, they fall through harmlessly as None.
-    # Mirrors `hermes chat --model ... --provider ...` semantics.
+    # Mirrors `simplicio-agent chat --model ... --provider ...` semantics.
     _inherited_flag(
         parser,
         "-m",
@@ -134,7 +134,7 @@ def build_top_level_parser():
         help=(
             "Provider override for this invocation (e.g. openrouter, anthropic). "
             "Applies to -z/--oneshot and --tui. The persistent provider lives in config.yaml "
-            "under model.provider — use `hermes setup` or edit the file to change it."
+            "under model.provider — use `simplicio-agent setup` or edit the file to change it."
         ),
     )
     parser.add_argument(

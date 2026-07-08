@@ -52,7 +52,7 @@ class TestProviderEnvDetection:
 
 
 class TestDoctorEnvFileEncoding:
-    """Regression for #18637 (bug 3): `hermes doctor` crashed on Windows
+    """Regression for #18637 (bug 3): `simplicio-agent doctor` crashed on Windows
     Chinese locale (GBK) because `.env` was read with Path.read_text() which
     defaults to the system locale encoding, not UTF-8."""
 
@@ -1384,7 +1384,7 @@ class TestDoctorStaleMaxIterationsDrift:
 
 
 def test_npm_audit_fix_hint_avoids_crashing_workspace_flag(monkeypatch, tmp_path):
-    """`hermes doctor` must not hand users `npm audit fix --workspace <name>`:
+    """`simplicio-agent doctor` must not hand users `npm audit fix --workspace <name>`:
     that exact form crashes npm with "Cannot read properties of null (reading
     'edgesOut')" (an arborist bug with workspace-filtered audit fix).
 

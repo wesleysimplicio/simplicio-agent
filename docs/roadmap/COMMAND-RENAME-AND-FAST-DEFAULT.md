@@ -1,0 +1,93 @@
+# `simplicio-agent` as the canonical command + fast-by-default
+
+> Status: wave 1 landed 2026-07-08. User decision (2026-07-08): full
+> user-facing surface rename with `hermes` kept as a deprecated alias;
+> internal modules and the `HERMES_*` env contract stay (the runtime reads
+> 100+ of those vars); performance defaults inverted (fast ON, lean is the
+> explicit opt-out); PyPI rename with a `hermes-agent` transition
+> meta-package. Supersedes the earlier "hermes stays the primary command"
+> wording in `AGENTS.md` (updated in the same wave).
+
+## Wave 1 — landed
+
+- `pyproject.toml`: `simplicio-agent` is the canonical console script;
+  `simplicio-agent-acp` added; `hermes`/`hermes-agent`/`hermes-acp` kept as
+  deprecated aliases.
+- argv[0]-aware deprecation nudge (`_warn_deprecated_alias_once` in
+  `hermes_cli/main.py`, once per day via stamp file in the state dir) +
+  `cli_name()` / `invoked_via_deprecated_alias()` in `hermes_constants.py`.
+- ~3,200 user-facing `hermes <cmd>` strings mechanically replaced with
+  `simplicio-agent <cmd>` across .py/.md/.sh/.ps1/.yml (history excluded:
+  CHANGELOG, ADRs, docs/hermes-import, TOON-CONTRACT). The
+  dashboard/serve process-reaper in `hermes_cli/main.py` now matches BOTH
+  command names.
+- Fast-by-default: `[all]` extra now includes `[fast]` (orjson/msgspec/
+  uvloop) → Docker (`uv sync --extra all`) and `install.ps1` tier-1 get the
+  fast stack automatically; `scripts/install.sh` source-fallback installs
+  `hermes-agent[fast]` unless `SIMPLICIO_AGENT_LEAN=1`. `uv.lock`
+  regenerated. `docs/performance.md` defaults table updated.
+- Hot-path `_fastjson` swaps: all 27 `json.dumps` in `mcp_serve.py` tool
+  results; tool-arg parse/normalize sites in `agent/conversation_loop.py`
+  (~906, ~4220); per-result parse in `batch_runner.py`. (orjson's
+  JSONDecodeError subclasses `json.JSONDecodeError`, so existing except
+  clauses are unaffected.)
+
+## Remaining waves
+
+### A2 — state & env migration
+- Flip the default state dir `~/.hermes` → `~/.simplicio/agent`
+  (`hermes_constants.py:52`) with a one-shot startup migrator (report +
+  `--no-migrate` opt-out; read-fallback for 2 releases). Fix the hardcoded
+  `Path.home()/".hermes"` bypasses first: `mcp_serve.py`,
+  `agent/telemetry/{token_savings,mcp_session,stage_timer}.py`,
+  `skills/productivity/google-workspace/scripts/_hermes_home.py`.
+- Central `env_get(name)` reading `SIMPLICIO_AGENT_X` → `HERMES_X`
+  (extends the existing HOME dual-read). Start with the ~30 user-documented
+  vars, not all 525. Prereq: a generated env-var registry
+  (`docs/ENV_VARS.md` + `agent/env_registry.py`).
+- Docker identity: `image: simplicio-agent`, `/opt/simplicio-agent`,
+  `simplicio` user, shim on PATH as `simplicio-agent` + `hermes` symlink.
+  Homebrew: new `simplicio-agent.rb`, old formula `deprecate!`.
+- Locales: 192 "Hermes" strings across 15 language YAMLs.
+
+### A3 — package identity (coordinate with release flow)
+- PyPI `name = "simplicio-agent"`; publish `hermes-agent` as a transition
+  meta-package (depends on `simplicio-agent==X`) for 2–3 releases; extras
+  rename together. Rust crate `hermes-fast` → `simplicio-fast` with a
+  `hermes_fast` import shim.
+
+### B2 — remaining hot-path wiring (each needs an A/B benchmark)
+- **Token budget estimator** (highest traffic):
+  `estimate_messages_tokens_rough` (`agent/model_metadata.py:2170`) —
+  delegate to `agent/tokens/fast_estimator` (tiktoken) and/or the Rust
+  `estimate_messages_tokens_bytes`. NOT a blind swap: current semantics
+  count images at a flat 1500 tokens; any replacement must preserve that
+  or budget decisions shift. Bench first (`scripts/benchmark_e2e.py`).
+- **kernel_binding warm mode** (highest per-call cost): replace per-call
+  `subprocess.run("simplicio …")` with a persistent `simplicio serve`
+  process reused across a turn, falling back to subprocess when unhealthy.
+  Needs a runtime-side issue.
+- **Warm daemon auto-start** for interactive profiles
+  (`hermes_cli/daemon.py`): needs an idle TTL so background daemons don't
+  leak; opt-out `SIMPLICIO_AGENT_NO_DAEMON=1`.
+- `async_dag.run_dag_tool_batch` call site for dependent tool chains.
+- Cold start: lazy-import the ~45 `build_*_parser` modules in
+  `hermes_cli/main.py` (measured ≈0.56 s import in a stock container,
+  `hermes_cli.config` alone ≈0.24 s). Roadmap issue #58.
+- TOON default-on for new sessions (`HERMES_SIMPLICIO_PROMPT`), session-
+  pinned (cache-sacred).
+- Prebuilt Rust wheels (maturin) in the release CI so `rust_ext` stops
+  being a dev-only build.
+
+### B3 — proof
+- CI perf-regression gate: `scripts/benchmark_e2e.py --json` +
+  `scripts/turbo-speed/01..04` vs committed baselines; fail PRs on
+  regression. Covers epic #25 DoD ("beat Hermes Turbo in TTFT and
+  tool-loop with documented margin").
+- Per-turn TTFT/tool-loop telemetry into the savings ledger so "faster" is
+  `measured`, not `estimated`.
+
+## Explicitly out of scope (decided)
+- Renaming the ~6,385 internal `hermes_*` imports/module paths, or the
+  `HERMES_*` env prefix. Zero user value, breaks the agent↔runtime
+  contract on both sides.

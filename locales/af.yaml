@@ -215,7 +215,7 @@ gateway:
 
   restart:
     in_progress:           "⏳ Gateway-herbegin reeds aan die gang..."
-    restarting:            "♻ Herbegin van gateway. As jy nie binne 60 sekondes in kennis gestel word nie, herbegin vanaf die konsole met `hermes gateway restart`."
+    restarting:            "♻ Herbegin van gateway. As jy nie binne 60 sekondes in kennis gestel word nie, herbegin vanaf die konsole met `simplicio-agent gateway restart`."
 
   resume:
     db_unavailable:        "Sessie-databasis is nie beskikbaar nie."
@@ -312,9 +312,9 @@ Future messages in this room will use that transcript until `/reset` or another 
     invalid_count:         "Ongeldige getal \"{arg}\" — gebruik /undo of /undo N."
 
   update:
-    platform_not_messaging:  "✗ /update is slegs beskikbaar vanaf boodskapplatforms. Voer `hermes update` vanaf die terminale uit."
+    platform_not_messaging:  "✗ /update is slegs beskikbaar vanaf boodskapplatforms. Voer `simplicio-agent update` vanaf die terminale uit."
     not_git_repo:            "✗ Nie 'n git-bewaarplek nie — kan nie opdateer nie."
-    hermes_cmd_not_found:    "✗ Kon nie die `hermes`-opdrag vind nie. Hermes loop, maar die opdateeropdrag kon nie die uitvoerbare lêer op PATH of via die huidige Python-vertolker vind nie. Probeer `hermes update` met die hand in jou terminale uitvoer."
+    hermes_cmd_not_found:    "✗ Kon nie die `hermes`-opdrag vind nie. Hermes loop, maar die opdateeropdrag kon nie die uitvoerbare lêer op PATH of via die huidige Python-vertolker vind nie. Probeer `simplicio-agent update` met die hand in jou terminale uitvoer."
     start_failed:            "✗ Kon nie opdatering begin nie: {error}"
     starting:                "⚕ Begin Hermes-opdatering… Ek sal vordering hier stroom."
 

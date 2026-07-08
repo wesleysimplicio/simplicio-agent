@@ -13,7 +13,7 @@ If it says "Webhook platform is not enabled", set it up:
 
 ### Option 1: Setup wizard
 ```bash
-hermes gateway setup
+simplicio-agent gateway setup
 ```
 Follow the prompts to enable webhooks, set the port, and set a global HMAC secret.
 
@@ -39,7 +39,7 @@ WEBHOOK_SECRET=generate-a-strong-secret-here
 
 After configuration, start (or restart) the gateway:
 ```bash
-hermes gateway run
+simplicio-agent gateway run
 # Or if using systemd:
 systemctl --user restart hermes-gateway
 ```

@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+`simplicio-agent` becomes the canonical command and the fast stack becomes
+the default (user decision 2026-07-08; wave 1 of
+`docs/roadmap/COMMAND-RENAME-AND-FAST-DEFAULT.md`).
+
+### Changed
+
+- **Canonical CLI command is now `simplicio-agent`** (`pyproject.toml`
+  scripts): `simplicio-agent-acp` added; `hermes`, `hermes-agent` and
+  `hermes-acp` keep working as deprecated aliases that print a once-per-day
+  nudge (`_warn_deprecated_alias_once`, stamp-file throttled). All
+  user-facing `hermes <cmd>` hints (~3,200 strings across CLI, docs,
+  installers, tips, locales-adjacent files) now say `simplicio-agent <cmd>`;
+  historical records (CHANGELOG, ADRs, hermes-import logs) untouched. The
+  dashboard/serve stale-process reaper matches both command names.
+- **Fast paths are default-on for full installs**: `[all]` now includes
+  `[fast]` (orjson, msgspec, uvloop), so the Docker image and the Windows
+  installer tier-1 get them automatically; `scripts/install.sh` installs
+  `hermes-agent[fast]` unless `SIMPLICIO_AGENT_LEAN=1`. Bare
+  `pip install hermes-agent` stays lean with pure-Python fallbacks.
+  `uv.lock` regenerated (also syncs the locked project version, previously
+  stale at 0.21.1).
+- **Hot-path JSON on orjson**: MCP tool-result serialization
+  (`mcp_serve.py`, 27 sites), tool-call argument parse/normalize in
+  `agent/conversation_loop.py`, and per-result parsing in
+  `batch_runner.py` now route through `agent/_fastjson` (graceful stdlib
+  fallback; orjson's `JSONDecodeError` subclasses the stdlib one, so error
+  handling is unchanged).
+- `AGENTS.md` product-identity policy updated: canonical command is
+  `simplicio-agent`; internal module paths and the `HERMES_*` env contract
+  still never change (the runtime reads 100+ of those vars).
+
 ## [0.23.0] - 2026-07-04
 
 Product launch hardening for the Simplicio Agent MCP server — gate the paid

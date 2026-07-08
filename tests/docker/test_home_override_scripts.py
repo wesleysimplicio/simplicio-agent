@@ -62,10 +62,10 @@ def test_dashboard_service_resets_home(
     # Check if the dashboard process is running and inspect its HOME.
     r = docker_exec_sh(
         container_name,
-        # Find the dashboard process (hermes dashboard) and read its HOME
+        # Find the dashboard process (simplicio-agent dashboard) and read its HOME
         # from /proc/<pid>/environ. If not running, verify the run script
         # itself exports HOME=/opt/data by grepping the script source.
-        'pid=$(pgrep -f "hermes dashboard" | head -1); '
+        'pid=$(pgrep -f "simplicio-agent dashboard" | head -1); '
         'if [ -n "$pid" ]; then '
         '  tr "\\0" "\\n" < /proc/$pid/environ | grep "^HOME="; '
         'else '
@@ -101,7 +101,7 @@ def test_dashboard_does_not_auto_insecure_from_host(
     # Check the dashboard process command line for --insecure.
     r = docker_exec_sh(
         container_name,
-        'pid=$(pgrep -f "hermes dashboard" | head -1); '
+        'pid=$(pgrep -f "simplicio-agent dashboard" | head -1); '
         'if [ -n "$pid" ]; then '
         '  tr "\\0" " " < /proc/$pid/cmdline; '
         'fi',

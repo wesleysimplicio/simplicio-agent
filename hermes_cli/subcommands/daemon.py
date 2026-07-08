@@ -1,4 +1,4 @@
-"""``hermes daemon`` subcommand parser.
+"""``simplicio-agent daemon`` subcommand parser.
 
 Attaches the warm-daemon lifecycle commands (``start``/``stop``/``status``/
 ``invalidate``) to ``subparsers``, mirroring ``hermes_cli/subcommands/cron.py``:
@@ -30,7 +30,7 @@ def build_daemon_parser(subparsers, *, cmd_daemon: Callable) -> None:
     # not ``--profile``. ``hermes_cli/main.py``'s ``_apply_profile_override()``
     # pre-parses ``--profile``/``-p`` out of sys.argv *before* argparse ever
     # runs (it selects the Hermes environment/config profile, e.g.
-    # ``hermes -p coder chat``). Reusing that flag name here would silently
+    # ``simplicio-agent -p coder chat``). Reusing that flag name here would silently
     # get intercepted by that global pre-parser instead of reaching this
     # subcommand.
     daemon_start = daemon_subparsers.add_parser(

@@ -312,7 +312,7 @@ def check_for_updates() -> Optional[int]:
     # fall through to `check_via_pypi()`, whose PyPI-version mismatch flag (1)
     # then gets rendered by the CLI banner and the TUI badge as a phantom
     # "1 commit behind" — even though no git repo or commit math is involved,
-    # and `hermes update` correctly refuses to run in-place inside the
+    # and `simplicio-agent update` correctly refuses to run in-place inside the
     # container anyway. The dashboard's REST `/api/hermes/update/check`
     # endpoint already short-circuits docker the same way (web_server.py);
     # mirror that here so the banner/TUI surfaces agree. Returning None makes

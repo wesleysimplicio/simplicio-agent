@@ -447,7 +447,7 @@ class TestHermesConfigWriteProtection:
         # bypassing the redirection/tee patterns.
         dangerous, key, desc = detect_dangerous_command("sed -i 's/manual/off/' ~/.hermes/config.yaml")
         assert dangerous is True
-        assert "hermes config" in desc.lower() or "in-place" in desc.lower()
+        assert "simplicio-agent config" in desc.lower() or "in-place" in desc.lower()
 
     def test_sed_in_place_long_flag(self):
         dangerous, key, desc = detect_dangerous_command("sed --in-place 's/manual/off/' ~/.hermes/config.yaml")
@@ -459,7 +459,7 @@ class TestHermesConfigWriteProtection:
             f"sed -i 's/manual/off/' {config_path}"
         )
         assert dangerous is True
-        assert "hermes config" in desc.lower() or "in-place" in desc.lower()
+        assert "simplicio-agent config" in desc.lower() or "in-place" in desc.lower()
 
     def test_sed_in_place_absolute_hermes_home_env(self):
         env_path = get_hermes_home() / ".env"
@@ -467,7 +467,7 @@ class TestHermesConfigWriteProtection:
             f"sed -i 's/API_KEY=.*/API_KEY=x/' {env_path}"
         )
         assert dangerous is True
-        assert "hermes config" in desc.lower() or "in-place" in desc.lower()
+        assert "simplicio-agent config" in desc.lower() or "in-place" in desc.lower()
 
     def test_custom_hermes_home(self):
         dangerous, key, desc = detect_dangerous_command("echo x | tee $HERMES_HOME/config.yaml")
@@ -966,7 +966,7 @@ class TestGatewayProtection:
         assert "stop/restart" in desc
 
     def test_hermes_gateway_stop_detected(self):
-        cmd = "hermes gateway stop"
+        cmd = "simplicio-agent gateway stop"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is True
         assert "gateway" in desc.lower()
@@ -974,29 +974,29 @@ class TestGatewayProtection:
     def test_hermes_gateway_restart_with_profile_flag_detected(self):
         """A profile flag between `hermes` and `gateway` must not slip past
         the guard. See the 2026-04-11 ade-profile self-kill incident."""
-        cmd = "hermes -p ade gateway restart"
+        cmd = "simplicio-agent -p ade gateway restart"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is True
         assert "gateway" in desc.lower()
 
     def test_hermes_gateway_stop_with_long_profile_flag_detected(self):
-        cmd = "hermes --profile ade gateway stop"
+        cmd = "simplicio-agent --profile ade gateway stop"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is True
 
     def test_hermes_gateway_multiple_flags_detected(self):
-        cmd = "hermes -p cocoa --verbose gateway restart"
+        cmd = "simplicio-agent -p cocoa --verbose gateway restart"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is True
 
     def test_hermes_gateway_status_with_profile_flag_not_flagged(self):
         """Read-only subcommands stay allowed even with a profile flag."""
-        cmd = "hermes -p ade gateway status"
+        cmd = "simplicio-agent -p ade gateway status"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is False
 
     def test_hermes_gateway_start_not_flagged(self):
-        cmd = "hermes gateway start"
+        cmd = "simplicio-agent gateway start"
         dangerous, key, desc = detect_dangerous_command(cmd)
         assert dangerous is False
 
@@ -1214,7 +1214,7 @@ class TestPgrepKillExpansion:
 
 class TestLaunchctlGatewayLifecycle:
     """launchctl stop/kickstart/bootout/unload against the Hermes service
-    label achieves the same effect as `hermes gateway stop|restart` and
+    label achieves the same effect as `simplicio-agent gateway stop|restart` and
     must require the same approval. See issue #33071.
     """
 

@@ -1,4 +1,4 @@
-"""Tests for hermes_cli.plugins_cmd — the ``hermes plugins`` CLI subcommand."""
+"""Tests for hermes_cli.plugins_cmd — the ``simplicio-agent plugins`` CLI subcommand."""
 
 from __future__ import annotations
 

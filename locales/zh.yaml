@@ -215,7 +215,7 @@ gateway:
 
   restart:
     in_progress:           "⏳ 网关重启已在进行中……"
-    restarting:            "♻ 正在重启网关。如果 60 秒内没有收到通知，请在控制台运行 `hermes gateway restart` 重启。"
+    restarting:            "♻ 正在重启网关。如果 60 秒内没有收到通知，请在控制台运行 `simplicio-agent gateway restart` 重启。"
 
   resume:
     db_unavailable:        "会话数据库不可用。"
@@ -312,9 +312,9 @@ Future messages in this room will use that transcript until `/reset` or another 
     invalid_count:         "无效的数量「{arg}」—— 请使用 /undo 或 /undo N。"
 
   update:
-    platform_not_messaging:  "✗ /update 仅在消息平台可用。请在终端运行 `hermes update`。"
+    platform_not_messaging:  "✗ /update 仅在消息平台可用。请在终端运行 `simplicio-agent update`。"
     not_git_repo:            "✗ 不是 git 仓库 — 无法更新。"
-    hermes_cmd_not_found:    "✗ 无法找到 `hermes` 命令。Hermes 正在运行，但更新命令无法在 PATH 上或通过当前 Python 解释器找到可执行文件。请尝试在终端中手动运行 `hermes update`。"
+    hermes_cmd_not_found:    "✗ 无法找到 `hermes` 命令。Hermes 正在运行，但更新命令无法在 PATH 上或通过当前 Python 解释器找到可执行文件。请尝试在终端中手动运行 `simplicio-agent update`。"
     start_failed:            "✗ 启动更新失败：{error}"
     starting:                "⚕ 正在启动 Hermes 更新…… 进度将在此处显示。"
 

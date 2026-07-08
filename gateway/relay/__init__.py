@@ -124,7 +124,7 @@ def relay_platform_identity() -> tuple[str, str]:
 def relay_connection_auth() -> tuple[Optional[str], Optional[str]]:
     """The (gateway_id, upgrade_secret) this gateway authenticates the WS upgrade with.
 
-    Both come from enrollment (``hermes gateway enroll`` writes them to
+    Both come from enrollment (``simplicio-agent gateway enroll`` writes them to
     ``~/.hermes/.env``): ``GATEWAY_RELAY_ID`` identifies the enrolled instance,
     ``GATEWAY_RELAY_SECRET`` is the per-gateway signing secret. Either absent ->
     ``(None, None)`` and the transport dials unauthenticated (dev/test, or a
@@ -233,7 +233,7 @@ def relay_wake_url() -> Optional[str]:
     delivery-leg backlog. The value's *source* differs by deployment but the code
     path is uniform: a managed/NAS container has ``GATEWAY_RELAY_WAKE_URL`` stamped
     in (NAS knows the Fly autostart / dashboard hostname); a self-hosted operator
-    sets it explicitly (or passes ``--wake-url`` to ``hermes gateway enroll``).
+    sets it explicitly (or passes ``--wake-url`` to ``simplicio-agent gateway enroll``).
 
     Gateway-asserted but safely scoped: the org/tenant stays token-verified, so a
     dishonest gateway can only register a wake target for ITS OWN instance — the
@@ -457,7 +457,7 @@ def self_provision_relay() -> bool:
 
       - A NAS-hosted agent: has ``GATEWAY_RELAY_URL``, no pinned secret, and a
         bootstrapped NAS token -> self-provisions.
-      - A self-hosted operator who ran ``hermes gateway enroll``: has a PINNED
+      - A self-hosted operator who ran ``simplicio-agent gateway enroll``: has a PINNED
         ``GATEWAY_RELAY_SECRET`` -> skipped (the secret-present guard below).
       - A self-hosted box with a relay URL but no NAS identity:
         ``resolve_nous_access_token()`` fails -> graceful no-op.

@@ -33,7 +33,7 @@
    - `scripts/turbo-speed/01-cold-start.py` — mede TTFP, módulos pesados, import-time.
    - Baseline em `scripts/turbo-speed/baselines/cold-start.json`.
 
-5. **`hermes daemon start`** (warm daemon) documentado em `docs/performance.md`
+5. **`simplicio-agent daemon start`** (warm daemon) documentado em `docs/performance.md`
    para eliminar cold start em usos repetidos.
 
 **Conclusão:** Cold start não é mais uma issue — o runtime Rust compila nativamente,

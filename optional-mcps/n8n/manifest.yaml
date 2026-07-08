@@ -15,7 +15,7 @@ transport:
   type: stdio
   # For git-installed servers, ${INSTALL_DIR} is substituted at install time
   # with the path the catalog cloned the repo into. The catalog never
-  # auto-updates: the user re-runs `hermes mcp install official/n8n` to
+  # auto-updates: the user re-runs `simplicio-agent mcp install official/n8n` to
   # refresh.
   command: "${INSTALL_DIR}/.venv/bin/python"
   args:

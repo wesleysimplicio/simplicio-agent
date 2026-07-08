@@ -1791,7 +1791,7 @@ def interactive_setup() -> None:
             save_env_value("WECOM_DM_POLICY", "disabled")
             print_warning("Direct messages disabled.")
         else:
-            print_info("Skipped — configure later with 'hermes gateway setup'")
+            print_info("Skipped — configure later with 'simplicio-agent gateway setup'")
 
     home = prompt("Home chat ID (optional, for cron/notifications)", password=False)
     if home:

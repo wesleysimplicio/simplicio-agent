@@ -115,7 +115,7 @@ rewritten path, command, or URL is the value downstream policy will evaluate.
 Middleware only runs for enabled plugins. For a bundled plugin:
 
 ```bash
-hermes plugins enable <plugin-name>
+simplicio-agent plugins enable <plugin-name>
 ```
 
 For isolated local testing, use one `HERMES_HOME` for plugin enablement and the
@@ -124,8 +124,8 @@ agent run:
 ```bash
 export HERMES_HOME=/tmp/hermes-middleware-test
 mkdir -p "$HERMES_HOME"
-hermes plugins enable <plugin-name>
-hermes chat --query 'Reply exactly ok'
+simplicio-agent plugins enable <plugin-name>
+simplicio-agent chat --query 'Reply exactly ok'
 ```
 
 For source checkouts, prefer the source command so the runtime sees plugins and
@@ -133,8 +133,8 @@ middleware from the working tree:
 
 ```bash
 uv sync
-uv run hermes plugins enable <plugin-name>
-uv run hermes chat --query 'Reply exactly ok'
+uv run simplicio-agent plugins enable <plugin-name>
+uv run simplicio-agent chat --query 'Reply exactly ok'
 ```
 
 ## Generic Plugin Examples

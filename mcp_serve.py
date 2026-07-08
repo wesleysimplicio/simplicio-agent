@@ -30,6 +30,10 @@ MCP client config (e.g. claude_desktop_config.json):
 from __future__ import annotations
 
 import json
+
+# Hot-path JSON: every MCP tool result goes through dumps below. orjson-backed
+# with graceful stdlib fallback (agent/_fastjson.py).
+from agent._fastjson import dumps as _fast_dumps, loads as _fast_loads
 import logging
 import os
 import re
@@ -556,7 +560,7 @@ def _computer_use_result_to_mcp_content(result: Any) -> List[Any]:
 
     # Any other shape (shouldn't normally happen) — best-effort JSON dump so
     # the caller still gets something instead of a serialization crash.
-    return [TextContent(type="text", text=json.dumps(result))]
+    return [TextContent(type="text", text=_fast_dumps(result))]
 
 
 # ---------------------------------------------------------------------------
@@ -634,7 +638,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         conversations.sort(key=lambda c: c.get("updated_at", ""), reverse=True)
         conversations = conversations[:limit]
 
-        return json.dumps({
+        return _fast_dumps({
             "count": len(conversations),
             "conversations": conversations,
         }, indent=2)
@@ -652,10 +656,10 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         entry = entries.get(session_key)
 
         if not entry:
-            return json.dumps({"error": f"Conversation not found: {session_key}"})
+            return _fast_dumps({"error": f"Conversation not found: {session_key}"})
 
         origin = entry.get("origin", {})
-        return json.dumps({
+        return _fast_dumps({
             "session_key": session_key,
             "session_id": entry.get("session_id", ""),
             "platform": entry.get("platform") or origin.get("platform", ""),
@@ -692,21 +696,21 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         entries = _load_sessions_index()
         entry = entries.get(session_key)
         if not entry:
-            return json.dumps({"error": f"Conversation not found: {session_key}"})
+            return _fast_dumps({"error": f"Conversation not found: {session_key}"})
 
         session_id = entry.get("session_id", "")
         if not session_id:
-            return json.dumps({"error": "No session ID for this conversation"})
+            return _fast_dumps({"error": "No session ID for this conversation"})
 
         db = _get_session_db()
         if not db:
-            return json.dumps({"error": "Session database unavailable"})
+            return _fast_dumps({"error": "Session database unavailable"})
 
         try:
             all_messages = db.get_messages(session_id)
         except Exception as e:
             logger.debug("get_messages failed: %s", e)
-            return json.dumps({"error": "Unable to read conversation history."})
+            return _fast_dumps({"error": "Unable to read conversation history."})
 
         filtered = []
         for msg in all_messages:
@@ -723,7 +727,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
 
         messages = filtered[-limit:]
 
-        return json.dumps({
+        return _fast_dumps({
             "session_key": session_key,
             "count": len(messages),
             "total_in_session": len(filtered),
@@ -749,21 +753,21 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         entries = _load_sessions_index()
         entry = entries.get(session_key)
         if not entry:
-            return json.dumps({"error": f"Conversation not found: {session_key}"})
+            return _fast_dumps({"error": f"Conversation not found: {session_key}"})
 
         session_id = entry.get("session_id", "")
         if not session_id:
-            return json.dumps({"error": "No session ID for this conversation"})
+            return _fast_dumps({"error": "No session ID for this conversation"})
 
         db = _get_session_db()
         if not db:
-            return json.dumps({"error": "Session database unavailable"})
+            return _fast_dumps({"error": "Session database unavailable"})
 
         try:
             all_messages = db.get_messages(session_id)
         except Exception as e:
             logger.debug("get_messages failed: %s", e)
-            return json.dumps({"error": "Unable to read conversation history."})
+            return _fast_dumps({"error": "Unable to read conversation history."})
 
         # Find the target message
         target_msg = None
@@ -773,11 +777,11 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
                 break
 
         if not target_msg:
-            return json.dumps({"error": f"Message not found: {message_id}"})
+            return _fast_dumps({"error": f"Message not found: {message_id}"})
 
         attachments = _extract_attachments(target_msg)
 
-        return json.dumps({
+        return _fast_dumps({
             "message_id": message_id,
             "count": len(attachments),
             "attachments": attachments,
@@ -810,7 +814,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             session_key=session_key,
             limit=limit,
         )
-        return json.dumps(result, indent=2)
+        return _fast_dumps(result, indent=2)
 
     # -- events_wait -------------------------------------------------------
 
@@ -843,8 +847,8 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             timeout_ms=timeout_ms,
         )
         if event:
-            return json.dumps({"event": event}, indent=2)
-        return json.dumps({"event": None, "reason": "timeout"}, indent=2)
+            return _fast_dumps({"event": event}, indent=2)
+        return _fast_dumps({"event": None, "reason": "timeout"}, indent=2)
 
     # -- messages_send -----------------------------------------------------
 
@@ -869,7 +873,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             message: The message text to send
         """
         if not target or not message:
-            return json.dumps({"error": "Both target and message are required"})
+            return _fast_dumps({"error": "Both target and message are required"})
 
         try:
             from tools.send_message_tool import send_message_tool
@@ -878,10 +882,10 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             )
             return result_str
         except ImportError:
-            return json.dumps({"error": "Send message capability is unavailable."})
+            return _fast_dumps({"error": "Send message capability is unavailable."})
         except Exception as e:
             logger.debug("send_message_tool failed: %s", e)
-            return json.dumps({"error": "Failed to send message."})
+            return _fast_dumps({"error": "Failed to send message."})
 
     # -- channels_list -----------------------------------------------------
 
@@ -918,7 +922,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
                     "name": entry.get("display_name") or origin.get("chat_name", ""),
                     "chat_type": entry.get("chat_type", origin.get("chat_type", "")),
                 })
-            return json.dumps({"count": len(targets), "channels": targets}, indent=2)
+            return _fast_dumps({"count": len(targets), "channels": targets}, indent=2)
 
         channels = []
         for plat, entries_list in directory.get("platforms", {}).items():
@@ -935,7 +939,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
                             "chat_type": ch.get("type", ""),
                         })
 
-        return json.dumps({"count": len(channels), "channels": channels}, indent=2)
+        return _fast_dumps({"count": len(channels), "channels": channels}, indent=2)
 
     # -- permissions_list_open ---------------------------------------------
 
@@ -948,7 +952,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         from before the bridge connected are not included.
         """
         approvals = bridge.list_pending_approvals()
-        return json.dumps({
+        return _fast_dumps({
             "count": len(approvals),
             "approvals": approvals,
         }, indent=2)
@@ -967,13 +971,13 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             decision: One of "allow-once", "allow-always", or "deny"
         """
         if decision not in {"allow-once", "allow-always", "deny"}:
-            return json.dumps({
+            return _fast_dumps({
                 "error": f"Invalid decision: {decision}. "
                          f"Must be allow-once, allow-always, or deny"
             })
 
         result = bridge.respond_to_approval(id, decision)
-        return json.dumps(result, indent=2)
+        return _fast_dumps(result, indent=2)
 
     # -- computer_use --------------------------------------------------
     #
@@ -1057,7 +1061,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         if refusal is not None:
             from mcp.types import TextContent
 
-            return [TextContent(type="text", text=json.dumps({"error": refusal}))]
+            return [TextContent(type="text", text=_fast_dumps({"error": refusal}))]
 
         from tools.computer_use.tool import handle_computer_use
 

@@ -284,17 +284,26 @@ install_via_pip() {
 
     log_info "Python ${py_version} encontrado."
 
+    # Fast paths (orjson/msgspec/uvloop) são padrão; SIMPLICIO_AGENT_LEAN=1
+    # opta por uma instalação enxuta (Termux/containers mínimos) que usa os
+    # fallbacks puro-Python já existentes.
+    local pip_spec="hermes-agent[fast] @ git+${REPO}.git"
+    if [ "${SIMPLICIO_AGENT_LEAN:-0}" = "1" ]; then
+        log_info "SIMPLICIO_AGENT_LEAN=1 — instalando sem os extras de performance."
+        pip_spec="git+${REPO}.git"
+    fi
+
     if have_command pip3; then
-        log_info "pip install git+${REPO}.git"
-        pip3 install --user "git+${REPO}.git" 2>&1 || {
+        log_info "pip install ${pip_spec}"
+        pip3 install --user "${pip_spec}" 2>&1 || {
             log_warn "pip install falhou. Tentando com --break-system-packages..."
-            pip3 install --user --break-system-packages "git+${REPO}.git" 2>&1 || return 1
+            pip3 install --user --break-system-packages "${pip_spec}" 2>&1 || return 1
         }
     else
-        log_info "python -m pip install --user git+${REPO}.git"
-        $python_cmd -m pip install --user "git+${REPO}.git" 2>&1 || {
+        log_info "python -m pip install --user ${pip_spec}"
+        $python_cmd -m pip install --user "${pip_spec}" 2>&1 || {
             log_warn "pip install falhou. Tentando com --break-system-packages..."
-            $python_cmd -m pip install --user --break-system-packages "git+${REPO}.git" 2>&1 || return 1
+            $python_cmd -m pip install --user --break-system-packages "${pip_spec}" 2>&1 || return 1
         }
     fi
 

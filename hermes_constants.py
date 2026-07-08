@@ -15,6 +15,32 @@ from pathlib import Path
 
 _profile_fallback_warned: bool = False
 _UNSET = object()
+
+# Canonical user-facing CLI command. Internal code stays Hermes (module
+# paths, HERMES_* env contract — the runtime reads it), but every string a
+# user sees points at this command. `hermes` remains a deprecated alias.
+CANONICAL_CLI_NAME = "simplicio-agent"
+_DEPRECATED_CLI_BASENAMES = frozenset({"hermes", "hermes-agent", "hermes-acp"})
+
+
+def cli_name() -> str:
+    """Return the command name to show in user-facing hints.
+
+    Always the canonical ``simplicio-agent``: even when the process was
+    launched through a deprecated ``hermes*`` alias, hints steer users to the
+    canonical command (the alias keeps working; the nudge is the point).
+    """
+    return CANONICAL_CLI_NAME
+
+
+def invoked_via_deprecated_alias() -> bool:
+    """True when argv[0]'s basename is one of the deprecated hermes aliases."""
+    try:
+        return Path(sys.argv[0]).name in _DEPRECATED_CLI_BASENAMES
+    except Exception:
+        return False
+
+
 _HERMES_HOME_OVERRIDE: ContextVar[str | object] = ContextVar(
     "_HERMES_HOME_OVERRIDE", default=_UNSET
 )
@@ -301,7 +327,7 @@ def node_tool_runnable(path: str | None) -> bool:
     ``HERMES_HOME``). A partial upgrade or interrupted install can leave
     ``bin/npm`` behind while ``lib/cli.js`` is missing — the wrapper exists but
     immediately throws ``MODULE_NOT_FOUND``. ``find_hermes_node_executable``
-    used to trust file presence alone, so ``hermes update`` would pick that
+    used to trust file presence alone, so ``simplicio-agent update`` would pick that
     broken npm and fail the Node refresh / web UI build.
 
     Probe with ``--version`` (same pattern as :func:`agent_browser_runnable`) so
@@ -540,7 +566,7 @@ def agent_browser_runnable(path: str | None) -> bool:
     agent-browser's npm ``postinstall`` re-points a *global* install symlink
     (e.g. ``/opt/homebrew/bin/agent-browser``) at our local
     ``node_modules/agent-browser/bin/...`` binary, which then disappears on the
-    next ``hermes update`` — leaving a **dangling symlink** that ``which`` still
+    next ``simplicio-agent update`` — leaving a **dangling symlink** that ``which`` still
     reports but exec fails on with exit 127 (issue #48521). Callers that trust
     such a path silently break every browser tool.
 

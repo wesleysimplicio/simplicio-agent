@@ -1,4 +1,4 @@
-"""Tests for the Command Installation check in hermes doctor."""
+"""Tests for the Command Installation check in simplicio-agent doctor."""
 
 import sys
 import types
@@ -97,7 +97,7 @@ class TestDoctorCommandInstallation:
         assert "Command Installation" in out
         assert "Venv entry point exists" in out
         assert "not found" in out
-        assert "hermes doctor --fix" in out
+        assert "simplicio-agent doctor --fix" in out
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Symlink check is Unix-only")
     def test_fix_creates_missing_symlink(self, monkeypatch, tmp_path):

@@ -53,7 +53,7 @@ fi
 
 # 4. MCP server registrado no Hermes
 echo -e "\n4. MCP server no Simplicio Agent"
-HERMES_MCP=$(HERMES_HOME=/Users/wesleysimplicio/.simplicio_agent /opt/homebrew/bin/hermes mcp list 2>&1)
+HERMES_MCP=$(HERMES_HOME=/Users/wesleysimplicio/.simplicio_agent /opt/homebrew/bin/simplicio-agent mcp list 2>&1)
 if echo "$HERMES_MCP" | grep -q "simplicio.*enabled"; then
   info "simplicio registrado como ✓ enabled no Simplicio Agent"
 else

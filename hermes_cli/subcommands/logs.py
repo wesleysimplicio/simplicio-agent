@@ -1,4 +1,4 @@
-"""``hermes logs`` subcommand parser.
+"""``simplicio-agent logs`` subcommand parser.
 
 Extracted verbatim from ``hermes_cli/main.py:main()`` (god-file Phase 2).
 Handler injected to avoid importing ``main``.
@@ -22,18 +22,18 @@ def build_logs_parser(subparsers, *, cmd_logs: Callable) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-    hermes logs                    Show last 50 lines of agent.log
-    hermes logs -f                 Follow agent.log in real time
-    hermes logs errors             Show last 50 lines of errors.log
-    hermes logs gateway -n 100     Show last 100 lines of gateway.log
-    hermes logs gui -f             Follow gui.log in real time
-    hermes logs desktop -f         Follow desktop.log (Electron app boot/backend)
-    hermes logs --level WARNING    Only show WARNING and above
-    hermes logs --session abc123   Filter by session ID
-    hermes logs --component tools  Only show tool-related lines
-    hermes logs --since 1h         Lines from the last hour
-    hermes logs --since 30m -f     Follow, starting from 30 min ago
-    hermes logs list               List available log files with sizes
+    simplicio-agent logs                    Show last 50 lines of agent.log
+    simplicio-agent logs -f                 Follow agent.log in real time
+    simplicio-agent logs errors             Show last 50 lines of errors.log
+    simplicio-agent logs gateway -n 100     Show last 100 lines of gateway.log
+    simplicio-agent logs gui -f             Follow gui.log in real time
+    simplicio-agent logs desktop -f         Follow desktop.log (Electron app boot/backend)
+    simplicio-agent logs --level WARNING    Only show WARNING and above
+    simplicio-agent logs --session abc123   Filter by session ID
+    simplicio-agent logs --component tools  Only show tool-related lines
+    simplicio-agent logs --since 1h         Lines from the last hour
+    simplicio-agent logs --since 30m -f     Follow, starting from 30 min ago
+    simplicio-agent logs list               List available log files with sizes
 """,
     )
     logs_parser.add_argument(

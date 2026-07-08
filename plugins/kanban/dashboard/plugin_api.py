@@ -26,7 +26,7 @@ For the ``/events`` WebSocket we still require the session token as a
 header on an upgrade request), matching the established pattern used by
 the in-browser PTY bridge in ``hermes_cli/web_server.py``.
 
-This means ``hermes dashboard --host 0.0.0.0`` is safe to run on a LAN:
+This means ``simplicio-agent dashboard --host 0.0.0.0`` is safe to run on a LAN:
 plugin routes are no longer an unauthenticated exception. The auth still
 isn't multi-user — anyone who can read the printed URL+token gets full
 dashboard access — but they can't ride along just because they can reach
@@ -2182,7 +2182,7 @@ def auto_describe_profile(profile_name: str, payload: DescribeAutoBody):
     ``description_auto: true`` so the dashboard can surface a "review"
     badge.
 
-    Maps 1:1 to ``hermes profile describe <name> --auto``. Non-OK
+    Maps 1:1 to ``simplicio-agent profile describe <name> --auto``. Non-OK
     outcomes are NOT HTTP errors — the UI renders the reason inline
     (e.g. "no auxiliary client configured") so the operator can fix
     config and retry without a page reload.

@@ -314,11 +314,22 @@ all = [
   "hermes-agent[google]",
   "hermes-agent[web]",
   "hermes-agent[youtube]",
+  # Performance extras are default-on for full installs (2026-07-08): orjson/
+  # msgspec ship wheels everywhere we support and uvloop already carries a
+  # win32 marker, and every session touches JSON + the event loop, so they
+  # meet the "[all] = things every session can use" bar above. Constrained
+  # targets (Termux/minimal containers) install the base package, not [all],
+  # and keep the pure-Python fallbacks.
+  "hermes-agent[fast]",
 ]
 
 [project.scripts]
-hermes = "hermes_cli.main:main"
+# Canonical product commands. `hermes*` entries are deprecated compatibility
+# aliases (see AGENTS.md "Product identity"); hermes_cli.main prints a
+# once-per-day deprecation notice when invoked through them.
 simplicio-agent = "hermes_cli.main:main"
+simplicio-agent-acp = "acp_adapter.entry:main"
+hermes = "hermes_cli.main:main"
 hermes-agent = "run_agent:main"
 hermes-acp = "acp_adapter.entry:main"
 

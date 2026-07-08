@@ -50,7 +50,7 @@ So the pipeline must run in this order, every time:
   behind `upstream/main`. If Turbo is behind:
   - in `--dry-run`: it warns and prints the human-review note;
   - in `--apply`: it **aborts** with a non-zero exit and tells you to run
-    `turbo-absorb-hermes --apply` first.
+    `turbo-absorb-simplicio-agent --apply` first.
   - If upstream can't be reached (offline CI), it degrades to a warning rather
     than a false pass.
 - **Additive, newer-file-safe copy.** For every file in the perf set, a Turbo
@@ -129,7 +129,7 @@ scripts/sync/ecosystem-sync.sh simplicio-pull-perf --dry-run
 
 # 1. Bring Turbo up to date with Hermes FIRST (staged merge, human commits):
 TURBO_REPO=/path/to/hermes-turbo-agent \
-  scripts/sync/ecosystem-sync.sh turbo-absorb-hermes --apply
+  scripts/sync/ecosystem-sync.sh turbo-absorb-simplicio-agent --apply
 
 # 2. THEN pull the additive perf delta into Simplicio (skips newer files):
 TURBO_REPO=/path/to/hermes-turbo-agent \

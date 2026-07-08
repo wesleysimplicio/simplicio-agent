@@ -1,4 +1,4 @@
-"""Tests for hermes tools disable/enable/list command (backend)."""
+"""Tests for simplicio-agent tools disable/enable/list command (backend)."""
 from argparse import Namespace
 from unittest.mock import patch
 

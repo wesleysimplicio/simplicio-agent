@@ -18,7 +18,7 @@
 
 **El agente de IA con mejora continua creado por [Nous Research](https://nousresearch.com).** Es el único agente con un bucle de aprendizaje integrado: crea habilidades a partir de la experiencia, las mejora durante el uso, se impulsa a sí mismo a persistir el conocimiento, busca en sus propias conversaciones pasadas y construye un modelo cada vez más profundo de quién eres a lo largo de las sesiones. Ejecútalo en un VPS de $5, un clúster de GPUs o infraestructura sin servidor que cuesta casi nada cuando está inactivo. No está atado a tu laptop — habla con él desde Telegram mientras trabaja en una VM en la nube.
 
-Usa cualquier modelo que quieras — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (más de 200 modelos), [NovitaAI](https://novita.ai), [NVIDIA NIM](https://build.nvidia.com) (Nemotron), [Xiaomi MiMo](https://platform.xiaomimimo.com), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), [Hugging Face](https://huggingface.co), OpenAI, o tu propio endpoint. Cambia con `hermes model` — sin cambios de código, sin dependencias.
+Usa cualquier modelo que quieras — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (más de 200 modelos), [NovitaAI](https://novita.ai), [NVIDIA NIM](https://build.nvidia.com) (Nemotron), [Xiaomi MiMo](https://platform.xiaomimimo.com), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), [Hugging Face](https://huggingface.co), OpenAI, o tu propio endpoint. Cambia con `simplicio-agent model` — sin cambios de código, sin dependencias.
 
 <table>
 <tr><td><b>Una interfaz de terminal real</b></td><td>TUI completa con edición multilínea, autocompletado de comandos, historial de conversaciones, interrupción y redirección, y salida de herramientas en streaming.</td></tr>
@@ -71,14 +71,14 @@ hermes              # ¡empieza a chatear!
 
 ```bash
 hermes              # CLI interactiva — inicia una conversación
-hermes model        # Elige tu proveedor y modelo LLM
-hermes tools        # Configura qué herramientas están habilitadas
-hermes config set   # Establece valores de configuración individuales
-hermes gateway      # Inicia el gateway de mensajería (Telegram, Discord, etc.)
-hermes setup        # Ejecuta el asistente de configuración completo
-hermes claw migrate # Migra desde OpenClaw (si vienes de OpenClaw)
-hermes update       # Actualiza a la última versión
-hermes doctor       # Diagnostica cualquier problema
+simplicio-agent model        # Elige tu proveedor y modelo LLM
+simplicio-agent tools        # Configura qué herramientas están habilitadas
+simplicio-agent config set   # Establece valores de configuración individuales
+simplicio-agent gateway      # Inicia el gateway de mensajería (Telegram, Discord, etc.)
+simplicio-agent setup        # Ejecuta el asistente de configuración completo
+simplicio-agent claw migrate # Migra desde OpenClaw (si vienes de OpenClaw)
+simplicio-agent update       # Actualiza a la última versión
+simplicio-agent doctor       # Diagnostica cualquier problema
 ```
 
 📖 **[Documentación completa →](https://hermes-agent.nousresearch.com/docs/)**
@@ -95,7 +95,7 @@ Hermes funciona con cualquier proveedor que quieras — eso no cambiará. Pero s
 Un comando desde una instalación nueva:
 
 ```bash
-hermes setup --portal
+simplicio-agent setup --portal
 ```
 
 Esto te autentica vía OAuth, establece Nous como tu proveedor y activa el Tool Gateway. Comprueba qué está conectado en cualquier momento con `hermes portal info`. Detalles completos en la [página de documentación del Tool Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
@@ -110,7 +110,7 @@ Hermes tiene dos puntos de entrada: inicia la interfaz de terminal con `hermes`,
 
 | Acción                              | CLI                                           | Plataformas de mensajería                                                         |
 | ----------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------- |
-| Empezar a chatear                   | `hermes`                                      | Ejecuta `hermes gateway setup` + `hermes gateway start`, luego envía un mensaje al bot |
+| Empezar a chatear                   | `hermes`                                      | Ejecuta `simplicio-agent gateway setup` + `simplicio-agent gateway start`, luego envía un mensaje al bot |
 | Nueva conversación                  | `/new` o `/reset`                             | `/new` o `/reset`                                                                 |
 | Cambiar modelo                      | `/model [proveedor:modelo]`                   | `/model [proveedor:modelo]`                                                       |
 | Establecer personalidad             | `/personality [nombre]`                       | `/personality [nombre]`                                                           |
@@ -152,15 +152,15 @@ Toda la documentación está en **[hermes-agent.nousresearch.com/docs](https://h
 
 Si vienes de OpenClaw, Hermes puede importar automáticamente tu configuración, memorias, habilidades y claves API.
 
-**Durante la configuración inicial:** El asistente de configuración (`hermes setup`) detecta automáticamente `~/.openclaw` y ofrece migrar antes de que comience la configuración.
+**Durante la configuración inicial:** El asistente de configuración (`simplicio-agent setup`) detecta automáticamente `~/.openclaw` y ofrece migrar antes de que comience la configuración.
 
 **En cualquier momento después de instalar:**
 
 ```bash
-hermes claw migrate              # Migración interactiva (preset completo)
-hermes claw migrate --dry-run    # Vista previa de qué se migraría
-hermes claw migrate --preset user-data   # Migrar sin secretos
-hermes claw migrate --overwrite  # Sobreescribir conflictos existentes
+simplicio-agent claw migrate              # Migración interactiva (preset completo)
+simplicio-agent claw migrate --dry-run    # Vista previa de qué se migraría
+simplicio-agent claw migrate --preset user-data   # Migrar sin secretos
+simplicio-agent claw migrate --overwrite  # Sobreescribir conflictos existentes
 ```
 
 Qué se importa:
@@ -174,7 +174,7 @@ Qué se importa:
 - **Assets de TTS** — archivos de audio del espacio de trabajo
 - **Instrucciones del espacio de trabajo** — AGENTS.md (con `--workspace-target`)
 
-Consulta `hermes claw migrate --help` para todas las opciones, o usa la habilidad `openclaw-migration` para una migración guiada interactiva por el agente con vistas previas de dry-run.
+Consulta `simplicio-agent claw migrate --help` para todas las opciones, o usa la habilidad `openclaw-migration` para una migración guiada interactiva por el agente con vistas previas de dry-run.
 
 ---
 

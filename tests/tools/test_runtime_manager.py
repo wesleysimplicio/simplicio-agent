@@ -415,7 +415,7 @@ class TestBootstrapSession:
     def test_absent_kernel_never_auto_installs(self, tmp_path, monkeypatch):
         """Adversarial review #1c: bootstrap is a handshake only. It must
         never call the install path -- that requires explicit consent via
-        `hermes doctor --fix` (ensure_runtime(install=True))."""
+        `simplicio-agent doctor --fix` (ensure_runtime(install=True))."""
         _write_lock(tmp_path, monkeypatch)
         monkeypatch.setenv("SIMPLICIO_HOME", str(tmp_path / "simplicio-home"))
         absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
