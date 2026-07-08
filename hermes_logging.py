@@ -434,7 +434,9 @@ class _ManagedRotatingFileHandler(RotatingFileHandler):
     """
 
     def __init__(self, *args, **kwargs):
-        from hermes_cli.config import is_managed
+        # From hermes_constants, NOT hermes_cli.config: config's module body
+        # costs ~100 ms and this runs during logging bootstrap on every boot.
+        from hermes_constants import is_managed
         self._managed = is_managed()
         super().__init__(*args, **kwargs)
         # Snapshot the inode of the currently open stream so emit() can

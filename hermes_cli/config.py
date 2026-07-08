@@ -306,38 +306,15 @@ from hermes_cli.default_soul import DEFAULT_SOUL_MD, is_legacy_template_soul
 # Managed mode (NixOS declarative config)
 # =============================================================================
 
-_MANAGED_TRUE_VALUES = ("true", "1", "yes")
-_MANAGED_SYSTEM_NAMES = {
-    "brew": "Homebrew",
-    "homebrew": "Homebrew",
-    "nix": "NixOS",
-    "nixos": "NixOS",
-}
-
-
-def get_managed_system() -> Optional[str]:
-    """Return the package manager owning this install, if any."""
-    raw = os.getenv("HERMES_MANAGED", "").strip()
-    if raw:
-        normalized = raw.lower()
-        if normalized in _MANAGED_TRUE_VALUES:
-            return "NixOS"
-        return _MANAGED_SYSTEM_NAMES.get(normalized, raw)
-
-    managed_marker = get_hermes_home() / ".managed"
-    if managed_marker.exists():
-        return "NixOS"
-    return None
-
-
-def is_managed() -> bool:
-    """Check if Hermes is running in package-manager-managed mode.
-
-    Two signals: the HERMES_MANAGED env var (set by the systemd service),
-    or a .managed marker file in HERMES_HOME (set by the NixOS activation
-    script, so interactive shells also see it).
-    """
-    return get_managed_system() is not None
+# Moved to hermes_constants (import-safe, no module-body cost) so the logging
+# bootstrap can use them without importing this module on every CLI boot.
+# Re-exported here for the existing callers.
+from hermes_constants import (  # noqa: E402,F401
+    _MANAGED_SYSTEM_NAMES,
+    _MANAGED_TRUE_VALUES,
+    get_managed_system,
+    is_managed,
+)
 
 
 _NIX_UPDATE_MSG = "Update your Nix flake input and rebuild (e.g. nix flake update, nixos-rebuild, or home-manager switch)"

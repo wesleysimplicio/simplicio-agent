@@ -32,6 +32,41 @@
   JSONDecodeError subclasses `json.JSONDecodeError`, so existing except
   clauses are unaffected.)
 
+## Wave 1.1 — faster than upstream on every shared probe (landed 2026-07-08)
+
+`scripts/benchmark_vs_upstream.py` runs paired probes against an original
+`hermes-agent` checkout (each side in its own subprocess/sys.path, using its
+own default dependency posture) and FAILS if any shared probe is slower.
+Measured in a Linux container, Python 3.11, orjson installed here (the
+default posture after this program), upstream on stdlib:
+
+| Probe | simplicio | hermes | speedup |
+|---|---|---|---|
+| json.dumps tool-result (default hot path) | 2.8 µs | 32.7 µs | **11.8×** |
+| json.loads tool-args (default hot path) | 0.6 µs | 1.8 µs | **3.0×** |
+| tool-arg canonicalize (loads+dumps sort_keys) | 1.1 µs | 5.1 µs | **4.4×** |
+| token estimate, 200-msg history | 636 µs | 676 µs | **1.06×** |
+| CLI cold import (`import hermes_cli.main`) | 68.9 ms | 122.6 ms | **1.78×** |
+
+The cold-import win came from cutting `hermes_cli.config` (~100 ms module
+body) out of the boot path entirely — it was pulled in by three thin edges:
+`main.py`'s `get_hermes_home` re-export import, `hermes_logging`'s
+`is_managed` (moved to `hermes_constants`, config re-exports), and
+`model_setup_flows`' module-level `clear_model_endpoint_credentials` (now a
+lazy proxy). Fork-only modules (rust_ext, serde/msgspec, uvloop, async_dag,
+http_pool, TOON, warm daemon, kernel_binding) are listed by the script as
+existence wins.
+
+Module/command parity vs upstream, audited 2026-07-08: every upstream
+gateway platform exists here (built-in or under `plugins/platforms/` via
+`gateway/platform_registry.py` — telegram, slack, discord, sms, email,
+matrix, dingtalk, feishu, wecom, whatsapp, …) plus 11 platforms upstream
+lacks (google_chat, irc, line, mattermost, ntfy, photon, raft, simplex,
+teams, homeassistant, discord). Upstream-only modules NOT carried:
+`agent/gemini_cloudcode_adapter.py`, `agent/google_code_assist.py`,
+`agent/google_oauth.py` (Google OAuth login route) — deliberate fork
+decision; revisit only if Google OAuth login is wanted as a provider plugin.
+
 ## Remaining waves
 
 ### A2 — state & env migration

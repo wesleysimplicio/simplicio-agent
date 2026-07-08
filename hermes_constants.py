@@ -41,6 +41,43 @@ def invoked_via_deprecated_alias() -> bool:
         return False
 
 
+# Managed-install detection lives here (not hermes_cli.config) because the
+# logging bootstrap needs it on every CLI boot and config's module body costs
+# ~100 ms to import. hermes_cli.config re-exports these for its callers.
+_MANAGED_TRUE_VALUES = ("true", "1", "yes")
+_MANAGED_SYSTEM_NAMES = {
+    "brew": "Homebrew",
+    "homebrew": "Homebrew",
+    "nix": "NixOS",
+    "nixos": "NixOS",
+}
+
+
+def get_managed_system() -> "str | None":
+    """Return the package manager owning this install, if any."""
+    raw = os.getenv("HERMES_MANAGED", "").strip()
+    if raw:
+        normalized = raw.lower()
+        if normalized in _MANAGED_TRUE_VALUES:
+            return "NixOS"
+        return _MANAGED_SYSTEM_NAMES.get(normalized, raw)
+
+    managed_marker = get_hermes_home() / ".managed"
+    if managed_marker.exists():
+        return "NixOS"
+    return None
+
+
+def is_managed() -> bool:
+    """Check if this install is package-manager-managed.
+
+    Two signals: the HERMES_MANAGED env var (set by the systemd service),
+    or a .managed marker file in HERMES_HOME (set by the NixOS activation
+    script, so interactive shells also see it).
+    """
+    return get_managed_system() is not None
+
+
 _HERMES_HOME_OVERRIDE: ContextVar[str | object] = ContextVar(
     "_HERMES_HOME_OVERRIDE", default=_UNSET
 )

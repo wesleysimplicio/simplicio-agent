@@ -24,7 +24,18 @@ import argparse
 import os
 import subprocess
 
-from hermes_cli.config import clear_model_endpoint_credentials
+
+def clear_model_endpoint_credentials(*args, **kwargs):
+    """Lazy proxy for ``hermes_cli.config.clear_model_endpoint_credentials``.
+
+    This module is imported by ``hermes_cli.main`` at boot; a module-level
+    import of ``hermes_cli.config`` here would put config's ~100 ms body on
+    every CLI invocation. The wizard flows that call it are interactive, so
+    the deferred import is invisible there.
+    """
+    from hermes_cli.config import clear_model_endpoint_credentials as _real
+
+    return _real(*args, **kwargs)
 
 
 def _prompt_auth_credentials_choice(title: str) -> str:

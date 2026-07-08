@@ -514,7 +514,12 @@ _apply_profile_override()
 
 # Load .env from ~/.hermes/.env first, then project root as dev fallback.
 # User-managed env files should override stale shell exports on restart.
-from hermes_cli.config import get_hermes_home
+#
+# Import get_hermes_home from its real home (hermes_constants), NOT via the
+# hermes_cli.config re-export: config's module body costs ~110 ms and this
+# was the only module-level edge pulling it into every CLI boot. Subcommands
+# that need config still import it lazily inside their functions.
+from hermes_constants import get_hermes_home
 from hermes_cli.env_loader import load_hermes_dotenv
 
 load_hermes_dotenv(project_env=PROJECT_ROOT / ".env")
