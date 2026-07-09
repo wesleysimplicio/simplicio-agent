@@ -8,7 +8,7 @@ savings-event/v1 telemetry emitter.
 
 import json
 import subprocess
-from unittest.mock import patch as mock_patch
+from unittest.mock import Mock, patch as mock_patch
 
 import pytest
 
@@ -386,3 +386,275 @@ class TestSavingsEvent:
     def test_emit_never_raises_on_bad_path(self, monkeypatch):
         monkeypatch.setenv("HERMES_KERNEL_BINDING_LOG", "/nonexistent-root-owned-dir-xyz/log.jsonl")
         kb.emit_savings_event("gate", "kernel_denied")  # must not raise
+
+
+# =========================================================================
+# Warm mode (#109) -- routing logic, and a real fake-server protocol test
+# =========================================================================
+
+@pytest.fixture(autouse=True)
+def _reset_warm_client():
+    kb.reset_warm_client()
+    yield
+    kb.reset_warm_client()
+
+
+class TestWarmModeEnabled:
+    def test_disabled_by_default(self, monkeypatch):
+        monkeypatch.delenv(kb._WARM_MODE_ENV, raising=False)
+        assert kb._warm_mode_enabled() is False
+
+    @pytest.mark.parametrize("value", ["1", "true", "True", "yes", "on"])
+    def test_truthy_values_enable(self, monkeypatch, value):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, value)
+        assert kb._warm_mode_enabled() is True
+
+    @pytest.mark.parametrize("value", ["0", "false", "no", ""])
+    def test_falsy_values_disable(self, monkeypatch, value):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, value)
+        assert kb._warm_mode_enabled() is False
+
+
+class TestWarmToolCallForArgs:
+    def test_gate_classify_maps_to_simplicio_gate(self):
+        args = ["gate", "classify", "--action", "rm -rf /", "--json"]
+        assert kb._warm_tool_call_for_args(args) == (
+            "simplicio_gate",
+            {"action": "rm -rf /"},
+        )
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ["runtime", "map", "--repo", ".", "--for-llm", "markdown", "--json"],
+            ["memory", "some query", "--json"],
+            ["edit", "{}", "--json"],
+            ["checkpoint", "record", "--json"],
+            ["ledger", "append", "--json"],
+            ["gate", "status", "--json"],  # right family, wrong verb
+            ["gate", "classify", "--action", "x"],  # missing --json
+            [],
+        ],
+    )
+    def test_everything_else_is_unrouted(self, args):
+        assert kb._warm_tool_call_for_args(args) is None
+
+
+class TestTryWarmKernel:
+    def test_disabled_returns_none_without_spawning(self, monkeypatch):
+        monkeypatch.delenv(kb._WARM_MODE_ENV, raising=False)
+        with mock_patch("subprocess.Popen") as popen:
+            result = kb._try_warm_kernel(
+                ["gate", "classify", "--action", "x", "--json"], timeout=5.0
+            )
+        assert result is None
+        popen.assert_not_called()
+
+    def test_input_data_present_bypasses_warm_path(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        with mock_patch.object(kb, "_get_warm_client") as get_client:
+            result = kb._try_warm_kernel(
+                ["gate", "classify", "--action", "x", "--json"],
+                timeout=5.0,
+                input_data="{}",
+            )
+        assert result is None
+        get_client.assert_not_called()
+
+    def test_unrouted_args_return_none_without_calling_client(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        fake_client = Mock()
+        with mock_patch.object(kb, "_get_warm_client", return_value=fake_client):
+            result = kb._try_warm_kernel(["memory", "q", "--json"], timeout=5.0)
+        assert result is None
+        fake_client.call_tool.assert_not_called()
+
+    def test_success_returns_client_result(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        fake_client = Mock()
+        fake_client.call_tool.return_value = {"decision": "allow"}
+        with mock_patch.object(kb, "_get_warm_client", return_value=fake_client):
+            result = kb._try_warm_kernel(
+                ["gate", "classify", "--action", "echo hi", "--json"], timeout=5.0
+            )
+        assert result == {"decision": "allow"}
+        fake_client.call_tool.assert_called_once_with(
+            "simplicio_gate", {"action": "echo hi"}, timeout=5.0
+        )
+
+    def test_client_failure_falls_back_to_none(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        fake_client = Mock()
+        fake_client.call_tool.side_effect = kb.KernelBindingError("boom")
+        with mock_patch.object(kb, "_get_warm_client", return_value=fake_client):
+            result = kb._try_warm_kernel(
+                ["gate", "classify", "--action", "echo hi", "--json"], timeout=5.0
+            )
+        assert result is None  # caller falls through to subprocess, never raises
+
+
+class TestRunKernelWarmIntegration:
+    """`_run_kernel` must try the warm path first and fall through cleanly."""
+
+    def test_warm_hit_skips_subprocess(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        with mock_patch.object(
+            kb, "_try_warm_kernel", return_value={"decision": "allow"}
+        ) as warm, mock_patch("subprocess.run") as run:
+            result = kb._run_kernel(
+                ["gate", "classify", "--action", "echo hi", "--json"], timeout=5.0
+            )
+        assert result == {"decision": "allow"}
+        warm.assert_called_once()
+        run.assert_not_called()
+
+    def test_warm_miss_falls_through_to_subprocess(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch.object(kb, "_try_warm_kernel", return_value=None), mock_patch(
+            "shutil.which", return_value="/usr/local/bin/simplicio"
+        ), mock_patch("subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout='{"decision":"allow"}', stderr=""
+            )
+            result = kb._run_kernel(
+                ["gate", "classify", "--action", "echo hi", "--json"], timeout=5.0
+            )
+        assert result == {"decision": "allow"}
+        run.assert_called_once()
+
+
+class TestWarmKernelClientProtocol:
+    """Real subprocess test against a tiny fake MCP stdio server.
+
+    Exercises the actual NDJSON-over-stdio wire protocol (spawn, initialize
+    handshake, tools/call, error/timeout handling) rather than mocking
+    Popen -- the framing details (one JSON object per line, no Content-
+    Length header) are exactly what would silently break if the real
+    `simplicio serve --mcp --stdio` protocol ever drifted from this.
+    """
+
+    @staticmethod
+    def _fake_server_script(tmp_path, *, mode="ok"):
+        script = tmp_path / "fake_kernel.py"
+        script.write_text(
+            "import sys, json\n"
+            "for line in sys.stdin:\n"
+            "    line = line.strip()\n"
+            "    if not line:\n"
+            "        continue\n"
+            "    req = json.loads(line)\n"
+            "    method = req.get('method')\n"
+            "    if method == 'initialize':\n"
+            "        resp = {'jsonrpc':'2.0','id':req['id'],"
+            "'result':{'protocolVersion':'2024-11-05',"
+            "'serverInfo':{'name':'fake','version':'0'}}}\n"
+            "    elif method == 'tools/call':\n"
+            f"        mode = {mode!r}\n"
+            "        if mode == 'ok':\n"
+            "            body = json.dumps({'decision':'allow'})\n"
+            "            resp = {'jsonrpc':'2.0','id':req['id'],"
+            "'result':{'content':[{'type':'text','text':body}],"
+            "'isError':False}}\n"
+            "        elif mode == 'tool_error':\n"
+            "            resp = {'jsonrpc':'2.0','id':req['id'],"
+            "'result':{'content':[{'type':'text','text':'nope'}],"
+            "'isError':True}}\n"
+            "        elif mode == 'hang':\n"
+            "            import time; time.sleep(30)\n"
+            "            continue\n"
+            "    else:\n"
+            "        resp = {'jsonrpc':'2.0','id':req['id'],'result':{}}\n"
+            "    print(json.dumps(resp), flush=True)\n"
+        )
+        return script
+
+    @staticmethod
+    def _fake_argv_client(script):
+        """A _WarmKernelClient whose spawn step runs the fake server script
+        (via this interpreter) instead of a real ``simplicio`` binary --
+        the one seam that decides argv, overridden for the test double."""
+        import subprocess as _subprocess
+        import sys as _sys
+
+        class _FakeArgvClient(kb._WarmKernelClient):
+            def _spawn_and_handshake_locked(self):
+                self._proc = _subprocess.Popen(
+                    [_sys.executable, str(script)],
+                    stdin=_subprocess.PIPE,
+                    stdout=_subprocess.PIPE,
+                    stderr=_subprocess.DEVNULL,
+                    text=True,
+                    bufsize=1,
+                )
+                try:
+                    resp = self._request_locked("initialize", {}, timeout=5.0)
+                except kb.KernelBindingError:
+                    self._kill_locked()
+                    return False
+                if not isinstance(resp, dict) or "serverInfo" not in resp:
+                    self._kill_locked()
+                    return False
+                self._healthy = True
+                return True
+
+        return _FakeArgvClient(kernel_bin=_sys.executable)
+
+    def test_handshake_and_successful_call(self, tmp_path):
+        script = self._fake_server_script(tmp_path, mode="ok")
+        client = self._fake_argv_client(script)
+        result = client.call_tool("simplicio_gate", {"action": "echo hi"}, timeout=5.0)
+        assert result == {"decision": "allow"}
+        client.shutdown()
+
+    def test_tool_level_error_raises(self, tmp_path):
+        script = self._fake_server_script(tmp_path, mode="tool_error")
+        client = self._fake_argv_client(script)
+        with pytest.raises(kb.KernelBindingError, match="warm kernel tool error"):
+            client.call_tool("simplicio_gate", {"action": "x"}, timeout=5.0)
+        client.shutdown()
+
+    def test_repeated_calls_reuse_the_same_process(self, tmp_path):
+        script = self._fake_server_script(tmp_path, mode="ok")
+        client = self._fake_argv_client(script)
+        client.call_tool("simplicio_gate", {"action": "a"}, timeout=5.0)
+        proc_after_first = client._proc
+        client.call_tool("simplicio_gate", {"action": "b"}, timeout=5.0)
+        assert client._proc is proc_after_first, "should not respawn a healthy connection"
+        client.shutdown()
+
+    def test_unspawnable_binary_raises_unavailable_fast(self):
+        # A nonexistent binary makes Popen raise OSError immediately --
+        # _spawn_and_handshake_locked catches it and returns False, so this
+        # must fail fast (no timeout wait, no dangling process), unlike a
+        # real binary that hangs mid-handshake.
+        client = kb._WarmKernelClient(kernel_bin="/nonexistent/simplicio-xyz")
+        with pytest.raises(kb.KernelBindingError, match="unavailable"):
+            client.call_tool("simplicio_gate", {"action": "x"}, timeout=2.0)
+        client.shutdown()  # must not raise on a dead/never-healthy client
+
+
+class TestGetWarmClientAndReset:
+    def test_returns_none_when_disabled(self, monkeypatch):
+        monkeypatch.delenv(kb._WARM_MODE_ENV, raising=False)
+        assert kb._get_warm_client() is None
+
+    def test_returns_none_when_kernel_not_resolvable(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch("shutil.which", return_value=None):
+            assert kb._get_warm_client() is None
+
+    def test_reuses_same_instance_across_calls(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        with mock_patch("shutil.which", return_value="/usr/local/bin/simplicio"):
+            first = kb._get_warm_client()
+            second = kb._get_warm_client()
+        assert first is second
+
+    def test_reset_tears_down_and_next_call_builds_fresh(self, monkeypatch):
+        monkeypatch.setenv(kb._WARM_MODE_ENV, "1")
+        with mock_patch("shutil.which", return_value="/usr/local/bin/simplicio"):
+            first = kb._get_warm_client()
+            kb.reset_warm_client()
+            second = kb._get_warm_client()
+        assert first is not second

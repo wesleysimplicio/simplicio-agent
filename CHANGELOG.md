@@ -49,6 +49,18 @@ the default (user decision 2026-07-08; wave 1 of
   `hermes_constants`, lazy `clear_model_endpoint_credentials` proxy).
   Results published in the READMEs (all 4 languages),
   `docs/performance.md`, and `docs/roadmap/COMMAND-RENAME-AND-FAST-DEFAULT.md`.
+- **`tools/kernel_binding.py` warm mode** (#109, opt-in via
+  `SIMPLICIO_AGENT_KERNEL_WARM=1`): `_WarmKernelClient` reuses one
+  `simplicio serve --mcp --stdio` connection instead of spawning a fresh
+  process per kernel call. Routes `gate classify` (the one MCP tool the
+  runtime now serves in-process — simplicio-runtime#2983) through the warm
+  connection; every other binding stays on the classic path pending the
+  runtime's remaining in-process tool coverage. Measured: cold
+  `subprocess.run` ~65 ms/call vs. warm steady-state ~0.4 ms/call
+  (**~160-174×**, `scripts/benchmark_kernel_warm.py`). Any warm-path
+  failure falls through to the exact classic `subprocess.run` behavior —
+  fail-closed semantics (`mode="required"` on `action_gate`/
+  `mechanical_edit`) are unchanged.
 
 ## [0.23.0] - 2026-07-04
 

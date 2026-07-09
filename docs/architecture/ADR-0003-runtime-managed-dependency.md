@@ -125,9 +125,17 @@ happens on the agent side, as a dependency contract.
   kernel still prints a loud startup warning (with the `hermes doctor
   --fix` instruction) so fail-closed blocks never surprise mid-turn, but
   the fix itself is a separate, explicit step.
-- The runtime's MCP server (`simplicio mcp serve`) remains a separate,
+- The runtime's MCP server (`simplicio serve --mcp`) remains a separate,
   user-launched surface — this ADR binds the agent to the kernel *binary*,
-  not to a persistent server process.
+  not to a persistent server process. **Update (#109, opt-in only):**
+  `tools/kernel_binding.py` can additionally spawn and reuse one
+  `simplicio serve --mcp --stdio` connection per process
+  (`SIMPLICIO_AGENT_KERNEL_WARM=1`) for calls the runtime serves in-process
+  (`simplicio_gate` today — simplicio-runtime#2983). This does not revise
+  the decision above: warm mode is a latency optimization behind the exact
+  same `_run_kernel` contract, with any failure at any layer falling
+  through to the classic per-call `subprocess.run` path unchanged. It is
+  off by default.
 - ADR-0001 is untouched: checkpoints/rollback remain agent-owned
   (shadow-git); the kernel remains an evidence mirror there.
 

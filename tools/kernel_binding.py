@@ -30,6 +30,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -137,6 +138,283 @@ def reset_kernel_cache() -> None:
     _kernel_verified_cache = None
 
 
+# ---------------------------------------------------------------------------
+# Warm mode (#109) -- reuse one `simplicio serve --mcp --stdio` connection
+# instead of paying a fresh process spawn on every kernel call.
+#
+# Opt-in (SIMPLICIO_AGENT_KERNEL_WARM=1): every kernel call today pays a
+# fresh `subprocess.run` -- fork + binary load + JSON round-trip -- even
+# though most turns make several calls back to back. A persistent
+# `simplicio serve --mcp --stdio` connection amortizes the spawn cost across
+# a whole session.
+#
+# Deliberately raw Popen + line I/O, NOT the optional `mcp` package
+# (mcp==1.26.0 is a lazy `[mcp]`/`[computer-use]` extra here, not a core
+# dependency -- see pyproject.toml). The protocol simplicio serve --mcp
+# actually speaks is simple enough not to need it: newline-delimited JSON-RPC
+# over stdin/stdout, one object per line -- confirmed against
+# simplicio-runtime's `mcp_stdio_serve` (NOT LSP-style Content-Length
+# framing). Adding a hard dependency to a hot path for a ~10-line protocol
+# would be the wrong trade.
+#
+# Only `gate classify --action <x> --json` is routed through the warm
+# connection today, because it's the only MCP tool the runtime currently
+# serves *in-process* (simplicio-runtime#2983) rather than self-exec'ing a
+# fresh `simplicio` process per call server-side too -- routing the other
+# bindings here would still pay a full process spawn (just server-side
+# instead of client-side, with an extra JSON-RPC hop on top), so they stay
+# on the classic path until the runtime lands their in-process fast paths.
+#
+# Any failure at any layer (spawn, handshake, write, read, timeout, dead
+# process, malformed response, tool-level isError) makes `_try_warm_kernel`
+# return `None`, which `_run_kernel` treats identically to "warm mode never
+# attempted" -- it falls through to the exact same `subprocess.run` path
+# that runs today. Warm mode can only change latency, never availability,
+# fail-closed semantics, or the shape of what callers receive.
+
+_WARM_MODE_ENV = "SIMPLICIO_AGENT_KERNEL_WARM"
+
+
+class _WarmKernelClient:
+    """Persistent ``simplicio serve --mcp --stdio`` connection.
+
+    One process, reused across calls, guarded by a lock (kernel_binding
+    functions may be called from multiple threads). Never raises out of
+    ``call_tool`` for anything callers should treat as "kernel says no" --
+    every failure mode raises :class:`KernelBindingError`, exactly what
+    ``_run_kernel``'s classic path raises, so the caller-side fallback logic
+    is a single ``except KernelBindingError`` regardless of which transport
+    was tried.
+    """
+
+    def __init__(self, kernel_bin: str) -> None:
+        self._kernel_bin = kernel_bin
+        self._proc: Optional[subprocess.Popen] = None
+        self._lock = threading.Lock()
+        self._next_id = 1
+        self._healthy = False
+
+    def _spawn_and_handshake_locked(self) -> bool:
+        extra_kwargs: dict = {}
+        try:
+            from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+            if IS_WINDOWS:
+                extra_kwargs["creationflags"] = windows_hide_flags()
+        except Exception:
+            pass
+        try:
+            self._proc = subprocess.Popen(
+                [self._kernel_bin, "serve", "--mcp", "--stdio"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+                **extra_kwargs,
+            )
+        except OSError as exc:
+            logger.debug("kernel_binding warm mode: spawn failed: %s", exc)
+            self._proc = None
+            return False
+        try:
+            resp = self._request_locked("initialize", {}, timeout=5.0)
+        except KernelBindingError as exc:
+            logger.debug("kernel_binding warm mode: handshake failed: %s", exc)
+            self._kill_locked()
+            return False
+        if not isinstance(resp, dict) or "serverInfo" not in resp:
+            self._kill_locked()
+            return False
+        self._healthy = True
+        return True
+
+    def _kill_locked(self) -> None:
+        proc, self._proc = self._proc, None
+        self._healthy = False
+        if proc is None:
+            return
+        try:
+            proc.kill()
+            proc.wait(timeout=2.0)
+        except Exception:
+            pass
+
+    def _request_locked(self, method: str, params: dict, *, timeout: float) -> dict:
+        """Caller must hold ``self._lock``. Raises on any failure."""
+        proc = self._proc
+        if proc is None or proc.poll() is not None:
+            raise KernelBindingError("warm kernel process is not running")
+        req_id = self._next_id
+        self._next_id += 1
+        frame = json.dumps(
+            {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params},
+            separators=(",", ":"),
+        )
+        try:
+            assert proc.stdin is not None
+            proc.stdin.write(frame + "\n")
+            proc.stdin.flush()
+        except (OSError, ValueError) as exc:
+            raise KernelBindingError(f"warm kernel write failed: {exc}") from exc
+
+        # Plain readline() blocks forever on a dead-but-not-closed pipe, so
+        # the read happens on a daemon thread with a join timeout -- this
+        # works identically on POSIX and Windows, unlike select()/selectors
+        # on pipes (POSIX-only).
+        outcome: dict = {}
+
+        def _reader() -> None:
+            try:
+                assert proc.stdout is not None
+                outcome["line"] = proc.stdout.readline()
+            except Exception as exc:  # noqa: BLE001
+                outcome["error"] = exc
+
+        reader = threading.Thread(target=_reader, daemon=True)
+        reader.start()
+        reader.join(timeout)
+        if reader.is_alive():
+            raise KernelBindingError(f"warm kernel call timed out after {timeout}s: {method}")
+        if "error" in outcome:
+            raise KernelBindingError(f"warm kernel read failed: {outcome['error']}")
+        line = outcome.get("line") or ""
+        if not line.strip():
+            raise KernelBindingError("warm kernel closed the connection")
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise KernelBindingError(f"warm kernel returned non-JSON: {line[:200]!r}") from exc
+        if not isinstance(parsed, dict):
+            raise KernelBindingError("warm kernel returned a non-object JSON-RPC frame")
+        if "error" in parsed:
+            raise KernelBindingError(f"warm kernel JSON-RPC error: {parsed['error']}")
+        result = parsed.get("result")
+        if not isinstance(result, dict):
+            raise KernelBindingError("warm kernel response missing a result object")
+        return result
+
+    def call_tool(self, name: str, arguments: dict, *, timeout: float) -> dict:
+        """Call an MCP tool over the warm connection.
+
+        Returns the parsed JSON body carried in the tool's text content
+        (matching what ``_run_kernel`` returns for the same call). Raises
+        :class:`KernelBindingError` on any failure, including a tool-level
+        ``isError`` -- one retry after a fresh spawn covers a server that
+        died between calls (idle timeout, crash, manual kill).
+        """
+        with self._lock:
+            if not self._healthy and not self._spawn_and_handshake_locked():
+                raise KernelBindingError("warm kernel unavailable")
+            try:
+                result = self._request_locked(
+                    "tools/call", {"name": name, "arguments": arguments}, timeout=timeout
+                )
+            except KernelBindingError:
+                self._kill_locked()
+                if not self._spawn_and_handshake_locked():
+                    raise
+                result = self._request_locked(
+                    "tools/call", {"name": name, "arguments": arguments}, timeout=timeout
+                )
+
+        content = result.get("content")
+        if not isinstance(content, list) or not content or not isinstance(content[0], dict):
+            raise KernelBindingError("warm kernel tool response missing content")
+        text = content[0].get("text")
+        if not isinstance(text, str):
+            raise KernelBindingError("warm kernel tool response missing text")
+        if result.get("isError"):
+            raise KernelBindingError(f"warm kernel tool error: {text[:300]}")
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise KernelBindingError(
+                f"warm kernel tool returned non-JSON text: {text[:200]!r}"
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise KernelBindingError("warm kernel tool text is not a JSON object")
+        return parsed
+
+    def shutdown(self) -> None:
+        with self._lock:
+            self._kill_locked()
+
+
+_warm_client: Optional[_WarmKernelClient] = None
+_warm_client_lock = threading.Lock()
+
+
+def _warm_mode_enabled() -> bool:
+    return os.environ.get(_WARM_MODE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_warm_client() -> Optional["_WarmKernelClient"]:
+    if not _warm_mode_enabled():
+        return None
+    kernel_bin = resolve_kernel_bin()
+    if not kernel_bin:
+        return None
+    global _warm_client
+    with _warm_client_lock:
+        if _warm_client is None:
+            _warm_client = _WarmKernelClient(kernel_bin)
+        return _warm_client
+
+
+def reset_warm_client() -> None:
+    """Test-only escape hatch -- tear down the warm connection (if any)."""
+    global _warm_client
+    with _warm_client_lock:
+        if _warm_client is not None:
+            _warm_client.shutdown()
+        _warm_client = None
+
+
+def _warm_tool_call_for_args(args: list[str]) -> Optional[tuple[str, dict]]:
+    """Map a classic kernel-CLI argv shape to its MCP tool equivalent.
+
+    Only ``gate classify --action <x> --json`` is recognized today -- see
+    the module-level warm-mode docstring for why the other bindings aren't
+    routed yet.
+    """
+    if (
+        len(args) == 5
+        and args[0] == "gate"
+        and args[1] == "classify"
+        and args[2] == "--action"
+        and args[4] == "--json"
+    ):
+        return "simplicio_gate", {"action": args[3]}
+    return None
+
+
+def _try_warm_kernel(
+    args: list[str], *, timeout: float, input_data: Optional[str] = None
+) -> Optional[dict]:
+    """Route an eligible call through the warm connection; ``None`` means
+    "fall through to the classic subprocess path" -- covers warm mode being
+    disabled, the args shape not (yet) having an MCP equivalent, a call that
+    carries stdin input (no routed tool takes one today), and any failure of
+    the warm call itself, uniformly.
+    """
+    if input_data is not None:
+        return None
+    client = _get_warm_client()
+    if client is None:
+        return None
+    tool_call = _warm_tool_call_for_args(args)
+    if tool_call is None:
+        return None
+    name, arguments = tool_call
+    try:
+        return client.call_tool(name, arguments, timeout=timeout)
+    except KernelBindingError as exc:
+        logger.debug(
+            "kernel_binding warm mode: falling back to subprocess for %s: %s", args[:2], exc
+        )
+        return None
+
+
 def _run_kernel(
     args: list[str],
     *,
@@ -150,6 +428,10 @@ def _run_kernel(
             stdout isn't valid JSON. Callers decide the fail-open/closed
             policy -- this function only reports what happened.
     """
+    warm_result = _try_warm_kernel(args, timeout=timeout, input_data=input_data)
+    if warm_result is not None:
+        return warm_result
+
     kernel_bin = resolve_kernel_bin()
     if not kernel_bin:
         raise KernelBindingError(f"kernel binary '{_DEFAULT_KERNEL_BIN}' not found on PATH")

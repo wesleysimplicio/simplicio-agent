@@ -99,10 +99,26 @@ decision; revisit only if Google OAuth login is wanted as a provider plugin.
   `estimate_messages_tokens_bytes`. NOT a blind swap: current semantics
   count images at a flat 1500 tokens; any replacement must preserve that
   or budget decisions shift. Bench first (`scripts/benchmark_e2e.py`).
-- **kernel_binding warm mode** (highest per-call cost): replace per-call
-  `subprocess.run("simplicio …")` with a persistent `simplicio serve`
-  process reused across a turn, falling back to subprocess when unhealthy.
-  Needs a runtime-side issue.
+- ~~**kernel_binding warm mode**~~ **Landed 2026-07-09** (#109 +
+  simplicio-runtime#2983, opt-in via `SIMPLICIO_AGENT_KERNEL_WARM=1`):
+  `tools/kernel_binding.py`'s `_WarmKernelClient` reuses one
+  `simplicio serve --mcp --stdio` connection (raw NDJSON-over-stdio, no
+  `mcp` package dependency) instead of a fresh `subprocess.run` per call.
+  Only `gate classify --action <x> --json` is routed today — the one MCP
+  tool (`simplicio_gate`) the runtime now serves **in-process**
+  (`mcp_call_tool` self-execs a fresh process for every other tool;
+  `simplicio_gate` got the same inline treatment `simplicio_run` already
+  had). Measured against a local runtime build: **cold (subprocess.run)
+  ~65 ms/call median vs. warm steady-state ~0.4 ms/call — ~160-174×**
+  (`scripts/benchmark_kernel_warm.py`, 2 runs of 15/30 iterations). Any
+  failure at any layer (spawn/handshake/timeout/malformed
+  response/tool-level error) falls through to the classic subprocess path
+  unchanged — warm mode only ever changes latency, never fail-closed
+  semantics. `orient_map`/`memory_recall`/`edit_mechanical` are NOT routed
+  yet: they'd still pay a full process spawn server-side (just moved
+  inside the Rust self-exec, with an extra JSON-RPC hop on top) until the
+  runtime lands their in-process fast paths too — tracked in
+  simplicio-runtime#2983's remaining scope.
 - **Warm daemon auto-start** for interactive profiles
   (`hermes_cli/daemon.py`): needs an idle TTL so background daemons don't
   leak; opt-out `SIMPLICIO_AGENT_NO_DAEMON=1`.
