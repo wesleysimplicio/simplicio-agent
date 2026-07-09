@@ -11,6 +11,8 @@ from nest_cosign import run_tree  # noqa: E402
 from hierarchical_planner import HierarchicalPlanner  # noqa: E402
 from behcs_supervisor import Supervisor, hilbert_addr  # noqa: E402
 from wormhole_bridge import WormholeBridge, Envelope  # noqa: E402
+from nest_depthn import run_tree as _run_depthn  # noqa: E402
+from prism_comb import selftest as _prism_selftest  # noqa: E402
 
 
 def test_nest_clean_verified():
@@ -78,8 +80,54 @@ def test_wormhole_bridge():
 
 
 def test_selftest_scripts_exit_zero():
-    for mod in ("nest_cosign", "hierarchical_planner", "behcs_supervisor", "wormhole_bridge"):
+    for mod in ("nest_cosign", "hierarchical_planner", "behcs_supervisor", "wormhole_bridge",
+                "nest_depthn", "prism_comb"):
         r = subprocess.run([sys.executable, os.path.join(LIB, mod + ".py"), "--selftest"],
                            capture_output=True, text=True)
         assert r.returncode == 0, f"{mod} selftest failed: {r.stderr}"
         assert "PASS" in r.stdout, f"{mod} selftest missing PASS: {r.stdout}"
+
+
+def test_depthn_clean_apex():
+    tree = _run_depthn(None)
+    assert tree.subtree_ok is True
+    assert tree.fail == []
+
+
+def test_depthn_every_level_caught():
+    N = 7
+    for d in range(1, N + 1):
+        tamper = "R" + ".0" * d
+        tree = _run_depthn(tamper)
+        assert tree.subtree_ok is False, f"level {d} confabulation not caught"
+        assert any(f.endswith(f"@depth{d}") for f in tree.fail), \
+            f"level {d} not named correctly: {tree.fail}"
+
+
+def test_prism_bijection():
+    import prism_comb as pc
+    addrs = [f"R.{a}.{b}.{c}" for a in range(3) for b in range(3) for c in range(3)]
+    for addr in addrs:
+        v = pc.forward(addr)
+        s = pc.seal(v)
+        ok, rec = pc.inverse(addr, s)
+        assert ok and rec == v
+        bad = pc.sha16("seal|" + str(v ^ 0xBADBAD))
+        ok_bad, _ = pc.inverse(addr, bad)
+        assert ok_bad is False
+
+
+def test_prism_crt_lossless():
+    import prism_comb as pc
+    x = 123456789
+    mods = [3, 5, 17, 257]
+    residues = [x % m for m in mods]
+    M = 1
+    for m in mods:
+        M *= m
+    xr = 0
+    for i, m in enumerate(mods):
+        Mi = M // m
+        inv = pow(Mi, -1, m)
+        xr = (xr + residues[i] * Mi * inv) % M
+    assert xr == x % M
