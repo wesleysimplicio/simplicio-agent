@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || exit 0)"
+cd "$ROOT"
+if ! git diff-tree -r --name-only ORIG_HEAD HEAD 2>/dev/null | grep -q '^rust_ext/'; then
+  exit 0
+fi
+[ -x scripts/build_fast_stack.sh ] && bash scripts/build_fast_stack.sh
