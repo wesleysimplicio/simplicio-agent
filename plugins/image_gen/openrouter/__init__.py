@@ -333,10 +333,11 @@ class OpenRouterCompatImageProvider(ImageGenProvider):
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             # OpenRouter attribution headers (harmless against Nous Portal).
-            # Same env-var override as the chat path so a Simplicio Agent
-            # deployment attributes image-gen usage under its own name.
-            "HTTP-Referer": os.environ.get("OPENROUTER_HTTP_REFERER", "https://hermes-agent.nousresearch.com"),
-            "X-Title": os.environ.get("OPENROUTER_X_TITLE", "Hermes Agent"),
+            # Same env-var override + default as the chat path, so every
+            # OpenRouter call attributes under "Simplicio Agent". Empty env
+            # values fall back to the default (never a blank "Unknown" title).
+            "HTTP-Referer": (os.environ.get("OPENROUTER_HTTP_REFERER") or "").strip() or "https://simpleti.com.br/simplicio",
+            "X-Title": (os.environ.get("OPENROUTER_X_TITLE") or "").strip() or "Simplicio Agent",
         }
         last_error: Optional[Dict[str, Any]] = None
         for i, model_id in enumerate(model_chain):

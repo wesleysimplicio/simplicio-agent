@@ -409,15 +409,28 @@ _PROVIDERS_WITHOUT_VISION: frozenset = frozenset({
 # OpenRouter app attribution headers (base — always sent).
 # `X-Title` is the canonical attribution header OpenRouter's dashboard
 # reads; the previous `X-OpenRouter-Title` label was not recognized there.
-# Default attribution is "Hermes Agent" (the original Hermes binary).
-# A Simplicio Agent deployment overrides these via env vars:
+# Default attribution is "Simplicio Agent" (the shipped Simplicio product).
+# A deployment can still override these via env vars:
 #   OPENROUTER_X_TITLE        -> X-Title value
 #   OPENROUTER_HTTP_REFERER   -> HTTP-Referer value
 import os as _os
 
+
+def _or_attr(name: str, default: str) -> str:
+    """Read an OpenRouter attribution env var, falling back to ``default``.
+
+    An explicitly-set-but-empty var (a common misconfiguration) would otherwise
+    be sent verbatim and the OpenRouter dashboard labels it "Unknown". Treat
+    empty/whitespace-only values as "unset" so the default attribution always
+    wins — we never ship a blank X-Title / HTTP-Referer.
+    """
+    val = _os.environ.get(name, default)
+    return val.strip() or default
+
+
 _OR_HEADERS_BASE = {
-    "HTTP-Referer": _os.environ.get("OPENROUTER_HTTP_REFERER", "https://hermes-agent.nousresearch.com"),
-    "X-Title": _os.environ.get("OPENROUTER_X_TITLE", "Hermes Agent"),
+    "HTTP-Referer": _or_attr("OPENROUTER_HTTP_REFERER", "https://simpleti.com.br/simplicio"),
+    "X-Title": _or_attr("OPENROUTER_X_TITLE", "Simplicio Agent"),
     "X-OpenRouter-Categories": "productivity,cli-agent",
 }
 

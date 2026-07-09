@@ -18,12 +18,12 @@ class TestBuildOrHeaders:
         from agent.auxiliary_client import build_or_headers
 
         headers = build_or_headers(or_config={"response_cache": False})
-        assert headers["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
-        assert headers["X-Title"] == "Hermes Agent"
+        assert headers["HTTP-Referer"] == "https://simpleti.com.br/simplicio"
+        assert headers["X-Title"] == "Simplicio Agent"
         assert headers["X-OpenRouter-Categories"] == "productivity,cli-agent"
 
     def test_attribution_override_via_env(self):
-        """Env vars override the default Hermes Agent attribution."""
+        """Env vars override the default Simplicio Agent attribution."""
         import os
 
         with patch.dict(os.environ, {
