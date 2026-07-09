@@ -1401,7 +1401,11 @@ def enabled_mcp_server_names(config: dict) -> Set[str]:
     falsey ``enabled`` (per ``_parse_enabled_flag``: false/0/no/off) — a missing
     flag or an unrecognized value is treated as enabled.
     """
-    mcp_servers = (config or {}).get("mcp_servers") or {}
+    _raw_mcp = (config or {}).get("mcp_servers")
+    # Tolerate a non-mapping value (e.g. the YAML string "'{}'" written by an
+    # older setup step) — never let a malformed config crash every inbound
+    # message. Fall back to "no servers" instead of raising on .items().
+    mcp_servers = _raw_mcp if isinstance(_raw_mcp, dict) else {}
     return {
         str(name)
         for name, server_cfg in mcp_servers.items()
