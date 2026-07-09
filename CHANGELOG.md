@@ -62,6 +62,26 @@ the default (user decision 2026-07-08; wave 1 of
   fail-closed semantics (`mode="required"` on `action_gate`/
   `mechanical_edit`) are unchanged.
 
+## [0.25.0] - 2026-07-09
+
+### Changed
+
+- **Kernel floor raised to `simplicio` >= 3.5.0** (`runtime.lock`, was 3.4.0):
+  picks up the simplicio-runtime 3.5.0 release — in-process MCP hops (more
+  kernel tools served without a per-call subprocess spawn, extending the
+  `gate classify` warm-path win from `tools/kernel_binding.py` warm mode),
+  the `simplicio-memory` crate, and a compat gate on the kernel side. Asset
+  names/`sha256` pins in `runtime.lock` are unchanged; only `min_version`
+  moved.
+- **Operator floors**: no pinned version requirement for `simplicio-mapper`,
+  `simplicio-cli`, or `simplicio-loop` exists in this repo (no dependency
+  entry or documented floor found) — noted here for the record rather than
+  bumped, alongside today's ecosystem releases (simplicio-mapper 0.19.0,
+  simplicio-cli 0.11.0, simplicio-loop 3.24.0).
+- Synced `acp_registry/agent.json` version + `uvx` package pin to `0.25.0`
+  (was drifted at `0.22.0`/`0.21.1` since the 0.24.0 bump skipped this file);
+  `uv.lock`'s self-referential `hermes-agent` entry synced to `0.25.0`.
+
 ## [0.23.0] - 2026-07-04
 
 Product launch hardening for the Simplicio Agent MCP server — gate the paid
