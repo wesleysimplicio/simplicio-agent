@@ -565,10 +565,20 @@ class GatewaySlashCommandsMixin:
             if isinstance(model_cfg, dict):
                 provider_name = _clean_str(model_cfg.get("provider"))
         if not context_total:
-            model_cfg = user_config.get("model", {}) if isinstance(user_config, dict) else {}
-            configured_context = model_cfg.get("context_length") if isinstance(model_cfg, dict) else None
-            if isinstance(configured_context, int) and configured_context > 0:
-                context_total = configured_context
+            # Resolve the real context window from the model metadata instead
+            # of trusting model.context_length in the config, which can be a
+            # stale number inherited from a previously-selected model.
+            try:
+                from agent.model_metadata import get_model_context_length
+                _resolved = get_model_context_length(
+                    model_name or "",
+                    base_url=base_url or "",
+                    provider=provider_name or "",
+                )
+                if _resolved and int(_resolved) > 0:
+                    context_total = int(_resolved)
+            except Exception:
+                pass
 
         model_line = ""
         if model_name:
@@ -1358,6 +1368,11 @@ class GatewaySlashCommandsMixin:
                                     _persist_cfg["model"] = _persist_model_cfg
                                 _persist_model_cfg["default"] = result.new_model
                                 _persist_model_cfg["provider"] = result.target_provider
+                                # Drop a stale hardcoded context_length from a
+                                # previous model so the display resolves the new
+                                # model's real window instead of inheriting the
+                                # old number (e.g. 131072 wrongly carried over).
+                                _persist_model_cfg.pop("context_length", None)
                                 if result.base_url:
                                     _persist_model_cfg["base_url"] = result.base_url
                                 if str(result.target_provider or "").strip().lower() != "custom":
@@ -1390,7 +1405,7 @@ class GatewaySlashCommandsMixin:
                             api_key=result.api_key or current_api_key or "",
                             model_info=mi,
                             custom_providers=custom_provs,
-                            config_context_length=_sw_config_ctx,
+                            config_context_length=None,
                         )
                         if ctx:
                             lines.append(t("gateway.model.context_label", tokens=f"{ctx:,}"))
@@ -1595,6 +1610,10 @@ class GatewaySlashCommandsMixin:
                         cfg["model"] = model_cfg
                     model_cfg["default"] = result.new_model
                     model_cfg["provider"] = result.target_provider
+                    # Drop a stale hardcoded context_length from a previous
+                    # model so the display resolves the new model's real
+                    # window instead of inheriting the old number.
+                    model_cfg.pop("context_length", None)
                     if result.base_url:
                         model_cfg["base_url"] = result.base_url
                     if str(result.target_provider or "").strip().lower() != "custom":
@@ -1630,7 +1649,7 @@ class GatewaySlashCommandsMixin:
                 api_key=result.api_key or current_api_key or "",
                 model_info=mi,
                 custom_providers=custom_provs,
-                config_context_length=_sw2_config_ctx,
+                config_context_length=None,
             )
             if ctx:
                 lines.append(t("gateway.model.context_label", tokens=f"{ctx:,}"))
