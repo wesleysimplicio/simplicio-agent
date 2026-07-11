@@ -35,7 +35,9 @@ FALLBACK_BRANCH="main"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 DATA_DIR="${DATA_DIR:-$HOME/.simplicio_agent}"
 CONFIG_DIR="${CONFIG_DIR:-$HOME/.simplicio}"
-BINARY_NAME="simplicio"
+# Install the PRODUCT as 'simplicio-agent' so it never clobbers the
+# standalone Simplicio Runtime binary, which is also named 'simplicio'.
+BINARY_NAME="simplicio-agent"
 
 # Opcoes
 REQUESTED_VERSION=""
