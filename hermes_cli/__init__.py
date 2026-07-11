@@ -13,8 +13,14 @@ Provides subcommands for:
 
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version as _distribution_version
 
-__version__ = "0.17.0"
+try:
+    # Distribution metadata is authoritative for installed/editable builds.
+    __version__ = _distribution_version("hermes-agent")
+except PackageNotFoundError:
+    # Source checkouts without an install still expose the current project version.
+    __version__ = "0.25.0"
 __release_date__ = "2026.6.19"
 
 
