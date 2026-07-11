@@ -79,6 +79,21 @@ export function FlowPanel({
   }
 
   if (flow.status === 'post_google') {
+    // The old Google card is a UI fixture, never a production auth flow.
+    // Keep it available for local visual tests only; releases show an
+    // explicit disabled state and perform no request or success mutation.
+    if (!import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIMULATED_POST_SETUP !== '1') {
+      return (
+        <StepTransition>
+          <Step title="Google sign-in">
+            <p className="text-sm text-muted-foreground">Google sign-in is disabled in this release.</p>
+            <FlowFooter>
+              <Button onClick={advanceFromGoogle}>Continue</Button>
+            </FlowFooter>
+          </Step>
+        </StepTransition>
+      )
+    }
     return (
       <StepTransition>
         <GoogleSignInStep onContinue={advanceFromGoogle} />
@@ -87,6 +102,18 @@ export function FlowPanel({
   }
 
   if (flow.status === 'post_subscription') {
+    if (!import.meta.env.DEV && import.meta.env.VITE_ENABLE_SIMULATED_POST_SETUP !== '1') {
+      return (
+        <StepTransition>
+          <Step title="Subscription">
+            <p className="text-sm text-muted-foreground">Subscriptions are disabled in this release.</p>
+            <FlowFooter>
+              <Button onClick={onFinish}>Continue</Button>
+            </FlowFooter>
+          </Step>
+        </StepTransition>
+      )
+    }
     return (
       <StepTransition>
         <SubscriptionStep onFinish={onFinish} />
