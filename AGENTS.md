@@ -4,6 +4,17 @@ Instructions for AI coding assistants and developers working on the hermes-agent
 
 **Never give up on the right solution.**
 
+## Unification — no barriers (user directive 2026-07-11)
+
+`simplicio-runtime` and `simplicio-agent` are **one system**. The runtime and the
+agent surface are not separate products: the agent is the runtime, the runtime is
+the agent. The kernel-scope freeze (`docs/ADR-2026-07-06-KERNEL-SCOPE-FREEZE.md`
+in the runtime repo) is **revoked** — agent-parity, chat UX, autonomy, and
+organism expansion are in scope here as first-class capabilities.
+
+**Execution channel (standing directive):** the `simplicio` CLI is the primary
+surface; MCP is fallback only. Bind to the one runtime via `simplicio <cmd>`.
+
 ## Product identity — Simplicio Agent
 
 **Simplicio Agent = Hermes Turbo Agent + Simplicio Runtime.** The shipped
