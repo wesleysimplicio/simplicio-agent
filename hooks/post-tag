@@ -1,0 +1,25 @@
+#!/bin/bash
+# post-tag: after every release tag, sync the running bot home
+# (~/.simplicio_agent) with the repo so the deployed bot matches the release.
+#
+# Wired via `git config core.hooksPath hooks` (set by install.sh / manually).
+# Releases are git tags; this hook fires on `git tag <name>` in this clone.
+# For releases cut on GitHub web UI, run `simplicio_agent update` manually
+# (or pull the tag and run it) — the web flow cannot trigger a local hook.
+set -uo pipefail
+
+export HOME="${HOME:-/Users/wesleysimplicio}"
+export SIMPLICIO_AGENT_HOME="${SIMPLICIO_AGENT_HOME:-$HOME/.simplicio_agent}"
+export HERMES_HOME="${HERMES_HOME:-$SIMPLICIO_AGENT_HOME}"
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME/Projetos/ai/simplicio-agent")"
+UPDATE_SH="$REPO_ROOT/tools/simplicio_agent_update.sh"
+
+echo "[post-tag] release tag criada — sincronizando repo -> ~/.simplicio_agent ..."
+if [[ -x "$UPDATE_SH" ]]; then
+  "$UPDATE_SH" >/dev/null 2>&1 && \
+    echo "[post-tag] ✓ sync ok (simplicio_agent update)" || \
+    echo "[post-tag] ⚠ sync falhou — rode 'simplicio_agent update' manualmente"
+else
+  echo "[post-tag] ⚠ $UPDATE_SH nao encontrado — rode 'simplicio_agent update' manualmente"
+fi
