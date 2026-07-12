@@ -8,7 +8,7 @@
 #
 #   ~/.simplicio_agent/releases/<version>/
 #       code/        -> git-archive snapshot of the repo (no .git, no junk)
-#       venv/        -> isolated virtualenv with the package installed (-e)
+#       venv/        -> isolated virtualenv with the package installed (fixed, [fast] extra)
 #       build-info.json
 #   ~/.simplicio_agent/current -> releases/<version>   (the live pointer)
 #
@@ -19,7 +19,7 @@
 # Rollback = repoint `current` to a previous releases/<version>.
 #
 # Usage:
-#   tools/build_bundle.sh [--version v1.2.3] [--from /path/to/repo] [--dry-run]
+#   tools/build_bundle.sh [--version v1.2.3] [--ref git-ref] [--from /path/to/repo] [--dry-run]
 # =============================================================================
 set -uo pipefail
 
@@ -29,11 +29,13 @@ RELEASES="$HOME_DIR/releases"
 CURRENT="$HOME_DIR/current"
 DRY_RUN=0
 VERSION=""
+REF=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) shift; VERSION="${1:-}";;
     --from)    shift; REPO_ROOT="${1:-}";;
+    --ref)     shift; REF="${1:-}";;
     --dry-run) DRY_RUN=1;;
     *) echo "unknown arg: $1" >&2; exit 2;;
   esac
@@ -72,14 +74,18 @@ echo "  usando python: $($PYBIN --version 2>&1)"
 
 if ((DRY_RUN)); then
   echo "  [dry-run] git archive -> $DEST/code"
-  echo "  [dry-run] python -m venv $DEST/venv && pip install -e $DEST/code"
+  echo "  [dry-run] python -m venv $DEST/venv && pip install $DEST/code[fast]"
   echo "  [dry-run] repoint $CURRENT -> $DEST"
   exit 0
 fi
 
 # 1. Snapshot code (no .git, no venv, no junk)
 TMPCODE="$(mktemp -d)"
-git -C "$REPO_ROOT" archive --format=tar HEAD | tar -x -f - -C "$TMPCODE"
+SOURCE_REF="${REF:-HEAD}"
+if [[ -z "$REF" && -n "$VERSION" ]] && git -C "$REPO_ROOT" rev-parse --verify "${VERSION}^{commit}" >/dev/null 2>&1; then
+  SOURCE_REF="$VERSION"
+fi
+git -C "$REPO_ROOT" archive --format=tar "$SOURCE_REF" | tar -x -f - -C "$TMPCODE"
 # prune heavy/unneeded dirs from the deploy artifact
 rm -rf "$TMPCODE/.git" "$TMPCODE/.venv" "$TMPCODE/__pycache__" "$TMPCODE/.pytest_cache" 2>/dev/null
 mkdir -p "$DEST"
@@ -93,7 +99,12 @@ log "criando venv isolado com $($PYBIN --version 2>&1)..."
 "$DEST/venv/bin/pip" install --quiet --upgrade pip wheel 2>&1 | tail -1
 # Build the package FIXED into the bundle venv (not -e). This copies the code
 # into site-packages so the bundle is fully self-contained and immutable.
-"$DEST/venv/bin/pip" install --quiet "$DEST/code" 2>&1 | tail -3
+# Install the production performance extra; the base install alone omits orjson/msgspec.
+"$DEST/venv/bin/pip" install --quiet "$DEST/code[fast]" 2>&1 | tail -3
+if ! "$DEST/venv/bin/python" -c 'import orjson, msgspec; print(f"fast deps: orjson={orjson.__version__}, msgspec={msgspec.__version__}")'; then
+  echo "  ! performance dependencies unavailable after bundle install" >&2
+  exit 1
+fi
 log "venv pronto ($(du -sh "$DEST/venv" | cut -f1))"
 
 # 3. build-info
@@ -102,7 +113,7 @@ cat > "$DEST/build-info.json" <<JSON
   "version": "$VERSION",
   "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "repo": "$REPO_ROOT",
-  "commit": "$(git -C "$REPO_ROOT" rev-parse HEAD)",
+  "commit": "$(git -C "$REPO_ROOT" rev-parse "${SOURCE_REF}^{commit}")",
   "python": "$("$DEST/venv/bin/python" --version 2>&1)"
 }
 JSON
