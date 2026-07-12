@@ -1960,6 +1960,17 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
     if not isinstance(function_args, dict):
         function_args = {}
 
+    # Shared lifecycle chokepoint for every single-tool dispatch. Special tool
+    # implementations remain below, while policy/evidence consumers receive a
+    # canonical ordered trace.
+    from agent.tool_invocation_pipeline import ToolInvocation, pipeline_for_agent
+    _invocation_pipeline = pipeline_for_agent(agent)
+    _invocation, _invocation_trace = _invocation_pipeline.begin(
+        ToolInvocation(function_name, function_args, tool_call_id or "", effective_task_id or "")
+    )
+    function_args = _invocation.args
+    agent._last_tool_invocation_trace = list(_invocation_trace)
+
     _tool_middleware_trace = list(tool_request_middleware_trace or [])
     try:
         from hermes_cli.middleware import apply_tool_request_middleware
@@ -2038,6 +2049,9 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
             )
         except Exception:
             pass
+        agent._last_tool_invocation_trace = list(_invocation_trace) + [
+            "execute", "result-classification", "persist", "evidence", "emit",
+        ]
         return result
 
     if function_name == "todo":
