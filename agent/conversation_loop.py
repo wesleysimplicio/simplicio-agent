@@ -507,6 +507,11 @@ def run_conversation(
     persist_user_timestamp: Optional[float] = None,
     moa_config: Optional[dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    # Per-turn latency probe (issue #244): records phase timings so the real
+    # cost center (LLM round-trips vs tool stalls vs reconnect) is visible in
+    # the gateway log. Instrumentation only — never changes control flow.
+    from agent.perf_probe import TurnLatencyProbe
+    agent._latency_probe = TurnLatencyProbe()
     """
     Run a complete conversation with tool calling until completion.
 
@@ -626,6 +631,12 @@ def run_conversation(
         api_call_count += 1
         agent._api_call_count = api_call_count
         agent._touch_activity(f"starting API call #{api_call_count}")
+        # Latency probe: one API call begins; the LLM phase covers this
+        # iteration's model round-trip (prep + completion).
+        _lp = getattr(agent, "_latency_probe", None)
+        if _lp is not None:
+            _lp.mark_api_call()
+            _lp.begin("llm")
 
         # Grace call: the budget is exhausted but we gave the model one
         # more chance.  Consume the grace flag so the loop exits after

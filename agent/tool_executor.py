@@ -309,6 +309,11 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
     tool_calls = assistant_message.tool_calls
     num_tools = len(tool_calls)
 
+    # Latency probe: we are now in the tool phase for this iteration.
+    _lp = getattr(agent, "_latency_probe", None)
+    if _lp is not None:
+        _lp.begin("tool")
+
     # Resolve the context-scaled tool-output budget once per turn (cheap, but
     # avoids rebuilding it per result inside the loop below).
     _tool_budget = _budget_for_agent(agent)

@@ -213,14 +213,28 @@ def finalize_turn(
     _budget_used = agent.iteration_budget.used if agent.iteration_budget else 0
     _budget_max = agent.iteration_budget.max_total if agent.iteration_budget else 0
 
+    # Latency probe (issue #244): finish and attach the structured breakdown.
+    _latency_str = "n/a"
+    _lp = getattr(agent, "_latency_probe", None)
+    if _lp is not None:
+        try:
+            _ls = _lp.finish().as_dict()
+            _latency_str = (
+                f"llm={_ls['llm_s']}s tool={_ls['tool_s']}s "
+                f"reconnect={_ls['reconnect_s']}s other={_ls['other_s']}s "
+                f"total={_ls['total_s']}s"
+            )
+        except Exception:
+            _latency_str = "error"
+
     _diag_msg = (
         "Turn ended: reason=%s model=%s api_calls=%d/%d budget=%d/%d "
-        "tool_turns=%d last_msg_role=%s response_len=%d session=%s"
+        "tool_turns=%d last_msg_role=%s response_len=%d turn_latency=%s session=%s"
     )
     _diag_args = (
         _turn_exit_reason, agent.model, api_call_count, agent.max_iterations,
         _budget_used, _budget_max,
-        _turn_tool_count, _last_msg_role, _resp_len,
+        _turn_tool_count, _last_msg_role, _resp_len, _latency_str,
         agent.session_id or "none",
     )
 
