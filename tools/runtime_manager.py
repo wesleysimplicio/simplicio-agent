@@ -59,9 +59,10 @@ _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 # an unrelated "Simplicio Agent v0.17.0" banner) must never be mistaken for
 # the kernel. Anchored at the start of stdout only (never stderr, which can
 # carry unrelated warnings); allows leading whitespace and an optional
-# "-runtime" / "v" decoration.
+# "[- ]runtime" / "v" decoration (matches "simplicio vX.Y.Z",
+# "simplicio-runtime vX.Y.Z" and the real "Simplicio Runtime X.Y.Z" banner).
 _KERNEL_BANNER_RE = re.compile(
-    r"^\s*simplicio(?:-runtime)?\s+v?(\d+)\.(\d+)\.(\d+)",
+    r"^\s*simplicio(?:[- ]runtime)?\s+v?(\d+)\.(\d+)\.(\d+)",
     re.IGNORECASE,
 )
 
