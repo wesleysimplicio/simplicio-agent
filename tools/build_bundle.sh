@@ -1,148 +1,129 @@
 #!/usr/bin/env bash
-# =============================================================================
-# build_bundle.sh — produce an immutable, versioned Simplicio Agent deploy bundle
-#
-# Replaces the old "sync repo -> home tree" approach. Instead of symlinking the
-# live home to the working repo (drift-prone, no rollback), we build a frozen
-# artifact:
-#
-#   ~/.simplicio_agent/releases/<version>/
-#       code/        -> git-archive snapshot of the repo (no .git, no junk)
-#       venv/        -> isolated virtualenv with the package installed (fixed, [fast] extra)
-#       build-info.json
-#   ~/.simplicio_agent/current -> releases/<version>   (the live pointer)
-#
-# The running bot (start-*.sh) execs `current/venv/bin/python -m hermes_cli.main`
-# with HERMES_HOME still pointing at ~/.simplicio_agent (state dir). Code is
-# immutable per version; state lives outside the bundle.
-#
-# Rollback = repoint `current` to a previous releases/<version>.
-#
-# Usage:
-#   tools/build_bundle.sh [--version v1.2.3] [--ref git-ref] [--from /path/to/repo] [--dry-run]
-# =============================================================================
-set -uo pipefail
+# Build, verify, and atomically promote an immutable Agent + Runtime bundle.
+set -euo pipefail
 
-REPO_ROOT="${SIMPLICIO_AGENT_REPO:-/Users/wesleysimplicio/Projetos/ai/simplicio-agent}"
-HOME_DIR="${SIMPLICIO_AGENT_HOME:-${HERMES_HOME:-/Users/wesleysimplicio/.simplicio_agent}}"
+REPO_ROOT="${SIMPLICIO_AGENT_REPO:-$(cd "$(dirname "$0")/.." && pwd)}"
+HOME_DIR="${SIMPLICIO_AGENT_HOME:-${HERMES_HOME:-$HOME/.simplicio_agent}}"
 RELEASES="$HOME_DIR/releases"
 CURRENT="$HOME_DIR/current"
+MANIFEST_TOOL="$REPO_ROOT/tools/bundle_manifest.py"
 DRY_RUN=0
 VERSION=""
 REF=""
+VERIFY_ONLY=""
+ROLLBACK=""
+
+usage() { sed -n '1,28p' "$0"; }
+log() { printf '[bundle %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+fail() { printf 'bundle: %s\n' "$*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --version) shift; VERSION="${1:-}";;
-    --from)    shift; REPO_ROOT="${1:-}";;
-    --ref)     shift; REF="${1:-}";;
+    --from) shift; REPO_ROOT="${1:-}";;
+    --ref) shift; REF="${1:-}";;
     --dry-run) DRY_RUN=1;;
-    *) echo "unknown arg: $1" >&2; exit 2;;
+    --verify) shift; VERIFY_ONLY="${1:-}";;
+    --rollback) shift; ROLLBACK="${1:-}";;
+    -h|--help) usage; exit 0;;
+    *) fail "unknown arg: $1";;
   esac
   shift
 done
 
-log(){ echo "[build $(date +%H:%M:%S)] $*"; }
-[[ -d "$REPO_ROOT/.git" ]] || { echo "repo nao encontrado: $REPO_ROOT" >&2; exit 1; }
-mkdir -p "$RELEASES"
+verify_bundle() { python3 "$MANIFEST_TOOL" verify "$1"; }
 
-# Resolve version: explicit > latest semver tag > short sha
+atomic_promote() {
+  local target="$1" tmp_link="$CURRENT.tmp.$$"
+  [[ -d "$target" ]] || fail "release does not exist: $target"
+  verify_bundle "$target"
+  [[ -x "$target/venv/bin/python" ]] || fail "release has no executable venv python"
+  "$target/venv/bin/python" -c 'import hermes_cli' || fail "Agent smoke test failed"
+  rm -f "$tmp_link"
+  ln -s "$target" "$tmp_link"
+  python3 - "$tmp_link" "$CURRENT" <<'PY'
+import os
+import sys
+os.replace(sys.argv[1], sys.argv[2])
+PY
+  printf '%s\n' "$(basename "$target")" > "$HOME_DIR/.active_bundle"
+  log "current -> $target (atomic promotion)"
+}
+
+if [[ -n "$VERIFY_ONLY" ]]; then
+  verify_bundle "$VERIFY_ONLY"
+  exit 0
+fi
+
+[[ -e "$REPO_ROOT/.git" ]] || fail "repo not found: $REPO_ROOT"
+mkdir -p "$RELEASES"
+if [[ -n "$ROLLBACK" ]]; then
+  atomic_promote "$RELEASES/$ROLLBACK"
+  exit 0
+fi
+
 if [[ -z "$VERSION" ]]; then
   VERSION="$(git -C "$REPO_ROOT" describe --tags --always 2>/dev/null || git -C "$REPO_ROOT" rev-parse --short HEAD)"
-  [[ -z "$VERSION" ]] && VERSION="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 fi
 DEST="$RELEASES/$VERSION"
-
-# Already built?
-if [[ -e "$DEST" && -e "$DEST/build-info.json" ]] && ((DRY_RUN==0)); then
-  echo "  ! bundle $VERSION ja existe em $DEST — abortando (use --version diferente ou remova)"
-  exit 0
-fi
-
-# Resolve a Python >=3.11 (system 3.9 is too old for the package).
-# IMPORTANT: we must NOT use the repo's own venv python here, or the new venv's
-# pip would inherit the repo's editable install path and break immutability.
-if command -v /opt/homebrew/bin/python3.11 >/dev/null 2>&1; then
-  PYBIN=/opt/homebrew/bin/python3.11
-elif command -v /opt/homebrew/bin/python3.12 >/dev/null 2>&1; then
-  PYBIN=/opt/homebrew/bin/python3.12
-else
-  PYBIN="$(command -v python3.11 python3.12 2>/dev/null | head -1)"
-fi
-[[ -n "$PYBIN" ]] || { echo "python >=3.11 nao encontrado" >&2; exit 1; }
-echo "  usando python: $($PYBIN --version 2>&1)"
+[[ ! -e "$DEST" ]] || fail "bundle $VERSION already exists at $DEST"
+SOURCE_REF="${REF:-HEAD}"
+if [[ -z "$REF" ]] && git -C "$REPO_ROOT" rev-parse --verify "${VERSION}^{commit}" >/dev/null 2>&1; then SOURCE_REF="$VERSION"; fi
+COMMIT="$(git -C "$REPO_ROOT" rev-parse "${SOURCE_REF}^{commit}")"
 
 if ((DRY_RUN)); then
-  echo "  [dry-run] git archive -> $DEST/code"
-  echo "  [dry-run] python -m venv $DEST/venv && pip install $DEST/code[fast]"
-  echo "  [dry-run] repoint $CURRENT -> $DEST"
+  printf '[dry-run] stage %s, verify manifest + smoke, atomically promote current\n' "$DEST"
   exit 0
 fi
 
-# 1. Snapshot code (no .git, no venv, no junk)
+if command -v /opt/homebrew/bin/python3.11 >/dev/null 2>&1; then PYBIN=/opt/homebrew/bin/python3.11
+elif command -v python3.11 >/dev/null 2>&1; then PYBIN=$(command -v python3.11)
+else fail 'Python 3.11+ not found'; fi
+STAGE="$(mktemp -d "$RELEASES/.${VERSION}.tmp.XXXXXX")"
+cleanup() { rm -rf "$STAGE"; }
+trap cleanup EXIT
+
+log "staging $VERSION from $COMMIT"
 TMPCODE="$(mktemp -d)"
-SOURCE_REF="${REF:-HEAD}"
-if [[ -z "$REF" && -n "$VERSION" ]] && git -C "$REPO_ROOT" rev-parse --verify "${VERSION}^{commit}" >/dev/null 2>&1; then
-  SOURCE_REF="$VERSION"
-fi
+trap 'rm -rf "$TMPCODE" "$STAGE"' EXIT
 git -C "$REPO_ROOT" archive --format=tar "$SOURCE_REF" | tar -x -f - -C "$TMPCODE"
-# prune heavy/unneeded dirs from the deploy artifact
-rm -rf "$TMPCODE/.git" "$TMPCODE/.venv" "$TMPCODE/__pycache__" "$TMPCODE/.pytest_cache" 2>/dev/null
-mkdir -p "$DEST"
-rm -rf "$DEST/code"
-mv "$TMPCODE" "$DEST/code"
-log "codigo snapshotado ($(du -sh "$DEST/code" | cut -f1))"
+rm -rf "$TMPCODE/.git" "$TMPCODE/.venv" "$TMPCODE/__pycache__" "$TMPCODE/.pytest_cache"
+mv "$TMPCODE" "$STAGE/code"
+"$PYBIN" -m venv "$STAGE/venv"
+"$STAGE/venv/bin/pip" install --quiet --upgrade pip wheel
+"$STAGE/venv/bin/pip" install --quiet "$STAGE/code[fast]"
+"$STAGE/venv/bin/python" -c 'import orjson, msgspec, hermes_cli; print("Agent + fast dependencies: OK")'
 
-# 2. Isolated venv with the package installed (editable, so `import hermes_cli` works)
-log "criando venv isolado com $($PYBIN --version 2>&1)..."
-"$PYBIN" -m venv "$DEST/venv"
-"$DEST/venv/bin/pip" install --quiet --upgrade pip wheel 2>&1 | tail -1
-# Build the package FIXED into the bundle venv (not -e). This copies the code
-# into site-packages so the bundle is fully self-contained and immutable.
-# Install the production performance extra; the base install alone omits orjson/msgspec.
-"$DEST/venv/bin/pip" install --quiet "$DEST/code[fast]" 2>&1 | tail -3
-if ! "$DEST/venv/bin/python" -c 'import orjson, msgspec; print(f"fast deps: orjson={orjson.__version__}, msgspec={msgspec.__version__}")'; then
-  echo "  ! performance dependencies unavailable after bundle install" >&2
-  exit 1
-fi
-log "venv pronto ($(du -sh "$DEST/venv" | cut -f1))"
+RUNTIME_REPO="${SIMPLICIO_RUNTIME_REPO:-$HOME/Projetos/ai/simplicio-runtime}"
+KERNEL_SRC=""
+if [[ -x "$RUNTIME_REPO/target/release/simplicio" ]]; then KERNEL_SRC="$RUNTIME_REPO/target/release/simplicio"
+elif [[ -x "$HOME/.local/bin/simplicio" ]]; then KERNEL_SRC="$HOME/.local/bin/simplicio"
+elif command -v simplicio >/dev/null 2>&1; then KERNEL_SRC="$(command -v simplicio)"; fi
+[[ -n "$KERNEL_SRC" ]] || fail 'Simplicio Runtime binary not found; refusing incomplete official bundle'
+mkdir -p "$STAGE/runtime"
+cp "$KERNEL_SRC" "$STAGE/runtime/simplicio"
+chmod +x "$STAGE/runtime/simplicio"
+"$STAGE/runtime/simplicio" --version >/dev/null || fail 'Runtime smoke test failed'
 
-# 3. build-info
-cat > "$DEST/build-info.json" <<JSON
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$REPO_ROOT" show -s --format=%ct "$COMMIT")}"
+cat > "$STAGE/build-info.json" <<JSON
 {
   "version": "$VERSION",
-  "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "repo": "$REPO_ROOT",
-  "commit": "$(git -C "$REPO_ROOT" rev-parse "${SOURCE_REF}^{commit}")",
-  "python": "$("$DEST/venv/bin/python" --version 2>&1)"
+  "source_date_epoch": $SOURCE_DATE_EPOCH,
+  "repo": "wesleysimplicio/simplicio-agent",
+  "commit": "$COMMIT",
+  "python": "$("$STAGE/venv/bin/python" --version 2>&1)",
+  "runtime": "$("$STAGE/runtime/simplicio" --version 2>&1 | head -1)"
 }
 JSON
+mkdir -p "$STAGE/manifests"
+SIGNING_KEY="${SIMPLICIO_BUNDLE_SIGNING_KEY:-}"
+python3 "$MANIFEST_TOOL" create "$STAGE" --version "$VERSION" --source-commit "$COMMIT" ${SIGNING_KEY:+--signing-key "$SIGNING_KEY"}
+verify_bundle "$STAGE"
+"$STAGE/venv/bin/python" -c 'import hermes_cli; print("bundle smoke: Agent import OK")'
 
-# 4. Kernel (Rust determinism engine) — bundle it too so agent + kernel are
-#    versioned together. Resolution order in runtime_manager: HERMES_KERNEL_BIN
-#    env wins, so the bundle start script points HERMES_KERNEL_BIN here.
-RUNTIME_REPO="${SIMPLICIO_RUNTIME_REPO:-/Users/wesleysimplicio/Projetos/ai/simplicio-runtime}"
-KERNEL_SRC=""
-if [[ -x "$RUNTIME_REPO/target/release/simplicio" ]]; then
-  KERNEL_SRC="$RUNTIME_REPO/target/release/simplicio"
-elif [[ -x "$HOME/.local/bin/simplicio" ]]; then
-  KERNEL_SRC="$HOME/.local/bin/simplicio"
-elif command -v simplicio >/dev/null 2>&1; then
-  KERNEL_SRC="$(command -v simplicio)"
-fi
-if [[ -n "$KERNEL_SRC" ]]; then
-  mkdir -p "$DEST/kernel"
-  cp "$KERNEL_SRC" "$DEST/kernel/simplicio"
-  chmod +x "$DEST/kernel/simplicio"
-  KVER="$("$DEST/kernel/simplicio" --version 2>&1 | head -1)"
-  log "kernel bundled: $KVER (de $KERNEL_SRC)"
-else
-  log "⚠ kernel nao encontrado — bundle ficou sem kernel (agente usara PATH)"
-fi
-
-# 5. Repoint current (atomic)
-PREV="$(readlink "$CURRENT" 2>/dev/null || true)"
-ln -sfn "$DEST" "$CURRENT"
-log "✓ current -> $DEST${PREV:+(anterior: $PREV)}"
-echo "$VERSION" > "$HOME_DIR/.active_bundle"
-log "pronto. bundle $VERSION ativo."
+mv "$STAGE" "$DEST"
+STAGE=""
+atomic_promote "$DEST"
+trap - EXIT
+log "bundle $VERSION ready; unsigned=${SIGNING_KEY:+no}${SIGNING_KEY:-yes} (sha256 verification enforced)"
