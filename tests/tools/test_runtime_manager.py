@@ -136,6 +136,19 @@ class TestVersionHandshake:
         with mock_patch("subprocess.run", return_value=proc):
             assert rm.kernel_version("/bin/simplicio") is None
 
+    def test_kernel_version_accepts_real_runtime_banner(self):
+        """The shipped kernel prints 'Simplicio Runtime X.Y.Z' (note the
+        'Runtime' word between the name and the version). Older builds print
+        'simplicio vX.Y.Z' / 'simplicio-runtime vX.Y.Z'. All must parse."""
+        for banner in (
+            "Simplicio Runtime 3.5.0\n",
+            "simplicio 3.4.0\n",
+            "simplicio-runtime v3.5.1\n",
+        ):
+            proc = subprocess.CompletedProcess([], 0, stdout=banner, stderr="")
+            with mock_patch("subprocess.run", return_value=proc):
+                assert rm.kernel_version("/bin/simplicio") is not None
+
     def test_kernel_version_ignores_stderr_only_version(self):
         """The banner must come from stdout -- stderr is not trusted for
         identity, only for diagnostics."""
