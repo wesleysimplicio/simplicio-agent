@@ -213,6 +213,36 @@ class TestReloadSkillsHelper:
         assert _sc._skill_payload_cache
         assert calls["n"] == 1
 
+    def test_prewarm_limits_work_and_cache_from_skills_config(self, hermes_home, monkeypatch):
+        from agent import skill_commands as _sc
+        from agent.skill_commands import prewarm_skill_payloads
+        import tools.skills_tool as _st
+
+        for index in range(3):
+            _write_skill(hermes_home / "skills", f"demo-{index}", "bounded")
+
+        calls = {"n": 0}
+        real_skill_view = _st.skill_view
+
+        def _counting_skill_view(*args, **kwargs):
+            calls["n"] += 1
+            return real_skill_view(*args, **kwargs)
+
+        monkeypatch.setattr(_st, "skill_view", _counting_skill_view)
+        monkeypatch.setattr(
+            _sc,
+            "_load_skills_config",
+            lambda: {"prewarm_max_items": 2, "prewarm_cache_max_entries": 1},
+        )
+
+        prewarm_skill_payloads(["demo-0", "demo-1", "demo-2"])
+        deadline = time.time() + 2.0
+        while time.time() < deadline and calls["n"] < 2:
+            time.sleep(0.02)
+
+        assert calls["n"] == 2
+        assert len(_sc._skill_payload_cache) <= 1
+
     def test_load_skill_payload_waits_for_inflight_prewarm(self, hermes_home, monkeypatch):
         from agent.skill_commands import _load_skill_payload, prewarm_skill_payloads
         import tools.skills_tool as _st
