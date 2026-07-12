@@ -55,7 +55,7 @@ if [[ -n "$VERIFY_ONLY" ]]; then
   exit 0
 fi
 
-[[ -d "$REPO_ROOT/.git" ]] || fail "repo not found: $REPO_ROOT"
+[[ -e "$REPO_ROOT/.git" ]] || fail "repo not found: $REPO_ROOT"
 mkdir -p "$RELEASES"
 if [[ -n "$ROLLBACK" ]]; then
   atomic_promote "$RELEASES/$ROLLBACK"
