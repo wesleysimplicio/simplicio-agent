@@ -1704,6 +1704,8 @@ class AIAgent:
                 if isinstance(item, dict)
             }
 
+            pending_db_messages = []
+            pending_db_message_ids = []
             for msg in messages:
                 if not isinstance(msg, dict):
                     continue
@@ -1737,22 +1739,27 @@ class AIAgent:
                     ]
                 elif isinstance(msg.get("tool_calls"), list):
                     tool_calls_data = msg["tool_calls"]
-                self._session_db.append_message(
+                pending_db_messages.append({
+                    "role": role,
+                    "content": content,
+                    "tool_name": msg.get("tool_name"),
+                    "tool_calls": tool_calls_data,
+                    "tool_call_id": msg.get("tool_call_id"),
+                    "finish_reason": msg.get("finish_reason"),
+                    "reasoning": msg.get("reasoning") if role == "assistant" else None,
+                    "reasoning_content": msg.get("reasoning_content") if role == "assistant" else None,
+                    "reasoning_details": msg.get("reasoning_details") if role == "assistant" else None,
+                    "codex_reasoning_items": msg.get("codex_reasoning_items") if role == "assistant" else None,
+                    "codex_message_items": msg.get("codex_message_items") if role == "assistant" else None,
+                    "timestamp": msg.get("timestamp"),
+                })
+                pending_db_message_ids.append(msg_id)
+            if pending_db_messages:
+                self._session_db.append_messages(
                     session_id=self.session_id,
-                    role=role,
-                    content=content,
-                    tool_name=msg.get("tool_name"),
-                    tool_calls=tool_calls_data,
-                    tool_call_id=msg.get("tool_call_id"),
-                    finish_reason=msg.get("finish_reason"),
-                    reasoning=msg.get("reasoning") if role == "assistant" else None,
-                    reasoning_content=msg.get("reasoning_content") if role == "assistant" else None,
-                    reasoning_details=msg.get("reasoning_details") if role == "assistant" else None,
-                    codex_reasoning_items=msg.get("codex_reasoning_items") if role == "assistant" else None,
-                    codex_message_items=msg.get("codex_message_items") if role == "assistant" else None,
-                    timestamp=msg.get("timestamp"),
+                    messages=pending_db_messages,
                 )
-                flushed_ids.add(msg_id)
+                flushed_ids.update(pending_db_message_ids)
             self._last_flushed_db_idx = len(messages)
         except Exception as e:
             logger.warning("Session DB append_message failed: %s", e)

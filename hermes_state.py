@@ -3131,6 +3131,42 @@ class SessionDB:
 
         return self._execute_write(_do)
 
+    def append_messages(
+        self,
+        session_id: str,
+        messages: List[Dict[str, Any]],
+    ) -> int:
+        """Append several messages in one atomic write transaction.
+
+        Gateway turns commonly produce a user/assistant/tool batch. Calling
+        :meth:`append_message` for each item would acquire and release the WAL
+        writer lock, and commit, once per message. Keep the existing
+        ``BEGIN IMMEDIATE``/retry path by using ``_execute_write`` exactly once
+        for the batch. If any insert fails, the whole batch is rolled back and
+        the session counters remain unchanged.
+
+        The message dictionaries use the same fields accepted by
+        :meth:`append_message` (including structured assistant fields).
+        Returns the number of inserted messages; an empty batch is a no-op.
+        """
+        if not messages:
+            return 0
+
+        def _do(conn):
+            inserted, tool_calls_total = self._insert_message_rows(
+                conn, session_id, messages
+            )
+            conn.execute(
+                """UPDATE sessions
+                   SET message_count = message_count + ?,
+                       tool_call_count = tool_call_count + ?
+                   WHERE id = ?""",
+                (inserted, tool_calls_total, session_id),
+            )
+            return inserted
+
+        return self._execute_write(_do)
+
     def _insert_message_rows(self, conn, session_id: str, messages: List[Dict[str, Any]]) -> tuple[int, int]:
         """Insert *messages* as fresh active rows for *session_id*.
 
