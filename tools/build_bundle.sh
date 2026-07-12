@@ -107,7 +107,29 @@ cat > "$DEST/build-info.json" <<JSON
 }
 JSON
 
-# 4. Repoint current (atomic)
+# 4. Kernel (Rust determinism engine) — bundle it too so agent + kernel are
+#    versioned together. Resolution order in runtime_manager: HERMES_KERNEL_BIN
+#    env wins, so the bundle start script points HERMES_KERNEL_BIN here.
+RUNTIME_REPO="${SIMPLICIO_RUNTIME_REPO:-/Users/wesleysimplicio/Projetos/ai/simplicio-runtime}"
+KERNEL_SRC=""
+if [[ -x "$RUNTIME_REPO/target/release/simplicio" ]]; then
+  KERNEL_SRC="$RUNTIME_REPO/target/release/simplicio"
+elif [[ -x "$HOME/.local/bin/simplicio" ]]; then
+  KERNEL_SRC="$HOME/.local/bin/simplicio"
+elif command -v simplicio >/dev/null 2>&1; then
+  KERNEL_SRC="$(command -v simplicio)"
+fi
+if [[ -n "$KERNEL_SRC" ]]; then
+  mkdir -p "$DEST/kernel"
+  cp "$KERNEL_SRC" "$DEST/kernel/simplicio"
+  chmod +x "$DEST/kernel/simplicio"
+  KVER="$("$DEST/kernel/simplicio" --version 2>&1 | head -1)"
+  log "kernel bundled: $KVER (de $KERNEL_SRC)"
+else
+  log "⚠ kernel nao encontrado — bundle ficou sem kernel (agente usara PATH)"
+fi
+
+# 5. Repoint current (atomic)
 PREV="$(readlink "$CURRENT" 2>/dev/null || true)"
 ln -sfn "$DEST" "$CURRENT"
 log "✓ current -> $DEST${PREV:+(anterior: $PREV)}"
