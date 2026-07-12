@@ -1,0 +1,37 @@
+{
+  "schema": "simplicio.rename-guard.allowlist/v1",
+  "entries": [
+    {
+      "path_glob": "CHANGELOG.md",
+      "term": null,
+      "class": "credit",
+      "reason": "historical changelog entries document the prior project name; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "hermes_cli/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "module rename tracked separately under epic #186; internal-only, not a public artifact surface",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests/hermes_cli/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "test suite mirrors the hermes_cli module path pending #186 module rename",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "archive/*",
+      "term": null,
+      "class": "upstream",
+      "reason": "frozen archive of pre-fork upstream source, retained for reference — not shipped in any artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    }
+  ]
+}
