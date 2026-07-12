@@ -83,9 +83,14 @@ _MAX_TOOL_WORKERS = 8
 # Timeout for a concurrent tool-call batch, in seconds.
 # When the batch exceeds this wall-clock duration any not-yet-completed
 # futures are cancelled. Controlled by HERMES_CONCURRENT_TOOL_TIMEOUT_S
-# env var; defaults to 420 seconds (7 minutes).
+# env var (override still honored).
+#
+# Default lowered from 420s (7 min) to 120s (2 min): gateway.log observed a
+# legitimate tool taking 90.21s, so 120s covers real long-running tools with
+# comfortable margin while cancelling a genuinely hung tool ~3.5x sooner than
+# the old 420s default — a stuck tool no longer holds a turn hostage for 7 min.
 _CONCURRENT_TOOL_TIMEOUT = float(
-    os.environ.get("HERMES_CONCURRENT_TOOL_TIMEOUT_S", "420.0")
+    os.environ.get("HERMES_CONCURRENT_TOOL_TIMEOUT_S", "120.0")
 )
 
 
