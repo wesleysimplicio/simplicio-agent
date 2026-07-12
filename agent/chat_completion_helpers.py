@@ -35,6 +35,7 @@ from agent.message_sanitization import (
     _sanitize_surrogates,
     _repair_tool_call_arguments,
 )
+from agent.tool_call_json import loads_tool_call_arguments
 from tools.terminal_tool import is_persistent_env
 from utils import base_url_host_matches, base_url_hostname, env_float, env_int
 
@@ -2184,7 +2185,7 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 tool_name = tc["function"]["name"] or "?"
                 if arguments and arguments.strip():
                     try:
-                        json.loads(arguments)
+                        loads_tool_call_arguments(arguments)
                     except json.JSONDecodeError:
                         # Attempt repair before flagging as truncated.
                         # Models like GLM-5.1 via Ollama produce trailing
