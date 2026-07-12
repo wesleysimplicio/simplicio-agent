@@ -1,0 +1,11 @@
+{
+  "exclude_globs": [
+    ".git/*",
+    ".orchestrator/*",
+    ".simplicio/*",
+    "*.lock",
+    "*package-lock.json",
+    "*/node_modules/*",
+    "tools/rename_guard/baseline.json"
+  ]
+}
