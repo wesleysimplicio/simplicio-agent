@@ -11,7 +11,40 @@ subagent) holds an :class:`IterationBudget`; the parent's cap comes from
 
 from __future__ import annotations
 
+import os
 import threading
+
+
+def resolve_max_iterations(max_iterations: int) -> int:
+    """Apply env-driven overrides to the api-call ceiling.
+
+    The blind ``max_iterations`` cap (default 90) was the end-to-end
+    bottleneck observed in gateway.log: turns that needed more than 90 API
+    calls stopped dead even when the iteration budget still had room. This
+    lets an operator lift the ceiling without code changes:
+
+      * ``HERMES_MAX_ITERATIONS`` (int) — absolute override of the ceiling.
+      * ``HERMES_MAX_ITERATIONS_HEADROOM`` (float > 1.0) — stretch the
+        ceiling by this factor when set, e.g. 2.0 doubles it. Default off
+        (1.0) so unconfigured behaviour is unchanged.
+
+    Malformed env values are ignored (the caller's value wins).
+    """
+    env_max = os.environ.get("HERMES_MAX_ITERATIONS")
+    if env_max is not None:
+        try:
+            max_iterations = int(env_max)
+        except ValueError:
+            pass  # keep caller value on bad input
+    env_headroom = os.environ.get("HERMES_MAX_ITERATIONS_HEADROOM")
+    if env_headroom is not None:
+        try:
+            hr = float(env_headroom)
+            if hr > 1.0:
+                max_iterations = int(max_iterations * hr)
+        except ValueError:
+            pass  # keep value on bad input
+    return max_iterations
 
 
 class IterationBudget:

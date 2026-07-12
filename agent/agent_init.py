@@ -31,7 +31,7 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse, parse_qs, urlunparse
 
 from agent.context_compressor import ContextCompressor
-from agent.iteration_budget import IterationBudget
+from agent.iteration_budget import IterationBudget, resolve_max_iterations
 from agent.memory_manager import StreamingContextScrubber
 from agent.model_metadata import (
     MINIMUM_CONTEXT_LENGTH,
@@ -288,10 +288,14 @@ def init_agent(
     _install_safe_stdio()
 
     agent.model = model
-    agent.max_iterations = max_iterations
+    # Lift the blind api-call ceiling via env override / headroom (Slice A, #244).
+    # Resolves the gateway.log bottleneck where turns needing >90 API calls
+    # stopped dead even with budget remaining. Unconfigured = unchanged (90).
+    _resolved_max_iter = resolve_max_iterations(max_iterations)
+    agent.max_iterations = _resolved_max_iter
     # Shared iteration budget — parent creates, children inherit.
     # Consumed by every LLM turn across parent + all subagents.
-    agent.iteration_budget = iteration_budget or IterationBudget(max_iterations)
+    agent.iteration_budget = iteration_budget or IterationBudget(_resolved_max_iter)
     agent.tool_delay = tool_delay
     agent.save_trajectories = save_trajectories
     agent.verbose_logging = verbose_logging
