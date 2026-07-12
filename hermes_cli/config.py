@@ -2180,6 +2180,11 @@ DEFAULT_CONFIG = {
         "inline_shell": False,
         # Timeout (seconds) for each !`cmd` snippet when inline_shell is on.
         "inline_shell_timeout": 10,
+        # Best-effort background skill payload prewarm. The implementation
+        # clamps these values to hard ceilings to keep startup work and RSS
+        # bounded even when a config is accidentally oversized.
+        "prewarm_max_items": 8,
+        "prewarm_cache_max_entries": 64,
         # Run the keyword/pattern security scanner on skills the agent
         # writes via skill_manage (create/edit/patch).  Off by default
         # because the agent can already execute the same code paths via

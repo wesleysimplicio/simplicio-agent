@@ -541,6 +541,9 @@ def translate_gemini_response(resp: Dict[str, Any], model: str) -> SimpleNamespa
         fc = part.get("functionCall")
         if isinstance(fc, dict) and fc.get("name"):
             try:
+                # Preserve the existing Gemini wire formatting contract; the
+                # fast helper is intentionally used only on the hot dispatch
+                # path where compact JSON is semantically equivalent.
                 args_str = json.dumps(fc.get("args") or {}, ensure_ascii=False)
             except (TypeError, ValueError):
                 args_str = "{}"
@@ -680,7 +683,10 @@ def translate_stream_event(event: Dict[str, Any], model: str, tool_call_indices:
         if isinstance(fc, dict) and fc.get("name"):
             name = str(fc["name"])
             try:
-                args_str = json.dumps(fc.get("args") or {}, ensure_ascii=False, sort_keys=True)
+                # Preserve the existing stable stream payload formatting.
+                args_str = json.dumps(
+                    fc.get("args") or {}, ensure_ascii=False, sort_keys=True
+                )
             except (TypeError, ValueError):
                 args_str = "{}"
             thought_signature = part.get("thoughtSignature") if isinstance(part.get("thoughtSignature"), str) else ""

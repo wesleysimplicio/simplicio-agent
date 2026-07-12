@@ -97,6 +97,72 @@ class TestSessionLifecycle:
     def test_get_nonexistent_session(self, db):
         assert db.get_session("nonexistent") is None
 
+    def test_append_messages_batches_a_gateway_turn_write(self, db):
+        """A user/assistant/tool turn uses one writer transaction.
+
+        The gateway's old per-message path committed once for every row. The
+        batch path must retain the shared SessionDB transaction machinery,
+        including WAL and busy_timeout, while updating only the target session.
+        """
+        db.create_session("s1", source="gateway")
+        db.create_session("s2", source="gateway")
+        writes = []
+        original_execute_write = db._execute_write
+
+        def counted_execute_write(fn):
+            writes.append(fn)
+            return original_execute_write(fn)
+
+        db._execute_write = counted_execute_write
+        inserted = db.append_messages(
+            "s1",
+            [
+                {"role": "user", "content": "question"},
+                {"role": "assistant", "content": "answer"},
+                {
+                    "role": "tool",
+                    "content": "result",
+                    "tool_calls": [{"name": "lookup", "arguments": "{}"}],
+                },
+            ],
+        )
+
+        assert inserted == 3
+        assert len(writes) == 1
+        assert db.get_session("s1")["message_count"] == 3
+        assert db.get_session("s1")["tool_call_count"] == 1
+        assert db.get_session("s2")["message_count"] == 0
+        assert db._conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+        assert db._conn.execute("PRAGMA busy_timeout").fetchone()[0] > 0
+
+    def test_append_messages_rolls_back_the_whole_batch(self, db):
+        """A failed row cannot leave a partially persisted turn behind."""
+        db.create_session("s1", source="gateway")
+
+        with pytest.raises((TypeError, sqlite3.InterfaceError, sqlite3.ProgrammingError)):
+            db.append_messages(
+                "s1",
+                [
+                    {"role": "user", "content": "first"},
+                    {
+                        "role": "assistant",
+                        "content": "second",
+                        # ``content`` is intentionally normalized to a string
+                        # by _encode_content; an unsupported tool_calls value
+                        # fails inside the transaction after the first row.
+                        "tool_calls": object(),
+                    },
+                ],
+            )
+
+        assert db.get_session("s1")["message_count"] == 0
+        assert db._conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ?", ("s1",)
+        ).fetchone()[0] == 0
+
+    def test_append_messages_empty_batch_is_a_noop(self, db):
+        assert db.append_messages("missing", []) == 0
+
     def test_create_session_enriches_null_metadata_on_conflict(self, db):
         """Gateway creates a bare row first; the agent's later create_session
         must backfill model/model_config/system_prompt without clobbering the

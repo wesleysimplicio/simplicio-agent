@@ -30,6 +30,13 @@ _skill_payload_cache_inflight: set[tuple[Optional[str], str]] = set()
 _skill_payload_cache_lock = threading.Lock()
 _SKILL_PAYLOAD_CACHE_TTL_SECONDS = 300.0
 _SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS = 0.35
+# Prewarming is best-effort and must not turn a large skills catalog into an
+# unbounded background workload or resident cache. Config values are clamped
+# by hard ceilings so an oversized config cannot undo the safety bound.
+_SKILL_PREWARM_MAX_ITEMS_DEFAULT = 8
+_SKILL_PREWARM_MAX_ITEMS_HARD = 32
+_SKILL_PAYLOAD_CACHE_MAX_ENTRIES_DEFAULT = 64
+_SKILL_PAYLOAD_CACHE_MAX_ENTRIES_HARD = 256
 # Patterns for sanitizing skill names into clean hyphen-separated slugs.
 _SKILL_INVALID_CHARS = re.compile(r"[^a-z0-9-]")
 _SKILL_MULTI_HYPHEN = re.compile(r"-{2,}")
@@ -230,6 +237,41 @@ def invalidate_skill_payload_cache(skill_identifier: str | None = None) -> None:
         _skill_payload_cache_inflight.discard(key)
 
 
+def _bounded_skills_config_int(
+    key: str,
+    default: int,
+    maximum: int,
+    minimum: int = 0,
+) -> int:
+    """Read one bounded skills setting without making config a hot import."""
+    try:
+        value = int(_load_skills_config().get(key, default))
+    except (TypeError, ValueError, AttributeError):
+        value = default
+    return min(max(value, minimum), maximum)
+
+
+def _skill_payload_cache_limit() -> int:
+    return _bounded_skills_config_int(
+        "prewarm_cache_max_entries",
+        _SKILL_PAYLOAD_CACHE_MAX_ENTRIES_DEFAULT,
+        _SKILL_PAYLOAD_CACHE_MAX_ENTRIES_HARD,
+        minimum=1,
+    )
+
+
+def _store_skill_payload_cache(
+    key: tuple[Optional[str], str],
+    payload: tuple[dict[str, Any], Path | None, str],
+) -> None:
+    """Store a payload and evict oldest entries beyond the bounded cache."""
+    cache_limit = _skill_payload_cache_limit()
+    with _skill_payload_cache_lock:
+        _skill_payload_cache[key] = (time.time(), payload)
+        while len(_skill_payload_cache) > cache_limit:
+            _skill_payload_cache.pop(next(iter(_skill_payload_cache)))
+
+
 def _wait_for_inflight_skill_payload(
     key: tuple[Optional[str], str],
     timeout_seconds: float = _SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS,
@@ -248,9 +290,19 @@ def _wait_for_inflight_skill_payload(
 
 def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> None:
     keys_to_warm: list[tuple[Optional[str], str]] = []
+    max_items = _bounded_skills_config_int(
+        "prewarm_max_items",
+        _SKILL_PREWARM_MAX_ITEMS_DEFAULT,
+        _SKILL_PREWARM_MAX_ITEMS_HARD,
+    )
+    if max_items <= 0:
+        return
+
     now = time.time()
     with _skill_payload_cache_lock:
-        for identifier in skill_identifiers or []:
+        for index, identifier in enumerate(skill_identifiers or []):
+            if index >= max_items:
+                break
             key = _skill_payload_cache_key(identifier)
             if key is None:
                 continue
@@ -270,9 +322,8 @@ def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> No
             _, normalized = key
             try:
                 payload = _read_skill_payload_uncached(normalized)
-                with _skill_payload_cache_lock:
-                    if payload is not None:
-                        _skill_payload_cache[key] = (time.time(), payload)
+                if payload is not None:
+                    _store_skill_payload_cache(key, payload)
             except Exception:
                 pass
             finally:
@@ -308,8 +359,8 @@ def _load_skill_payload(skill_identifier: str, task_id: str | None = None) -> tu
             _skill_payload_cache_inflight.discard(key)
         return None
 
+    _store_skill_payload_cache(key, payload)
     with _skill_payload_cache_lock:
-        _skill_payload_cache[key] = (time.time(), payload)
         _skill_payload_cache_inflight.discard(key)
     return copy.deepcopy(payload)
 

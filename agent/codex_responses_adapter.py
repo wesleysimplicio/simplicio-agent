@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from agent.prompt_builder import DEFAULT_AGENT_IDENTITY
+from agent.tool_call_json import dumps_tool_call_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -515,7 +516,7 @@ def _chat_messages_to_responses_input(
 
                         arguments = fn.get("arguments", "{}")
                         if isinstance(arguments, dict):
-                            arguments = json.dumps(arguments, ensure_ascii=False)
+                            arguments = dumps_tool_call_arguments(arguments)
                         elif not isinstance(arguments, str):
                             arguments = str(arguments)
                         arguments = arguments.strip() or "{}"
@@ -597,7 +598,7 @@ def _preflight_codex_input_items(raw_items: Any) -> List[Dict[str, Any]]:
 
             arguments = item.get("arguments", "{}")
             if isinstance(arguments, dict):
-                arguments = json.dumps(arguments, ensure_ascii=False)
+                arguments = dumps_tool_call_arguments(arguments)
             elif not isinstance(arguments, str):
                 arguments = str(arguments)
             arguments = arguments.strip() or "{}"
@@ -1229,7 +1230,7 @@ def _normalize_codex_response(
             fn_name = getattr(item, "name", "") or ""
             arguments = getattr(item, "arguments", "{}")
             if not isinstance(arguments, str):
-                arguments = json.dumps(arguments, ensure_ascii=False)
+                arguments = dumps_tool_call_arguments(arguments)
             raw_call_id = getattr(item, "call_id", None)
             raw_item_id = getattr(item, "id", None)
             embedded_call_id, _ = _split_responses_tool_id(raw_item_id)
@@ -1250,7 +1251,7 @@ def _normalize_codex_response(
             fn_name = getattr(item, "name", "") or ""
             arguments = getattr(item, "input", "{}")
             if not isinstance(arguments, str):
-                arguments = json.dumps(arguments, ensure_ascii=False)
+                arguments = dumps_tool_call_arguments(arguments)
             raw_call_id = getattr(item, "call_id", None)
             raw_item_id = getattr(item, "id", None)
             embedded_call_id, _ = _split_responses_tool_id(raw_item_id)

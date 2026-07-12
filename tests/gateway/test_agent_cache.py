@@ -72,16 +72,56 @@ class TestAgentConfigSignature:
     def test_provider_change_different_signature(self):
         from gateway.run import GatewayRunner
 
-        rt1 = {"api_key": "sk-test12345678", "base_url": "https://openrouter.ai/api/v1", "provider": "openrouter"}
-        rt2 = {"api_key": "sk-test12345678", "base_url": "https://api.anthropic.com", "provider": "anthropic"}
+        rt1 = {"api_key": "***", "base_url": "https://openrouter.ai/api/v1", "provider": "openrouter"}
+        rt2 = {"api_key": "***", "base_url": "https://api.anthropic.com", "provider": "anthropic"}
         sig1 = GatewayRunner._agent_config_signature("claude-sonnet-4", rt1, ["hermes-telegram"], "")
         sig2 = GatewayRunner._agent_config_signature("claude-sonnet-4", rt2, ["hermes-telegram"], "")
         assert sig1 != sig2
 
+    def test_cross_provider_and_api_mode_never_share_signature(self):
+        """A shared conversation key must not reuse an agent across providers."""
+        from gateway.run import GatewayRunner
+
+        openrouter = {
+            "api_key": "same-token",
+            "base_url": "https://openrouter.ai/api/v1",
+            "provider": "openrouter",
+            "api_mode": "chat_completions",
+        }
+        anthropic = {
+            "api_key": "same-token",
+            "base_url": "https://api.anthropic.com/v1",
+            "provider": "anthropic",
+            "api_mode": "anthropic_messages",
+        }
+        sig_openrouter = GatewayRunner._agent_config_signature("claude-sonnet-4", openrouter, [], "")
+        sig_anthropic = GatewayRunner._agent_config_signature("claude-sonnet-4", anthropic, [], "")
+
+        assert sig_openrouter != sig_anthropic
+
+    def test_shared_conversation_different_users_never_share_signature(self):
+        """Shared thread sessions must isolate cached agents by user identity."""
+        from gateway.run import GatewayRunner
+
+        runtime = {
+            "api_key": "k",
+            "base_url": "https://openrouter.ai/api/v1",
+            "provider": "openrouter",
+            "api_mode": "chat_completions",
+        }
+        sig_user_a = GatewayRunner._agent_config_signature(
+            "claude-sonnet-4", runtime, [], "", user_id="user-a", user_id_alt="alt-a",
+        )
+        sig_user_b = GatewayRunner._agent_config_signature(
+            "claude-sonnet-4", runtime, [], "", user_id="user-b", user_id_alt="alt-b",
+        )
+
+        assert sig_user_a != sig_user_b
+
     def test_toolset_change_different_signature(self):
         from gateway.run import GatewayRunner
 
-        runtime = {"api_key": "sk-test12345678", "base_url": "https://openrouter.ai/api/v1", "provider": "openrouter"}
+        runtime = {"api_key": "***", "base_url": "https://openrouter.ai/api/v1", "provider": "openrouter"}
         sig1 = GatewayRunner._agent_config_signature("claude-sonnet-4", runtime, ["hermes-telegram"], "")
         sig2 = GatewayRunner._agent_config_signature("claude-sonnet-4", runtime, ["hermes-discord"], "")
         assert sig1 != sig2
@@ -199,6 +239,22 @@ class TestAgentConfigSignature:
         )
 
         assert sig_before != sig_after
+
+    def test_prompt_cache_ttl_change_busts_cache(self):
+        """Changing prompt-cache TTL must rebuild the agent that captured it."""
+        from gateway.run import GatewayRunner
+
+        runtime = {"api_key": "k", "base_url": "u", "provider": "p"}
+        sig_5m = GatewayRunner._agent_config_signature(
+            "m", runtime, ["telegram"], "",
+            cache_keys={"prompt_caching.cache_ttl": "5m"},
+        )
+        sig_1h = GatewayRunner._agent_config_signature(
+            "m", runtime, ["telegram"], "",
+            cache_keys={"prompt_caching.cache_ttl": "1h"},
+        )
+
+        assert sig_5m != sig_1h
 
 
 class TestExtractCacheBustingConfig:
@@ -410,6 +466,25 @@ class TestExtractCacheBustingConfig:
             "Editing compression.threshold in config.yaml must bust the "
             "gateway's cached agent so the new threshold takes effect."
         )
+
+    def test_full_round_trip_busts_cache_on_prompt_ttl_edit(self):
+        """A prompt-cache TTL edit must invalidate the cached agent."""
+        from gateway.run import GatewayRunner
+
+        runtime = {"api_key": "k", "base_url": "u", "provider": "p"}
+        cfg_before = {"prompt_caching": {"cache_ttl": "5m"}}
+        cfg_after = {"prompt_caching": {"cache_ttl": "1h"}}
+
+        sig_before = GatewayRunner._agent_config_signature(
+            "m", runtime, [], "",
+            cache_keys=GatewayRunner._extract_cache_busting_config(cfg_before),
+        )
+        sig_after = GatewayRunner._agent_config_signature(
+            "m", runtime, [], "",
+            cache_keys=GatewayRunner._extract_cache_busting_config(cfg_after),
+        )
+
+        assert sig_before != sig_after
 
 
 class TestAgentCacheLifecycle:

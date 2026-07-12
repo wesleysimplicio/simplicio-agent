@@ -893,10 +893,11 @@ def run_conversation(
         # (llama.cpp, vLLM, Ollama) and improves cache hit rates for
         # cloud providers.  Operates on api_messages (the API copy) so
         # the original conversation history in `messages` is untouched.
+        # Keep both normalizations in one history walk: neither operation
+        # depends on another message, and this path runs for every API call.
         for am in api_messages:
             if isinstance(am.get("content"), str):
                 am["content"] = am["content"].strip()
-        for am in api_messages:
             tcs = am.get("tool_calls")
             if not tcs:
                 continue
@@ -926,7 +927,11 @@ def run_conversation(
         # the OpenAI SDK. Sanitizing here prevents the 3-retry cycle.
         _sanitize_messages_surrogates(api_messages)
 
-        # Calculate approximate request size for logging
+        # Calculate approximate request size for the context-limit guard and
+        # retain the message-only estimate for structured error classification.
+        # These estimates intentionally have different contracts: the request
+        # estimate includes tool schemas, while the message estimate is the
+        # conversation budget used by recovery logic.
         total_chars = sum(len(str(msg)) for msg in api_messages)
         approx_tokens = estimate_messages_tokens_rough(api_messages)
         approx_request_tokens = estimate_request_tokens_rough(
