@@ -2,15 +2,14 @@
 # =============================================================================
 # simplicio_agent_release_watchdog.sh — auto-sync bot home on new release tag
 #
-# Covers the case the local post-tag hook cannot: releases cut on the GitHub
-# web UI (no local `git tag`, so the hook never fires). This watchdog polls the
-# remote for the latest release tag and, when it changes, runs
-# `simplicio_agent update` so the deployed bot home tracks the newest release.
+# Covers explicit release checks and local release hooks. It compares the latest
+# remote semver tag with the deployed bundle and only builds when the release
+# actually changed. A tag is passed through as --ref so the bundle contains the
+# exact release commit, not whatever happens to be checked out locally.
 #
-# State is kept in ~/.simplicio_agent/.release_watchdog_state (last synced tag).
-# Idempotent: if the latest tag is already synced, it does nothing.
-#
-# Intended to run from a cronjob (e.g. every 30 min). No LLM, no chat.
+# State is kept in ~/.simplicio_agent/.release_watchdog_state.
+# This script is intentionally not scheduled by cron; invoke it from a release
+# hook or manually when a release check is desired.
 #
 # Usage:
 #   tools/simplicio_agent_release_watchdog.sh [--dry-run] [--force]
@@ -45,27 +44,33 @@ if ! git -C "$REPO_ROOT" fetch --tags origin >/dev/null 2>&1; then
 fi
 
 # 2. Latest tag by semver (highest version wins; ignores non-semver tags)
-LATEST="$(git -C "$REPO_ROOT" for-each-ref --sort=-v:refname --format='%(refname:short)' refs/tags \
-  | grep -E '^[vV]?[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+# 2. Latest Simplicio Agent tag by semver. Exclude upstream calendar-version
+# tags such as v2026.6.19; override when the Agent moves to a new major series.
+RELEASE_TAG_GLOB="${SIMPLICIO_AGENT_RELEASE_TAG_GLOB:-v0.*}"
+LATEST="$(git -C "$REPO_ROOT" tag --list "$RELEASE_TAG_GLOB" --sort=-v:refname | head -1)"
 if [[ -z "$LATEST" ]]; then
-  echo "  ! nenhum tag semver encontrado — nada a fazer" >&2
+  echo "  ! nenhum tag de release do Agent encontrado — nada a fazer" >&2
   exit 0
 fi
-
 LAST=""
 [[ -f "$STATE" ]] && LAST="$(cat "$STATE" 2>/dev/null)"
+DEPLOYED=""
+if [[ -f "$HOME_DIR/current/build-info.json" ]]; then
+  DEPLOYED="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version", ""))' "$HOME_DIR/current/build-info.json" 2>/dev/null || true)"
+fi
 
-if [[ "$LATEST" == "$LAST" && "$FORCE" -eq 0 ]]; then
-  log "sem mudanca de tag (atual=$LATEST) — nada a sincronizar"
+if [[ "$LATEST" == "$DEPLOYED" && "$FORCE" -eq 0 ]]; then
+  log "sem mudanca de release (ativo=$LATEST) — nada a sincronizar"
+  [[ "$LAST" == "$LATEST" ]] || printf '%s\n' "$LATEST" > "$STATE"
   exit 0
 fi
 
-log "novo release detectado: $LATEST${LAST:+(anterior: $LAST)}"
+log "novo release detectado: $LATEST${DEPLOYED:+(ativo anterior: $DEPLOYED)}"
 
 if ((DRY_RUN)); then
-  echo "  [dry-run] rodaria: $UPDATE_BIN build"
+  echo "  [dry-run] rodaria: $UPDATE_BIN build --version $LATEST --ref $LATEST"
 else
-  if "$UPDATE_BIN" build >/dev/null 2>&1; then
+  if "$UPDATE_BIN" build --version "$LATEST" --ref "$LATEST" >/dev/null 2>&1; then
     echo "$LATEST" > "$STATE"
     log "✓ bundle reconstruido com $LATEST (current repointado, estado salvo)"
   else
