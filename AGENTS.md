@@ -18,10 +18,21 @@ surface; MCP is fallback only. Bind to the one runtime via `simplicio <cmd>`.
 ## Product identity — Simplicio Agent
 
 **Simplicio Agent = Hermes Turbo Agent + Simplicio Runtime.** The shipped
-product is `simplicio-agent`: the Hermes Turbo agent core (speed: streaming,
-hot-paths, prewarm) fused with the Simplicio Runtime (the Rust determinism
-kernel — action gate, checkpoints/undo, zero-token mechanical editing, HBP
-ledger). Canonical spec: `docs/roadmap/SIMPLICIO-ROADMAP.md` (#25).
+product is `simplicio-agent`: the Hermes Turbo agent core speed layers
+(streaming, hot-paths, prewarm, token economy, telemetry, budget) fused with
+the Simplicio Runtime (the Rust determinism kernel — action gate,
+checkpoints/undo, zero-token mechanical editing, HBP ledger). Canonical spec:
+`docs/roadmap/SIMPLICIO-ROADMAP.md` (#25).
+
+**Inheritance reality (verified 2026-07-12, see ADR-0007):** the Turbo speed
+axes are *mostly already in the tree*, not aspirational. Of the 8 Turbo
+speed/observability axes: 6 are present (warm daemon, deterministic router,
+`token_saver` plugin, `telemetry`, `iteration_budget`/`budget_config` as the
+governor, plus `lazy_schema` + `distributed` added 2026-07-12 via PR #216/#215);
+`working_set` was never built in either repo (spec only, MODIFICATIONS.md §2.2).
+TTFT of a paid model is already on par with Hermes (~585 ms measured 2026-07-11)
+because streaming + warm daemon cover first-token latency; the remaining work
+targets per-turn token cost, not TTFT.
 
 Two names, one rule for keeping them straight (updated 2026-07-08, user
 decision — supersedes the earlier "hermes stays the primary command" wording):
