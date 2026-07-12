@@ -63,13 +63,13 @@ fi
 log "novo release detectado: $LATEST${LAST:+(anterior: $LAST)}"
 
 if ((DRY_RUN)); then
-  echo "  [dry-run] rodaria: $UPDATE_BIN update"
+  echo "  [dry-run] rodaria: $UPDATE_BIN build"
 else
-  if "$UPDATE_BIN" update >/dev/null 2>&1; then
+  if "$UPDATE_BIN" build >/dev/null 2>&1; then
     echo "$LATEST" > "$STATE"
-    log "✓ sincronizado com $LATEST (estado salvo)"
+    log "✓ bundle reconstruido com $LATEST (current repointado, estado salvo)"
   else
-    echo "  ! simplicio_agent update falhou — mantendo estado anterior" >&2
+    echo "  ! simplicio_agent build falhou — mantendo estado anterior" >&2
     exit 1
   fi
 fi
