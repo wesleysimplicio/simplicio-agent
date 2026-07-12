@@ -73,6 +73,15 @@ def node_command(args: argparse.Namespace) -> int:
         print(f"[meet-node] token (copy to gateway): {token}")
         print(f"[meet-node] approve with:")
         print(f"             simplicio-agent meet node approve <name> ws://<host>:{args.port} {token}")
+        # Install the faster uvloop event-loop policy when available (no-op
+        # on Windows or when the optional dep isn't installed). Must run
+        # before the loop is created by asyncio.run(). See agent/uvloop_utils.py.
+        try:
+            from agent.uvloop_utils import install_uvloop_policy
+
+            install_uvloop_policy()
+        except Exception:
+            pass
         try:
             asyncio.run(server.serve())
         except KeyboardInterrupt:

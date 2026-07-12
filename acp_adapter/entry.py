@@ -258,6 +258,15 @@ def main(argv: list[str] | None = None) -> None:
         logger.debug("MCP tool discovery failed at ACP startup", exc_info=True)
 
     agent = HermesACPAgent()
+    # Install the faster uvloop event-loop policy when available (no-op on
+    # Windows or when the optional dep isn't installed). Must run before the
+    # loop is created by asyncio.run(). See agent/uvloop_utils.py.
+    try:
+        from agent.uvloop_utils import install_uvloop_policy
+
+        install_uvloop_policy()
+    except Exception:
+        pass
     try:
         asyncio.run(acp.run_agent(agent, use_unstable_protocol=True))
     except KeyboardInterrupt:

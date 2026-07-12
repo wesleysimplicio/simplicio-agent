@@ -130,6 +130,15 @@ def teams_pipeline_command(args: argparse.Namespace) -> int:
 
 
 def _run_async(coro):
+    # Install the faster uvloop event-loop policy when available (no-op on
+    # Windows or when the optional dep isn't installed). Idempotent. See
+    # agent/uvloop_utils.py.
+    try:
+        from agent.uvloop_utils import install_uvloop_policy
+
+        install_uvloop_policy()
+    except Exception:
+        pass
     return asyncio.run(coro)
 
 
