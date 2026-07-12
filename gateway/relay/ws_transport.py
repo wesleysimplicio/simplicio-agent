@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -42,6 +43,41 @@ from gateway.relay.descriptor import CapabilityDescriptor
 from gateway.relay.transport import InboundHandler
 
 logger = logging.getLogger(__name__)
+
+# ── reconnect backoff (Slice C, issue #244) ─────────────────────────────
+# Capped exponential backoff for the reconnect supervisor. The hard ceiling
+# (RECONNECT_BACKOFF_CAP_S) is what stops a Discord reconnect cascade from
+# snowballing into multi-minute stalls (gateway.log showed a 1155.3s/1-api-call
+# stall). Jitter (±50%) avoids a thundering herd when many gateways drop at
+# once (e.g. a connector restart).
+RECONNECT_BACKOFF_BASE_S = 1.0
+RECONNECT_BACKOFF_CAP_S = 30.0
+RECONNECT_JITTER_FRACTION = 0.5  # wait is in [wait*0.5, wait*1.5)
+
+
+def compute_reconnect_delay(
+    attempt: int,
+    *,
+    base_s: float = RECONNECT_BACKOFF_BASE_S,
+    cap_s: float = RECONNECT_BACKOFF_CAP_S,
+    jitter_fraction: float = RECONNECT_JITTER_FRACTION,
+    rng: "random.Random | None" = None,
+) -> float:
+    """Return the capped, jittered reconnect wait for ``attempt`` (0-based).
+
+    Pure + deterministic-friendly (inject ``rng`` for tests). Never returns
+    more than ``cap_s`` (the value that produced the 1155s log stall), and the
+    jitter keeps sibling gateways from re-dialing in lockstep.
+    """
+    if attempt < 0:
+        attempt = 0
+    raw = min(base_s * (2 ** attempt), cap_s)
+    if rng is not None:
+        jitter = raw * jitter_fraction * rng.random()
+    else:
+        jitter = raw * jitter_fraction * random.random()
+    return raw - raw * jitter_fraction + jitter  # = raw*(1 - jitter_fraction) + jitter
+
 
 try:  # lazy/optional dep — mirrors gateway/platforms/feishu.py
     import websockets
@@ -621,8 +657,15 @@ class WebSocketRelayTransport:
         freshly-woken machine re-dials promptly. A successful _dial_and_start()
         clears _dormant, so any LATER unexpected drop reconnects on the normal
         fast backoff."""
-        backoff = self._dormant_redial_s if self._dormant else self._reconnect_backoff_s
+        # Start from the dormant poll cadence (scale-to-zero D12) when the close
+        # was a deliberate go_dormant(); otherwise the normal fast base backoff.
+        attempt = 0
         while not self._closing:
+            backoff = compute_reconnect_delay(
+                attempt,
+                base_s=self._dormant_redial_s if self._dormant else self._reconnect_backoff_s,
+                cap_s=self._reconnect_max_backoff_s,
+            )
             try:
                 await asyncio.sleep(backoff)
             except asyncio.CancelledError:
@@ -636,8 +679,9 @@ class WebSocketRelayTransport:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - keep retrying on dial failure
-                logger.warning("relay ws reconnect failed: %s", exc)
-                backoff = min(backoff * 2, self._reconnect_max_backoff_s)
+                logger.warning("relay ws reconnect failed (attempt %d, next in %.1fs): %s",
+                               attempt + 1, backoff, exc)
+                attempt += 1
 
     async def _handle_frame(self, line: str) -> None:
         try:
