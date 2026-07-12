@@ -30,6 +30,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from agent.host import AgentHost, HostBackpressure, HostShutdown
+
 try:
     from hermes_constants import get_hermes_home
 except ImportError:  # pragma: no cover - only during isolated/partial checkouts
@@ -189,6 +191,14 @@ def _serve(sock_path: Path, profile: str) -> int:
     for name in PROFILE_PRELOADS[profile]:
         caches[name] = PRELOADERS[name]()
 
+    # The warm daemon is a real AgentHost surface.  The host owns identity,
+    # leases, and turn ordering while AIAgent remains the execution engine.
+    def make_agent(identity: Any) -> Any:
+        from run_agent import AIAgent
+
+        return AIAgent(session_id=identity.session_id)
+
+    host = AgentHost(make_agent, max_sessions=32, max_workers=4, max_pending=64)
     started = time.time()
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(str(sock_path))
@@ -225,6 +235,30 @@ def _serve(sock_path: Path, profile: str) -> int:
                         resp = {"ok": True, "invalidated": target}
                     else:
                         resp = {"ok": False, "error": f"unknown cache: {target}"}
+                elif op == "host.status":
+                    resp = {"ok": True, "host": host.status()}
+                elif op == "turn.start":
+                    try:
+                        future = host.submit(
+                            str(req.get("profile", profile)),
+                            str(req["session_id"]),
+                            str(req["message"]),
+                            idempotency_key=req.get("idempotency_key"),
+                            incarnation=str(req.get("incarnation", "default")),
+                            revision=int(req.get("revision", 0)),
+                        )
+                        result = future.result(timeout=float(req.get("timeout", 300)))
+                        resp = {"ok": True, "result": result}
+                    except (KeyError, ValueError) as exc:
+                        resp = {"ok": False, "error": str(exc)}
+                    except HostBackpressure as exc:
+                        resp = {"ok": False, "error": str(exc), "retryable": True}
+                    except HostShutdown as exc:
+                        resp = {"ok": False, "error": str(exc), "retryable": False}
+                    except Exception as exc:
+                        # The daemon returns a stable envelope; raw provider
+                        # details remain in the existing AIAgent logs.
+                        resp = {"ok": False, "error": type(exc).__name__}
                 elif op == "shutdown":
                     conn.sendall(json.dumps({"ok": True, "bye": True}).encode())
                     break
@@ -233,6 +267,7 @@ def _serve(sock_path: Path, profile: str) -> int:
 
                 conn.sendall(json.dumps(resp).encode())
     finally:
+        host.shutdown()
         srv.close()
         if sock_path.exists():
             sock_path.unlink()
