@@ -32,13 +32,24 @@ def _clean_env(monkeypatch):
 
 
 def _write_lock(tmp_path, monkeypatch, **overrides):
+    payload = b"runtime"
+    target = rm._target_key()
     data = {
-        "schema": "runtime-lock/v1",
+        "schema": "runtime-lock/v2",
         "kernel": "simplicio",
         "min_version": "3.4.0",
         "release_repo": "wesleysimplicio/simplicio",
         "source_repo": "wesleysimplicio/simplicio-runtime",
-        "assets": {"darwin-arm64": "simplicio-macos-arm64"},
+        "assets": {
+            target: {
+                "name": "simplicio-test",
+                "version": "3.4.0",
+                "url": "https://example.invalid/releases/download/v3.4.0/simplicio-test",
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size": len(payload),
+                "target": {"os": target.split("-", 1)[0], "arch": target.split("-", 1)[1]},
+            }
+        },
         "sibling_checkout": "../simplicio-runtime",
     }
     data.update(overrides)
@@ -57,6 +68,21 @@ def _fake_managed_kernel(tmp_path, monkeypatch, name="simplicio"):
     stub.write_text("#!/bin/sh\necho simplicio 9.9.9\n", encoding="utf-8")
     stub.chmod(0o755)
     return stub
+
+
+def _require_symlink_support(tmp_path):
+    probe_target = tmp_path / "symlink-target.txt"
+    probe_link = tmp_path / "symlink-probe"
+    probe_target.write_text("probe", encoding="utf-8")
+    try:
+        probe_link.symlink_to(probe_target)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("symlink creation is not permitted on this Windows host")
+        raise
+    else:
+        probe_link.unlink()
+        probe_target.unlink()
 
 
 # =========================================================================
@@ -82,8 +108,50 @@ class TestLoadRuntimeLock:
     def test_real_repo_lock_is_valid(self):
         # The committed runtime.lock must always parse and carry a real pin.
         lock = rm.load_runtime_lock()
-        assert lock["schema"] == "runtime-lock/v1"
+        assert lock["schema"] == "runtime-lock/v2"
         assert rm.parse_semver(lock["min_version"]) is not None
+
+    def test_rejects_null_required_asset_metadata(self):
+        lock = {
+            "schema": "runtime-lock/v2",
+            "kernel": "simplicio",
+            "min_version": "3.5.2",
+            "assets": {
+                "linux-x86_64": {
+                    "name": "simplicio",
+                    "version": "3.5.2",
+                    "url": None,
+                    "sha256": None,
+                    "size": None,
+                    "target": {"os": "linux", "arch": "x86_64"},
+                }
+            },
+        }
+        result = rm.validate_runtime_lock(lock, target="linux-x86_64")
+        assert not result.valid
+        assert "url must be non-null" in result.detail
+        assert "sha256 must be non-null" in result.detail
+        assert "size must be non-null" in result.detail
+
+    def test_rejects_wrong_target_metadata(self):
+        lock = {
+            "schema": "runtime-lock/v2",
+            "kernel": "simplicio",
+            "min_version": "3.5.2",
+            "assets": {
+                "linux-x86_64": {
+                    "name": "simplicio",
+                    "version": "3.5.2",
+                    "url": "https://example.invalid/simplicio",
+                    "sha256": "a" * 64,
+                    "size": 1,
+                    "target": {"os": "darwin", "arch": "arm64"},
+                }
+            },
+        }
+        result = rm.validate_runtime_lock(lock, target="linux-x86_64")
+        assert not result.valid
+        assert "does not match its target key" in result.detail
 
 
 # =========================================================================
@@ -205,15 +273,20 @@ class TestResolveKernel:
 class TestRuntimeStatus:
     def test_satisfied(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch, min_version="3.4.0")
-        with mock_patch.object(rm, "resolve_kernel", return_value=("/bin/simplicio", "path")), \
+        binary = tmp_path / "simplicio"
+        binary.write_bytes(b"runtime")
+        with mock_patch.object(rm, "resolve_kernel", return_value=(str(binary), "path")), \
              mock_patch.object(rm, "kernel_version", return_value="3.5.0"):
             st = rm.runtime_status()
         assert st.satisfied and st.present
         assert st.source == "path" and st.version == "3.5.0"
+        assert st.verified and st.ready and st.lock_valid
 
     def test_stale(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch, min_version="3.4.0")
-        with mock_patch.object(rm, "resolve_kernel", return_value=("/bin/simplicio", "path")), \
+        binary = tmp_path / "simplicio"
+        binary.write_bytes(b"runtime")
+        with mock_patch.object(rm, "resolve_kernel", return_value=(str(binary), "path")), \
              mock_patch.object(rm, "kernel_version", return_value="3.3.0"):
             st = rm.runtime_status()
         assert st.present and not st.satisfied
@@ -227,11 +300,41 @@ class TestRuntimeStatus:
 
     def test_handshake_failure(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
-        with mock_patch.object(rm, "resolve_kernel", return_value=("/bin/simplicio", "path")), \
+        binary = tmp_path / "simplicio"
+        binary.write_bytes(b"runtime")
+        with mock_patch.object(rm, "resolve_kernel", return_value=(str(binary), "path")), \
              mock_patch.object(rm, "kernel_version", return_value=None):
             st = rm.runtime_status()
         assert st.present and not st.satisfied
         assert "handshake" in st.detail
+
+    def test_tampered_binary_is_rejected_before_handshake(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        binary = tmp_path / "simplicio"
+        binary.write_bytes(b"tamper!")
+        with mock_patch.object(rm, "resolve_kernel", return_value=(str(binary), "path")), \
+             mock_patch.object(rm, "kernel_version") as version:
+            st = rm.runtime_status()
+        assert not st.satisfied and not st.verified
+        assert "sha256 mismatch" in st.detail
+        version.assert_not_called()
+
+    def test_unsupported_target_is_not_replaced_by_wrong_target(self, tmp_path, monkeypatch):
+        lock = _write_lock(tmp_path, monkeypatch)
+        lock["assets"] = {
+            "darwin-arm64": {
+                "name": "simplicio-macos-arm64",
+                "version": "3.5.2",
+                "url": "https://example.invalid/releases/download/v3.5.2/simplicio-macos-arm64",
+                "sha256": "a" * 64,
+                "size": 1,
+                "target": {"os": "darwin", "arch": "arm64"},
+            }
+        }
+        st = rm.runtime_status(lock)
+        assert not st.satisfied
+        assert st.bin_path is None
+        assert "no verified runtime asset" in st.detail
 
 
 # =========================================================================
@@ -271,6 +374,7 @@ class TestEnsureRuntime:
 
     def test_release_then_sibling_fallback_reports_both(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
+        monkeypatch.setenv("HERMES_RUNTIME_DEV_BUILD", "1")
         monkeypatch.setenv("SIMPLICIO_HOME", str(tmp_path / "simplicio-home"))
         absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
         with mock_patch.object(rm, "runtime_status", return_value=absent), \
@@ -279,6 +383,18 @@ class TestEnsureRuntime:
             st = rm.ensure_runtime(install=True)
         assert not st.satisfied
         assert "no gh" in st.detail and "no cargo" in st.detail
+
+    def test_sibling_build_is_not_a_stable_fallback(self, tmp_path, monkeypatch):
+        _write_lock(tmp_path, monkeypatch)
+        monkeypatch.setenv("SIMPLICIO_HOME", str(tmp_path / "simplicio-home"))
+        absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
+        with mock_patch.object(rm, "runtime_status", return_value=absent), \
+             mock_patch.object(rm, "_install_from_release", return_value="no gh"), \
+             mock_patch.object(rm, "_install_from_sibling") as sibling:
+            st = rm.ensure_runtime(install=True)
+        assert not st.satisfied
+        sibling.assert_not_called()
+        assert "developer sibling build disabled" in st.detail
 
     def test_successful_install_rehandshakes(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
@@ -321,7 +437,18 @@ class TestInstallFromReleaseSha256:
         if sha256 is not None:
             entry["sha256"] = sha256
         return {
-            "assets": {self._ASSET_KEY: entry},
+            "schema": "runtime-lock/v2",
+            "kernel": "simplicio",
+            "min_version": "3.5.2",
+            "assets": {
+                self._ASSET_KEY: {
+                    **entry,
+                    "version": "3.5.2",
+                    "url": "https://example.invalid/releases/download/v3.5.2/simplicio-bin",
+                    "size": 21,
+                    "target": {"os": "testsys", "arch": "testarch"},
+                }
+            },
             "release_repo": "wesleysimplicio/simplicio",
         }
 
@@ -350,7 +477,7 @@ class TestInstallFromReleaseSha256:
 
         def fake_run(cmd, **kwargs):
             out_idx = cmd.index("--output") + 1
-            Path(cmd[out_idx]).write_bytes(b"not-the-real-binary-bytes")
+            Path(cmd[out_idx]).write_bytes(b"x" * 21)
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         p1, p2 = self._patched_platform()
@@ -492,6 +619,7 @@ class TestCanonicalSymlink:
         assert rm.canonical_bin_dir() == Path.home() / ".local" / "bin"
 
     def test_sync_creates_symlink_to_resolved_kernel(self, tmp_path, monkeypatch):
+        _require_symlink_support(tmp_path)
         self._canonical_dir(tmp_path, monkeypatch)
         stub = _fake_managed_kernel(tmp_path, monkeypatch)
         lock = _write_lock(tmp_path, monkeypatch)
@@ -510,14 +638,16 @@ class TestCanonicalSymlink:
         link = rm.canonical_symlink_path(lock)
         assert link.is_symlink()
         assert link.resolve() == stub.resolve()
-        # The shim actually executes -- the #96 failure mode was a shim
-        # whose target no longer existed.
-        assert subprocess.run([str(link), "version"], capture_output=True).returncode in (0, 1)
+        if sys.platform != "win32":
+            # The shim actually executes -- the #96 failure mode was a shim
+            # whose target no longer existed.
+            assert subprocess.run([str(link), "version"], capture_output=True).returncode in (0, 1)
 
     def test_sync_is_idempotent(self, tmp_path, monkeypatch):
         """Re-running sync against an already-correct shim is a no-op, and
         never raises or duplicates work -- required by issue #96's
         "reparo do binário é idempotente" acceptance criterion."""
+        _require_symlink_support(tmp_path)
         self._canonical_dir(tmp_path, monkeypatch)
         _fake_managed_kernel(tmp_path, monkeypatch)
         lock = _write_lock(tmp_path, monkeypatch)
@@ -537,12 +667,13 @@ class TestCanonicalSymlink:
         at a target that no longer exists. sync_canonical_symlink must
         re-point it at a currently-resolvable kernel rather than leaving
         the dangling link in place."""
+        _require_symlink_support(tmp_path)
         canon_dir = self._canonical_dir(tmp_path, monkeypatch)
         stub = _fake_managed_kernel(tmp_path, monkeypatch)
         lock = _write_lock(tmp_path, monkeypatch)
 
         canon_dir.mkdir(parents=True, exist_ok=True)
-        link = canon_dir / "simplicio"
+        link = rm.canonical_symlink_path(lock)
         link.symlink_to(tmp_path / "does-not-exist" / "simplicio")
         assert link.is_symlink() and not link.exists()  # dangling, by construction
 
@@ -572,9 +703,12 @@ class TestCanonicalSymlink:
         lock = _write_lock(tmp_path, monkeypatch)
 
         canon_dir.mkdir(parents=True, exist_ok=True)
-        real_file = canon_dir / "simplicio"
-        real_file.write_text("#!/bin/sh\necho not-a-symlink\n", encoding="utf-8")
-        real_file.chmod(0o755)
+        real_file = rm.canonical_symlink_path(lock)
+        if sys.platform == "win32":
+            real_file.write_bytes(b"not-a-symlink\r\n")
+        else:
+            real_file.write_text("#!/bin/sh\necho not-a-symlink\n", encoding="utf-8")
+            real_file.chmod(0o755)
 
         with mock_patch("shutil.which", return_value=None):
             status = rm.runtime_status(lock)
@@ -582,16 +716,7 @@ class TestCanonicalSymlink:
         assert err is not None
         assert "refusing" in err
         # Untouched.
-        assert real_file.read_text(encoding="utf-8") == "#!/bin/sh\necho not-a-symlink\n"
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="win32 no-op path tested separately")
-    def test_sync_is_noop_on_windows(self, tmp_path, monkeypatch):
-        self._canonical_dir(tmp_path, monkeypatch)
-        _fake_managed_kernel(tmp_path, monkeypatch)
-        lock = _write_lock(tmp_path, monkeypatch)
-        with mock_patch("shutil.which", return_value=None):
-            status = rm.runtime_status(lock)
-        with mock_patch.object(rm.sys, "platform", "win32"):
-            assert rm.sync_canonical_symlink(status, lock) is None
-        # Confirms the win32 guard short-circuits before touching disk.
-        assert not rm.canonical_symlink_path(lock).exists()
+        if sys.platform == "win32":
+            assert real_file.read_bytes() == b"not-a-symlink\r\n"
+        else:
+            assert real_file.read_text(encoding="utf-8") == "#!/bin/sh\necho not-a-symlink\n"
