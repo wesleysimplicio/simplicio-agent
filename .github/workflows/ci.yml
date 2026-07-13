@@ -99,6 +99,11 @@ jobs:
     needs: detect
     uses: ./.github/workflows/uv-lockfile-check.yml
 
+  rename-guard:
+    name: Rename guard
+    needs: detect
+    uses: ./.github/workflows/rename-guard.yml
+
   docker-lint:
     name: Lint Docker scripts
     needs: detect
@@ -144,6 +149,7 @@ jobs:
       - history-check
       - contributor-check
       - uv-lockfile
+      - rename-guard
       - docker-lint
       - supply-chain
       - osv-scanner
