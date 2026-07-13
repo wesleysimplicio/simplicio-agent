@@ -5,6 +5,20 @@ environment variable configuration. Each tier gets its own bucket with
 configurable tokens/minute rate. Designed for use before dispatching
 subagents to prevent overwhelming backend services.
 
+Guardrail note (issue #70): this repo's yool spec (sections 11.1/11.2, see
+``agent/distributed/protocol.py``'s ``AgentTerms``) mandates every
+capability/fan-out declare resource guardrails — ``cpu_quota_pct``,
+``disk_quota_mb``. This module SATISFIES that same "every fan-out surface
+must have a guardrail" principle on a different, complementary axis:
+``AgentTerms`` bounds a capability's resource footprint per invocation;
+``tools.async_delegation``'s ``max_async_children`` bounds concurrent
+in-flight subagents at any instant; this rate limiter bounds how often
+NEW dispatches open per minute, regardless of how quickly each one
+finishes — closing the gap where a fast-returning tight loop could burn
+through the concurrency cap indefinitely without ever exceeding it. Three
+independent, non-competing guardrail axes (resources / concurrency /
+rate), not a second mechanism duplicating either of the other two.
+
 Usage::
 
     from agent.tier_rate_limiter import rate_limiter
@@ -130,7 +144,9 @@ class TierRateLimiter:
                     )
         return _DEFAULT_RATE_PER_MINUTE
 
-    def try_acquire(self, tier: str, tokens: int = 1) -> bool:
+    def try_acquire(
+        self, tier: str, tokens: int = 1, *, rate_override: Optional[float] = None
+    ) -> bool:
         """Try to consume *tokens* from the bucket for *tier*.
 
         Returns ``True`` when the tokens were consumed and the caller
@@ -139,7 +155,13 @@ class TierRateLimiter:
 
         The bucket is **lazy-created** on first access — if no bucket
         exists for the tier yet, the rate is freshly read from the
-        environment at that point.
+        environment at that point (or, when *rate_override* is given,
+        seeded at that rate instead — issue #70's opt-in
+        ``dispatch_rate_per_minute`` parameter). ``rate_override`` only
+        affects a bucket's rate at CREATION time: an already-created
+        bucket keeps its original rate (same documented rule as the class
+        as a whole), so passing a different override on a later call for
+        the same tier is a caller bug, not silently honored.
 
         Thread-safe.
         """
@@ -149,12 +171,12 @@ class TierRateLimiter:
         with self._lock:
             bucket = self._buckets.get(tier)
             if bucket is None:
-                rate = self._get_rate_for_tier(tier)
+                rate = float(rate_override) if rate_override is not None and rate_override > 0 else self._get_rate_for_tier(tier)
                 bucket = _TokenBucket(rate)
                 self._buckets[tier] = bucket
                 logger.debug(
-                    "Created rate-limit bucket for tier %r: %d tokens/min",
-                    tier, int(rate),
+                    "Created rate-limit bucket for tier %r: %d tokens/min%s",
+                    tier, int(rate), " (explicit override)" if rate_override else "",
                 )
             return bucket.try_consume(float(tokens))
 
