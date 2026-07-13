@@ -159,6 +159,32 @@ export interface SessionTokens {
   saved: null | number
 }
 
+/** Cache hit info the ledger event carried, if any -- never fabricated. */
+export interface CacheInfo {
+  hit: boolean | null
+  readTokens: null | number
+  writeTokens: null | number
+}
+
+/**
+ * Chain-link continuity result for this event's `prevEventHash` against the
+ * event immediately before it in the same session (main-process
+ * `hashStateOf`, `electron/savings-ledger.cjs`) -- NOT a cryptographic
+ * re-derivation. `valid` = the declared link checks out (or this is an
+ * honest genesis event); `invalid` = a declared link that doesn't match its
+ * predecessor (reordered/tampered/missing event); `unverified` = nothing to
+ * check (no hash on the event, or no predecessor to compare against).
+ */
+export type HashState = 'invalid' | 'unverified' | 'valid'
+
+/**
+ * Whether this event's token figures have a real dollar price attached.
+ * `priced` = a cost figure was recorded; `missing_price` = token figures
+ * exist but no cost was attached; `not_applicable` = the event carries no
+ * token figures at all, so pricing was never expected.
+ */
+export type PriceState = 'missing_price' | 'not_applicable' | 'priced'
+
 export interface CockpitEvent {
   id: string
   timestamp: null | string
@@ -171,6 +197,21 @@ export interface CockpitEvent {
   prevEventHash: null | string
   model: null | string
   provider: null | string
+  /** The live-session id this event belongs to, when the ledger recorded one
+   * (distinct from `runId` on the session, which groups by run/task). */
+  sessionId: null | string
+  cache: CacheInfo | null
+  /** Real dollar cost for this event, when the ledger recorded one. */
+  cost: null | number
+  latencyMs: null | number
+  /** Tool calls made at this step, e.g. `edit`/`bash`/`grep` — distinct from
+   * `surfaces` (the higher-level runtime commands). */
+  tools: string[]
+  /** Pointers to the evidence backing this event's proof kind (e.g. a
+   * transcript path, a provider response id) — opaque strings, never parsed. */
+  evidenceRefs: string[]
+  hashState: HashState
+  priceState: PriceState
 }
 
 export interface CockpitSession {
@@ -203,22 +244,65 @@ function parseTokens(raw: unknown): SessionTokens {
   }
 }
 
+const HASH_STATES: readonly HashState[] = ['valid', 'invalid', 'unverified']
+const PRICE_STATES: readonly PriceState[] = ['priced', 'missing_price', 'not_applicable']
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+}
+
+function hashStateOrDefault(value: unknown): HashState {
+  return typeof value === 'string' && (HASH_STATES as readonly string[]).includes(value)
+    ? (value as HashState)
+    : 'unverified'
+}
+
+function priceStateOrDefault(value: unknown): PriceState {
+  return typeof value === 'string' && (PRICE_STATES as readonly string[]).includes(value)
+    ? (value as PriceState)
+    : 'not_applicable'
+}
+
+function parseCache(raw: unknown): CacheInfo | null {
+  if (!isRecord(raw)) {
+    return null
+  }
+
+  const hit = boolOrNull(raw.hit)
+  const readTokens = numOrNull(raw.readTokens) ?? numOrNull(raw.read_tokens)
+  const writeTokens = numOrNull(raw.writeTokens) ?? numOrNull(raw.write_tokens)
+
+  if (hit === null && readTokens === null && writeTokens === null) {
+    return null
+  }
+
+  return { hit, readTokens, writeTokens }
+}
+
 function parseEvent(raw: unknown, index: number): CockpitEvent | null {
   if (!isRecord(raw)) {
     return null
   }
 
   return {
+    cache: parseCache(raw.cache),
+    cost: numOrNull(raw.cost) ?? numOrNull(raw.cost_usd),
     eventHash: strOrNull(raw.eventHash) ?? strOrNull(raw.event_hash),
+    evidenceRefs: stringArray(raw.evidenceRefs ?? raw.evidence_refs),
+    hashState: hashStateOrDefault(raw.hashState ?? raw.hash_state),
     id: strOrNull(raw.eventId) ?? strOrNull(raw.event_id) ?? `event-${index}`,
+    latencyMs: numOrNull(raw.latencyMs) ?? numOrNull(raw.latency_ms),
     model: strOrNull(raw.model),
     prevEventHash: strOrNull(raw.prevEventHash) ?? strOrNull(raw.prev_event_hash),
+    priceState: priceStateOrDefault(raw.priceState ?? raw.price_state),
     proofKind: isProofKind(raw.proofKind) ? raw.proofKind : isProofKind(raw.proof_kind) ? raw.proof_kind : null,
     provider: strOrNull(raw.provider),
-    surfaces: Array.isArray(raw.surfaces) ? raw.surfaces.filter((v): v is string => typeof v === 'string') : [],
+    sessionId: strOrNull(raw.sessionId) ?? strOrNull(raw.session_id),
+    surfaces: stringArray(raw.surfaces),
     taskTitle: strOrNull(raw.taskTitle) ?? strOrNull(raw.task_title),
     timestamp: strOrNull(raw.timestamp),
-    tokens: parseTokens(raw.tokens)
+    tokens: parseTokens(raw.tokens),
+    tools: stringArray(raw.tools)
   }
 }
 

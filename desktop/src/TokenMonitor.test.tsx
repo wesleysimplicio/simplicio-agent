@@ -75,8 +75,10 @@ function bridge(state: SavingsDataState): UseSavingsDataResult {
 function report(overrides: Partial<ParsedSavingsReport> = {}): ParsedSavingsReport {
   return {
     dimensions: { byModel: [], byProof: [], timeSeries: [] },
+    dominantProofKind: null,
     events: [],
     hasSessionGranularity: false,
+    mixedProofKinds: false,
     totals: { baseline: null, pct: null, saved: null, spent: null },
     ...overrides
   }
@@ -161,6 +163,38 @@ describe('TokenMonitor (savings panel)', () => {
     // Proof-kind evidence is visible per event (badge labels from i18n).
     expect(screen.getAllByText('Measured').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Estimated').length).toBeGreaterThan(0)
+  })
+
+  it('shows a mixed-evidence disclosure next to the dominant proof-kind headline when kinds are mixed', () => {
+    useSavingsDataMock.mockReturnValue(
+      bridge({
+        parsed: report({
+          dominantProofKind: 'measured',
+          events: [
+            {
+              baseline: 1000,
+              id: 'e1',
+              model: 'sonnet',
+              pct: 40,
+              proofKind: 'measured',
+              repo: 'simplicio-agent',
+              saved: 400,
+              session: 's1',
+              spent: 600,
+              timestamp: '2026-07-07T12:00:00Z',
+              timestampMs: Date.parse('2026-07-07T12:00:00Z')
+            }
+          ],
+          hasSessionGranularity: true,
+          mixedProofKinds: true,
+          totals: { baseline: 1000, pct: 40, saved: 400, spent: 600 }
+        }),
+        status: 'ok'
+      })
+    )
+    renderPanel()
+
+    expect(screen.getByText(/mixed evidence/i)).toBeTruthy()
   })
 
   it('header Diagnostics button dispatches the Setup Simplicio post-setup flow', () => {

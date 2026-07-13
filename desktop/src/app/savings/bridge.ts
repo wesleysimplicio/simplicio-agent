@@ -65,7 +65,7 @@ export function getBridgeCapabilities(): BridgeCapabilities {
   }
 }
 
-export async function fetchSavingsReport(): Promise<SavingsReportOutcome> {
+export async function fetchSavingsReport(repoPath?: string): Promise<SavingsReportOutcome> {
   const bridge = getBridge()
 
   if (!bridge) {
@@ -73,7 +73,7 @@ export async function fetchSavingsReport(): Promise<SavingsReportOutcome> {
   }
 
   try {
-    const result = await bridge.savingsReport()
+    const result = await bridge.savingsReport(repoPath ? { repoPath } : undefined)
 
     if (result?.ok) {
       return { kind: 'ok', report: result.report }
@@ -164,7 +164,7 @@ export interface SessionsPayload {
   sources: string[]
 }
 
-export async function fetchSavingsSessions(): Promise<CockpitOutcome<SessionsPayload>> {
+export async function fetchSavingsSessions(repoPath?: string): Promise<CockpitOutcome<SessionsPayload>> {
   const bridge = getBridge()
 
   if (!bridge || typeof bridge.savingsSessions !== 'function') {
@@ -172,7 +172,7 @@ export async function fetchSavingsSessions(): Promise<CockpitOutcome<SessionsPay
   }
 
   try {
-    const result = await bridge.savingsSessions()
+    const result = await bridge.savingsSessions(repoPath ? { repoPath } : undefined)
 
     if (result?.ok) {
       return {

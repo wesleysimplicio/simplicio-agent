@@ -10,7 +10,9 @@ const {
   parseSavingsLedger,
   dedupByEventId,
   groupSavingsSessions,
-  readSavingsSessions
+  readSavingsSessions,
+  hashStateOf,
+  priceStateOf
 } = require('./savings-ledger.cjs')
 
 // Build a realistic v1 ledger event (shape verified against the machine's
@@ -148,6 +150,79 @@ test('groupSavingsSessions reports null (never invented) for absent fields and t
   assert.equal(e.prevEventHash, null)
   assert.equal(e.model, null)
   assert.equal(e.provider, null)
+  assert.equal(e.sessionId, null)
+  assert.equal(e.cache, null)
+  assert.equal(e.cost, null)
+  assert.equal(e.latencyMs, null)
+  assert.equal(e.tools, null)
+  assert.equal(e.evidenceRefs, null)
+  // No hash at all -> nothing to chain-verify.
+  assert.equal(e.hashState, 'unverified')
+  // No token figures at all -> pricing never applied.
+  assert.equal(e.priceState, 'not_applicable')
+})
+
+test('hashStateOf: valid genesis, valid continuity, invalid break, unverified when unhashed', () => {
+  const genesis = { eventHash: 'h1', prevEventHash: null }
+  assert.equal(hashStateOf(genesis, null), 'valid')
+
+  const linked = { eventHash: 'h2', prevEventHash: 'h1' }
+  assert.equal(hashStateOf(linked, genesis), 'valid')
+
+  const broken = { eventHash: 'h3', prevEventHash: 'not-h2' }
+  assert.equal(hashStateOf(broken, linked), 'invalid')
+
+  const noLink = { eventHash: 'h4', prevEventHash: null }
+  assert.equal(hashStateOf(noLink, broken), 'unverified')
+
+  const unhashed = { eventHash: null, prevEventHash: 'h4' }
+  assert.equal(hashStateOf(unhashed, noLink), 'unverified')
+
+  // A non-null prevEventHash on the very first event of a session can't be
+  // checked against anything this window has.
+  const dangling = { eventHash: 'h1', prevEventHash: 'some-earlier-hash' }
+  assert.equal(hashStateOf(dangling, null), 'unverified')
+})
+
+test('priceStateOf: priced with a real cost figure, missing_price with tokens but no cost, not_applicable with neither', () => {
+  assert.equal(priceStateOf({ actual_total: 10, baseline_total: 20 }, 0.05), 'priced')
+  assert.equal(priceStateOf({ actual_total: 10, baseline_total: 20 }, null), 'missing_price')
+  assert.equal(priceStateOf({}, null), 'not_applicable')
+})
+
+test('groupSavingsSessions marks hashState per event via chain-link continuity within a session', () => {
+  const sessions = groupSavingsSessions([
+    makeEvent({
+      event_id: 'g1',
+      simplicio: { run_id: 'run-chain' },
+      timestamp: '2026-07-08T10:00:00Z',
+      event_hash: 'h1',
+      prev_event_hash: null
+    }),
+    makeEvent({
+      event_id: 'g2',
+      simplicio: { run_id: 'run-chain' },
+      timestamp: '2026-07-08T10:01:00Z',
+      event_hash: 'h2',
+      prev_event_hash: 'h1'
+    }),
+    makeEvent({
+      event_id: 'g3',
+      simplicio: { run_id: 'run-chain' },
+      timestamp: '2026-07-08T10:02:00Z',
+      event_hash: 'h3',
+      prev_event_hash: 'TAMPERED'
+    })
+  ])
+  const [session] = sessions
+  assert.deepEqual(
+    session.events.map(e => [e.eventId, e.hashState]),
+    [
+      ['g1', 'valid'],
+      ['g2', 'valid'],
+      ['g3', 'invalid']
+    ]
+  )
 })
 
 test('readSavingsSessions merges home + repo ledgers, dedups by event_id, counts skipped', () => {
@@ -179,6 +254,9 @@ test('readSavingsSessions merges home + repo ledgers, dedups by event_id, counts
     const result = readSavingsSessions({ homedir: home, repoPath: repo })
     assert.equal(result.ok, true)
     assert.equal(result.skipped, 1)
+    // The `shared` event appears in both files -> 1 duplicate, distinct from
+    // the 1 corrupted line counted as `skipped` above.
+    assert.equal(result.duplicates, 1)
     assert.equal(result.sources.length, 2)
 
     const allEventIds = result.sessions.flatMap(s => s.events.map(e => e.eventId)).sort()
@@ -196,7 +274,7 @@ test('readSavingsSessions returns ok:true with zero sessions when no ledger exis
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'simplicio-ledger-empty-'))
   try {
     const result = readSavingsSessions({ homedir: home })
-    assert.deepEqual(result, { ok: true, sessions: [], skipped: 0, sources: [] })
+    assert.deepEqual(result, { ok: true, sessions: [], skipped: 0, duplicates: 0, sources: [] })
   } finally {
     fs.rmSync(home, { recursive: true, force: true })
   }

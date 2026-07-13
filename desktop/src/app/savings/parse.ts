@@ -8,7 +8,7 @@
 // figure — that would defeat the entire point of the measured/estimated
 // distinction this panel exists to show honestly.
 
-import { isProofKind, type ProofKind, type SavingsRawReport } from './types'
+import { isProofKind, type ProofKind, proofKindRank, type SavingsRawReport } from './types'
 
 export interface SavingsTotals {
   spent: null | number
@@ -59,6 +59,18 @@ export interface ParsedSavingsReport {
   /** True when at least one event carries a session/repo/model tag. */
   hasSessionGranularity: boolean
   dimensions: SavingsDimensions
+  /**
+   * The strongest proof kind present (measured > replayed > benchmark >
+   * estimated), so the headline can show ONE honest label instead of
+   * blending evidence tiers. `null` when no event carries a recognizable
+   * proof kind at all.
+   */
+  dominantProofKind: null | ProofKind
+  /** True when events carry more than one distinct proof kind — the caller
+   * uses this to add a "mixed evidence" disclosure next to the headline
+   * rather than silently presenting the dominant kind as if it were the
+   * whole story. */
+  mixedProofKinds: boolean
 }
 
 const EMPTY_TOTALS: SavingsTotals = { spent: null, baseline: null, saved: null, pct: null }
@@ -284,9 +296,47 @@ function parseDimensions(report: Record<string, unknown>): SavingsDimensions {
   }
 }
 
+/**
+ * The single strongest proof kind across events, plus whether more than one
+ * distinct kind is present. `measured` always wins when present (real
+ * receipts outrank every heuristic), otherwise the strongest of whatever
+ * remains — never an average or a majority vote, which would blur exactly
+ * the distinction this exists to preserve.
+ */
+function dominantProof(events: readonly SavingsEvent[]): { dominant: null | ProofKind; mixed: boolean } {
+  const kinds = new Set<ProofKind>()
+
+  for (const event of events) {
+    if (event.proofKind) {
+      kinds.add(event.proofKind)
+    }
+  }
+
+  if (kinds.size === 0) {
+    return { dominant: null, mixed: false }
+  }
+
+  let dominant: ProofKind | null = null
+
+  for (const kind of kinds) {
+    if (dominant === null || proofKindRank(kind) < proofKindRank(dominant)) {
+      dominant = kind
+    }
+  }
+
+  return { dominant, mixed: kinds.size > 1 }
+}
+
 export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsReport {
   if (!isRecord(report)) {
-    return { dimensions: EMPTY_DIMENSIONS, events: [], hasSessionGranularity: false, totals: EMPTY_TOTALS }
+    return {
+      dimensions: EMPTY_DIMENSIONS,
+      dominantProofKind: null,
+      events: [],
+      hasSessionGranularity: false,
+      mixedProofKinds: false,
+      totals: EMPTY_TOTALS
+    }
   }
 
   const totals = extractTotals(totalsSource(report))
@@ -309,10 +359,14 @@ export function parseSavingsReport(report: SavingsRawReport): ParsedSavingsRepor
     derivedTotals = sumTimeSeriesTotals(dimensions.timeSeries, derivedTotals)
   }
 
+  const { dominant, mixed } = dominantProof(events)
+
   return {
     dimensions,
+    dominantProofKind: dominant,
     events: [...events].sort((a, b) => (b.timestampMs ?? 0) - (a.timestampMs ?? 0)),
     hasSessionGranularity: events.some(event => event.session !== null || event.repo !== null),
+    mixedProofKinds: mixed,
     totals: derivedTotals
   }
 }

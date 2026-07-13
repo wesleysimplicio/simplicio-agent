@@ -51,16 +51,22 @@ async function runJsonCommand(args, label, resultKey, runner = runSimplicio, run
  * bridge), so the renderer's `parseSavingsReport(result.report)` sees the
  * shape it expects without another round of wiring.
  *
- * Spawned with cwd = os.homedir(): the runtime discovers `.simplicio/ledger`
- * relative to its cwd, and the Electron process's own cwd has no ledger --
- * without this the report says "no savings" while the Sessions section
- * (which reads the home ledger directly) shows events.
+ * Spawned with cwd = the active project's repo root (`repoPath`) when the
+ * renderer supplies one -- the runtime discovers `.simplicio/ledger`
+ * relative to its cwd, so a report run from the wrong repo (or unconditionally
+ * from HOME) silently reports the wrong project's savings, or "no savings"
+ * for a repo whose ledger lives elsewhere. Falls back to `os.homedir()` when
+ * no repoPath is given (no active project / a build predating issue #128),
+ * which matches the previous unconditional behavior and keeps the Electron
+ * process's own (ledger-less) cwd out of the picture either way.
  *
  * @param {Function} [runner] - runSimplicio stand-in (tests).
+ * @param {string} [repoPath] - active project's repo root; overrides the
+ *   HOME default when present.
  */
-function savingsReport(runner) {
+function savingsReport(runner, repoPath) {
   return runJsonCommand(['savings', 'report', '--json'], 'simplicio savings report', 'report', runner, {
-    cwd: os.homedir()
+    cwd: (typeof repoPath === 'string' && repoPath.trim()) || os.homedir()
   })
 }
 
@@ -137,7 +143,10 @@ function registerSimplicioIpc(ipcMain, opts = {}) {
   const dashboardDaemon = opts.dashboardDaemon || createDashboardDaemon({ log: opts.log })
   const cuaMcpDaemon = opts.cuaMcpDaemon || createCuaMcpDaemon({ log: opts.log, resolveCommand: opts.resolveCuaMcpCommand })
 
-  ipcMain.handle('simplicio:savings-report', () => savingsReport())
+  // `request` may carry an optional repoPath -- the active project's repo
+  // root -- so the report is scoped to that project's ledger instead of
+  // unconditionally HOME (see savingsReport() above).
+  ipcMain.handle('simplicio:savings-report', (_event, request) => savingsReport(undefined, request && request.repoPath))
   ipcMain.handle('simplicio:doctor', () => doctorRun())
   ipcMain.handle('simplicio:editors-detect', () => {
     try {

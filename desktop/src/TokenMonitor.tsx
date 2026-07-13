@@ -12,6 +12,7 @@ import { ByModelBars, ByProofDonut } from '@/components/savings/dimension-charts
 import { HeroStat } from '@/components/savings/hero-stat'
 import { LiveActivity } from '@/components/savings/live-activity'
 import { McpStatusChip } from '@/components/savings/mcp-status-chip'
+import { ProofBadge } from '@/components/savings/proof-badge'
 import { SavingsChart } from '@/components/savings/savings-chart'
 import { SessionEventsTable } from '@/components/savings/session-events-table'
 import { SessionsList } from '@/components/savings/sessions-list'
@@ -158,6 +159,19 @@ export default function TokenMonitor({ onClose }: TokenMonitorProps) {
             </>
           ) : (
             <>
+              {/* Non-mixed proof-kind headline (issue #128): the hero cards
+                  below show ONE number, so they must be backed by ONE honest
+                  evidence tier — never a silent blend of measured + estimated
+                  totals presented as if they were equally strong. This shows
+                  the strongest kind actually present, and flags explicitly
+                  when the total behind it mixes tiers. */}
+              {parsed.dominantProofKind !== null && (
+                <div className="flex items-center gap-2 text-[0.68rem] text-muted-foreground/70">
+                  <ProofBadge proofKind={parsed.dominantProofKind} />
+                  {parsed.mixedProofKinds && <span>Mixed evidence — totals combine multiple proof kinds.</span>}
+                </div>
+              )}
+
               <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <HeroStat
                   format={formatTokens}

@@ -2,6 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const os = require('node:os')
 
 const { registerSimplicioIpc, savingsReport, doctorRun, memoryStatus, mcpConnections } = require('./simplicio-ipc.cjs')
 
@@ -366,5 +367,42 @@ test('simplicio:savings-sessions handler forwards the optional repoPath and retu
   assert.equal(typeof result.ok, 'boolean')
   assert.ok(Array.isArray(result.sessions))
   assert.equal(typeof result.skipped, 'number')
+  assert.equal(typeof result.duplicates, 'number')
   assert.ok(Array.isArray(result.sources))
+})
+
+// Issue #128: the report must be scoped to the active project's repo, not
+// unconditionally HOME -- a report run from the wrong repo silently shows
+// the wrong project's savings (or "no savings" for a repo whose ledger lives
+// elsewhere).
+test('savingsReport spawns with cwd=os.homedir() when no repoPath is given', async () => {
+  let seenOpts
+  const runner = async (args, opts) => {
+    seenOpts = opts
+    return { ok: true, stdout: '{}', stderr: '', code: 0 }
+  }
+  await savingsReport(runner)
+  assert.equal(seenOpts.cwd, os.homedir())
+})
+
+test('savingsReport spawns with cwd=repoPath when the active project supplies one', async () => {
+  let seenOpts
+  const runner = async (args, opts) => {
+    seenOpts = opts
+    return { ok: true, stdout: '{}', stderr: '', code: 0 }
+  }
+  await savingsReport(runner, 'C:\\repos\\project-a')
+  assert.equal(seenOpts.cwd, 'C:\\repos\\project-a')
+})
+
+test('simplicio:savings-report handler accepts an optional request.repoPath without throwing', async () => {
+  const ipcMain = makeFakeIpcMain()
+  registerSimplicioIpc(ipcMain, { daemon: makeFakeDaemon() })
+  // The handler forwards request.repoPath into savingsReport()'s cwd
+  // resolution (proven directly by the two unit tests above, against an
+  // injected runner); this exercises the real wiring end to end against
+  // whatever `simplicio` binary this machine has (or doesn't) -- either way
+  // it must resolve the honest ok:boolean envelope, never throw.
+  const result = await ipcMain.invoke('simplicio:savings-report', { repoPath: 'C:\\repos\\project-a' })
+  assert.equal(typeof result.ok, 'boolean')
 })
