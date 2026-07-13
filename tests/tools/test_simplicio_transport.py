@@ -105,9 +105,13 @@ def test_runtime_health_and_doctor_status_are_json_safe():
         health = runtime_manager.runtime_health()
     assert health["healthy"] is True
     assert health["schema"] == "simplicio-runtime/health/v1"
+    assert health["reason_code"] == "ready"
+    assert health["handshake"] is None
     assert health["doctor_command"] == "simplicio-agent doctor --fix"
 
     with patch.object(runtime_manager, "ensure_runtime", return_value=status):
         doctor = runtime_manager.doctor_status()
     assert doctor["healthy"] is True
     assert doctor["schema"] == "simplicio-runtime/doctor/v1"
+    assert doctor["reason_code"] == "ready"
+    assert doctor["handshake"] is None

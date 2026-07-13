@@ -47,6 +47,15 @@ from pathlib import Path
 from typing import Optional
 from tools.runtime_lock_contract import validate_lock_manifest
 
+from tools.runtime_handshake import (
+    HANDSHAKE_REASON_HANDSHAKE_FAILED,
+    HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME,
+    HANDSHAKE_REASON_READY,
+    HANDSHAKE_REASON_RUNTIME_MISSING,
+    RuntimeHandshake,
+    build_runtime_handshake,
+)
+
 logger = logging.getLogger(__name__)
 
 _LOCK_FILENAME = "runtime.lock"
@@ -455,6 +464,8 @@ class RuntimeStatus:
     asset_name: Optional[str] = None
     sha256: Optional[str] = None
     verified: bool = False
+    reason_code: str = HANDSHAKE_REASON_READY
+    handshake: RuntimeHandshake | None = None
 
     @property
     def present(self) -> bool:
@@ -491,6 +502,8 @@ def runtime_health(lock: Optional[dict] = None) -> dict:
         "verified": status.verified,
         "lock_valid": status.lock_valid,
         "detail": status.detail,
+        "reason_code": status.reason_code,
+        "handshake": status.handshake.to_dict() if status.handshake else None,
         "doctor_command": "simplicio-agent doctor --fix",
     }
 
@@ -520,6 +533,8 @@ def doctor_status(*, fix: bool = False) -> dict:
             "verified": status.verified,
             "lock_valid": status.lock_valid,
             "detail": status.detail,
+            "reason_code": status.reason_code,
+            "handshake": status.handshake.to_dict() if status.handshake else None,
             "fixed": bool(fix and status.satisfied),
             "doctor_command": "simplicio-agent doctor --fix",
         }
@@ -530,6 +545,8 @@ def doctor_status(*, fix: bool = False) -> dict:
             "healthy": False,
             "status": "error",
             "detail": str(exc),
+            "reason_code": HANDSHAKE_REASON_HANDSHAKE_FAILED,
+            "handshake": None,
             "fixed": False,
             "doctor_command": "simplicio-agent doctor --fix",
         }
@@ -541,106 +558,181 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     minimum = str(lock.get("min_version") or "0.0.0")
     validation = validate_runtime_lock(lock)
     if not validation.valid:
+        detail = f"runtime lock invalid: {validation.detail}"
         return RuntimeStatus(
             bin_path=None,
             source="absent",
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail=f"runtime lock invalid: {validation.detail}",
+            detail=detail,
             lock_valid=False,
             target=validation.target,
+            reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
         )
     asset = validation.asset or {}
     asset_name = str(asset["name"])
     expected_sha256 = str(asset["sha256"])
     bin_path, source = resolve_kernel(lock)
     if not bin_path:
+        detail = "kernel binary not found (env override, PATH, managed dir)"
         return RuntimeStatus(
             bin_path=None,
             source="absent",
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail="kernel binary not found (env override, PATH, managed dir)",
+            detail=detail,
             lock_valid=True,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
+            reason_code=HANDSHAKE_REASON_RUNTIME_MISSING,
+            handshake=build_runtime_handshake(
+                lock=lock,
+                runtime_version=None,
+                min_runtime_version=minimum,
+                bin_path=None,
+                source="absent",
+                healthy=False,
+                reason_code=HANDSHAKE_REASON_RUNTIME_MISSING,
+                reason_detail=detail,
+            ),
         )
     try:
         actual_size = Path(bin_path).stat().st_size
     except OSError as exc:
+        detail = f"runtime binary cannot be stat'ed: {exc}"
         return RuntimeStatus(
             bin_path=bin_path,
             source=source,
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail=f"runtime binary cannot be stat'ed: {exc}",
+            detail=detail,
             lock_valid=True,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
+            reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+            handshake=build_runtime_handshake(
+                lock=lock,
+                runtime_version=None,
+                min_runtime_version=minimum,
+                bin_path=bin_path,
+                source=source,
+                healthy=False,
+                reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+                reason_detail=detail,
+            ),
         )
     actual_sha256 = _sha256_file(Path(bin_path))
     if actual_sha256.lower() != expected_sha256.lower():
+        detail = (
+            f"runtime sha256 mismatch: expected {expected_sha256}, "
+            f"got {actual_sha256}"
+        )
         return RuntimeStatus(
             bin_path=bin_path,
             source=source,
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail=(
-                f"runtime sha256 mismatch: expected {expected_sha256}, "
-                f"got {actual_sha256}"
-            ),
+            detail=detail,
             lock_valid=True,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
+            reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+            handshake=build_runtime_handshake(
+                lock=lock,
+                runtime_version=None,
+                min_runtime_version=minimum,
+                bin_path=bin_path,
+                source=source,
+                healthy=False,
+                reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+                reason_detail=detail,
+            ),
         )
     if actual_size != asset["size"]:
+        detail = f"runtime size mismatch: expected {asset['size']}, got {actual_size}"
         return RuntimeStatus(
             bin_path=bin_path,
             source=source,
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail=f"runtime size mismatch: expected {asset['size']}, got {actual_size}",
+            detail=detail,
             lock_valid=True,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
+            reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+            handshake=build_runtime_handshake(
+                lock=lock,
+                runtime_version=None,
+                min_runtime_version=minimum,
+                bin_path=bin_path,
+                source=source,
+                healthy=False,
+                reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+                reason_detail=detail,
+            ),
         )
     version = kernel_version(bin_path)
     if version is None:
+        detail = "binary resolved but --version handshake failed"
         return RuntimeStatus(
             bin_path=bin_path,
             source=source,
             version=None,
             min_version=minimum,
             satisfied=False,
-            detail="binary resolved but --version handshake failed",
+            detail=detail,
             lock_valid=True,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
             verified=True,
+            reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+            handshake=build_runtime_handshake(
+                lock=lock,
+                runtime_version=None,
+                min_runtime_version=minimum,
+                bin_path=bin_path,
+                source=source,
+                healthy=False,
+                reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
+                reason_detail=detail,
+            ),
         )
     ok = version_satisfies(version, minimum)
+    detail = "" if ok else f"installed {version} < pinned {minimum}"
+    reason_code = HANDSHAKE_REASON_READY if ok else HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
     return RuntimeStatus(
         bin_path=bin_path,
         source=source,
         version=version,
         min_version=minimum,
         satisfied=ok,
-        detail="" if ok else f"installed {version} < pinned {minimum}",
+        detail=detail,
         lock_valid=True,
         target=validation.target,
         asset_name=asset_name,
         sha256=expected_sha256,
         verified=True,
+        reason_code=reason_code,
+        handshake=build_runtime_handshake(
+            lock=lock,
+            runtime_version=version,
+            min_runtime_version=minimum,
+            bin_path=bin_path,
+            source=source,
+            healthy=ok,
+            reason_code=reason_code,
+            reason_detail=detail,
+        ),
     )
 
 
