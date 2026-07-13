@@ -93,36 +93,34 @@ def prepare_reversible_workspace(workspace: str | os.PathLike[str]) -> str:
 
 
 def _capabilities() -> CapabilityRegistry:
-    return CapabilityRegistry(
-        (
-            Capability(
-                "local_file_api",
-                CapabilityMetadata(
-                    version="1.0.0",
-                    source="python.pathlib",
-                    license="PSF-2.0",
-                    platforms=(sys.platform, "local"),
-                    health=Health.HEALTHY,
-                    risk=Risk.LOW,
-                    determinism=Determinism.DETERMINISTIC,
-                ),
+    return CapabilityRegistry((
+        Capability(
+            "local_file_api",
+            CapabilityMetadata(
+                version="1.0.0",
+                source="python.pathlib",
+                license="PSF-2.0",
+                platforms=(sys.platform, "local"),
+                health=Health.HEALTHY,
+                risk=Risk.LOW,
+                determinism=Determinism.DETERMINISTIC,
             ),
-            Capability(
-                "desktop_uia",
-                CapabilityMetadata(
-                    version="0.0.0",
-                    source="not-configured",
-                    license="unknown",
-                    platforms=(sys.platform,),
-                    health=Health.UNHEALTHY,
-                    risk=Risk.HIGH,
-                    determinism=Determinism.UNKNOWN,
-                    health_detail="Desktop/UIA is outside this bounded local slice",
-                ),
-                enabled=False,
+        ),
+        Capability(
+            "desktop_uia",
+            CapabilityMetadata(
+                version="0.0.0",
+                source="not-configured",
+                license="unknown",
+                platforms=(sys.platform,),
+                health=Health.UNHEALTHY,
+                risk=Risk.HIGH,
+                determinism=Determinism.UNKNOWN,
+                health_detail="Desktop/UIA is outside this bounded local slice",
             ),
-        )
-    )
+            enabled=False,
+        ),
+    ))
 
 
 @dataclass(frozen=True)
@@ -184,7 +182,7 @@ def _blocked(
         watcher={"status": "not_run", "reason": reason},
         delivery_certificate={"status": "blocked", "reason": reason},
         availability=availability,
-        trace=( {"stage": "blocked", "reason": reason}, ),
+        trace=({"stage": "blocked", "reason": reason},),
     )
 
 
@@ -204,11 +202,16 @@ def run_local_reversible_path(
 
     root = _workspace_root(workspace)
     artifact = _artifact_path(root)
-    if not artifact.is_file() or artifact.read_text(encoding="utf-8") != BASELINE_CONTENT:
+    if (
+        not artifact.is_file()
+        or artifact.read_text(encoding="utf-8") != BASELINE_CONTENT
+    ):
         raise ValueError("workspace is not prepared with the deterministic baseline")
 
     registry = _capabilities()
-    decision = registry.route("local_file_api", session_id=session_id, platform=sys.platform)
+    decision = registry.route(
+        "local_file_api", session_id=session_id, platform=sys.platform
+    )
     goal = GoalContract.create(
         "Create and reversibly verify a local requirements artifact",
         ACCEPTANCE_CRITERIA,
@@ -222,8 +225,14 @@ def run_local_reversible_path(
         session_key=session_id,
     )
     availability = {
-        "local_file_api": {"available": decision.selected, "selected": decision.capability},
-        "desktop_uia": {"available": False, "reason": "not configured in bounded slice"},
+        "local_file_api": {
+            "available": decision.selected,
+            "selected": decision.capability,
+        },
+        "desktop_uia": {
+            "available": False,
+            "reason": "not configured in bounded slice",
+        },
         "runtime": {
             "available": gate.ok,
             "transport": gate.transport,
@@ -258,7 +267,9 @@ def run_local_reversible_path(
         )
 
     manager.new_turn()
-    checkpoint_taken = manager.ensure_checkpoint(str(root), "issue-181 before first write")
+    checkpoint_taken = manager.ensure_checkpoint(
+        str(root), "issue-181 before first write"
+    )
     checkpoints = manager.list_checkpoints(str(root)) if checkpoint_taken else []
     checkpoint = checkpoints[0] if checkpoints else None
     if not checkpoint_taken or checkpoint is None:
@@ -320,7 +331,9 @@ def run_local_reversible_path(
     for reference in evidence_refs[1:]:
         goal = goal.add_evidence(reference, kind="receipt")
     goal = goal.satisfy_watcher(
-        WATCHER_NAME, receipt=f"watcher:{undo['sha256']}", recomputed=watcher["status"] == "passed"
+        WATCHER_NAME,
+        receipt=f"watcher:{undo['sha256']}",
+        recomputed=watcher["status"] == "passed",
     )
     goal = goal.mark_completed_verified(reason="local artifact verified and restored")
     certificate = {

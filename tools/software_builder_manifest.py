@@ -219,7 +219,9 @@ def _as_mapping(value: Any, label: str, errors: list[str]) -> Mapping[str, Any] 
     return value
 
 
-def validate_manifest(document: Mapping[str, Any], repo_root: Path = REPO_ROOT) -> list[str]:
+def validate_manifest(
+    document: Mapping[str, Any], repo_root: Path = REPO_ROOT
+) -> list[str]:
     """Return deterministic validation errors for a v1 manifest."""
 
     errors: list[str] = []
@@ -259,7 +261,9 @@ def validate_manifest(document: Mapping[str, Any], repo_root: Path = REPO_ROOT) 
     refs = [stage.get("receipt") for stage in stages if isinstance(stage, Mapping)]
     if document.get("receipt_refs") != refs:
         errors.append("receipt_refs must mirror stage receipt references")
-    if any(not isinstance(ref, str) or not ref.startswith("receipt://") for ref in refs):
+    if any(
+        not isinstance(ref, str) or not ref.startswith("receipt://") for ref in refs
+    ):
         errors.append("every stage receipt must use the receipt:// scheme")
     if any(
         not isinstance(stage, Mapping)
@@ -269,7 +273,11 @@ def validate_manifest(document: Mapping[str, Any], repo_root: Path = REPO_ROOT) 
     ):
         errors.append("fixture stages must remain explicitly unverified")
 
-    goal_refs = [item.get("reference") for item in goal_data.get("evidence", [])] if goal_data else []
+    goal_refs = (
+        [item.get("reference") for item in goal_data.get("evidence", [])]
+        if goal_data
+        else []
+    )
     if goal_refs != refs:
         errors.append("goal evidence must mirror stage receipt references")
     if envelope is not None:
@@ -284,7 +292,9 @@ def validate_manifest(document: Mapping[str, Any], repo_root: Path = REPO_ROOT) 
             errors.append("delivery status must remain not_attempted")
         for key in ("clean_machine", "ui_exercised", "package_published"):
             if delivery.get(key) is not False:
-                errors.append(f"delivery.{key} must remain false in the foundation fixture")
+                errors.append(
+                    f"delivery.{key} must remain false in the foundation fixture"
+                )
 
     source_contracts = document.get("source_contracts")
     if source_contracts != sorted(_SOURCE_CONTRACTS):
@@ -298,7 +308,9 @@ def validate_manifest(document: Mapping[str, Any], repo_root: Path = REPO_ROOT) 
             text = path.read_text(encoding="utf-8")
             for needle in needles:
                 if needle not in text:
-                    errors.append(f"source contract marker missing: {relative}:{needle}")
+                    errors.append(
+                        f"source contract marker missing: {relative}:{needle}"
+                    )
     return errors
 
 
@@ -316,7 +328,9 @@ def main(argv: list[str] | None = None) -> int:
         output = Path(args.generate)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
-            json.dumps(generate_manifest(), ensure_ascii=False, indent=2, sort_keys=True)
+            json.dumps(
+                generate_manifest(), ensure_ascii=False, indent=2, sort_keys=True
+            )
             + "\n",
             encoding="utf-8",
         )

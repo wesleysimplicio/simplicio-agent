@@ -21,7 +21,12 @@ def manifest() -> dict:
 
 
 def metric(kind: str = "measured", value: int = 1) -> dict:
-    return {"value": value, "unit": "boolean", "evidence_kind": kind, "source": "fixture:test"}
+    return {
+        "value": value,
+        "unit": "boolean",
+        "evidence_kind": kind,
+        "source": "fixture:test",
+    }
 
 
 def artifact(name: str = "run.log") -> dict:
@@ -38,15 +43,13 @@ def report(manifest_doc: dict, *, kind: str = "measured", mode: str = "smoke") -
     rows = []
     for suite in manifest_doc["suites"]:
         for task in suite["tasks"]:
-            rows.append(
-                {
-                    "task_id": task["id"],
-                    "status": "pass",
-                    "evidence_kind": kind,
-                    "metrics": {"task_success": metric(kind)},
-                    "artifacts": [],
-                }
-            )
+            rows.append({
+                "task_id": task["id"],
+                "status": "pass",
+                "evidence_kind": kind,
+                "metrics": {"task_success": metric(kind)},
+                "artifacts": [],
+            })
     return {
         "schema": "simplicio.capability-benchmark-report/v1",
         "version": 1,
@@ -81,7 +84,9 @@ def test_manifest_validation_is_deterministic_and_requires_task_contract() -> No
     assert "suites[0].tasks[0].verifier must be a non-empty string" in first
 
 
-def test_contract_smoke_validates_only_the_manifest_and_makes_no_capability_claim() -> None:
+def test_contract_smoke_validates_only_the_manifest_and_makes_no_capability_claim() -> (
+    None
+):
     result = contract_smoke(manifest())
     assert result["status"] == "contract_pass"
     assert result["executed_task_count"] == 0
@@ -129,16 +134,31 @@ def test_failed_or_blocked_results_require_sanitized_hashed_artifacts() -> None:
     row = receipt["tasks"][0]
     row["status"] = "blocked"
     row["blocked_reason"] = "missing_permission"
-    assert validate_report(receipt, document)[0].endswith("must be non-empty for blocked results")
+    assert validate_report(receipt, document)[0].endswith(
+        "must be non-empty for blocked results"
+    )
     row["artifacts"] = [artifact("blocked.log")]
     assert validate_report(receipt, document) == []
     row["artifacts"][0]["sanitized"] = False
-    assert any("sanitized must be true" in error for error in validate_report(receipt, document))
+    assert any(
+        "sanitized must be true" in error
+        for error in validate_report(receipt, document)
+    )
 
 
 def test_cli_smoke_writes_stable_contract_receipt(tmp_path: Path) -> None:
     output = tmp_path / "smoke.json"
-    assert main(["smoke", "--manifest", str(DEFAULT_MANIFEST), "--output", str(output), "--json"]) == 0
+    assert (
+        main([
+            "smoke",
+            "--manifest",
+            str(DEFAULT_MANIFEST),
+            "--output",
+            str(output),
+            "--json",
+        ])
+        == 0
+    )
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert receipt["schema"] == "simplicio.capability-release-gate/v1"
     assert receipt["executed_task_count"] == 0

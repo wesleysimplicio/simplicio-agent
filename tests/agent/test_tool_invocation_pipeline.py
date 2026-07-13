@@ -54,7 +54,9 @@ def test_pipeline_blocks_before_checkpoint_and_execute_but_still_persists_receip
                 reason="dangerous",
                 detail={"policy": "readonly"},
             ),
-            "persist": lambda value, *, attempt: persisted.append(attempt.status) or value,
+            "persist": lambda value, *, attempt: (
+                persisted.append(attempt.status) or value
+            ),
         },
         receipt_writer=receipts.append,
     )

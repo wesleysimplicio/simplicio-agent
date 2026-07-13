@@ -16,7 +16,9 @@ class FakeTransport:
 
     def gate(self, *args, **kwargs):
         if self.gate_ok:
-            return TransportReceipt.success("gate", {"allowed": True}, request_id="gate-181")
+            return TransportReceipt.success(
+                "gate", {"allowed": True}, request_id="gate-181"
+            )
         return TransportReceipt.failure(
             "gate",
             TransportError("denied", "runtime gate unavailable"),
@@ -86,5 +88,7 @@ def test_runtime_gate_failure_is_explicit_and_does_not_mutate(tmp_path):
     assert result.status == "blocked"
     assert result.availability["runtime"]["available"] is False
     assert result.availability["desktop_uia"]["available"] is False
-    assert (tmp_path / "controlled-artifact" / "requirements.txt").read_text() == BASELINE_CONTENT
+    assert (
+        tmp_path / "controlled-artifact" / "requirements.txt"
+    ).read_text() == BASELINE_CONTENT
     assert result.after["sha256"] == result.before["sha256"]

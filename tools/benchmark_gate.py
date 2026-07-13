@@ -20,14 +20,24 @@ REPORT_SCHEMA = "simplicio.capability-benchmark-report/v1"
 GATE_SCHEMA = "simplicio.capability-release-gate/v1"
 VERSION = 1
 
-REQUIRED_SUITES = frozenset(
-    {"desktop", "browser", "coding", "media", "office", "mobile", "persistent-run"}
-)
+REQUIRED_SUITES = frozenset({
+    "desktop",
+    "browser",
+    "coding",
+    "media",
+    "office",
+    "mobile",
+    "persistent-run",
+})
 EVIDENCE_KINDS = frozenset({"measured", "replay", "benchmark", "estimated"})
 STATUSES = frozenset({"pass", "fail", "blocked", "skipped"})
 RISK_MODES = frozenset({"read_only", "guarded", "destructive"})
 ARTIFACT_KINDS = frozenset({"log", "screenshot", "video", "audio", "trace", "document"})
-BLOCKED_REASONS = frozenset({"missing_capability", "missing_permission", "missing_secret"})
+BLOCKED_REASONS = frozenset({
+    "missing_capability",
+    "missing_permission",
+    "missing_secret",
+})
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 DEFAULT_MANIFEST = (
@@ -43,11 +53,15 @@ def _is_mapping(value: Any) -> bool:
     return isinstance(value, Mapping)
 
 
-def _strings(value: Any, field: str, errors: list[str], *, required: bool = True) -> list[str]:
+def _strings(
+    value: Any, field: str, errors: list[str], *, required: bool = True
+) -> list[str]:
     if value is None and not required:
         return []
-    if not isinstance(value, list) or not value or not all(
-        isinstance(item, str) and item.strip() for item in value
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) and item.strip() for item in value)
     ):
         errors.append(f"{field} must be a non-empty list of strings")
         return []
@@ -59,8 +73,10 @@ def _safe_relative_path(value: Any) -> bool:
         return False
     posix = PurePosixPath(value)
     windows = PureWindowsPath(value)
-    return not posix.is_absolute() and not windows.is_absolute() and ".." not in (
-        posix.parts + windows.parts
+    return (
+        not posix.is_absolute()
+        and not windows.is_absolute()
+        and ".." not in (posix.parts + windows.parts)
     )
 
 
@@ -102,7 +118,10 @@ def validate_manifest(document: Mapping[str, Any]) -> list[str]:
         errors.append(f"schema must be {MANIFEST_SCHEMA}")
     if document.get("version") != VERSION:
         errors.append(f"version must be {VERSION}")
-    if not isinstance(document.get("manifest_id"), str) or not document["manifest_id"].strip():
+    if (
+        not isinstance(document.get("manifest_id"), str)
+        or not document["manifest_id"].strip()
+    ):
         errors.append("manifest_id must be a non-empty string")
     suites = document.get("suites")
     if not isinstance(suites, list) or not suites:
@@ -194,15 +213,22 @@ def validate_report(
         errors.append(f"schema must be {REPORT_SCHEMA}")
     if document.get("version") != VERSION:
         errors.append(f"version must be {VERSION}")
-    if not isinstance(document.get("manifest_id"), str) or not document["manifest_id"].strip():
+    if (
+        not isinstance(document.get("manifest_id"), str)
+        or not document["manifest_id"].strip()
+    ):
         errors.append("manifest_id must be a non-empty string")
-    elif manifest is not None and document["manifest_id"] != manifest.get("manifest_id"):
+    elif manifest is not None and document["manifest_id"] != manifest.get(
+        "manifest_id"
+    ):
         errors.append("manifest_id must match the manifest")
     if document.get("run_mode") not in {"smoke", "full", "nightly", "release"}:
         errors.append("run_mode must be smoke, full, nightly, or release")
     runner = document.get("runner")
     if not _is_mapping(runner):
-        errors.append("runner must be an object with labeled platform, os, and hardware")
+        errors.append(
+            "runner must be an object with labeled platform, os, and hardware"
+        )
     else:
         for field in ("platform", "os", "hardware"):
             if not isinstance(runner.get(field), str) or not runner[field].strip():
@@ -229,7 +255,9 @@ def validate_report(
         if row.get("status") not in STATUSES:
             errors.append(f"{prefix}.status must be one of {sorted(STATUSES)}")
         if row.get("evidence_kind") not in EVIDENCE_KINDS:
-            errors.append(f"{prefix}.evidence_kind must be one of {sorted(EVIDENCE_KINDS)}")
+            errors.append(
+                f"{prefix}.evidence_kind must be one of {sorted(EVIDENCE_KINDS)}"
+            )
         metrics = row.get("metrics")
         if not _is_mapping(metrics) or "task_success" not in metrics:
             errors.append(f"{prefix}.metrics.task_success is required")
@@ -241,11 +269,20 @@ def validate_report(
             errors.append(f"{prefix}.artifacts must be a list")
         else:
             for artifact_index, artifact in enumerate(artifacts):
-                _validate_artifact(artifact, f"{prefix}.artifacts[{artifact_index}]", errors)
+                _validate_artifact(
+                    artifact, f"{prefix}.artifacts[{artifact_index}]", errors
+                )
         if row.get("status") in {"fail", "blocked"} and not artifacts:
-            errors.append(f"{prefix}.artifacts must be non-empty for {row['status']} results")
-        if row.get("status") == "blocked" and row.get("blocked_reason") not in BLOCKED_REASONS:
-            errors.append(f"{prefix}.blocked_reason must be one of {sorted(BLOCKED_REASONS)}")
+            errors.append(
+                f"{prefix}.artifacts must be non-empty for {row['status']} results"
+            )
+        if (
+            row.get("status") == "blocked"
+            and row.get("blocked_reason") not in BLOCKED_REASONS
+        ):
+            errors.append(
+                f"{prefix}.blocked_reason must be one of {sorted(BLOCKED_REASONS)}"
+            )
     if len(row_ids) != len(set(row_ids)):
         errors.append("report task ids must be unique")
     return sorted(set(errors))
@@ -270,11 +307,19 @@ def evaluate_gate(
         for row in report.get("tasks", [])
         if _is_mapping(row) and isinstance(row.get("task_id"), str)
     }
-    smoke_ids = sorted(task_id for task_id, task in tasks.items() if task.get("smoke") is True)
-    expected_ids = set(tasks) if report.get("run_mode") in {"full", "nightly", "release"} else set(smoke_ids)
+    smoke_ids = sorted(
+        task_id for task_id, task in tasks.items() if task.get("smoke") is True
+    )
+    expected_ids = (
+        set(tasks)
+        if report.get("run_mode") in {"full", "nightly", "release"}
+        else set(smoke_ids)
+    )
     missing = sorted(expected_ids - set(rows))
     failures = sorted(
-        task_id for task_id in expected_ids if task_id in rows and rows[task_id].get("status") == "fail"
+        task_id
+        for task_id in expected_ids
+        if task_id in rows and rows[task_id].get("status") == "fail"
     )
     blocked = sorted(
         task_id
@@ -284,12 +329,16 @@ def evaluate_gate(
     unmeasured = sorted(
         task_id
         for task_id in expected_ids
-        if task_id in rows and rows[task_id].get("status") == "pass" and not _task_success(rows[task_id])[0]
+        if task_id in rows
+        and rows[task_id].get("status") == "pass"
+        and not _task_success(rows[task_id])[0]
     )
     passed = sorted(
         task_id
         for task_id in expected_ids
-        if task_id in rows and rows[task_id].get("status") == "pass" and task_id not in unmeasured
+        if task_id in rows
+        and rows[task_id].get("status") == "pass"
+        and task_id not in unmeasured
     )
     estimated = sum(
         1
@@ -305,8 +354,19 @@ def evaluate_gate(
         for metric in row["metrics"].values()
         if _is_mapping(metric) and metric.get("evidence_kind") == "measured"
     )
-    smoke_ready = not manifest_errors and not report_errors and not missing and not failures and not blocked and not unmeasured
-    full_matrix = report.get("run_mode") in {"full", "nightly", "release"} and expected_ids == set(tasks)
+    smoke_ready = (
+        not manifest_errors
+        and not report_errors
+        and not missing
+        and not failures
+        and not blocked
+        and not unmeasured
+    )
+    full_matrix = report.get("run_mode") in {
+        "full",
+        "nightly",
+        "release",
+    } and expected_ids == set(tasks)
     release_ready = smoke_ready and full_matrix
     reasons: list[str] = []
     if manifest_errors:
@@ -340,7 +400,9 @@ def evaluate_gate(
         "estimated_metric_count": estimated,
         "smoke_ready": smoke_ready,
         "release_ready": release_ready,
-        "status": "pass" if release_ready else ("smoke_pass" if smoke_ready else "blocked"),
+        "status": "pass"
+        if release_ready
+        else ("smoke_pass" if smoke_ready else "blocked"),
         "reasons": sorted(set(reasons)),
         "manifest_errors": manifest_errors,
         "report_errors": report_errors,
@@ -414,7 +476,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "validate-manifest":
         errors = validate_manifest(manifest)
-        result = {"schema": MANIFEST_SCHEMA, "version": VERSION, "valid": not errors, "errors": errors}
+        result = {
+            "schema": MANIFEST_SCHEMA,
+            "version": VERSION,
+            "valid": not errors,
+            "errors": errors,
+        }
         _emit(result, None, args.json)
         return 0 if not errors else 1
     if args.command == "smoke" and not args.report:

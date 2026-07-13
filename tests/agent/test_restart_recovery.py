@@ -144,9 +144,12 @@ def test_replayed_begin_and_resolution_do_not_create_new_attempts(tmp_path):
     pending = journal.begin(
         envelope, effect_id="effect-1", idempotency_key="idem-1", now_ns=2
     )
-    assert journal.begin(
-        envelope, effect_id="effect-1", idempotency_key="idem-1", now_ns=20
-    ) == pending
+    assert (
+        journal.begin(
+            envelope, effect_id="effect-1", idempotency_key="idem-1", now_ns=20
+        )
+        == pending
+    )
     committed = journal.resolve(
         envelope,
         effect_id="effect-1",
@@ -155,14 +158,17 @@ def test_replayed_begin_and_resolution_do_not_create_new_attempts(tmp_path):
         receipt=receipt,
         now_ns=3,
     )
-    assert journal.resolve(
-        envelope,
-        effect_id="effect-1",
-        idempotency_key="idem-1",
-        state=EffectState.COMMITTED,
-        receipt=receipt,
-        now_ns=30,
-    ) == committed
+    assert (
+        journal.resolve(
+            envelope,
+            effect_id="effect-1",
+            idempotency_key="idem-1",
+            state=EffectState.COMMITTED,
+            receipt=receipt,
+            now_ns=30,
+        )
+        == committed
+    )
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 

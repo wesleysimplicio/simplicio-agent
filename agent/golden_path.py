@@ -272,22 +272,28 @@ class GoldenPathHarness:
             "orient",
             self.transport.orient(str(self.scenario.workspace_root), fmt="json"),
         )
-        envelope = commit(envelope, envelope.transition(
-            TaskState.ORIENTED,
-            receipts=[self._record_step("orient", orient.to_dict())],
-            now_ns=1_001,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.ORIENTED,
+                receipts=[self._record_step("orient", orient.to_dict())],
+                now_ns=1_001,
+            ),
+        )
 
         plan_payload = {
             "task_id": task_id,
             "write_set": [str(path) for path in self.scenario.absolute_write_set],
             "delivery_target": self.scenario.delivery_target,
         }
-        envelope = commit(envelope, envelope.transition(
-            TaskState.PLANNED,
-            receipts=[self._record_step("plan", plan_payload)],
-            now_ns=1_002,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.PLANNED,
+                receipts=[self._record_step("plan", plan_payload)],
+                now_ns=1_002,
+            ),
+        )
 
         lease = self._require_ok(
             "lease",
@@ -296,17 +302,22 @@ class GoldenPathHarness:
                 workdir=str(self.scenario.workspace_root),
                 extra={
                     "lease": self.scenario.lease,
-                    "write_set": [str(path) for path in self.scenario.absolute_write_set],
+                    "write_set": [
+                        str(path) for path in self.scenario.absolute_write_set
+                    ],
                 },
             ),
         )
-        envelope = commit(envelope, envelope.transition(
-            TaskState.CLAIMED,
-            worker=self.scenario.worker,
-            lease=self.scenario.lease,
-            receipts=[self._record_step("lease", lease.to_dict())],
-            now_ns=1_003,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.CLAIMED,
+                worker=self.scenario.worker,
+                lease=self.scenario.lease,
+                receipts=[self._record_step("lease", lease.to_dict())],
+                now_ns=1_003,
+            ),
+        )
 
         mutation = self._require_ok(
             "mutation",
@@ -320,12 +331,15 @@ class GoldenPathHarness:
             raise GoldenPathError(
                 f"write_set mismatch: modified {modified!r} != expected {expected_write_set!r}"
             )
-        envelope = commit(envelope, envelope.transition(
-            TaskState.EXECUTING,
-            artifacts=list(modified),
-            receipts=[self._record_step("mutation", mutation.to_dict())],
-            now_ns=1_004,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.EXECUTING,
+                artifacts=list(modified),
+                receipts=[self._record_step("mutation", mutation.to_dict())],
+                now_ns=1_004,
+            ),
+        )
 
         validation = self._require_ok(
             "validation",
@@ -335,52 +349,60 @@ class GoldenPathHarness:
                 session_key=task_id,
             ),
         )
-        envelope = commit(envelope, envelope.transition(
-            TaskState.VALIDATING,
-            receipts=[self._record_step("validation", validation.to_dict())],
-            now_ns=1_005,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.VALIDATING,
+                receipts=[self._record_step("validation", validation.to_dict())],
+                now_ns=1_005,
+            ),
+        )
 
         requery = self._requery_final_state()
         requery_ref = self._record_step("requery", requery)
-        if validation.value.get("decision") != "allow" or not requery["matches_expected"]:
-            raise GoldenPathError(
-                "golden path did not produce a verified final state"
-            )
+        if (
+            validation.value.get("decision") != "allow"
+            or not requery["matches_expected"]
+        ):
+            raise GoldenPathError("golden path did not produce a verified final state")
         evidence_payload = {
             "validation_receipt": self._receipt_refs["validation"],
             "requery_receipt": requery_ref,
             "final_state": requery["observed"],
         }
         evidence_ref = self._record_step("evidence", evidence_payload)
-        envelope = commit(envelope, envelope.transition(
-            TaskState.EVIDENCE_READY,
-            receipts=[evidence_ref],
-            evidence_refs=[
-                self._receipt_refs["validation"],
-                requery_ref,
-                evidence_ref,
-            ],
-            now_ns=1_006,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.EVIDENCE_READY,
+                receipts=[evidence_ref],
+                evidence_refs=[
+                    self._receipt_refs["validation"],
+                    requery_ref,
+                    evidence_ref,
+                ],
+                now_ns=1_006,
+            ),
+        )
 
         delivery = self._require_ok(
             "delivery",
-            self.transport.ledger(
-                {
-                    "task_id": task_id,
-                    "delivery_target": self.scenario.delivery_target,
-                    "evidence_refs": list(envelope.evidence_refs),
-                }
-            ),
+            self.transport.ledger({
+                "task_id": task_id,
+                "delivery_target": self.scenario.delivery_target,
+                "evidence_refs": list(envelope.evidence_refs),
+            }),
         )
         delivery_ref = self._record_step("delivery", delivery.to_dict())
-        envelope = commit(envelope, envelope.transition(
-            TaskState.DELIVERED,
-            receipts=[delivery_ref],
-            delivery_target=self.scenario.delivery_target,
-            now_ns=1_007,
-        ))
+        envelope = commit(
+            envelope,
+            envelope.transition(
+                TaskState.DELIVERED,
+                receipts=[delivery_ref],
+                delivery_target=self.scenario.delivery_target,
+                now_ns=1_007,
+            ),
+        )
         envelope = commit(envelope, envelope.transition(TaskState.CLOSED, now_ns=1_008))
 
         evidence = {
@@ -422,10 +444,11 @@ class GoldenPathHarness:
                 },
             },
             "receipts": dict(self._receipt_refs),
-            "runtime_cli": runtime_cli
-            or {"available": False, "status": "not-probed"},
+            "runtime_cli": runtime_cli or {"available": False, "status": "not-probed"},
         }
-        evidence_path = self.scenario.workspace_root / "evidence" / "issue-211-golden-path.json"
+        evidence_path = (
+            self.scenario.workspace_root / "evidence" / "issue-211-golden-path.json"
+        )
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text(
             json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

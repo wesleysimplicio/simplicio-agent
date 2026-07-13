@@ -101,9 +101,7 @@ def test_golden_path_cli_healthy_runs_real_cli_transport(tmp_path, monkeypatch):
     assert result.envelope.write_set == (
         str((fixture_root / "workspace" / "state.txt").resolve()),
     )
-    assert result.final_state == {
-        "workspace/state.txt": "status=ready\nversion=2\n"
-    }
+    assert result.final_state == {"workspace/state.txt": "status=ready\nversion=2\n"}
     assert result.requery["matches_expected"] is True
     assert result.transport_health["cli_calls"] == 5
     assert result.transport_health["mcp_calls"] == 0
@@ -115,8 +113,15 @@ def test_golden_path_cli_healthy_runs_real_cli_transport(tmp_path, monkeypatch):
     evidence = json.loads(Path(result.evidence_path).read_text(encoding="utf-8"))
     assert evidence["proof"]["clean_machine_proof"] == "not_claimed"
     assert evidence["task"]["states"] == [
-        "received", "oriented", "planned", "claimed", "executing",
-        "validating", "evidence_ready", "delivered", "closed",
+        "received",
+        "oriented",
+        "planned",
+        "claimed",
+        "executing",
+        "validating",
+        "evidence_ready",
+        "delivered",
+        "closed",
     ]
     assert Path(result.receipt_files["lease"]).is_file()
     assert Path(result.receipt_files["mutation"]).is_file()

@@ -80,8 +80,16 @@ class EffectRecord:
         if self.schema != EFFECT_RECOVERY_SCHEMA:
             raise ValueError(f"unsupported effect schema {self.schema!r}")
         if self.schema_version != EFFECT_RECOVERY_SCHEMA_VERSION:
-            raise ValueError(f"unsupported effect schema version {self.schema_version!r}")
-        for name in ("effect_id", "task_id", "correlation_id", "idempotency_key", "envelope_hash"):
+            raise ValueError(
+                f"unsupported effect schema version {self.schema_version!r}"
+            )
+        for name in (
+            "effect_id",
+            "task_id",
+            "correlation_id",
+            "idempotency_key",
+            "envelope_hash",
+        ):
             if not getattr(self, name):
                 raise ValueError(f"{name} must be non-empty")
         if not isinstance(self.state, EffectState):
@@ -223,7 +231,9 @@ class EffectJournal:
                 record = EffectRecord.from_json(line)
                 self._accept(record, persist=False)
             except (EffectJournalCorruptError, EffectStateConflictError) as exc:
-                raise EffectJournalCorruptError(f"journal line {line_no}: {exc}") from exc
+                raise EffectJournalCorruptError(
+                    f"journal line {line_no}: {exc}"
+                ) from exc
 
     def _accept(self, record: EffectRecord, *, persist: bool) -> EffectRecord:
         key = self._key(record)
@@ -305,10 +315,17 @@ class EffectJournal:
         current = self._records.get(key)
         if current is None:
             raise KeyError(f"no pending effect {effect_id!r} for idempotency key")
-        if current.task_id != envelope.task_id or current.correlation_id != envelope.correlation_id:
-            raise EffectStateConflictError("effect does not belong to this task envelope")
+        if (
+            current.task_id != envelope.task_id
+            or current.correlation_id != envelope.correlation_id
+        ):
+            raise EffectStateConflictError(
+                "effect does not belong to this task envelope"
+            )
         if current.envelope_hash != envelope.content_hash():
-            raise EffectStateConflictError("effect envelope hash changed during recovery")
+            raise EffectStateConflictError(
+                "effect envelope hash changed during recovery"
+            )
         candidate = current.resolve(
             state, receipt=receipt, reason=reason, now_ns=now_ns
         )
@@ -323,9 +340,7 @@ class EffectJournal:
                     f"conflicting duplicate {state.value} observation"
                 )
             return current
-        return self.append(
-            candidate
-        )
+        return self.append(candidate)
 
     def latest(self, *, effect_id: str, idempotency_key: str) -> Optional[EffectRecord]:
         return self._records.get((effect_id, idempotency_key))
@@ -345,7 +360,10 @@ class EffectJournal:
                 reason="no durable effect record exists; commitment is unknown",
                 record=None,
             )
-        if record.task_id != envelope.task_id or record.correlation_id != envelope.correlation_id:
+        if (
+            record.task_id != envelope.task_id
+            or record.correlation_id != envelope.correlation_id
+        ):
             return RecoveryResult(
                 decision=RecoveryDecision.RECONCILE_UNKNOWN,
                 observed_state=EffectState.UNKNOWN,
@@ -370,7 +388,8 @@ class EffectJournal:
             return RecoveryResult(
                 decision=RecoveryDecision.RETRY,
                 observed_state=record.state,
-                reason=record.reason or "verifier confirmed the effect was not committed",
+                reason=record.reason
+                or "verifier confirmed the effect was not committed",
                 record=record,
             )
         return RecoveryResult(
