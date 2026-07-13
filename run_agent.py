@@ -5338,12 +5338,27 @@ class AIAgent:
         Dispatches to concurrent execution only for batches that look
         independent: read-only tools may always share the parallel path, while
         file reads/writes may do so only when their target paths do not overlap.
+
+        A batch whose arguments express ``$ref:<tool_call_id>`` dependencies
+        on another member of the SAME batch (issue #115) routes to the
+        dependency-aware DAG executor instead — level-parallel rather than
+        assumed-independent. A batch with no such references is completely
+        unaffected (``detect_tool_call_dag`` returns ``None`` and this falls
+        through to the existing independent-batch routing unchanged).
         """
         tool_calls = assistant_message.tool_calls
 
         # Allow _vprint during tool execution even with stream consumers
         self._executing_tools = True
         try:
+            from agent.tool_executor import detect_tool_call_dag, execute_tool_calls_dag
+
+            dag_nodes = detect_tool_call_dag(tool_calls)
+            if dag_nodes is not None:
+                return execute_tool_calls_dag(
+                    self, assistant_message, messages, effective_task_id, api_call_count
+                )
+
             if not _should_parallelize_tool_batch(tool_calls):
                 return self._execute_tool_calls_sequential(
                     assistant_message, messages, effective_task_id, api_call_count
