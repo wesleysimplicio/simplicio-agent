@@ -167,7 +167,9 @@ class TestApply:
         with patch.object(crs, "check_codex_binary_ok",
                           return_value=(True, "0.130.0")), \
              patch("hermes_cli.codex_runtime_plugin_migration.migrate") as mig:
-            mig.return_value.migrated = ["filesystem", "hermes-tools"]
+            # "simplicio-agent-tools" is the client-facing callback name
+            # (issue #204, rebrand from "hermes-tools").
+            mig.return_value.migrated = ["filesystem", "simplicio-agent-tools"]
             mig.return_value.migrated_plugins = []
             mig.return_value.plugin_query_error = None
             mig.return_value.wrote_permissions_default = ":workspace"
@@ -176,13 +178,42 @@ class TestApply:
             r = crs.apply(cfg, "codex_app_server")
         assert r.success
         assert mig.called  # migration was triggered
-        # User MCP servers are reported (excluding internal hermes-tools)
+        # User MCP servers are reported (excluding the internal
+        # simplicio-agent-tools callback)
         assert "Migrated 1 MCP server" in r.message
         assert "filesystem" in r.message
+        assert "simplicio-agent-tools" not in r.message.split("Migrated 1 MCP server(s): ")[-1].split("\n")[0]
         # Permissions default surfaces
         assert "Default sandbox: :workspace" in r.message
         # Hermes tool callback announcement
         assert "via MCP" in r.message
+        assert "Hermes tool callback registered" in r.message
+
+    def test_enable_reports_legacy_callback_name_without_extra_message(self):
+        """A migrate() report still carrying the pre-rename 'hermes-tools'
+        key (e.g. a stubbed/legacy caller) is excluded from the user-
+        facing server list the same way, even though the dedicated
+        "Hermes tool callback registered" line only fires for the new
+        client-facing name (issue #204)."""
+        cfg = {
+            "mcp_servers": {
+                "filesystem": {"command": "npx", "args": ["-y", "fs-server"]},
+            }
+        }
+        with patch.object(crs, "check_codex_binary_ok",
+                          return_value=(True, "0.130.0")), \
+             patch("hermes_cli.codex_runtime_plugin_migration.migrate") as mig:
+            mig.return_value.migrated = ["filesystem", "hermes-tools"]
+            mig.return_value.migrated_plugins = []
+            mig.return_value.plugin_query_error = None
+            mig.return_value.wrote_permissions_default = ":workspace"
+            mig.return_value.errors = []
+            mig.return_value.target_path = "/fake/.codex/config.toml"
+            r = crs.apply(cfg, "codex_app_server")
+        assert r.success
+        assert "Migrated 1 MCP server" in r.message
+        assert "filesystem" in r.message
+        assert "hermes-tools" not in r.message.split("Migrated 1 MCP server(s): ")[-1].split("\n")[0]
 
     def test_disable_does_not_trigger_migration(self):
         """Switching back to auto must not write to ~/.codex/."""
