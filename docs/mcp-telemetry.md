@@ -140,3 +140,85 @@ assert session.overall_savings_pct == 80.0
 |----------|---------|-------------|
 | `HERMES_MCP_TELEMETRY_DIR` | `~/.hermes/telemetry/mcp_sessions/` | Override ledger directory |
 | `HERMES_TELEMETRY_LOG` | `~/.hermes/telemetry.jsonl` | Stage timer log path |
+| `HERMES_TOKEN_SAVINGS_LOG` | `~/.hermes/telemetry/token_savings.jsonl` | Override the savings JSONL log path (also honored by the `savings` MCP tool below) |
+
+## `savings` MCP tool (issue #98 Fase 3)
+
+Hermes can read and record token-savings events directly over MCP, without
+shelling out to `python -m agent.telemetry.savings_report` or wiring up
+`record_token_saving()` via the terminal tool. This closes the post-task
+loop entirely inside the MCP transport that `mcp_serve.py` exposes.
+
+The tool takes a single `action` argument (`"read"` or `"record"`) and
+always returns a JSON string with an explicit `"success"` field — an
+unavailable telemetry stack, a malformed `since` window, or missing
+`record` arguments all come back as an honest `"error"`, never a
+fabricated success.
+
+### `action="read"`
+
+Aggregates the JSONL ledger (`agent.telemetry.token_savings.iter_records`)
+into the same report shape produced by
+`agent.telemetry.savings_report.build_report` / the
+`simplicio-savings-report --json` CLI.
+
+```json
+{"action": "read", "since": "7d"}
+```
+
+```json
+{
+  "success": true,
+  "report": {
+    "window": {"since_days": 7.0, "until": "...", "records": 2},
+    "totals": {
+      "raw_tokens": 1500, "saved_tokens": 1200,
+      "compressed_tokens": 300, "calls": 2,
+      "overall_savings_pct": 80.0, "estimated_usd_saved": 0.0024
+    },
+    "by_adapter": {"...": {"raw": 0, "saved": 0, "calls": 0, "usd": 0.0}},
+    "by_tool": {"...": {"raw": 0, "saved": 0, "calls": 0}},
+    "by_day": {"...": {"raw": 0, "saved": 0, "calls": 0}}
+  }
+}
+```
+
+`since` accepts the same `Nd`/`Nh`/`Nw`/`Nm` window syntax as the CLI's
+`--since` flag (default `7d`). An invalid window (e.g. `"since": "soon"`)
+is returned as `{"success": false, "error": "..."}`, never silently
+defaulted.
+
+### `action="record"`
+
+Appends one event via `agent.telemetry.token_savings.record_token_saving`.
+`raw_tokens` and `compressed_tokens` are required; `tool`, `command`,
+`adapter`, `session`, and `repo` are optional labels (default to `"mcp"` /
+`"unknown"`).
+
+```json
+{
+  "action": "record",
+  "raw_tokens": 1000,
+  "compressed_tokens": 250,
+  "tool": "browser",
+  "adapter": "anthropic"
+}
+```
+
+```json
+{
+  "success": true,
+  "recorded": {
+    "raw_tokens": 1000, "compressed_tokens": 250, "saved_tokens": 750,
+    "tool": "browser", "command": "unknown", "adapter": "anthropic",
+    "session": "unknown", "repo": "unknown", "ts": "...", "savings_pct": 75.0
+  }
+}
+```
+
+Omitting either `raw_tokens` or `compressed_tokens` returns
+`{"success": false, "error": "savings action 'record' requires 'raw_tokens' and 'compressed_tokens'"}`.
+
+See `mcp_serve._dispatch_savings_action` for the implementation and
+`tests/test_mcp_serve.py::TestE2ESavingsBridge` for the happy-path and
+error-path test coverage.
