@@ -9,38 +9,62 @@ error() { echo -e "${R}[✗]${N} $1"; }
 
 echo -e "${B}=== Verificação da ponte MCP Simplicio Agent ↔ Simplicio Runtime ===${N}\n"
 
-# 1. Simplicio binary
+# 1. Simplicio binary (canonical shim, issue #96)
+#
+# Previously this hardcoded /Users/wesleysimplicio/.local/bin/simplicio --
+# a single developer's macOS home -- so the check was structurally broken
+# on any other machine (always "não encontrado", regardless of the real
+# state). Resolve dynamically via $HOME instead, and explicitly FAIL (not
+# just warn) when the PATH/canonical shim points at a target that no
+# longer exists, per issue #96's acceptance criteria.
 echo "1. Simplicio Runtime"
+CANONICAL_SIMPLICIO="${HOME}/.local/bin/simplicio"
 RESOLVED_SIMPLICIO="$(command -v simplicio 2>/dev/null || true)"
+
 if [ -n "$RESOLVED_SIMPLICIO" ]; then
-  info "command -v simplicio -> $RESOLVED_SIMPLICIO"
+  if [ -x "$RESOLVED_SIMPLICIO" ] && "$RESOLVED_SIMPLICIO" version >/dev/null 2>&1; then
+    info "command -v simplicio -> $RESOLVED_SIMPLICIO (executa)"
+  else
+    error "PATH resolve simplicio para um alvo ausente/quebrado: $RESOLVED_SIMPLICIO"
+    exit 1
+  fi
 else
   warn "simplicio não está no PATH"
 fi
 
-if [ -x /Users/wesleysimplicio/.local/bin/simplicio ]; then
-  if /Users/wesleysimplicio/.local/bin/simplicio version >/dev/null 2>&1; then
-    info "Binário canônico executa: /Users/wesleysimplicio/.local/bin/simplicio"
+if [ -L "$CANONICAL_SIMPLICIO" ] && [ ! -e "$CANONICAL_SIMPLICIO" ]; then
+  error "Shim canônico é um symlink quebrado: $CANONICAL_SIMPLICIO -> $(readlink "$CANONICAL_SIMPLICIO") (alvo ausente)"
+  exit 1
+elif [ -x "$CANONICAL_SIMPLICIO" ]; then
+  if "$CANONICAL_SIMPLICIO" version >/dev/null 2>&1; then
+    info "Binário canônico executa: $CANONICAL_SIMPLICIO"
   else
-    error "Binário canônico existe, mas falha ao executar"
+    error "Binário canônico existe, mas falha ao executar: $CANONICAL_SIMPLICIO"
+    exit 1
   fi
 else
-  error "Binário canônico não encontrado: /Users/wesleysimplicio/.local/bin/simplicio"
+  warn "Binário canônico ainda não instalado: $CANONICAL_SIMPLICIO (rode ./setup-hermes.sh ou simplicio-agent doctor --fix)"
 fi
 
-if [ -n "$RESOLVED_SIMPLICIO" ] && [ "$RESOLVED_SIMPLICIO" != "/Users/wesleysimplicio/.local/bin/simplicio" ]; then
-  warn "PATH está preferindo $RESOLVED_SIMPLICIO em vez do binário canônico"
+if [ -n "$RESOLVED_SIMPLICIO" ] && [ "$RESOLVED_SIMPLICIO" != "$CANONICAL_SIMPLICIO" ]; then
+  warn "PATH está preferindo $RESOLVED_SIMPLICIO em vez do binário canônico ($CANONICAL_SIMPLICIO)"
 fi
 
-# 2. MCP serve test
+# 2. MCP serve test — exercise whatever binary actually resolved above (the
+# installed binary), not a hardcoded path assumed to be a source checkout.
 echo -e "\n2. MCP serve"
-MCP_OUT=$(printf '%s\n%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.6","capabilities":{}}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | /Users/wesleysimplicio/.local/bin/simplicio serve --mcp --stdio 2>/dev/null)
-if echo "$MCP_OUT" | grep -q "simplicio_map"; then
-  TOOL_COUNT=$(echo "$MCP_OUT" | grep -o '"name":"simplicio_[a-z]*"' | sort -u | wc -l | tr -d ' ')
-  info "simplicio serve --mcp --stdio: OK ($TOOL_COUNT tools)"
+MCP_BIN="${RESOLVED_SIMPLICIO:-$CANONICAL_SIMPLICIO}"
+if [ ! -x "$MCP_BIN" ]; then
+  warn "Pulando teste MCP serve — nenhum binário simplicio executável encontrado ($MCP_BIN)"
 else
-  error "Falha no MCP serve"
-  echo "$MCP_OUT" | head -5
+  MCP_OUT=$(printf '%s\n%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"0.6","capabilities":{}}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | "$MCP_BIN" serve --mcp --stdio 2>/dev/null)
+  if echo "$MCP_OUT" | grep -q "simplicio_map"; then
+    TOOL_COUNT=$(echo "$MCP_OUT" | grep -o '"name":"simplicio_[a-z]*"' | sort -u | wc -l | tr -d ' ')
+    info "simplicio serve --mcp --stdio: OK ($TOOL_COUNT tools)"
+  else
+    error "Falha no MCP serve"
+    echo "$MCP_OUT" | head -5
+  fi
 fi
 
 # 3. Simplicio Agent + MCP SDK

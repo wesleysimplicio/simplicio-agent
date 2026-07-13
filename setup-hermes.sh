@@ -509,6 +509,33 @@ if ! repair_simplicio_binary; then
     echo "    Verifique: $BIN_DIR/simplicio e $SIMPLICIO_RUNTIME_DIR/target/release/simplicio"
 fi
 
+# ── Canonical PATH shim (issue #96) ─────────────────────────────────────
+# Whatever the strategy above produced (already installed / npm / download /
+# repair), verify — and idempotently re-wire — that `command -v simplicio`
+# and `simplicio version` resolve deterministically to $BIN_DIR/simplicio
+# instead of trusting a step above blindly. tools/runtime_manager.py owns
+# this logic (shared with `simplicio-agent doctor --fix`) so there is one
+# resolution algorithm, not a bash copy of the Python one.
+if [ -x "$SETUP_PYTHON" ]; then
+    "$SETUP_PYTHON" - <<'PYEOF'
+import sys
+sys.path.insert(0, ".")
+try:
+    from tools.runtime_manager import canonical_symlink_path, runtime_status, sync_canonical_symlink
+    status = runtime_status()
+    err = sync_canonical_symlink(status)
+    link = canonical_symlink_path()
+    if err:
+        print(f"[simplicio-bootstrap] AVISO: {link} nao sincronizado ({err})")
+    elif status.present:
+        print(f"[simplicio-bootstrap] OK: {link} -> {status.bin_path} (v{status.version or '?'})")
+    else:
+        print("[simplicio-bootstrap] simplicio kernel ainda nao resolve — rode 'simplicio-agent doctor --fix'")
+except Exception as exc:  # never fail setup on this best-effort step
+    print(f"[simplicio-bootstrap] verificacao pulada: {exc}")
+PYEOF
+fi
+
 # ── 2. Python ecosystem (PyPI) ──────────────────────────────────────────
 echo -e "${CYAN}→${NC} Instalando ecossistema Python do Simplicio..."
 "$SETUP_PYTHON" -m pip install simplicio-cli simplicio-mapper --quiet 2>/dev/null && \
