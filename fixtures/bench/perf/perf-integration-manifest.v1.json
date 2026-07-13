@@ -202,6 +202,7 @@
             "agent.serde.fast_json:dumps/loads"
           ],
           "ok": true,
+          "reason": "backend=orjson; encode=called; decode=called; round_trip=pass",
           "status": "pass"
         },
         "PACKAGED": {

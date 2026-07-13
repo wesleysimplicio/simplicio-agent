@@ -73,6 +73,7 @@ def test_fixture_is_a_valid_committed_v1_document() -> None:
     assert FIXTURE.is_file()
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))
     assert validate_manifest(document, REPO_ROOT) == []
+    assert document == generate_manifest(REPO_ROOT)
 
 
 def test_cli_generate_and_validate(tmp_path: Path) -> None:
