@@ -1,0 +1,5 @@
+approval:
+  denied: "Hermes negou o comando."
+gateway:
+  reset:
+    header_default: "Simplicio Agent reiniciado pelo Hermes."
