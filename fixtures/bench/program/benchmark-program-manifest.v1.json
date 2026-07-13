@@ -1,0 +1,97 @@
+{
+  "schema": "simplicio.local-benchmark-program-manifest/v1",
+  "version": 1,
+  "program_id": "local-benchmark-program-v1",
+  "description": "Synthetic local fixtures for validating stage budgets and regression comparison.",
+  "execution": {
+    "mode": "synthetic_fixture",
+    "network": "disabled",
+    "capability_claims": false
+  },
+  "stages": [
+    {
+      "id": "prepare",
+      "description": "Load a repository-local fixture.",
+      "budgets": {
+        "max_duration_ms": 100,
+        "max_tokens": 0
+      },
+      "metrics": [
+        {
+          "id": "duration_ms",
+          "unit": "milliseconds",
+          "direction": "lower_is_better",
+          "tolerance": 0.2,
+          "budget_key": "max_duration_ms"
+        },
+        {
+          "id": "tokens",
+          "unit": "tokens",
+          "direction": "informational",
+          "tolerance": 0,
+          "budget_key": "max_tokens"
+        }
+      ]
+    },
+    {
+      "id": "execute",
+      "description": "Run a deterministic local transformation.",
+      "budgets": {
+        "max_duration_ms": 250,
+        "max_tokens": 32
+      },
+      "metrics": [
+        {
+          "id": "duration_ms",
+          "unit": "milliseconds",
+          "direction": "lower_is_better",
+          "tolerance": 0.2,
+          "budget_key": "max_duration_ms"
+        },
+        {
+          "id": "tokens",
+          "unit": "tokens",
+          "direction": "lower_is_better",
+          "tolerance": 0.1,
+          "budget_key": "max_tokens"
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "description": "Check the expected local fixture output.",
+      "budgets": {
+        "max_duration_ms": 100,
+        "max_tokens": 0
+      },
+      "metrics": [
+        {
+          "id": "duration_ms",
+          "unit": "milliseconds",
+          "direction": "lower_is_better",
+          "tolerance": 0.2,
+          "budget_key": "max_duration_ms"
+        },
+        {
+          "id": "tokens",
+          "unit": "tokens",
+          "direction": "informational",
+          "tolerance": 0,
+          "budget_key": "max_tokens"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "local.echo",
+      "fixture": "fixtures/bench/program/local-echo.json",
+      "stages": ["prepare", "execute", "verify"]
+    },
+    {
+      "id": "local.sort",
+      "fixture": "fixtures/bench/program/local-sort.json",
+      "stages": ["prepare", "execute", "verify"]
+    }
+  ]
+}

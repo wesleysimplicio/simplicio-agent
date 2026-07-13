@@ -1,0 +1,136 @@
+{
+  "schema": "simplicio.runtime-mcp-parity",
+  "version": 1,
+  "scope": "bounded Runtime command parity slice; this is not the full 111-signature surface",
+  "evidence": [
+    {
+      "surface": "cli_help",
+      "kind": "snapshot",
+      "source": "docs/SIMPLICIO_COMMAND_SURFACE.md",
+      "version": "3.5.0"
+    },
+    {
+      "surface": "mcp_doctor",
+      "kind": "snapshot",
+      "source": "simplicio doctor --json (mcp-host-registration)",
+      "version": "3.5.0"
+    }
+  ],
+  "known_commands": [
+    "doctor",
+    "map",
+    "memory",
+    "edit",
+    "run",
+    "validate",
+    "status",
+    "capabilities",
+    "intake",
+    "plan",
+    "agents",
+    "savings"
+  ],
+  "known_tools": [
+    "simplicio_map",
+    "simplicio_memory",
+    "simplicio_edit"
+  ],
+  "rows": [
+    {
+      "command": "doctor",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio doctor --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "map",
+      "mcp_tool": "simplicio_map",
+      "cli_fallback": "simplicio map --repo <path> --json",
+      "route": "mcp",
+      "evidence": ["cli_help", "mcp_doctor"],
+      "notes": "Native Runtime MCP registration reported by doctor."
+    },
+    {
+      "command": "memory",
+      "mcp_tool": "simplicio_memory",
+      "cli_fallback": "simplicio memory status --json",
+      "route": "mcp",
+      "evidence": ["cli_help", "mcp_doctor"],
+      "notes": "Native Runtime MCP registration reported by doctor."
+    },
+    {
+      "command": "edit",
+      "mcp_tool": "simplicio_edit",
+      "cli_fallback": "simplicio edit --plan <plan.json> --repo <path> --json",
+      "route": "mcp",
+      "evidence": ["cli_help", "mcp_doctor"],
+      "notes": "Native Runtime MCP registration reported by doctor."
+    },
+    {
+      "command": "run",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio run \"<task>\" --repo <path> --evidence",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "CLI is the proven route in this bounded slice."
+    },
+    {
+      "command": "validate",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio validate \"<task>\" --repo <path> --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "status",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio status --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "capabilities",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio capabilities list --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "intake",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio intake \"<task>\" --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "plan",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio plan \"<task>\" --repo <path> --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "agents",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio agents status --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    },
+    {
+      "command": "savings",
+      "mcp_tool": null,
+      "cli_fallback": "simplicio savings report --json",
+      "route": "cli_fallback",
+      "evidence": ["cli_help"],
+      "notes": "No typed Runtime MCP tool was present in the local MCP snapshot."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "simplicio.local-benchmark-program-report/v1",
+  "version": 1,
+  "report_id": "local-baseline-v1",
+  "manifest_id": "local-benchmark-program-v1",
+  "execution": {
+    "mode": "synthetic_fixture",
+    "network": "disabled"
+  },
+  "cases": [
+    {
+      "case_id": "local.echo",
+      "status": "pass",
+      "stages": [
+        {"stage_id": "prepare", "status": "pass", "metrics": {"duration_ms": 10, "tokens": 0}},
+        {"stage_id": "execute", "status": "pass", "metrics": {"duration_ms": 30, "tokens": 4}},
+        {"stage_id": "verify", "status": "pass", "metrics": {"duration_ms": 5, "tokens": 0}}
+      ]
+    },
+    {
+      "case_id": "local.sort",
+      "status": "pass",
+      "stages": [
+        {"stage_id": "prepare", "status": "pass", "metrics": {"duration_ms": 10, "tokens": 0}},
+        {"stage_id": "execute", "status": "pass", "metrics": {"duration_ms": 40, "tokens": 6}},
+        {"stage_id": "verify", "status": "pass", "metrics": {"duration_ms": 5, "tokens": 0}}
+      ]
+    }
+  ]
+}

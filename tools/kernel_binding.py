@@ -464,7 +464,9 @@ def _run_kernel(
 
     stdout = (proc.stdout or "").strip()
     if not stdout:
-        return {}
+        raise KernelBindingError(
+            f"kernel returned empty output for {args[:2]}; refusing to infer success"
+        )
     try:
         parsed = json.loads(stdout)
     except json.JSONDecodeError as exc:
@@ -662,6 +664,11 @@ def evaluate_action_gate(
             ],
             timeout=8.0,
         )
+        decision = str(result.get("decision", "")).strip().lower()
+        if decision not in {"allow", "ask", "deny", "block", "blocked"}:
+            raise KernelBindingError(
+                "kernel gate response did not contain a recognized decision"
+            )
     except KernelBindingError as exc:
         logger.warning("kernel_binding.action_gate: gate classify failed: %s", exc)
         if mode == "required":
@@ -678,7 +685,6 @@ def evaluate_action_gate(
             }
         return None
 
-    decision = str(result.get("decision", "")).strip().lower()
     if decision in {"deny", "block", "blocked"}:
         reason = str(result.get("reason") or result.get("message") or "kernel denied")
         emit_savings_event("gate", "kernel_denied", reason[:300])
@@ -698,26 +704,61 @@ def evaluate_action_gate(
 # docs/architecture/ADR-0001-kernel-checkpoint-binding.md)
 # ---------------------------------------------------------------------------
 
-def mirror_checkpoint(label: str, *, workdir: str = "", extra: Optional[dict] = None) -> None:
+def mirror_checkpoint(label: str, *, workdir: str = "", extra: Optional[dict] = None) -> bool:
     """Best-effort mirror of a ``tools/checkpoint_manager`` snapshot into the
-    kernel's evidence ledger. Never raises, never blocks the real
-    (git-shadow-store) checkpoint -- see the ADR for why the kernel does not
-    own the snapshot mechanism."""
+    kernel's evidence ledger.
+
+    Returns ``True`` only when the runtime explicitly acknowledges a record.
+    In ``required`` mode, an unavailable kernel or an unacknowledged response
+    raises :class:`KernelBindingError`; ``checkpoint_manager`` still owns the
+    real shadow-git checkpoint and decides whether that mirror error is fatal.
+    """
     cfg = get_binding_config("checkpoint")
-    if cfg["mode"] == "off" or not is_kernel_available():
-        if cfg["mode"] != "off":
-            logger.debug("kernel_binding.checkpoint: kernel not found on PATH, skipping mirror")
-        return
+    if cfg["mode"] == "off":
+        return False
+    kernel_ok, kernel_detail = _kernel_verified()
+    if not kernel_ok:
+        message = (
+            "kernel_binding.checkpoint: no healthy kernel "
+            f"({kernel_detail or 'not found'})"
+        )
+        if cfg["mode"] == "required":
+            raise KernelBindingError(message)
+        logger.debug("%s -- skipping optional mirror", message)
+        return False
     try:
         payload = {"label": label, "workdir": workdir, **(extra or {})}
-        _run_kernel(
+        result = _run_kernel(
             ["checkpoint", "record", "--json"],
             timeout=5.0,
             input_data=json.dumps(payload),
         )
+        if not _checkpoint_record_acknowledged(result):
+            raise KernelBindingError(
+                "kernel checkpoint response did not acknowledge a record"
+            )
         emit_savings_event("gate", "checkpoint_mirrored", label[:200])
+        return True
     except KernelBindingError as exc:
-        logger.debug("kernel_binding.checkpoint: mirror failed (non-fatal): %s", exc)
+        if cfg["mode"] == "required":
+            raise
+        logger.debug("kernel_binding.checkpoint: mirror skipped: %s", exc)
+        return False
+
+
+def _checkpoint_record_acknowledged(result: dict) -> bool:
+    """Accept only an explicit checkpoint-record acknowledgement.
+
+    A successful process exit or an arbitrary JSON object is insufficient:
+    older runtimes can answer an unsupported ``record`` request with a
+    listing payload.  The binding must never turn that into a false receipt.
+    """
+    if result.get("recorded") is True:
+        return True
+    return (
+        result.get("op") == "record"
+        and bool(result.get("checkpoint_id") or result.get("id"))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -758,8 +799,28 @@ def edit_mechanical(plan: dict) -> Optional[dict]:
             raise
         logger.warning("kernel_binding.mechanical_edit: edit call failed, falling back: %s", exc)
         return None
+    if not _mechanical_edit_acknowledged(result):
+        exc = KernelBindingError(
+            "kernel edit response did not acknowledge an applied edit"
+        )
+        emit_savings_event("mechanical_edit", "kernel_unacknowledged", str(exc))
+        if cfg["mode"] == "required":
+            raise exc
+        logger.warning("%s -- falling back to LLM-authored edit", exc)
+        return None
     emit_savings_event("mechanical_edit", "applied", plan.get("file", "")[:300])
     return result
+
+
+def _mechanical_edit_acknowledged(result: dict) -> bool:
+    """Accept only an explicit edit-success marker from the runtime."""
+    if result.get("applied") is True:
+        return True
+    return str(result.get("status", "")).strip().lower() in {
+        "ok",
+        "applied",
+        "success",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -811,15 +872,25 @@ def ledger_append(event: dict) -> bool:
     """Append an event to the kernel's HBP evidence ledger. Returns whether
     the append succeeded; never raises."""
     cfg = get_binding_config("ledger")
-    if cfg["mode"] == "off" or not is_kernel_available():
+    kernel_ok, kernel_detail = _kernel_verified()
+    if cfg["mode"] == "off" or not kernel_ok:
+        if cfg["mode"] != "off" and kernel_detail:
+            logger.debug("kernel_binding.ledger: kernel unavailable: %s", kernel_detail)
         return False
     try:
-        _run_kernel(
+        result = _run_kernel(
             ["ledger", "append", "--json"],
             timeout=8.0,
             input_data=json.dumps(event),
         )
-        return True
+        return _ledger_append_acknowledged(result)
     except KernelBindingError as exc:
         logger.debug("kernel_binding.ledger: append failed (non-fatal): %s", exc)
         return False
+
+
+def _ledger_append_acknowledged(result: dict) -> bool:
+    """Accept only an explicit ledger append acknowledgement."""
+    if result.get("appended") is True:
+        return True
+    return result.get("op") == "append" and bool(result.get("event_id"))
