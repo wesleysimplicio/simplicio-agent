@@ -178,11 +178,80 @@ jobs:
           retention-days: 14
 
   ##########################################################################
+  # RUST WHEELS: Build hermes_fast (rust_ext/) wheels with maturin — #113
+  #
+  # Scoped to manylinux x86_64 only for this PR (see issue #113 discussion).
+  # aarch64/macOS/Windows wheels are a follow-up once this path is proven;
+  # the pure-Python fallback in agent/_hermes_fast.py keeps every other
+  # platform working exactly as before (this job is purely additive).
+  ##########################################################################
+  build-rust-ext-wheel:
+    name: Build hermes_fast wheel (manylinux x86_64) 🦀
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.confirm_tag || github.ref }}
+          fetch-tags: true
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Build wheels with maturin (manylinux2014 x86_64)
+        id: maturin
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          working-directory: rust_ext
+          target: x86_64
+          manylinux: auto
+          args: --release --out dist --find-interpreter
+
+      - name: List built wheels + record size (issue #113 wheel-size guardrail)
+        run: |
+          set -euo pipefail
+          ls -la rust_ext/dist/
+          echo "### hermes_fast wheel sizes" >> "$GITHUB_STEP_SUMMARY"
+          for whl in rust_ext/dist/*.whl; do
+            SIZE_KB=$(du -k "$whl" | cut -f1)
+            echo "- \`$(basename "$whl")\`: ${SIZE_KB} KiB" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Install built wheel + test dependencies
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/rust-ext-test-venv
+          source /tmp/rust-ext-test-venv/bin/activate
+          pip install --quiet rust_ext/dist/*.whl
+          pip install --quiet pytest
+          python3 -c "import hermes_fast; print('hermes_fast loaded from', hermes_fast.__file__)"
+
+      - name: Run test_hermes_fast.py against the compiled extension (AC #113)
+        env:
+          # Also exercise the Rust estimate/truncate path (opt-in in
+          # production, but worth covering here since the wheel is built).
+          HERMES_RUST_ESTIMATES: "1"
+        run: |
+          set -euo pipefail
+          source /tmp/rust-ext-test-venv/bin/activate
+          python3 -m pytest tests/agent/test_hermes_fast.py -v
+
+      - name: Upload hermes_fast wheel artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.2.0
+        with:
+          name: hermes-fast-wheels
+          path: rust_ext/dist/*.whl
+          retention-days: 14
+
+  ##########################################################################
   # PUBLISH: Create GitHub Release + FTP upload
   ##########################################################################
   publish:
     name: Publish release 🚀
-    needs: build
+    needs: [build, build-rust-ext-wheel]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # create/update GitHub Release
@@ -192,6 +261,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-artifacts
+          path: ./release_dist
+
+      - name: Download hermes_fast wheel artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: hermes-fast-wheels
           path: ./release_dist
 
       - name: List artifacts
@@ -213,6 +288,16 @@ jobs:
 
           This release includes a standalone binary built with PyInstaller,
           signed with ed25519, with SHA256 checksums.
+
+          **\`hermes_fast\` native extension (manylinux x86_64):**
+
+          A prebuilt \`hermes_fast-*.whl\` (Rust hot-path extension, see
+          \`rust_ext/\`) is attached below. Install it into the same
+          environment as \`hermes-agent\`/\`simplicio-agent\` with
+          \`pip install hermes_fast-*.whl\` to get the native streaming
+          tool-call parser without a Rust toolchain on the target machine.
+          Other platforms keep working via the pure-Python fallback in
+          \`agent/_hermes_fast.py\` — this wheel is additive, never required.
 
           ### Verification
 

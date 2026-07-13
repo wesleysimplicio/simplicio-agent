@@ -128,8 +128,17 @@ decision; revisit only if Google OAuth login is wanted as a provider plugin.
   `hermes_cli.config` alone ≈0.24 s). Roadmap issue #58.
 - TOON default-on for new sessions (`HERMES_SIMPLICIO_PROMPT`), session-
   pinned (cache-sacred).
-- Prebuilt Rust wheels (maturin) in the release CI so `rust_ext` stops
-  being a dev-only build.
+- ~~Prebuilt Rust wheels (maturin) in the release CI so `rust_ext` stops
+  being a dev-only build.~~ **Landed (partial) 2026-07-13** (#113):
+  `.github/workflows/release.yml`'s `build-rust-ext-wheel` job builds a
+  `hermes_fast` manylinux **x86_64-only** wheel with `maturin-action` and
+  attaches it to the GitHub Release; `tests/agent/test_hermes_fast.py`
+  gained real-extension assertions (`requires_rust_extension`, skipped
+  when the wheel isn't installed) that this job now exercises for real
+  instead of only ever hitting the pure-Python fallback in CI.
+  aarch64/macOS/Windows wheels are intentionally out of scope for this PR —
+  scoped down to keep the change reviewable; see issue #113 for the
+  follow-up matrix.
 
 ### B3 — proof
 - CI perf-regression gate: `scripts/benchmark_e2e.py --json` +
