@@ -80,6 +80,25 @@ jobs:
       - name: Build wheel and sdist
         run: uv build --sdist --wheel
 
+      - name: Rename guard — scan packaged wheel + sdist (issue #194)
+        # Fails-closed: blocks publish if either published artifact contains
+        # a new, unclassified old-brand occurrence not covered by
+        # tools/rename_guard/allowlist.json.
+        run: |
+          set -o pipefail
+          python3 -m tools.rename_guard.artifact_scan \
+            --wheel "$(ls dist/*.whl | head -n1)" \
+            --sdist "$(ls dist/*.tar.gz | head -n1)" \
+            --json | tee rename-guard-artifact-report.json
+
+      - name: Upload rename-guard artifact report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rename-guard-artifact-report
+          path: rename-guard-artifact-report.json
+          retention-days: 14
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

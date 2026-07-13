@@ -103,6 +103,8 @@ jobs:
     name: Rename guard
     needs: detect
     uses: ./.github/workflows/rename-guard.yml
+    with:
+      event_name: ${{ needs.detect.outputs.event_name }}
 
   docker-lint:
     name: Lint Docker scripts
