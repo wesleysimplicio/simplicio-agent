@@ -68,7 +68,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIMPLICIO_REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ECOSYSTEM_SYNC="$SIMPLICIO_REPO/scripts/sync/ecosystem-sync.sh"
-HERMES_IMPORT_DIR="$SIMPLICIO_REPO/docs/hermes-import"
+HERMES_IMPORT_DIR="$SIMPLICIO_REPO/docs/simplicio-import"
 
 TURBO_REPO="${TURBO_REPO:-$HOME/Projetos/ai/hermes-turbo-agent}"
 HERMES_UPSTREAM="${HERMES_UPSTREAM:-https://github.com/NousResearch/hermes-agent.git}"
@@ -379,7 +379,7 @@ cmd_upstream() {
     log_review "Candidatos a import encontrados. Para cada item perf:"
     log_review "  1. Crie uma issue-espelho no GitHub com benchmark A/B definido"
     log_review "  2. Implemente o import via: scripts/sync/ecosystem-sync.sh simplicio-pull-perf"
-    log_review "  3. Atualize docs/hermes-import/turbo-import-matrix.md"
+    log_review "  3. Atualize docs/simplicio-import/turbo-import-matrix.md"
     log_review "Para features não-perf: avalie manualmente a relevância para simplicio-agent"
   fi
 
@@ -843,7 +843,7 @@ cmd_status() {
     log_warn "  ecosystem-sync.sh — AUSENTE"
   fi
   log_ok "  import.sh (este script, $(wc -l < "$SCRIPT_DIR/import.sh") linhas)"
-  log_ok "  docs/hermes-import/ ($(find "$HERMES_IMPORT_DIR" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') documento(s))"
+  log_ok "  docs/simplicio-import/ ($(find "$HERMES_IMPORT_DIR" -name "*.md" 2>/dev/null | wc -l | tr -d ' ') documento(s))"
   echo ""
 
   log "Próximos passos sugeridos:"
@@ -877,7 +877,7 @@ Subcomandos (Estágios do Pipeline):
               sincroniza repos, valida schemas simplicio.*/v1.
 
 Transversais:
-  audit       Exibir histórico de todos os imports registrados (docs/hermes-import/)
+  audit       Exibir histórico de todos os imports registrados (docs/simplicio-import/)
   gate        Verificar dívida de sync — issues-espelho abertas > threshold (padrão: 30 dias)
   status      Resumo completo do pipeline: o que foi importado e o que está pendente
 
@@ -906,7 +906,7 @@ Referências:
   Issue #19   — F1 inventário (política de import)
   Issue #62   — governança do pipeline
   Issue #56   — denylist CLI-only
-  docs/hermes-import/ — logs de auditoria de import
+  docs/simplicio-import/ — logs de auditoria de import
   scripts/sync/ecosystem-sync.sh — orquestrador de sync subjacente
   docs/SYNC_PIPELINE.md — documentação do pipeline de sync
 EOF

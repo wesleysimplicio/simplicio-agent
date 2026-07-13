@@ -18,7 +18,7 @@
   `cli_name()` / `invoked_via_deprecated_alias()` in `hermes_constants.py`.
 - ~3,200 user-facing `hermes <cmd>` strings mechanically replaced with
   `simplicio-agent <cmd>` across .py/.md/.sh/.ps1/.yml (history excluded:
-  CHANGELOG, ADRs, docs/hermes-import, TOON-CONTRACT). The
+  CHANGELOG, ADRs, docs/simplicio-import, TOON-CONTRACT). The
   dashboard/serve process-reaper in `hermes_cli/main.py` now matches BOTH
   command names.
 - Fast-by-default: `[all]` extra now includes `[fast]` (orjson/msgspec/
