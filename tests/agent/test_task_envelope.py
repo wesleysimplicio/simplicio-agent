@@ -83,8 +83,12 @@ def test_e2e_happy_path_to_closed_with_evidence():
         TaskState.VALIDATING,
     ):
         env = env.transition(state)
-    env = env.transition(TaskState.EVIDENCE_READY, evidence_refs=["receipt://test-run-1"])
-    env = env.transition(TaskState.DELIVERED, delivery_target="pr://simplicio-agent/999")
+    env = env.transition(
+        TaskState.EVIDENCE_READY, evidence_refs=["receipt://test-run-1"]
+    )
+    env = env.transition(
+        TaskState.DELIVERED, delivery_target="pr://simplicio-agent/999"
+    )
     env = env.transition(TaskState.CLOSED)
 
     assert env.state is TaskState.CLOSED
@@ -133,8 +137,10 @@ def test_terminal_states_have_no_outgoing_transitions():
 
 
 def test_blocked_can_resume_into_canonical_chain():
-    env = _make().transition(TaskState.ORIENTED).transition(
-        TaskState.BLOCKED, block_reason="waiting on dependency"
+    env = (
+        _make()
+        .transition(TaskState.ORIENTED)
+        .transition(TaskState.BLOCKED, block_reason="waiting on dependency")
     )
     assert env.block_reason == "waiting on dependency"
     resumed = env.transition(TaskState.PLANNED)
@@ -155,8 +161,11 @@ def test_same_state_transition_is_idempotent_noop():
 
 
 def test_repeated_executing_event_does_not_duplicate_attempts():
-    env = _make().transition(TaskState.ORIENTED).transition(TaskState.PLANNED).transition(
-        TaskState.CLAIMED
+    env = (
+        _make()
+        .transition(TaskState.ORIENTED)
+        .transition(TaskState.PLANNED)
+        .transition(TaskState.CLAIMED)
     )
     env = env.transition(TaskState.EXECUTING)
     assert env.attempts == 1

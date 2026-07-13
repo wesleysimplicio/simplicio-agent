@@ -109,6 +109,7 @@ def _canonical_tools():
 # (a) Index returns short handles, not the full instruction body
 # ───────────────────────────────────────────────────────────────────────
 
+
 class TestInstructionIndexReturnsHandlesNotFullText:
     def test_index_shape(self):
         idx = resolve_instruction_index()
@@ -167,6 +168,7 @@ class TestInstructionIndexReturnsHandlesNotFullText:
 # (b) Bundle pinning is order-stable (same input -> same order)
 # ───────────────────────────────────────────────────────────────────────
 
+
 class TestBundlePinningIsStable:
     def test_same_input_same_order(self):
         tools = _canonical_tools()
@@ -195,8 +197,12 @@ class TestBundlePinningIsStable:
 
     def test_same_order_across_process_like_calls(self):
         # Re-import-free determinism: build the bundle twice from scratch.
-        tools_a = [{"name": n, "description": _DESCRIPTIONS.get(n, "")} for n in CANONICAL_29]
-        tools_b = [{"name": n, "description": _DESCRIPTIONS.get(n, "")} for n in CANONICAL_29]
+        tools_a = [
+            {"name": n, "description": _DESCRIPTIONS.get(n, "")} for n in CANONICAL_29
+        ]
+        tools_b = [
+            {"name": n, "description": _DESCRIPTIONS.get(n, "")} for n in CANONICAL_29
+        ]
         assert pin_capability_bundle_names(tools_a, "deploy the agent") == (
             pin_capability_bundle_names(tools_b, "deploy the agent")
         )
@@ -217,6 +223,7 @@ class TestBundlePinningIsStable:
 # ───────────────────────────────────────────────────────────────────────
 # (c) Total tool availability preserved (all 29 tools listed, order only)
 # ───────────────────────────────────────────────────────────────────────
+
 
 class TestToolAvailabilityPreserved:
     def test_all_29_tools_present(self):
@@ -284,6 +291,7 @@ def test_index_plus_bundle_compose():
 # (d) Expansion receipts are deterministic and fallback-safe
 # ───────────────────────────────────────────────────────────────────────
 
+
 class TestExpansionReceipts:
     def test_receipt_is_deterministic_and_json_friendly(self):
         tools = _canonical_tools()
@@ -338,7 +346,9 @@ class TestExpansionReceipts:
 
         monkeypatch.setattr(economy, "_catalog_symbol_value", lambda _symbol: None)
         text, receipt = expand_instruction_with_receipt("sec:memory")
-        assert text == next(e["summary"] for e in INSTRUCTION_CATALOG if e["handle"] == "sec:memory")
+        assert text == next(
+            e["summary"] for e in INSTRUCTION_CATALOG if e["handle"] == "sec:memory"
+        )
         assert receipt.fallback is True
         assert receipt.fallback_reason == "body_unavailable:catalog_summary"
 

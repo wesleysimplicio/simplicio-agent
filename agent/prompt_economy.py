@@ -464,7 +464,9 @@ def instruction_index_summary_size() -> int:
     """Total character length of the compact index payload."""
     total = 0
     for e in resolve_instruction_index():
-        total += len(e["handle"]) + len(e["title"]) + len(e["summary"]) + len(e["category"])
+        total += (
+            len(e["handle"]) + len(e["title"]) + len(e["summary"]) + len(e["category"])
+        )
     return total
 
 
@@ -488,15 +490,13 @@ def instruction_index_full_size() -> int:
 # -tool guidance, and the model-family-specific OpenAI/Google execution
 # discipline, always ship in full — they target concrete hallucination/
 # incomplete-tool-use failure modes and are not safe to summarize away).
-COMPACTABLE_HANDLES = frozenset(
-    {
-        "sec:hermes-help",
-        "sec:memory",
-        "sec:session-search",
-        "sec:skills",
-        "sec:kanban",
-    }
-)
+COMPACTABLE_HANDLES = frozenset({
+    "sec:hermes-help",
+    "sec:memory",
+    "sec:session-search",
+    "sec:skills",
+    "sec:kanban",
+})
 
 
 def render_compact_block(active_handles: Sequence[str]) -> str:

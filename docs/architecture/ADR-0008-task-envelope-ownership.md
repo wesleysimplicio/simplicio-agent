@@ -92,7 +92,7 @@ two implementations is tracked as follow-up, out of this issue's reach alone
     same canonical envelope" is *not* fully satisfied. `kernel_binding`,
     the runtime `run` path, workflow dispatch, and `simplicio-loop`
     iterations each still track their own ad-hoc status. Wiring those is
-    separate follow-up work, one surface at a time, following the same
-    smallest-blast-radius pattern used here.
+  separate follow-up work, one surface at a time, following the same
+  smallest-blast-radius pattern used here.
 - `simplicio contracts smoke --json` is not yet wired to validate this
   schema.

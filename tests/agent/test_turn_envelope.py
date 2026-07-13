@@ -208,8 +208,15 @@ def test_full_turn_lifecycle_through_real_finalize_turn_reaches_closed():
     # The production wiring records every committed state and protocol event,
     # including the initial accepted event for envelope creation.
     assert [r["state"] for r in agent._task_envelope_ledger.history(turn_id)] == [
-        "received", "oriented", "planned", "claimed", "executing",
-        "validating", "evidence_ready", "delivered", "closed",
+        "received",
+        "oriented",
+        "planned",
+        "claimed",
+        "executing",
+        "validating",
+        "evidence_ready",
+        "delivered",
+        "closed",
     ]
     assert len(agent._task_envelope_events) == 9
 

@@ -59,7 +59,9 @@ def _get_emitter(agent: Any) -> Emitter:
     """
     emitter = getattr(agent, "_protocol_emitter", None)
     if emitter is None:
-        emitter = Emitter(session_id=getattr(agent, "session_id", None) or "unknown-session")
+        emitter = Emitter(
+            session_id=getattr(agent, "session_id", None) or "unknown-session"
+        )
         agent._protocol_emitter = emitter
     return emitter
 
@@ -89,7 +91,9 @@ def _emit(agent: Any, event: Any) -> None:
     events.append(event)
 
 
-def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optional[TaskEnvelope]:
+def start_turn_envelope(
+    agent: Any, *, turn_id: str, user_message: str
+) -> Optional[TaskEnvelope]:
     """Construct a real ``TaskEnvelope`` for this turn and drive it to
     ``EXECUTING`` before the tool-calling loop runs.
 
@@ -108,8 +112,7 @@ def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optio
             branch=getattr(agent, "git_branch", None) or "",
             scope="chat-turn",
             acceptance_criteria=(
-                "turn produces a final_response or a documented "
-                "failure/interruption",
+                "turn produces a final_response or a documented failure/interruption",
             ),
             model=getattr(agent, "model", None) or "",
             task_id=turn_id,
@@ -138,7 +141,11 @@ def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optio
         agent._task_envelope = envelope
         return envelope
     except Exception:
-        logger.debug("TaskEnvelope: start_turn_envelope failed for turn %s", turn_id, exc_info=True)
+        logger.debug(
+            "TaskEnvelope: start_turn_envelope failed for turn %s",
+            turn_id,
+            exc_info=True,
+        )
         return None
 
 
@@ -166,7 +173,12 @@ def finish_turn_envelope(
     # In particular, CLOSED cannot transition back to VALIDATING merely
     # because cleanup or a retry path invoked finalization twice.
     if (
-        (envelope.state is TaskState.CLOSED and completed and not failed and not interrupted)
+        (
+            envelope.state is TaskState.CLOSED
+            and completed
+            and not failed
+            and not interrupted
+        )
         or (envelope.state is TaskState.FAILED and failed)
         or (envelope.state is TaskState.BLOCKED and interrupted and not failed)
         or envelope.state in (TaskState.CANCELLED, TaskState.QUARANTINED)
@@ -190,7 +202,12 @@ def finish_turn_envelope(
             # Turn ended without a definitive success/failure/interrupt
             # signal (e.g. budget exhausted with no summary). Park it as
             # BLOCKED rather than guessing a terminal outcome.
-            plan = ((TaskState.BLOCKED, {"block_reason": "turn ended without a definitive outcome"}),)
+            plan = (
+                (
+                    TaskState.BLOCKED,
+                    {"block_reason": "turn ended without a definitive outcome"},
+                ),
+            )
 
         for state, kwargs in plan:
             before = envelope
@@ -205,7 +222,11 @@ def finish_turn_envelope(
         agent._task_envelope = envelope
         return envelope
     except Exception:
-        logger.debug("TaskEnvelope: finish_turn_envelope failed for turn %s", turn_id, exc_info=True)
+        logger.debug(
+            "TaskEnvelope: finish_turn_envelope failed for turn %s",
+            turn_id,
+            exc_info=True,
+        )
         return None
 
 

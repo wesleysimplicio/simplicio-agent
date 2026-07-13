@@ -1,4 +1,5 @@
 """Focused contract tests for the deterministic perf manifest (issue #220)."""
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,9 @@ from tools.perf_integration_manifest import (
 )
 
 MANIFEST = REPO_ROOT / "tools" / "perf_integration_manifest.py"
-FIXTURE = REPO_ROOT / "fixtures" / "bench" / "perf" / "perf-integration-manifest.v1.json"
+FIXTURE = (
+    REPO_ROOT / "fixtures" / "bench" / "perf" / "perf-integration-manifest.v1.json"
+)
 
 
 def test_manifest_is_deterministic_and_has_v1_provenance() -> None:
@@ -96,6 +99,8 @@ def test_cli_json_reports_uvloop_regression(tmp_path: Path) -> None:
         cwd=str(REPO_ROOT),
     )
     assert proc.returncode != 0
-    uvloop = next(axis for axis in json.loads(proc.stdout)["axes"] if axis["name"] == "uvloop")
+    uvloop = next(
+        axis for axis in json.loads(proc.stdout)["axes"] if axis["name"] == "uvloop"
+    )
     assert uvloop["stage_results"]["INSTALLED"]["status"] == "fail"
     assert uvloop["stages"]["INSTALLED"] is False
