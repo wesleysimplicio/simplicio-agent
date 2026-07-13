@@ -669,14 +669,16 @@ class CodexAppServerSession:
         elif method == "mcpServer/elicitation/request":
             # Codex's MCP layer asks the user for structured input on
             # behalf of an MCP server (e.g. tool-call confirmation,
-            # OAuth, form data). For our own hermes-tools callback we
-            # auto-accept — the user already approved Hermes' tools
-            # by enabling the runtime, and we never expose anything
-            # codex's built-in shell can't already do. For other MCP
-            # servers we decline so the user explicitly opts in via
-            # codex's own auth flow.
+            # OAuth, form data). For our own simplicio-tools callback we
+            # auto-accept — the user already approved Simplicio Agent's
+            # tools by enabling the runtime, and we never expose anything
+            # codex's built-in shell can't already do. "hermes-tools" is
+            # the pre-#191-rename wire name — still accepted so a
+            # ~/.codex/config.toml written before the rename (and not yet
+            # re-migrated) keeps working. For other MCP servers we decline
+            # so the user explicitly opts in via codex's own auth flow.
             server_name = params.get("serverName") or ""
-            if server_name == "hermes-tools":
+            if server_name in ("simplicio-tools", "hermes-tools"):
                 self._client.respond(
                     rid,
                     {"action": "accept", "content": None, "_meta": None},

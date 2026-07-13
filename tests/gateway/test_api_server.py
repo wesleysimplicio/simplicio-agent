@@ -615,7 +615,7 @@ class TestHealthEndpoint:
             assert resp.status == 200
             data = await resp.json()
             assert data["status"] == "ok"
-            assert data["platform"] == "hermes-agent"
+            assert data["platform"] == "simplicio-agent"
 
     @pytest.mark.asyncio
     async def test_health_reports_version(self, adapter):
@@ -640,7 +640,7 @@ class TestHealthEndpoint:
             assert resp.status == 200
             data = await resp.json()
             assert data["status"] == "ok"
-            assert data["platform"] == "hermes-agent"
+            assert data["platform"] == "simplicio-agent"
             assert data.get("version")
 
 
@@ -666,7 +666,7 @@ class TestHealthDetailedEndpoint:
                 assert resp.status == 200
                 data = await resp.json()
                 assert data["status"] == "ok"
-                assert data["platform"] == "hermes-agent"
+                assert data["platform"] == "simplicio-agent"
                 assert data["gateway_state"] == "running"
                 assert data["platforms"] == {"telegram": {"state": "connected"}}
                 assert data["active_agents"] == 2
@@ -787,7 +787,7 @@ class TestCapabilitiesEndpoint:
             assert resp.status == 200
             data = await resp.json()
             assert data["object"] == "hermes.api_server.capabilities"
-            assert data["platform"] == "hermes-agent"
+            assert data["platform"] == "simplicio-agent"
             assert data["model"] == "hermes-agent"
             assert data["auth"]["type"] == "bearer"
             assert data["auth"]["required"] is False

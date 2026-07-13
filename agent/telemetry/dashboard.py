@@ -109,7 +109,7 @@ def format_table(rows: list[dict], group_by: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Hermes runtime telemetry dashboard")
+    parser = argparse.ArgumentParser(description="Simplicio runtime telemetry dashboard")
     parser.add_argument("--log", type=Path, default=None, help="path to telemetry JSONL")
     parser.add_argument(
         "--group-by",

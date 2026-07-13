@@ -8,7 +8,10 @@ cross-session search, image generation, TTS — is unreachable.
 
 This module exposes a curated subset of those Hermes tools to the
 spawned codex subprocess via stdio MCP. Codex registers it as a normal
-MCP server (per `~/.codex/config.toml [mcp_servers.hermes-tools]`) and
+MCP server (per `~/.codex/config.toml [mcp_servers.simplicio-tools]`,
+formerly `[mcp_servers.hermes-tools]` — the wire-level MCP server name
+is `simplicio-tools`; `codex_app_server_session.py` still accepts the
+legacy `hermes-tools` name from configs written before the rename) and
 the user gets full Hermes capability inside a Codex turn.
 
 Scope (what we expose):
@@ -123,9 +126,9 @@ def _build_server() -> Any:
     )
 
     mcp = FastMCP(
-        "hermes-tools",
+        "simplicio-tools",
         instructions=(
-            "Hermes Agent's tool surface, exposed for use inside a Codex "
+            "Simplicio Agent's tool surface, exposed for use inside a Codex "
             "session. Use these for capabilities Codex's built-in toolset "
             "doesn't cover: web search/extract, browser automation, "
             "subagent delegation, vision, image generation, persistent "
@@ -187,7 +190,7 @@ def _build_server() -> Any:
         exposed_count += 1
 
     logger.info(
-        "hermes-tools MCP server registered %d/%d tools",
+        "simplicio-tools MCP server registered %d/%d tools",
         exposed_count,
         len(EXPOSED_TOOLS),
     )
@@ -213,7 +216,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         server = _build_server()
     except ImportError as exc:
-        sys.stderr.write(f"hermes-tools MCP server cannot start: {exc}\n")
+        sys.stderr.write(f"simplicio-tools MCP server cannot start: {exc}\n")
         return 2
 
     # FastMCP runs with stdio transport by default when launched as a
@@ -223,8 +226,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     except KeyboardInterrupt:
         return 0
     except Exception as exc:
-        logger.exception("hermes-tools MCP server crashed")
-        sys.stderr.write(f"hermes-tools MCP server error: {exc}\n")
+        logger.exception("simplicio-tools MCP server crashed")
+        sys.stderr.write(f"simplicio-tools MCP server error: {exc}\n")
         return 1
     return 0
 

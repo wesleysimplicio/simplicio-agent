@@ -198,12 +198,19 @@ def apply(
         # browser/web/delegate_task/vision/memory tools (#7 fix).
         # Failures are non-fatal — the runtime change still proceeds.
         try:
-            from hermes_cli.codex_runtime_plugin_migration import migrate
+            from hermes_cli.codex_runtime_plugin_migration import (
+                migrate,
+                _LEGACY_HERMES_TOOLS_MCP_KEY,
+                _SIMPLICIO_TOOLS_MCP_KEY,
+            )
             mig_report = migrate(config)
-            # Tools/MCP servers (excluding the hermes-tools callback,
-            # which is internal plumbing — surface separately).
+            # Tools/MCP servers (excluding the simplicio-tools callback,
+            # which is internal plumbing — surface separately). Also
+            # exclude the legacy "hermes-tools" key in case a pre-rename
+            # report shape is ever replayed (e.g. cached report objects).
+            _internal_keys = {_SIMPLICIO_TOOLS_MCP_KEY, _LEGACY_HERMES_TOOLS_MCP_KEY}
             user_servers = [
-                s for s in mig_report.migrated if s != "hermes-tools"
+                s for s in mig_report.migrated if s not in _internal_keys
             ]
             if user_servers:
                 msg_lines.append(
@@ -228,9 +235,9 @@ def apply(
                     f"Default sandbox: {mig_report.wrote_permissions_default} "
                     f"(no approval prompt on every write)"
                 )
-            if "hermes-tools" in mig_report.migrated:
+            if _SIMPLICIO_TOOLS_MCP_KEY in mig_report.migrated:
                 msg_lines.append(
-                    "Hermes tool callback registered: codex can now use "
+                    "Simplicio tool callback registered: codex can now use "
                     "web_search, web_extract, browser_*, vision_analyze, "
                     "image_generate, skill_view, skills_list, text_to_speech, "
                     "kanban_* (worker + orchestrator) via MCP."

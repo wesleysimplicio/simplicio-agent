@@ -123,7 +123,7 @@ def test_format_markdown_includes_totals_and_tables():
     now = datetime(2026, 5, 22, 13, 0, tzinfo=timezone.utc)
     report = savings_report.build_report(recs, since=timedelta(days=7), now=now)
     md = savings_report.format_markdown(report)
-    assert "Hermes Turbo" in md
+    assert "Simplicio Turbo" in md
     assert "Saved tokens" in md
     assert "anthropic" in md
     assert "## Top tools" in md

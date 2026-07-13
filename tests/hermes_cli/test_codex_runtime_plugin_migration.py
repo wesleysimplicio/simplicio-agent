@@ -487,8 +487,10 @@ class TestMigrate:
 
     def test_expose_hermes_tools_writes_callback_mcp_entry(self, tmp_path):
         """When expose_hermes_tools=True (production default), an
-        [mcp_servers.hermes-tools] entry is written so codex calls back
+        [mcp_servers.simplicio-tools] entry is written so codex calls back
         into Hermes for browser/web/delegate_task/vision/memory tools.
+        (Wire name renamed from "hermes-tools" to "simplicio-tools" for
+        issue #191; the module path stays hermes_tools_mcp_server.py.)
 
         This is the fix for 'all other tools that codex doesn't provide
         should be useable by hermes' — quirk #7."""
@@ -497,13 +499,13 @@ class TestMigrate:
                          default_permission_profile=None,
                          expose_hermes_tools=True)
         text = (tmp_path / "config.toml").read_text()
-        assert "[mcp_servers.hermes-tools]" in text
+        assert "[mcp_servers.simplicio-tools]" in text
         assert "hermes_tools_mcp_server" in text
         # Must include startup + tool timeouts so codex doesn't give up
         assert "startup_timeout_sec" in text
         assert "tool_timeout_sec" in text
         # And the entry is reported
-        assert "hermes-tools" in report.migrated
+        assert "simplicio-tools" in report.migrated
 
     def test_expose_hermes_tools_disabled_skips_entry(self, tmp_path):
         """expose_hermes_tools=False suppresses the callback registration."""
@@ -512,7 +514,7 @@ class TestMigrate:
                 default_permission_profile=None,
                 expose_hermes_tools=False)
         text = (tmp_path / "config.toml").read_text()
-        assert "[mcp_servers.hermes-tools]" not in text
+        assert "[mcp_servers.simplicio-tools]" not in text
         assert "hermes_tools_mcp_server" not in text
 
     def test_dry_run_doesnt_write(self, tmp_path):

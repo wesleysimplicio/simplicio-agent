@@ -522,12 +522,33 @@ class TestServerRequestRouting:
         )
 
     def test_mcp_elicitation_for_hermes_tools_auto_accepts(self):
-        """When codex elicits on behalf of hermes-tools (our own callback),
+        """When codex elicits on behalf of simplicio-tools (our own callback),
         accept automatically — the user already opted in by enabling the
         runtime."""
         client = FakeClient()
         client.queue_server_request(
             "mcpServer/elicitation/request", request_id="elic-1",
+            threadId="t", turnId="tu1",
+            serverName="simplicio-tools",
+            mode="form",
+            message="confirm",
+            requestedSchema={"type": "object", "properties": {}},
+        )
+        client.queue_notification(
+            "turn/completed", threadId="t",
+            turn={"id": "tu1", "status": "completed", "error": None},
+        )
+        s = make_session(client)
+        s.run_turn("hi", turn_timeout=1.0)
+        assert ("elic-1", {"action": "accept", "content": None, "_meta": None}) in client.responses
+
+    def test_mcp_elicitation_for_legacy_hermes_tools_name_auto_accepts(self):
+        """A ~/.codex/config.toml written before the #191 rename still
+        registers the callback under the old "hermes-tools" server name
+        until it's re-migrated — must still auto-accept."""
+        client = FakeClient()
+        client.queue_server_request(
+            "mcpServer/elicitation/request", request_id="elic-1b",
             threadId="t", turnId="tu1",
             serverName="hermes-tools",
             mode="form",
@@ -540,7 +561,7 @@ class TestServerRequestRouting:
         )
         s = make_session(client)
         s.run_turn("hi", turn_timeout=1.0)
-        assert ("elic-1", {"action": "accept", "content": None, "_meta": None}) in client.responses
+        assert ("elic-1b", {"action": "accept", "content": None, "_meta": None}) in client.responses
 
     def test_mcp_elicitation_for_other_servers_declines(self):
         """For third-party MCP servers we decline by default so users

@@ -243,7 +243,7 @@ def delete_paste(url: str) -> bool:
     target = f"{_PASTE_RS_URL}{paste_id}"
     req = urllib.request.Request(
         target, method="DELETE",
-        headers={"User-Agent": "hermes-agent/debug-share"},
+        headers={"User-Agent": "simplicio-agent/debug-share"},
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         return 200 <= resp.status < 300
@@ -276,7 +276,7 @@ def _upload_paste_rs(content: str) -> str:
         _PASTE_RS_URL, data=data, method="POST",
         headers={
             "Content-Type": "text/plain; charset=utf-8",
-            "User-Agent": "hermes-agent/debug-share",
+            "User-Agent": "simplicio-agent/debug-share",
         },
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -291,7 +291,7 @@ def _upload_dpaste_com(content: str, expiry_days: int = 7) -> str:
 
     dpaste.com uses multipart form data.
     """
-    boundary = "----HermesDebugBoundary9f3c"
+    boundary = "----SimplicioDebugBoundary9f3c"
 
     def _field(name: str, value: str) -> str:
         return (
@@ -312,7 +312,7 @@ def _upload_dpaste_com(content: str, expiry_days: int = 7) -> str:
         _DPASTE_COM_URL, data=body, method="POST",
         headers={
             "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "User-Agent": "hermes-agent/debug-share",
+            "User-Agent": "simplicio-agent/debug-share",
         },
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -601,7 +601,11 @@ def collect_debug_report(
 # ---------------------------------------------------------------------------
 
 # Bundle format identifier embedded in the Nous-S3 JSON envelope. The
-# discord-support viewer keys off this string to parse the bundle.
+# discord-support viewer (a separate repo) keys off this exact string to
+# parse the bundle. Deliberately NOT renamed for issue #191: it's a
+# cross-repo wire contract, so changing it is a breaking schema-version
+# bump that needs the viewer updated (or made to accept both values) in
+# lockstep, not a same-repo string rename.
 _NOUS_BUNDLE_FORMAT = "hermes-debug-share/1"
 
 

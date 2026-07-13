@@ -72,7 +72,7 @@ def trend(agg: dict) -> list[tuple[str, int, int]]:
 
 def _format_report(agg: dict, top_n: int) -> str:
     head = [
-        "Hermes Turbo - Token Savings Report", "-" * 40,
+        "Simplicio Turbo - Token Savings Report", "-" * 40,
         f"Records:           {agg['records']}",
         f"Raw tokens:        {agg['total_raw_tokens']}",
         f"Compressed tokens: {agg['total_compressed_tokens']}",
@@ -88,8 +88,8 @@ def _format_report(agg: dict, top_n: int) -> str:
 
 def run(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="hermes-token-savings",
-        description="Aggregate Hermes Turbo token-savings telemetry.",
+        prog="simplicio-token-savings",
+        description="Aggregate Simplicio Turbo token-savings telemetry.",
     )
     parser.add_argument("--log", type=Path, default=None, help="JSONL log path.")
     parser.add_argument("--top", type=int, default=5, help="How many tools to list.")
