@@ -14,17 +14,21 @@ the assembled ``result`` dict is returned to ``run_conversation`` which returns 
 to the caller. The function is synchronous with a single return — mirroring the
 region it replaces (no awaits, no early returns).
 
-Module ``logger`` is imported lazily inside the body (``from
-agent.conversation_loop import logger``) so this module never imports
-``agent.conversation_loop`` at import time -> no import cycle, and the log records
-keep the exact logger name (``"agent.conversation_loop"``).
+The module owns a logger named ``"agent.conversation_loop"`` directly, rather
+than importing ``agent.conversation_loop`` just to reuse its logger. This
+keeps the exact log name without introducing an import cycle (or forcing
+optional conversation-loop dependencies on focused finalizer consumers).
 """
 
 from __future__ import annotations
 
 import os
+import logging
 
 from agent.codex_responses_adapter import _summarize_user_message_for_log
+
+
+logger = logging.getLogger("agent.conversation_loop")
 
 
 def finalize_turn(
@@ -48,8 +52,6 @@ def finalize_turn(
     Lifted verbatim from ``run_conversation`` (the region after the main agent
     loop). See module docstring.
     """
-    from agent.conversation_loop import logger
-
     if final_response is None and (
         api_call_count >= agent.max_iterations
         or agent.iteration_budget.remaining <= 0

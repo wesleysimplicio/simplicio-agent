@@ -33,8 +33,8 @@ import logging
 from typing import Any, Optional
 
 from agent.protocol_v1 import Emitter
-from agent.task_envelope import TaskEnvelope, TaskState
-from agent.task_envelope_bridge import emit_for_transition
+from agent.task_envelope import TaskEnvelope, TaskLedger, TaskState
+from agent.task_envelope_bridge import STATE_TO_EVENT_TYPE, emit_for_transition
 
 logger = logging.getLogger("agent.conversation_loop")
 
@@ -64,6 +64,31 @@ def _get_emitter(agent: Any) -> Emitter:
     return emitter
 
 
+def _get_ledger(agent: Any) -> TaskLedger:
+    """Return the per-agent transition ledger, creating it on first use."""
+    ledger = getattr(agent, "_task_envelope_ledger", None)
+    if ledger is None:
+        ledger = TaskLedger()
+        agent._task_envelope_ledger = ledger
+    return ledger
+
+
+def _record(agent: Any, envelope: TaskEnvelope) -> None:
+    """Persist a committed envelope transition for this agent/session."""
+    _get_ledger(agent).append(envelope)
+
+
+def _emit(agent: Any, event: Any) -> None:
+    """Keep the protocol trail available to read-only consumers/tests."""
+    if event is None:
+        return
+    events = getattr(agent, "_task_envelope_events", None)
+    if events is None:
+        events = []
+        agent._task_envelope_events = events
+    events.append(event)
+
+
 def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optional[TaskEnvelope]:
     """Construct a real ``TaskEnvelope`` for this turn and drive it to
     ``EXECUTING`` before the tool-calling loop runs.
@@ -74,6 +99,9 @@ def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optio
     (logged, never propagated).
     """
     try:
+        existing = getattr(agent, "_task_envelope", None)
+        if existing is not None and existing.task_id == turn_id:
+            return existing
         emitter = _get_emitter(agent)
         envelope = TaskEnvelope.create(
             repo=getattr(agent, "repo_root", None) or "",
@@ -87,11 +115,26 @@ def start_turn_envelope(agent: Any, *, turn_id: str, user_message: str) -> Optio
             task_id=turn_id,
             correlation_id=getattr(agent, "session_id", None) or turn_id,
         )
+        agent._task_envelope = envelope
+        _record(agent, envelope)
+        _emit(
+            agent,
+            emitter.emit(
+                STATE_TO_EVENT_TYPE[TaskState.RECEIVED],
+                turn_id=turn_id,
+                attempt_id="1",
+            ),
+        )
         worker = getattr(agent, "session_id", None) or turn_id
         for state in _PRE_EXECUTION_STATES:
             before = envelope
             envelope = envelope.transition(state, worker=worker)
-            emit_for_transition(before, envelope, emitter, turn_id=turn_id)
+            agent._task_envelope = envelope
+            _record(agent, envelope)
+            _emit(
+                agent,
+                emit_for_transition(before, envelope, emitter, turn_id=turn_id),
+            )
         agent._task_envelope = envelope
         return envelope
     except Exception:
@@ -119,6 +162,16 @@ def finish_turn_envelope(
     envelope = getattr(agent, "_task_envelope", None)
     if envelope is None or envelope.task_id != turn_id:
         return None
+    # A repeated finalizer call for the same outcome is an idempotent no-op.
+    # In particular, CLOSED cannot transition back to VALIDATING merely
+    # because cleanup or a retry path invoked finalization twice.
+    if (
+        (envelope.state is TaskState.CLOSED and completed and not failed and not interrupted)
+        or (envelope.state is TaskState.FAILED and failed)
+        or (envelope.state is TaskState.BLOCKED and interrupted and not failed)
+        or envelope.state in (TaskState.CANCELLED, TaskState.QUARANTINED)
+    ):
+        return envelope
     emitter = _get_emitter(agent)
     try:
         if failed:
@@ -142,7 +195,12 @@ def finish_turn_envelope(
         for state, kwargs in plan:
             before = envelope
             envelope = envelope.transition(state, **kwargs)
-            emit_for_transition(before, envelope, emitter, turn_id=turn_id)
+            agent._task_envelope = envelope
+            _record(agent, envelope)
+            _emit(
+                agent,
+                emit_for_transition(before, envelope, emitter, turn_id=turn_id),
+            )
 
         agent._task_envelope = envelope
         return envelope

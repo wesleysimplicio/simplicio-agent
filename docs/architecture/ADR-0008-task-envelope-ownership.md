@@ -5,7 +5,9 @@
 **Related:** issue #209 (this ADR), epic #159, `simplicio-runtime#3028`.
 **Code:** `agent/task_envelope.py` (schema + state machine + ledger),
 `agent/task_envelope_bridge.py` (protocol_v1 event bridge),
-`tests/agent/test_task_envelope.py`, `tests/agent/test_task_envelope_bridge.py`.
+`agent/turn_envelope.py` (chat-turn wiring),
+`tests/agent/test_task_envelope.py`, `tests/agent/test_task_envelope_bridge.py`,
+`tests/agent/test_turn_envelope.py`.
 
 ## Problem
 
@@ -75,6 +77,10 @@ two implementations is tracked as follow-up, out of this issue's reach alone
   outcome `finalize_turn` already computes — no second status model is
   invented. See `tests/agent/test_turn_envelope.py` for the end-to-end
   (non-synthetic) exercise of this path.
+  - The chat wiring appends the initial `received` envelope and every
+    committed transition to the per-agent `TaskLedger`, and retains the
+    matching `protocol_v1` event trail for read-only consumers. Repeated start
+    or finalization calls for the same turn are idempotent.
   - This covers only the **chat** surface, and only the default
     (non-`codex_app_server`) transport within it — the `codex_app_server`
     bypass in `run_conversation` still returns before an envelope is ever

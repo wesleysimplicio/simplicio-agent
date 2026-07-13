@@ -13,6 +13,11 @@ the wiring at the true call site (not a reimplementation of it).
 
 from __future__ import annotations
 
+import importlib
+import logging.handlers
+import sys
+import types
+
 import pytest
 
 from agent.task_envelope import TaskState
@@ -43,6 +48,10 @@ class _StubAgent:
         self.session_id = "sess-1"
         self.quiet_mode = True
         self.platform = "cli"
+        self.api_mode = "chat_completions"
+        self._budget_grace_call = False
+        self._checkpoint_mgr = types.SimpleNamespace(new_turn=lambda: None)
+        self.valid_tool_names = set()
         self._interrupt_requested = False
         self._interrupt_message = None
         self._tool_guardrail_halt_decision = None
@@ -130,6 +139,45 @@ def test_start_turn_envelope_constructs_and_reaches_executing():
     assert agent._protocol_emitter is not None
 
 
+def test_real_run_conversation_path_starts_and_finishes_envelope(monkeypatch):
+    """Exercise the actual conversation_loop call site, not a reimplementation.
+
+    The interrupt is deliberate: it avoids a provider call while still taking
+    the production prologue, envelope start, loop exit, and real finalizer.
+    """
+    # This checkout does not install the optional Windows rotating logger
+    # dependency. Keep the test runnable by supplying its stdlib equivalent
+    # before importing conversation_loop (CI has the real package installed).
+    logger_module = types.ModuleType("concurrent_log_handler")
+    logger_module.ConcurrentRotatingFileHandler = logging.handlers.RotatingFileHandler
+    monkeypatch.setitem(sys.modules, "concurrent_log_handler", logger_module)
+    loop = importlib.import_module("agent.conversation_loop")
+
+    agent = _StubAgent()
+    agent._interrupt_requested = True
+    context = types.SimpleNamespace(
+        user_message="hi",
+        original_user_message="hi",
+        messages=[{"role": "user", "content": "hi"}],
+        conversation_history=None,
+        active_system_prompt=None,
+        effective_task_id="task-real",
+        turn_id="turn-real",
+        current_turn_user_idx=0,
+        should_review_memory=False,
+        plugin_user_context=None,
+        ext_prefetch_cache=None,
+    )
+    monkeypatch.setattr(loop, "build_turn_context", lambda *a, **k: context)
+
+    result = loop.run_conversation(agent, "hi")
+
+    assert result["interrupted"] is True
+    assert agent._task_envelope.task_id == "turn-real"
+    assert agent._task_envelope.state is TaskState.BLOCKED
+    assert agent._task_envelope_ledger.history("turn-real")[-1]["state"] == "blocked"
+
+
 def test_full_turn_lifecycle_through_real_finalize_turn_reaches_closed():
     """End-to-end: start_turn_envelope (as run_conversation calls it) then
     the REAL finalize_turn (as run_conversation calls it), which internally
@@ -156,6 +204,14 @@ def test_full_turn_lifecycle_through_real_finalize_turn_reaches_closed():
     assert envelope.state == TaskState.CLOSED
     assert envelope.evidence_refs  # AC: closed never happens without evidence
     assert envelope.delivery_target == "chat-response"
+
+    # The production wiring records every committed state and protocol event,
+    # including the initial accepted event for envelope creation.
+    assert [r["state"] for r in agent._task_envelope_ledger.history(turn_id)] == [
+        "received", "oriented", "planned", "claimed", "executing",
+        "validating", "evidence_ready", "delivered", "closed",
+    ]
+    assert len(agent._task_envelope_events) == 9
 
 
 def test_failed_turn_drives_envelope_to_failed_via_real_finalize_turn():
@@ -220,3 +276,27 @@ def test_mismatched_turn_id_is_a_noop():
     assert result is None
     # The stale envelope for turn-a is left untouched, not force-closed.
     assert agent._task_envelope.state == TaskState.EXECUTING
+
+
+def test_repeated_successful_finalize_is_idempotent():
+    agent = _StubAgent()
+    turn_id = "turn-idempotent"
+    start_turn_envelope(agent, turn_id=turn_id, user_message="hi")
+    _finalize(
+        agent,
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}],
+        turn_id=turn_id,
+        interrupted=False,
+        failed=False,
+        final_response="ok",
+    )
+    before_history = agent._task_envelope_ledger.history(turn_id)
+    before_events = tuple(agent._task_envelope_events)
+
+    result = finish_turn_envelope(
+        agent, turn_id=turn_id, completed=True, failed=False, interrupted=False
+    )
+    assert result is agent._task_envelope
+    assert result.state is TaskState.CLOSED
+    assert agent._task_envelope_ledger.history(turn_id) == before_history
+    assert tuple(agent._task_envelope_events) == before_events
