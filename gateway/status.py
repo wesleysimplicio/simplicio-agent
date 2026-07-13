@@ -29,7 +29,11 @@ if sys.platform == "win32":
 else:
     import fcntl
 
-_GATEWAY_KIND = "hermes-gateway"
+_GATEWAY_KIND = "simplicio-gateway"
+# Pre-#191-rename value. A gateway started by older code (before an update)
+# still writes this into its PID/status record; readers running the new
+# code must keep recognizing it until every long-lived process cycles.
+_LEGACY_GATEWAY_KIND = "hermes-gateway"
 _RUNTIME_STATUS_FILE = "gateway_state.json"
 _LOCKS_DIRNAME = "gateway-locks"
 _IS_WINDOWS = sys.platform == "win32"
@@ -234,7 +238,10 @@ def _gateway_command_subcommand(command: str | None) -> str | None:
         if token == "gateway/run.py" or token.endswith("/gateway/run.py"):
             return "run"
         basename = token.rsplit("/", 1)[-1]
-        if basename in ("hermes-gateway", "hermes-gateway.exe"):
+        if basename in (
+            "simplicio-gateway", "simplicio-gateway.exe",
+            "hermes-gateway", "hermes-gateway.exe",
+        ):
             return "run"
 
     joined = " ".join(tokens)
@@ -306,7 +313,7 @@ def _looks_like_gateway_process(pid: int) -> bool:
 
 def _record_looks_like_gateway(record: dict[str, Any]) -> bool:
     """Validate gateway identity from PID-file metadata when cmdline is unavailable."""
-    if record.get("kind") != _GATEWAY_KIND:
+    if record.get("kind") not in (_GATEWAY_KIND, _LEGACY_GATEWAY_KIND):
         return False
 
     argv = record.get("argv")

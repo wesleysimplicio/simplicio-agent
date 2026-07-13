@@ -66,24 +66,26 @@ import sys
 
 
 def _set_process_title() -> None:
-    """Set the process title to 'hermes' so tools like 'ps', 'top', and
-    'htop' show the app name instead of 'python3.xx'.
+    """Set the process title to 'simplicio-agent' so tools like 'ps', 'top',
+    and 'htop' show the app name instead of 'python3.xx'.
 
     Purely cosmetic — non-fatal on any platform.
 
     Strategy (try in order):
       1. ``setproctitle`` (opt-in dep — installed via ``simplicio-agent tools`` or
          ``pip install setproctitle``, or bundled in a future release).
-      2. ctypes ``prctl(PR_SET_NAME)`` (Linux only, 15-char limit).
+      2. ctypes ``prctl(PR_SET_NAME)`` (Linux only, 15-char limit —
+         ``"simplicio-agent"`` is exactly 15 chars, so it fits untruncated).
       3. ctypes ``pthread_setname_np`` (macOS only, kernel thread name —
          changes lldb/top but not ``ps aux``).
-      4. No-op on Windows (the .exe name is already ``hermes.exe``).
+      4. No-op on Windows (the .exe name is already the canonical command,
+         per the ``[project.scripts]`` entry points).
     """
     # Strategy 1: setproctitle (best — works on macOS, Linux, BSD)
     try:
         import setproctitle  # type: ignore[import-untyped]
 
-        setproctitle.setproctitle("hermes")
+        setproctitle.setproctitle("simplicio-agent")
         return
     except ImportError:
         pass
@@ -96,11 +98,11 @@ def _set_process_title() -> None:
         system = platform.system()
         if system == "Linux":
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
-            libc.prctl(15, b"hermes", 0, 0, 0)  # PR_SET_NAME = 15
+            libc.prctl(15, b"simplicio-agent", 0, 0, 0)  # PR_SET_NAME = 15
         elif system == "Darwin":
             libc = ctypes.CDLL("libc.dylib", use_errno=True)
-            libc.pthread_setname_np(b"hermes")
-        # Windows: the .exe name is already ``hermes.exe`` — nothing to do.
+            libc.pthread_setname_np(b"simplicio-agent")
+        # Windows: the .exe name already matches the canonical command.
     except Exception:
         pass
 

@@ -193,7 +193,7 @@ def format_text(report: dict[str, Any]) -> str:
     t = report["totals"]
     w = report["window"]
     head = [
-        "Hermes Turbo — Token Savings Report",
+        "Simplicio Turbo — Token Savings Report",
         "=" * 48,
         f"Window:            last {w['since_days']} days (until {w['until']})",
         f"Records:           {w['records']}",
@@ -229,7 +229,7 @@ def format_markdown(report: dict[str, Any]) -> str:
     t = report["totals"]
     w = report["window"]
     out: list[str] = []
-    out.append("# Hermes Turbo — Token Savings Report")
+    out.append("# Simplicio Turbo — Token Savings Report")
     out.append("")
     out.append(f"Window: **last {w['since_days']} days** (until {w['until']})")
     out.append("")
@@ -263,8 +263,8 @@ def format_markdown(report: dict[str, Any]) -> str:
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="hermes-savings-report",
-        description="Weekly Token Savings Report for Hermes Turbo.",
+        prog="simplicio-savings-report",
+        description="Weekly Token Savings Report for Simplicio Turbo.",
     )
     parser.add_argument(
         "--log", type=Path, default=None,
