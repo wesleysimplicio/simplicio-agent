@@ -63,13 +63,31 @@ except ImportError:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _get_sessions_dir() -> Path:
-    """Return the sessions directory using HERMES_HOME."""
+def _resolve_hermes_home() -> Path:
+    """Return the Hermes/Simplicio home directory.
+
+    Delegates to ``hermes_constants.get_hermes_home()`` — the single source
+    of truth for HOME resolution (override, ``SIMPLICIO_AGENT_HOME`` /
+    ``HERMES_HOME`` aliasing, platform default, and migration state). Never
+    duplicates that default locally: a hardcoded ``Path.home() / ".hermes"``
+    here would silently drift once the accessor's default/migration logic
+    changes (issue #117). ``ImportError`` only fires if ``hermes_constants``
+    genuinely isn't on ``sys.path`` (e.g. this module run standalone outside
+    the package); in that narrow case we still read the same two env vars in
+    the same precedence order, with the current platform default as the
+    last resort, but do not carry any migration/profile logic.
+    """
     try:
         from hermes_constants import get_hermes_home
-        return get_hermes_home() / "sessions"
+        return get_hermes_home()
     except ImportError:
-        return Path(os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME", Path.home() / ".hermes")) / "sessions"
+        val = (os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME") or "").strip()
+        return Path(val) if val else Path.home() / ".hermes"
+
+
+def _get_sessions_dir() -> Path:
+    """Return the sessions directory using HERMES_HOME."""
+    return _resolve_hermes_home() / "sessions"
 
 
 def _get_session_db():
@@ -108,13 +126,7 @@ def _load_sessions_index() -> dict:
 
 def _load_channel_directory() -> dict:
     """Load the cached channel directory for available targets."""
-    try:
-        from hermes_constants import get_hermes_home
-        directory_file = get_hermes_home() / "channel_directory.json"
-    except ImportError:
-        directory_file = Path(
-            os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME", Path.home() / ".hermes")
-        ) / "channel_directory.json"
+    directory_file = _resolve_hermes_home() / "channel_directory.json"
 
     if not directory_file.exists():
         return {}
@@ -372,11 +384,7 @@ class EventBridge:
             self._cached_sessions_index = _load_sessions_index()
 
         # Check if state.db has changed
-        try:
-            from hermes_constants import get_hermes_home
-            db_file = get_hermes_home() / "state.db"
-        except ImportError:
-            db_file = Path(os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME", Path.home() / ".hermes")) / "state.db"
+        db_file = _resolve_hermes_home() / "state.db"
 
         try:
             db_mtime = db_file.stat().st_mtime if db_file.exists() else 0.0

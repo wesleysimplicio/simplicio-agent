@@ -30,7 +30,24 @@ from agent.perf_probe import TurnLatencySample
 SCHEMA = "simplicio.turn-metrics/v1"
 
 _ENV_LEDGER_PATH = "HERMES_TURN_METRICS_LOG"
-_DEFAULT_LEDGER_PATH = Path.home() / ".hermes" / "telemetry" / "turn_metrics.jsonl"
+
+
+def _default_ledger_path() -> Path:
+    """Return ``<HERMES_HOME>/telemetry/turn_metrics.jsonl``.
+
+    Derived from ``hermes_constants.get_hermes_home()`` instead of a
+    hardcoded ``Path.home() / ".hermes"`` so it honors
+    ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any migration (issue #117).
+    """
+    from hermes_constants import get_hermes_home
+
+    return get_hermes_home() / "telemetry" / "turn_metrics.jsonl"
+
+
+# Kept as a module attribute (not just a function) for backward
+# compatibility with callers/tests that read or monkeypatch
+# ``turn_metrics._DEFAULT_LEDGER_PATH`` directly.
+_DEFAULT_LEDGER_PATH = _default_ledger_path()
 
 _log_path: Optional[Path] = None
 
@@ -45,7 +62,9 @@ def get_log_path() -> Path:
     if _log_path is not None:
         return _log_path
     env = os.environ.get(_ENV_LEDGER_PATH)
-    return Path(env) if env else _DEFAULT_LEDGER_PATH
+    if env:
+        return Path(env)
+    return _DEFAULT_LEDGER_PATH
 
 
 def record_turn_metrics(sample: TurnLatencySample) -> None:
