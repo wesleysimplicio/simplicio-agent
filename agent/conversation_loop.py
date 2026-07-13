@@ -16,6 +16,7 @@ resolved through :func:`_ra` so those patches keep working.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -496,6 +497,26 @@ def _sync_failover_system_message(agent, api_messages, active_system_prompt):
     return sp
 
 
+def _record_turn_metrics(func):
+    """Guarantee the per-turn latency probe (issue #244/#119) is finished
+    and persisted on every exit path of ``run_conversation`` — normal
+    return, an early return in one of its many branches, or an exception —
+    without touching the wrapped function's body. Instrumentation only:
+    never changes control flow or swallows an exception."""
+
+    @functools.wraps(func)
+    def _wrapper(agent, *args, **kwargs):
+        try:
+            return func(agent, *args, **kwargs)
+        finally:
+            from agent.telemetry.turn_metrics import finalize_and_record_turn
+
+            finalize_and_record_turn(agent)
+
+    return _wrapper
+
+
+@_record_turn_metrics
 def run_conversation(
     agent,
     user_message: str,
@@ -1171,6 +1192,11 @@ def run_conversation(
                         thinking_spinner = None
                     if agent.thinking_callback:
                         agent.thinking_callback("")
+                    # Real measured TTFT (issue #119): first streamed delta
+                    # of the turn, wall-clock from run_conversation's start.
+                    _lp = getattr(agent, "_latency_probe", None)
+                    if _lp is not None:
+                        _lp.mark_first_token()
 
                 _use_streaming = True
                 # Provider signaled "stream not supported" on a previous
@@ -4414,7 +4440,13 @@ def run_conversation(
                     except Exception:
                         pass
 
+                _lp = getattr(agent, "_latency_probe", None)
+                if _lp is not None:
+                    _lp.begin("tool")
+                    _lp.mark_tool_calls(len(getattr(assistant_message, "tool_calls", None) or []))
                 agent._execute_tool_calls(assistant_message, messages, effective_task_id, api_call_count)
+                if _lp is not None:
+                    _lp.end_phase()
 
                 if agent._tool_guardrail_halt_decision is not None:
                     decision = agent._tool_guardrail_halt_decision

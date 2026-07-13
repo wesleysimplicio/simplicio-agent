@@ -20,6 +20,8 @@ from typing import Dict, List, Optional
 @dataclass
 class TurnLatencySample:
     api_calls: int = 0
+    tool_calls: int = 0
+    ttft_seconds: Optional[float] = None
     llm_seconds: float = 0.0
     tool_seconds: float = 0.0
     reconnect_seconds: float = 0.0
@@ -30,6 +32,8 @@ class TurnLatencySample:
     def as_dict(self) -> Dict[str, object]:
         return {
             "api_calls": self.api_calls,
+            "tool_calls": self.tool_calls,
+            "ttft_s": round(self.ttft_seconds, 3) if self.ttft_seconds is not None else None,
             "llm_s": round(self.llm_seconds, 2),
             "tool_s": round(self.tool_seconds, 2),
             "reconnect_s": round(self.reconnect_seconds, 2),
@@ -77,6 +81,16 @@ class TurnLatencyProbe:
     # -- event markers ----------------------------------------------------
     def mark_api_call(self) -> None:
         self._sample.api_calls += 1
+
+    def mark_tool_calls(self, count: int) -> None:
+        self._sample.tool_calls += max(0, int(count))
+
+    def mark_first_token(self) -> None:
+        """Record time-to-first-token, real measured wall clock from turn
+        start to the first streamed delta (issue #119). No-op after the
+        first call, or if a turn never streams (non-streaming provider path)."""
+        if self._sample.ttft_seconds is None:
+            self._sample.ttft_seconds = time.monotonic() - self._start
 
     def note(self, msg: str) -> None:
         self._sample.notes.append(msg)

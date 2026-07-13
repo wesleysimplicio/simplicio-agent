@@ -722,6 +722,21 @@ def run_doctor(args):
     else:
         check_info("Simplicio system-prompt injection: off by default (set HERMES_SIMPLICIO_PROMPT=1 to enable)")
 
+    try:
+        from agent.telemetry.turn_metrics import summarize_turn_metrics
+        _tm = summarize_turn_metrics()
+        if _tm["count"] == 0:
+            check_info("Turn latency (TTFT/tool-loop): no turns recorded yet")
+        else:
+            _parts = [f"{_tm['count']} turn(s) measured"]
+            if "ttft_p50_s" in _tm:
+                _parts.append(f"TTFT p50={_tm['ttft_p50_s']}s p95={_tm['ttft_p95_s']}s")
+            if "total_p50_s" in _tm:
+                _parts.append(f"total p50={_tm['total_p50_s']}s p95={_tm['total_p95_s']}s")
+            check_ok("Turn latency (TTFT/tool-loop)", "(" + ", ".join(_parts) + ")")
+    except Exception as e:
+        check_warn("Turn latency (TTFT/tool-loop)", f"(check failed: {e})")
+
     check_info("Warm daemon: run `simplicio-agent daemon` to preload tool/skill/provider registries ahead of use")
 
     _section("Configuration Files")
