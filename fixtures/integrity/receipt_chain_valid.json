@@ -1,0 +1,48 @@
+[
+  {
+    "schema": "simplicio.cognitive-integrity/v1",
+    "algorithm": "sha256",
+    "receipt_id": "rcpt-185-1",
+    "subject": "issue-185",
+    "outcome": "control_event_verified",
+    "issued_at": "2026-07-13T13:15:01Z",
+    "provenance": {
+      "kind": "control_event",
+      "trust_class": "trusted_control_plane",
+      "source": "operator.console",
+      "authenticated": true,
+      "key_id": "ops-main",
+      "event_id": "evt-185-allow",
+      "digest": "135fba6962b8de2a16cc1b0a997d612d32f8a4c5b333730a403809366e902401",
+      "detail": "approval.grant"
+    },
+    "body": {
+      "result": "continue",
+      "target": "agent/trust_boundary.py"
+    },
+    "previous_digest": "",
+    "digest": "f49a0df275e6e1a752f7f45c0028aa1d409d287353986cfff282de1e97963b41"
+  },
+  {
+    "schema": "simplicio.cognitive-integrity/v1",
+    "algorithm": "sha256",
+    "receipt_id": "rcpt-185-2",
+    "subject": "issue-185",
+    "outcome": "receipt_chain_verified",
+    "issued_at": "2026-07-13T13:15:02Z",
+    "provenance": {
+      "kind": "receipt",
+      "trust_class": "trusted_receipt",
+      "source": "issue-185",
+      "authenticated": true,
+      "digest": "f49a0df275e6e1a752f7f45c0028aa1d409d287353986cfff282de1e97963b41",
+      "detail": "control_event_verified"
+    },
+    "body": {
+      "result": "chain-ok",
+      "step": 2
+    },
+    "previous_digest": "f49a0df275e6e1a752f7f45c0028aa1d409d287353986cfff282de1e97963b41",
+    "digest": "9cfaaea042877ac081599efd2bb8a703c4d1ad9b75e678f90e7abec21e9b0b08"
+  }
+]
