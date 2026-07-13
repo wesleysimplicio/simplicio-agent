@@ -6,6 +6,7 @@ import pytest
 
 from agent.task_envelope import (
     CloseGateError,
+    CloseGateReason,
     InvalidTransitionError,
     TASK_ENVELOPE_SCHEMA_VERSION,
     TaskEnvelope,
@@ -237,6 +238,7 @@ def test_close_gate_quarantines_unverified_evidence_once():
     decision = ledger.evaluate_close_gate(env)
     assert decision.allowed is False
     assert decision.quarantined is True
+    assert decision.reason_code is CloseGateReason.VERIFIED_EVIDENCE_MISSING
     assert decision.missing_evidence_refs == ("receipt://test",)
 
     for _ in range(2):
@@ -244,10 +246,12 @@ def test_close_gate_quarantines_unverified_evidence_once():
             ledger.close_if_verified(env)
         assert exc_info.value.decision == decision
 
+    assert ledger.history(env.task_id) == ()
     quarantine = ledger.quarantine_history(env.task_id)
     assert len(quarantine) == 1
     assert quarantine[0]["task_id"] == env.task_id
     assert quarantine[0]["envelope_hash"] == env.content_hash()
+    assert quarantine[0]["reason_code"] == CloseGateReason.VERIFIED_EVIDENCE_MISSING
     assert quarantine[0]["missing_evidence_refs"] == ["receipt://test"]
 
 
@@ -262,6 +266,41 @@ def test_close_gate_closes_only_after_explicit_verification():
     assert closed.state is TaskState.CLOSED
     assert ledger.quarantine_history(env.task_id) == ()
     assert ledger.history(env.task_id)[-1]["state"] == "closed"
+
+
+def test_close_gate_snapshot_round_trip_preserves_quarantine_and_replay_is_idempotent():
+    ledger = TaskLedger()
+    env = _delivered_with_evidence("receipt://one", "receipt://two")
+
+    with pytest.raises(CloseGateError):
+        ledger.close_if_verified(env, verified_evidence_refs=("receipt://one",))
+
+    snapshot = ledger.snapshot()
+    restored = TaskLedger.from_snapshot(snapshot)
+    assert restored.quarantine_history(env.task_id) == ledger.quarantine_history(
+        env.task_id
+    )
+
+    restored.replay_snapshot(snapshot)
+    quarantine = restored.quarantine_history(env.task_id)
+    assert len(quarantine) == 1
+    assert quarantine[0]["required_evidence_refs"] == [
+        "receipt://one",
+        "receipt://two",
+    ]
+    assert quarantine[0]["verified_evidence_refs"] == ["receipt://one"]
+    assert quarantine[0]["missing_evidence_refs"] == ["receipt://two"]
+
+
+def test_close_gate_reason_is_typed_for_other_quarantine_paths():
+    pre_delivery = _make().transition(TaskState.ORIENTED)
+    no_evidence = _delivered_with_evidence()
+
+    decision = TaskLedger.evaluate_close_gate(pre_delivery)
+    assert decision.reason_code is CloseGateReason.DELIVERED_REQUIRED
+
+    decision = TaskLedger.evaluate_close_gate(no_evidence)
+    assert decision.reason_code is CloseGateReason.EVIDENCE_REQUIRED
 
 
 def test_close_gate_preserves_legacy_transition_behavior():
