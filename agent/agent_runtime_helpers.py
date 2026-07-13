@@ -1964,12 +1964,23 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
     # implementations remain below, while policy/evidence consumers receive a
     # canonical ordered trace.
     from agent.tool_invocation_pipeline import ToolInvocation, pipeline_for_agent
-    _invocation_pipeline = pipeline_for_agent(agent)
+    _invocation_pipeline = pipeline_for_agent(agent, function_name)
     _invocation, _invocation_trace = _invocation_pipeline.begin(
         ToolInvocation(function_name, function_args, tool_call_id or "", effective_task_id or "")
     )
     function_args = _invocation.args
     agent._last_tool_invocation_trace = list(_invocation_trace)
+
+    def _complete_pipeline(result: Any, *, status: str = "success") -> Any:
+        outcome = _invocation_pipeline.complete(
+            _invocation,
+            result,
+            _invocation_trace,
+            status=status,
+        )
+        agent._last_tool_invocation_trace = list(outcome.trace)
+        agent._last_tool_invocation_receipt = outcome.receipt.to_dict() if outcome.receipt else {}
+        return result
 
     _tool_middleware_trace = list(tool_request_middleware_trace or [])
     try:
@@ -2027,7 +2038,7 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
             )
         except Exception:
             pass
-        return result
+        return _complete_pipeline(result, status="blocked")
 
     tool_start_time = time.monotonic()
 
@@ -2158,7 +2169,7 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
 
     from hermes_cli.middleware import run_tool_execution_middleware
 
-    return run_tool_execution_middleware(
+    result = run_tool_execution_middleware(
         function_name,
         function_args,
         lambda next_args: _execute(next_args if isinstance(next_args, dict) else function_args),
@@ -2169,6 +2180,7 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
         turn_id=getattr(agent, "_current_turn_id", "") or "",
         api_request_id=getattr(agent, "_current_api_request_id", "") or "",
     )
+    return _complete_pipeline(result)
 
 
 
