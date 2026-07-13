@@ -27,7 +27,7 @@ import os
 import random
 import threading
 import time
-from typing import Any, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from agent.display import (
     KawaiiSpinner,
@@ -1639,8 +1639,172 @@ async def run_dag_tool_batch(
     return await executor.run(nodes)
 
 
+def _find_refs(value: Any, found: set) -> None:
+    """Collect every node_id referenced by a ``$ref:<id>`` string or
+    ``{"$ref": "<id>"}`` dict anywhere inside ``value`` (recursing into
+    nested dicts/lists), mirroring ``agent.async_dag.executor._resolve_refs``'s
+    traversal exactly so detection and resolution never disagree."""
+    if isinstance(value, str) and value.startswith("$ref:"):
+        found.add(value[5:])
+    elif isinstance(value, dict):
+        if "$ref" in value and len(value) == 1 and isinstance(value["$ref"], str):
+            found.add(value["$ref"])
+        else:
+            for v in value.values():
+                _find_refs(v, found)
+    elif isinstance(value, list):
+        for v in value:
+            _find_refs(v, found)
+
+
+def detect_tool_call_dag(tool_calls: Sequence[Any]) -> Optional[List["DagNode"]]:
+    """Detect ``$ref:``-expressed dependencies in a tool-call batch (issue #115).
+
+    A tool call's arguments reference another call's *tool_call_id* via a
+    ``"$ref:<tool_call_id>"`` string or ``{"$ref": "<tool_call_id>"}`` dict
+    value — the exact convention ``agent.async_dag.executor`` already
+    resolves. When at least one such reference is found, this builds and
+    returns the matching ``DagNode`` list (``node_id`` == the tool call's
+    own id, ``depends_on`` == the ids it references) for
+    ``run_dag_tool_batch``. Returns ``None`` when no batch member's
+    arguments reference another member's id — the caller should fall back
+    to the existing independent-batch path unchanged.
+
+    A reference to an id that ISN'T another member of this same batch is
+    NOT a dependency this detector can resolve (nothing in ``outputs`` will
+    ever satisfy it) — treated as "no detected DAG" so the caller falls
+    back to the existing path rather than routing to a DAG that would
+    immediately fail every node with an unresolved-$ref error.
+    """
+    from agent.async_dag import DagNode
+
+    call_ids = {getattr(tc, "id", None) for tc in tool_calls}
+    call_ids.discard(None)
+
+    parsed: List[tuple] = []  # (tool_call, function_args)
+    any_ref_to_batch_member = False
+    for tool_call in tool_calls:
+        try:
+            args = json.loads(tool_call.function.arguments)
+        except (json.JSONDecodeError, TypeError):
+            args = {}
+        if not isinstance(args, dict):
+            args = {}
+        refs: set = set()
+        _find_refs(args, refs)
+        refs_in_batch = refs & call_ids
+        if refs_in_batch:
+            any_ref_to_batch_member = True
+        parsed.append((tool_call, args, refs_in_batch))
+
+    if not any_ref_to_batch_member:
+        return None
+
+    nodes = [
+        DagNode(
+            node_id=tool_call.id,
+            tool=tool_call.function.name,
+            args=args,
+            depends_on=tuple(refs_in_batch),
+        )
+        for tool_call, args, refs_in_batch in parsed
+    ]
+    return nodes
+
+
+async def _run_dag_tool_batch_with_timeout(
+    agent,
+    nodes: Sequence["DagNode"],
+    effective_task_id: str,
+    *,
+    timeout_s: float,
+    max_concurrency: int = 16,
+):
+    """``run_dag_tool_batch`` wrapped with the same wall-clock timeout guard
+    ``execute_tool_calls_concurrent`` applies (``HERMES_CONCURRENT_TOOL_TIMEOUT_S``,
+    issue #69) — a hung node must not hold the whole DAG (and the turn)
+    hostage. On timeout, every node without a completed output is reported
+    as a real timeout error (never fabricated success), mirroring the
+    concurrent path's cancelled-future handling."""
+    import asyncio
+
+    try:
+        return await asyncio.wait_for(
+            run_dag_tool_batch(agent, nodes, effective_task_id, max_concurrency=max_concurrency),
+            timeout=timeout_s,
+        )
+    except asyncio.TimeoutError:
+        from agent.async_dag.executor import DagError, DagResult
+
+        timeout_err = DagError(f"DAG tool batch exceeded {timeout_s}s timeout guard")
+        return DagResult(
+            outputs={},
+            errors={node.node_id: timeout_err for node in nodes},
+            levels=[[n.node_id for n in nodes]],
+            elapsed_s=timeout_s,
+        )
+
+
+def execute_tool_calls_dag(agent, assistant_message, messages: list, effective_task_id: str, api_call_count: int = 0) -> None:
+    """Execute a *dependent* tool-call batch via ``run_dag_tool_batch`` and
+    append results to ``messages`` in the original tool-call order — the
+    message-contract-compatible entry point ``detect_tool_call_dag``'s
+    caller routes to (issue #115). Bridges the sync dispatch call site to
+    the async DAG executor via a dedicated, explicitly-closed event loop.
+    """
+    import asyncio
+
+    tool_calls = assistant_message.tool_calls
+    nodes = detect_tool_call_dag(tool_calls)
+    if nodes is None:
+        raise RuntimeError("execute_tool_calls_dag called without a detected DAG — caller bug")
+
+    _lp = getattr(agent, "_latency_probe", None)
+    if _lp is not None:
+        _lp.begin("tool")
+
+    # Deliberately NOT asyncio.run(): its cleanup calls
+    # loop.shutdown_default_executor(), which BLOCKS joining every
+    # to_thread()-backed worker — including one still stuck in a hung
+    # tool call past the timeout guard below. That would silently defeat
+    # the timeout guard's whole purpose (the turn would still hang for as
+    # long as the tool does). A manually-created loop, closed WITHOUT that
+    # executor-join step, lets a timed-out node's thread finish on its own
+    # in the background without holding up this call's return (verified:
+    # plain loop.close() does not block on outstanding to_thread() work,
+    # unlike shutdown_default_executor()).
+    loop = asyncio.new_event_loop()
+    try:
+        result = loop.run_until_complete(
+            _run_dag_tool_batch_with_timeout(
+                agent, nodes, effective_task_id, timeout_s=_CONCURRENT_TOOL_TIMEOUT
+            )
+        )
+    finally:
+        loop.close()
+        if _lp is not None:
+            _lp.end_phase()
+
+    for tool_call in tool_calls:
+        node_id = tool_call.id
+        if node_id in result.outputs:
+            content = result.outputs[node_id]
+        else:
+            err = result.errors.get(node_id)
+            content = f"[Tool execution error: {err}]" if err is not None else "[Tool execution error: no result produced]"
+        messages.append(make_tool_result_message(tool_call.function.name, content, tool_call.id))
+
+    _flush_session_db_after_tool_progress(
+        agent,
+        messages,
+        stage=f"dag tool batch ({len(tool_calls)} calls, {len(result.errors)} error(s))",
+    )
+
+
 __all__ = [
     "execute_tool_calls_concurrent",
     "execute_tool_calls_sequential",
     "run_dag_tool_batch",
+    "detect_tool_call_dag",
+    "execute_tool_calls_dag",
 ]

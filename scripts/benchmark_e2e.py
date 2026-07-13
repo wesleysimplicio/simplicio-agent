@@ -311,6 +311,83 @@ def bench_router(report: Report, iterations: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario: dependent tool-call chain — serial vs DAG (issue #115)
+# ---------------------------------------------------------------------------
+
+def bench_dag_vs_serial(report: Report, iterations: int) -> None:
+    """Synthetic 3-stage x N-call dependency chain: stage 2 depends on
+    stage 1's output, stage 3 depends on stage 2's — the exact "dependent
+    tool-chain" shape issue #115 targets. Compares wall-clock of running
+    it fully serially (today's assumption for any batch with cross-call
+    dependencies) against agent.tool_executor.run_dag_tool_batch's
+    level-parallel DAG scheduling. Uses a small artificial per-call delay
+    (a real tool call has real I/O latency; a truly instant no-op call
+    would make level-parallelism's benefit vanish under measurement
+    noise) — this isolates the SCHEDULING win, not raw call overhead.
+    """
+    import asyncio
+
+    from agent.async_dag import DagNode
+    from agent.tool_executor import run_dag_tool_batch
+
+    N = max(1, iterations // 200)  # keep total scenario time reasonable
+    PER_CALL_DELAY_S = 0.01
+
+    class _FakeAgent:
+        def _invoke_tool(self, function_name, function_args, effective_task_id, *_, **__):
+            time.sleep(PER_CALL_DELAY_S)
+            return {"tool": function_name, "args": function_args}
+
+    def _build_nodes():
+        nodes = []
+        for i in range(N):
+            s1, s2, s3 = f"s1-{i}", f"s2-{i}", f"s3-{i}"
+            nodes.append(DagNode(node_id=s1, tool="stage1", args={"i": i}))
+            nodes.append(DagNode(node_id=s2, tool="stage2", args={"input": f"$ref:{s1}"}, depends_on=(s1,)))
+            nodes.append(DagNode(node_id=s3, tool="stage3", args={"input": f"$ref:{s2}"}, depends_on=(s2,)))
+        return nodes
+
+    def _run_serial():
+        agent = _FakeAgent()
+        nodes = _build_nodes()
+        outputs: dict = {}
+        for node in nodes:
+            from agent.async_dag.executor import _resolve_refs
+
+            resolved = _resolve_refs(node.args, outputs)
+            outputs[node.node_id] = agent._invoke_tool(node.tool, resolved, "bench")
+
+    t0 = time.perf_counter()
+    _run_serial()
+    serial_total = time.perf_counter() - t0
+
+    def _run_dag():
+        agent = _FakeAgent()
+        nodes = _build_nodes()
+        asyncio.run(run_dag_tool_batch(agent, nodes, "bench", max_concurrency=N * 3))
+
+    t0 = time.perf_counter()
+    _run_dag()
+    dag_total = time.perf_counter() - t0
+
+    speedup = serial_total / dag_total if dag_total > 0 else float("inf")
+    report.add(Result(
+        "tool_executor.dag_vs_serial (3-stage chain)",
+        f"serial (N={N} chains)",
+        N * 3,
+        serial_total,
+        notes=f"speedup vs DAG: {speedup:.2f}x",
+    ))
+    report.add(Result(
+        "tool_executor.dag_vs_serial (3-stage chain)",
+        f"DAG level-parallel (N={N} chains)",
+        N * 3,
+        dag_total,
+        notes=f"speedup vs serial: {speedup:.2f}x (AC target: >= 2x)",
+    ))
+
+
+# ---------------------------------------------------------------------------
 # Scenario: CLI cold-import time (proxy for startup cost)
 # ---------------------------------------------------------------------------
 
@@ -358,6 +435,7 @@ SCENARIOS: dict[str, Callable[[Report, int], None]] = {
     "think_scrubber": bench_think_scrubber,
     "prompt_caching": bench_prompt_caching,
     "router": bench_router,
+    "dag_vs_serial": bench_dag_vs_serial,
 }
 
 
