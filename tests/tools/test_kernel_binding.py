@@ -122,6 +122,13 @@ class TestKernelVerified:
         assert second == first
         assert third == (False, "kernel binary not found")
 
+    def test_reset_kernel_cache_clears_process_scoped_bridge(self):
+        bridge = Mock()
+        kb._simplicio_bridge = bridge
+        kb.reset_kernel_cache()
+        assert kb._simplicio_bridge is None
+        bridge.reset_circuit.assert_called_once_with()
+
 
 # =========================================================================
 # _run_kernel
@@ -399,6 +406,36 @@ class TestEvaluateActionGate:
             result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
         assert result["approved"] is False
         assert "recognized decision" in result["message"]
+
+    def test_bridge_none_result_surfaces_health_diagnostics_in_required_mode(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        bridge = Mock()
+        bridge.gate.return_value = None
+        bridge.health.return_value = {
+            "circuit_open": True,
+            "last_transport": "mcp",
+            "last_fallback_reason": "cli_unavailable",
+            "last_error": "mcp unavailable",
+        }
+        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge):
+            result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
+        assert result["approved"] is False
+        assert "circuit_open" in result["message"]
+        assert "cli_unavailable" in result["message"]
+
+    def test_bridge_runtime_error_still_honors_no_raise_contract(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(
+                 kb, "_get_simplicio_bridge",
+                 return_value=Mock(gate=Mock(side_effect=RuntimeError("boom"))),
+             ):
+            result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
+        assert result["approved"] is False
+        assert "boom" in result["message"]
 
     def test_stale_kernel_required_mode_fails_closed_with_detail(self, monkeypatch):
         """PATH collisions are real: a binary merely *named* simplicio must

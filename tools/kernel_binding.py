@@ -120,6 +120,39 @@ def _get_simplicio_bridge() -> Any:
         return _simplicio_bridge
 
 
+def _bridge_gate_failure_detail(bridge: Any) -> str:
+    """Best-effort diagnostics for a gate call that produced no decision.
+
+    The bridge already normalizes transport failures and circuit-open state;
+    the legacy binding still needs a stable string for fail-closed messages
+    and logs without depending on a specific bridge implementation.
+    """
+    health_fn = getattr(bridge, "health", None)
+    if not callable(health_fn):
+        return "simplicio bridge gate returned no result"
+    try:
+        health = health_fn()
+    except Exception as exc:
+        return f"simplicio bridge gate returned no result (health unavailable: {exc})"
+    if not isinstance(health, dict):
+        return "simplicio bridge gate returned no result"
+    detail_parts = []
+    if health.get("circuit_open"):
+        detail_parts.append("circuit_open")
+    last_transport = str(health.get("last_transport") or "").strip()
+    if last_transport:
+        detail_parts.append(f"transport={last_transport}")
+    fallback_reason = str(health.get("last_fallback_reason") or "").strip()
+    if fallback_reason:
+        detail_parts.append(f"fallback={fallback_reason}")
+    last_error = str(health.get("last_error") or "").strip()
+    if last_error:
+        detail_parts.append(f"error={last_error}")
+    if not detail_parts:
+        return "simplicio bridge gate returned no result"
+    return f"simplicio bridge gate returned no result ({', '.join(detail_parts)})"
+
+
 def _kernel_verified() -> tuple[bool, str]:
     """``(ok, detail)`` -- presence **and** pin handshake, cached per process.
 
@@ -153,9 +186,19 @@ def _kernel_verified() -> tuple[bool, str]:
 
 def reset_kernel_cache() -> None:
     """Clear the PATH-resolution + handshake caches. Test-only escape hatch."""
-    global _kernel_verified_cache
+    global _kernel_verified_cache, _simplicio_bridge
     _kernel_path_cache.clear()
     _kernel_verified_cache = None
+    with _simplicio_bridge_lock:
+        bridge = _simplicio_bridge
+        _simplicio_bridge = None
+    if bridge is not None:
+        reset_circuit = getattr(bridge, "reset_circuit", None)
+        if callable(reset_circuit):
+            try:
+                reset_circuit()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -707,20 +750,23 @@ def evaluate_action_gate(
         return None
 
     try:
-        result = _get_simplicio_bridge().gate(
+        bridge = _get_simplicio_bridge()
+        result = bridge.gate(
             command,
             pattern_key=pattern_key,
             description=description,
             session_key=session_key,
         )
         if result is None:
-            raise KernelBindingError("simplicio bridge gate returned no result")
+            raise KernelBindingError(_bridge_gate_failure_detail(bridge))
         decision = str(result.get("decision", "")).strip().lower()
         if decision not in {"allow", "ask", "deny", "block", "blocked"}:
             raise KernelBindingError(
                 "kernel gate response did not contain a recognized decision"
             )
-    except KernelBindingError as exc:
+    except Exception as exc:
+        if not isinstance(exc, KernelBindingError):
+            exc = KernelBindingError(str(exc))
         logger.warning("kernel_binding.action_gate: gate classify failed: %s", exc)
         if mode == "required":
             emit_savings_event("gate", "blocked_kernel_error", str(exc)[:300])
