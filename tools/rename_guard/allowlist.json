@@ -34,6 +34,30 @@
       "expiry": null
     },
     {
+      "path_glob": "*.dist-info/*",
+      "term": null,
+      "class": "credit",
+      "reason": "wheel build metadata (METADATA/RECORD/entry_points.txt/WHEEL/top_level.txt) is generated verbatim from the already-allowlisted pyproject.toml [project] table and the source file list, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "PKG-INFO",
+      "term": null,
+      "class": "credit",
+      "reason": "sdist build metadata is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "*.egg-info/*",
+      "term": null,
+      "class": "credit",
+      "reason": "setuptools egg-info is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
       "path_glob": "docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md",
       "term": null,
       "class": "KEEP_INTERNAL",
