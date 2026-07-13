@@ -1,53 +1,129 @@
-from agent.tool_invocation_pipeline import STAGES, ToolInvocation, ToolInvocationPipeline
+import json
+from pathlib import Path
+
+from agent.tool_invocation_pipeline import (
+    STAGES,
+    SerialToolExecutorAdapter,
+    ToolDecision,
+    ToolInvocation,
+    ToolInvocationMetadata,
+    ToolInvocationPipeline,
+)
 
 
-def test_pipeline_runs_all_stages_in_order_and_emits_evidence():
+FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "tool-pipeline"
+
+
+def _fixture(name: str) -> dict:
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def test_pipeline_runs_required_stages_and_serial_adapter_in_order():
     seen = []
-    hooks = {}
-    for stage in STAGES:
-        def hook(value, *, _stage=stage, **kwargs):
-            seen.append(_stage)
-            return value
-        hooks[stage] = hook
-
+    hooks = {
+        stage: (lambda value, *, attempt, _stage=stage: seen.append(_stage) or value)
+        for stage in STAGES
+        if stage != "execute"
+    }
     pipeline = ToolInvocationPipeline(hooks=hooks)
+    adapter = SerialToolExecutorAdapter(
+        execute_fn=lambda name, args: {"ok": True, "name": name, "args": args}
+    )
+
     outcome = pipeline.run(
-        ToolInvocation("demo", {"secret": "not stored"}, "call-1", "task-1"),
-        lambda name, args: {"ok": True, "name": name},
+        ToolInvocation(**_fixture("invocation.json")),
+        adapter,
     )
 
     assert outcome.status == "success"
     assert seen == [stage for stage in STAGES if stage != "execute"]
     assert outcome.trace == list(STAGES)
-    assert outcome.evidence["tool_call_id"] == "call-1"
-    assert "secret" not in str(outcome.evidence)
+    assert adapter.executed_attempt_ids == [outcome.invocation.metadata.attempt_id]
+    assert outcome.evidence["tool"] == "demo.tool"
+    assert outcome.receipt is not None
 
 
-def test_pipeline_blocks_before_checkpoint_and_execution_but_persists_evidence():
-    seen = []
-    hooks = {
-        "guardrail": lambda value, **kwargs: seen.append("guardrail") or False,
-        "persist": lambda value, **kwargs: seen.append("persist") or value,
-        "evidence": lambda value, **kwargs: seen.append("evidence") or value,
-        "emit": lambda value, **kwargs: seen.append("emit") or value,
-    }
+def test_pipeline_blocks_before_checkpoint_and_execute_but_still_persists_receipt():
+    persisted = []
+    receipts = []
+    pipeline = ToolInvocationPipeline(
+        hooks={
+            "guardrail": lambda value, *, attempt: ToolDecision(
+                allow=False,
+                reason="dangerous",
+                detail={"policy": "readonly"},
+            ),
+            "persist": lambda value, *, attempt: persisted.append(attempt.status) or value,
+        },
+        receipt_writer=receipts.append,
+    )
     executed = []
-    outcome = ToolInvocationPipeline(hooks=hooks).run(
-        ToolInvocation("danger", {}, "call-2"),
-        lambda name, args: executed.append(name),
+
+    outcome = pipeline.run(
+        ToolInvocation("danger.tool", {"path": "README.md"}, "call-2"),
+        lambda name, args: executed.append((name, args)),
     )
 
     assert outcome.status == "blocked"
     assert executed == []
-    assert seen == ["guardrail", "persist", "evidence", "emit"]
     assert "checkpoint" not in outcome.trace
+    assert "execute" not in outcome.trace
+    assert persisted == ["blocked"]
+    assert len(receipts) == 1
+    assert receipts[0].blocked_by == "guardrail"
 
 
-def test_pipeline_converts_execution_exception_to_classified_evidence():
+def test_pipeline_writes_once_per_attempt_receipt_across_begin_complete_cycle():
+    receipts = []
+    pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
+    invocation = ToolInvocation(**_fixture("invocation.json"))
+
+    materialized, trace = pipeline.begin(invocation)
+    outcome = pipeline.complete(materialized, {"ok": True}, trace)
+    duplicate = pipeline.complete(materialized, {"ok": True}, trace)
+
+    assert outcome.status == "success"
+    assert duplicate.receipt is not None
+    assert outcome.receipt is not None
+    assert duplicate.receipt.receipt_id == outcome.receipt.receipt_id
+    assert len(receipts) == 1
+
+
+def test_pipeline_applies_fail_safe_metadata_defaults_and_redacts_external_results():
+    receipts = []
+    invocation = _fixture("invocation.json")
+    external_result = _fixture("external_result.json")
+    pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
+
+    outcome = pipeline.run(
+        ToolInvocation(
+            name=invocation["name"],
+            args=invocation["args"],
+            metadata=ToolInvocationMetadata(
+                external_result=True,
+                extras={"source": "remote-api"},
+            ),
+        ),
+        lambda name, args: external_result,
+    )
+
+    assert outcome.status == "success"
+    assert outcome.invocation.metadata.attempt_id
+    assert outcome.invocation.metadata.executor == "serial"
+    assert outcome.invocation.metadata.status == "success"
+    assert outcome.evidence["external_result"] is True
+    assert outcome.evidence["result"]["secret"] == "[REDACTED]"
+    assert outcome.evidence["result"]["nested"]["token"] == "[REDACTED]"
+    assert outcome.result["secret"] == "keep-in-live-result"
+    assert len(receipts) == 1
+
+
+def test_pipeline_converts_execution_exception_to_error_outcome():
     outcome = ToolInvocationPipeline().run(
-        ToolInvocation("demo", {}),
+        ToolInvocation("demo.tool", {}),
         lambda name, args: (_ for _ in ()).throw(RuntimeError("boom")),
     )
+
     assert outcome.status == "error"
     assert outcome.error_type == "RuntimeError"
-    assert outcome.trace[-4:] == ["persist", "evidence", "emit"] or outcome.trace[-4:] == ["result-classification", "persist", "evidence", "emit"]
+    assert outcome.trace[-2:] == ["persist", "evidence"]

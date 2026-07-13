@@ -1,0 +1,60 @@
+{
+  "schema": "machine-contracts/product/v1",
+  "contract_version": 1,
+  "product": {
+    "product": "Simplicio Agent",
+    "version": "3.40.0",
+    "surface": "simplicio-agent",
+    "role": "agent_product",
+    "schema": "machine-contracts/product/v1"
+  },
+  "agent": {
+    "name": "simplicio-agent",
+    "version": "3.40.1",
+    "role": "agent",
+    "boundary": "orchestration",
+    "capability_envelope": {
+      "producer": "simplicio-agent",
+      "schema_family": "machine-contracts",
+      "produced_version": 1,
+      "min_consumer_version": 1,
+      "max_consumer_version": 1,
+      "features": [
+        "chat_ux",
+        "autonomy"
+      ],
+      "schema": "machine-contracts/capability-envelope/v1"
+    },
+    "schema": "machine-contracts/component/v1"
+  },
+  "runtime": {
+    "name": "simplicio-runtime",
+    "version": "3.40.9",
+    "role": "runtime",
+    "boundary": "deterministic_kernel",
+    "capability_envelope": {
+      "producer": "simplicio-runtime",
+      "schema_family": "machine-contracts",
+      "produced_version": 1,
+      "min_consumer_version": 1,
+      "max_consumer_version": 1,
+      "features": [
+        "action_gate",
+        "checkpoint"
+      ],
+      "schema": "machine-contracts/capability-envelope/v1"
+    },
+    "schema": "machine-contracts/component/v1"
+  },
+  "compatibility": {
+    "schema": "machine-contracts/compatibility-matrix/v1",
+    "compatible": true,
+    "reasons": [
+      "compatible"
+    ],
+    "agent_version": "3.40.1",
+    "runtime_version": "3.40.9",
+    "agent_schema_version": 1,
+    "runtime_schema_version": 1
+  }
+}
