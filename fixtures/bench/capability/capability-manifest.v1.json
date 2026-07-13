@@ -1,0 +1,134 @@
+{
+  "schema": "simplicio.capability-benchmark-manifest/v1",
+  "version": 1,
+  "manifest_id": "simplicio-agent-capability-smoke-v1",
+  "description": "Offline declarations for the issue #157 capability gate.",
+  "suites": [
+    {
+      "id": "desktop",
+      "domain": "desktop",
+      "tasks": [
+        {
+          "id": "desktop.read-only-smoke",
+          "setup": ["fixture:desktop-read-only"],
+          "goal": "Inspect a fixture desktop state without changing it.",
+          "constraints": ["no_external_credentials", "read_only"],
+          "risk_mode": "read_only",
+          "expected_artifacts": ["artifacts/desktop/state.png", "artifacts/desktop/run.log"],
+          "verifier": "artifact:desktop/state.png+log:desktop/run.log",
+          "timeout_seconds": 60,
+          "smoke": true,
+          "requirements": ["desktop_control"]
+        }
+      ]
+    },
+    {
+      "id": "browser",
+      "domain": "browser",
+      "tasks": [
+        {
+          "id": "browser.fixture-smoke",
+          "setup": ["fixture:browser-local"],
+          "goal": "Navigate a local fixture and verify its declared text.",
+          "constraints": ["local_fixture_only", "no_external_credentials"],
+          "risk_mode": "read_only",
+          "expected_artifacts": ["artifacts/browser/page.png", "artifacts/browser/run.log"],
+          "verifier": "artifact:browser/page.png+log:browser/run.log",
+          "timeout_seconds": 60,
+          "smoke": true,
+          "requirements": ["browser_control"]
+        }
+      ]
+    },
+    {
+      "id": "coding",
+      "domain": "coding",
+      "tasks": [
+        {
+          "id": "coding.patch-smoke",
+          "setup": ["fixture:temporary-repository"],
+          "goal": "Apply a bounded patch and run the fixture test command.",
+          "constraints": ["temporary_workspace", "no_network"],
+          "risk_mode": "guarded",
+          "expected_artifacts": ["artifacts/coding/diff.patch", "artifacts/coding/test.log"],
+          "verifier": "patch:diff.patch+command:test.log",
+          "timeout_seconds": 120,
+          "smoke": true,
+          "requirements": ["file_edit", "test_runner"]
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "domain": "media",
+      "tasks": [
+        {
+          "id": "media.fixture-smoke",
+          "setup": ["fixture:one-frame-media"],
+          "goal": "Transform a local image/audio/video fixture and verify output metadata.",
+          "constraints": ["local_fixture_only", "no_external_credentials"],
+          "risk_mode": "read_only",
+          "expected_artifacts": ["artifacts/media/output.png", "artifacts/media/run.log"],
+          "verifier": "media:output.png+log:media/run.log",
+          "timeout_seconds": 120,
+          "smoke": true,
+          "requirements": ["media_tool"]
+        }
+      ]
+    },
+    {
+      "id": "office",
+      "domain": "office",
+      "tasks": [
+        {
+          "id": "office.fixture-smoke",
+          "setup": ["fixture:document-spreadsheet-pdf"],
+          "goal": "Create or inspect fixture document, spreadsheet, and PDF outputs.",
+          "constraints": ["local_fixture_only", "no_external_credentials"],
+          "risk_mode": "read_only",
+          "expected_artifacts": ["artifacts/office/output.pdf", "artifacts/office/run.log"],
+          "verifier": "document:output.pdf+log:office/run.log",
+          "timeout_seconds": 120,
+          "smoke": true,
+          "requirements": ["office_adapter"]
+        }
+      ]
+    },
+    {
+      "id": "mobile",
+      "domain": "mobile",
+      "tasks": [
+        {
+          "id": "mobile.fixture-smoke",
+          "setup": ["fixture:mobile-simulator"],
+          "goal": "Inspect a mobile fixture state and capture a deterministic screen artifact.",
+          "constraints": ["simulator_only", "no_real_device_data"],
+          "risk_mode": "read_only",
+          "expected_artifacts": ["artifacts/mobile/state.png", "artifacts/mobile/run.log"],
+          "verifier": "artifact:mobile/state.png+log:mobile/run.log",
+          "timeout_seconds": 120,
+          "smoke": true,
+          "requirements": ["mobile_adapter"]
+        }
+      ]
+    },
+    {
+      "id": "persistent-run",
+      "domain": "persistent-run",
+      "tasks": [
+        {
+          "id": "persistent-run.resume-smoke",
+          "setup": ["fixture:checkpointed-run"],
+          "goal": "Resume a fixture run after an interruption and verify its checkpoint.",
+          "constraints": ["local_fixture_only", "no_external_credentials"],
+          "risk_mode": "guarded",
+          "expected_artifacts": ["artifacts/persistent-run/checkpoint.json", "artifacts/persistent-run/run.log"],
+          "verifier": "checkpoint:checkpoint.json+log:persistent-run/run.log",
+          "timeout_seconds": 120,
+          "smoke": true,
+          "requirements": ["persistent_run"]
+        }
+      ]
+    }
+  ]
+}
