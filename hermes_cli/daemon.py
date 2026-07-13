@@ -11,12 +11,28 @@ SessionDB) and degrades gracefully — never raises — if the underlying system
 isn't available in a given environment.
 
 Subcommands:
-    simplicio-agent daemon start [--profile desktop|car] [--socket PATH]
+    simplicio-agent daemon start [--profile desktop|car] [--socket PATH] [--idle-ttl-s N]
     simplicio-agent daemon stop  [--socket PATH]
     simplicio-agent daemon status [--socket PATH]
 
 Fallback: when the daemon socket is missing or unresponsive, callers MUST
 re-execute the cold path. Never block UX on a warm daemon.
+
+Auto-start (issue #110): interactive CLI/TUI entry points may call
+``maybe_autostart()`` to spawn this daemon in the background on first use so
+later invocations hit the warm path instead of paying cold discovery every
+time. Auto-start is skipped entirely for one-shot/non-interactive invocations
+(``-q``/``--query``, non-TTY stdin/stdout, CI) — those callers never import
+or call ``maybe_autostart()`` in the first place (see
+``hermes_cli/main.py::_should_autostart_daemon``). Set
+``SIMPLICIO_AGENT_NO_DAEMON=1`` to opt out unconditionally (no background
+process is ever spawned, regardless of interactivity).
+
+Idle shutdown: a spawned/attended daemon tracks time since its last accepted
+connection and exits on its own once ``SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S``
+(default: 1800s / 30min) elapses with no activity, so auto-start never leaks
+a process that lives forever. Override per-run with ``daemon start
+--idle-ttl-s N``.
 """
 
 from __future__ import annotations
@@ -25,6 +41,7 @@ import argparse
 import json
 import os
 import socket
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -63,6 +80,86 @@ def _pid_path(sock: Path) -> Path:
 
 def _ensure_dir(p: Path) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Auto-start / idle-TTL (issue #110)
+# ---------------------------------------------------------------------------
+
+DEFAULT_IDLE_TTL_S = 1800.0  # 30 minutes
+
+
+def _no_daemon_opt_out() -> bool:
+    """Read the ``SIMPLICIO_AGENT_NO_DAEMON`` kill-switch.
+
+    Mirrors the other ``SIMPLICIO_*_NO_*`` kill-switches used across the
+    Simplicio ecosystem (e.g. ``SIMPLICIO_MAPPER_NO_RUNTIME_PRECEDENT``):
+    unset/empty/"0"/"false"/"no" means "not opted out"; anything else opts out.
+    """
+    raw = os.environ.get("SIMPLICIO_AGENT_NO_DAEMON", "").strip().lower()
+    return raw not in ("", "0", "false", "no")
+
+
+def _idle_ttl_s(override: float | None = None) -> float:
+    if override is not None:
+        return max(1.0, float(override))
+    raw = os.environ.get("SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S")
+    if not raw:
+        return DEFAULT_IDLE_TTL_S
+    try:
+        return max(1.0, float(raw))
+    except ValueError:
+        return DEFAULT_IDLE_TTL_S
+
+
+def is_daemon_running(sock_path: Path | None = None, timeout: float = 1.0) -> bool:
+    """True only when a live daemon answers a real ``ping`` over the socket."""
+    resp = _client_request(sock_path or DEFAULT_SOCKET, {"op": "ping"}, timeout=timeout)
+    return bool(resp.get("ok")) and resp.get("pong") is True
+
+
+def maybe_autostart(sock_path: Path | None = None, profile: str = "desktop") -> bool:
+    """Best-effort background auto-start for an interactive CLI/TUI invocation.
+
+    Never raises and never blocks the caller — any failure here just means
+    the caller falls back to the existing cold path, per this module's
+    fallback contract. Returns True only when a new background daemon
+    process was actually spawned by this call.
+
+    Callers are responsible for deciding *whether* this is an interactive,
+    auto-start-eligible invocation (see
+    ``hermes_cli/main.py::_should_autostart_daemon``); this function only
+    handles the opt-out kill-switch and the actual spawn/dedupe.
+    """
+    if _no_daemon_opt_out():
+        return False
+    sock_path = sock_path or DEFAULT_SOCKET
+    try:
+        if is_daemon_running(sock_path, timeout=0.3):
+            return False  # already warm — nothing to do
+        _ensure_dir(sock_path)
+        popen_kwargs: dict[str, Any] = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+            "cwd": str(Path(__file__).resolve().parent.parent),
+        }
+        if sys.platform == "win32":
+            popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+            )
+        else:
+            popen_kwargs["start_new_session"] = True
+        subprocess.Popen(
+            [
+                sys.executable, "-m", "hermes_cli.daemon", "start",
+                "--warm-profile", profile, "--socket", str(sock_path),
+            ],
+            **popen_kwargs,
+        )
+        return True
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +272,7 @@ PROFILE_PRELOADS: dict[str, tuple[str, ...]] = {
 # ---------------------------------------------------------------------------
 
 
-def _serve(sock_path: Path, profile: str) -> int:
+def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> int:
     if profile not in PROFILES:
         print(f"unknown profile: {profile}", file=sys.stderr)
         return 2
@@ -200,16 +297,37 @@ def _serve(sock_path: Path, profile: str) -> int:
 
     host = AgentHost(make_agent, max_sessions=32, max_workers=4, max_pending=64)
     started = time.time()
+    idle_ttl = _idle_ttl_s(idle_ttl_s)
+    # Poll interval for the idle-TTL check: never longer than the TTL itself,
+    # so a very short TTL (e.g. in tests) is still observed promptly.
+    poll_s = min(1.0, idle_ttl / 2) if idle_ttl < 2 else 1.0
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(str(sock_path))
     srv.listen(8)
     os.chmod(sock_path, 0o600)
+    srv.settimeout(poll_s)
 
-    print(f"simplicio-agent daemon ready profile={profile} socket={sock_path}", flush=True)
+    print(
+        f"simplicio-agent daemon ready profile={profile} socket={sock_path} "
+        f"idle_ttl_s={idle_ttl}",
+        flush=True,
+    )
 
+    last_activity = time.time()
     try:
         while True:
-            conn, _ = srv.accept()
+            try:
+                conn, _ = srv.accept()
+            except socket.timeout:
+                if time.time() - last_activity >= idle_ttl:
+                    print(
+                        f"simplicio-agent daemon idle for {idle_ttl}s — shutting down",
+                        flush=True,
+                    )
+                    break
+                continue
+
+            last_activity = time.time()
             with conn:
                 try:
                     raw = conn.recv(8192).decode("utf-8", errors="replace")
@@ -225,6 +343,8 @@ def _serve(sock_path: Path, profile: str) -> int:
                         "profile": profile,
                         "uptime_s": round(time.time() - started, 2),
                         "caches": list(caches),
+                        "idle_ttl_s": idle_ttl,
+                        "idle_s": round(time.time() - last_activity, 2),
                     }
                 elif op == "ping":
                     resp = {"ok": True, "pong": True}
@@ -302,6 +422,13 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("start", help="Start the warm daemon (foreground)")
     s.add_argument("--warm-profile", dest="profile", choices=PROFILES, default="desktop")
     s.add_argument("--socket", default=None)
+    s.add_argument(
+        "--idle-ttl-s", dest="idle_ttl_s", type=float, default=None,
+        help=(
+            "Idle TTL in seconds before auto-shutdown "
+            "(default: $SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S or 1800)"
+        ),
+    )
 
     st = sub.add_parser("stop", help="Stop the warm daemon")
     st.add_argument("--socket", default=None)
@@ -321,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     sock = _socket_path(args.socket)
 
     if args.cmd == "start":
-        return _serve(sock, args.profile)
+        return _serve(sock, args.profile, idle_ttl_s=args.idle_ttl_s)
     if args.cmd == "stop":
         resp = _client_request(sock, {"op": "shutdown"})
         print(json.dumps(resp))

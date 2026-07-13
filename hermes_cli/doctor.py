@@ -301,6 +301,38 @@ def _check_s6_supervision(issues: list[str]) -> None:
     )
 
 
+def _check_warm_daemon() -> None:
+    """Report the warm daemon's running/idle-TTL/off state (issue #110).
+
+    Read-only: never starts, stops, or invalidates the daemon. Uses the same
+    ``daemon._client_request``/socket-fallback contract every other daemon
+    client uses, so a missing/dead socket degrades to an informational
+    "off" line instead of raising.
+    """
+    try:
+        from hermes_cli.daemon import DEFAULT_SOCKET, _client_request, _no_daemon_opt_out
+    except Exception:
+        return
+
+    _section("Warm Daemon")
+
+    if _no_daemon_opt_out():
+        check_info("Warm daemon: disabled (SIMPLICIO_AGENT_NO_DAEMON set) — cold path only")
+        return
+
+    resp = _client_request(DEFAULT_SOCKET, {"op": "status"}, timeout=1.0)
+    if not resp.get("ok"):
+        check_info("Warm daemon: off (cold path — first interactive invocation will auto-start it)")
+        return
+
+    idle_ttl_s = resp.get("idle_ttl_s")
+    idle_s = resp.get("idle_s")
+    detail = f"profile={resp.get('profile')} uptime_s={resp.get('uptime_s')}"
+    if idle_ttl_s is not None and idle_s is not None:
+        detail += f" idle_s={idle_s}/{idle_ttl_s}"
+    check_ok("Warm daemon: running", detail)
+
+
 def check_certificates() -> None:
     """Verify the certifi CA bundle is loadable.
 
@@ -1398,6 +1430,7 @@ def run_doctor(args):
 
     _check_gateway_service_linger(issues)
     _check_s6_supervision(issues)
+    _check_warm_daemon()
 
     if sys.platform != "win32":
         _section("Command Installation")
