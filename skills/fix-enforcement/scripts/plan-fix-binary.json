@@ -1,0 +1,16 @@
+{
+  "schema": "simplicio.mechanical-edit/v1",
+  "root": "/Users/wesleysimplicio/.hermes/plugins/simplicio",
+  "files": [
+    {
+      "path": "tools.py",
+      "operations": [
+        {
+          "op": "replace",
+          "old": "\"simplicio\"",
+          "new": "\"/Users/wesleysimplicio/.local/bin/simplicio\""
+        }
+      ]
+    }
+  ]
+}
