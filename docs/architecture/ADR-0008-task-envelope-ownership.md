@@ -5,7 +5,9 @@
 **Related:** issue #209 (this ADR), epic #159, `simplicio-runtime#3028`.
 **Code:** `agent/task_envelope.py` (schema + state machine + ledger),
 `agent/task_envelope_bridge.py` (protocol_v1 event bridge),
-`tests/agent/test_task_envelope.py`, `tests/agent/test_task_envelope_bridge.py`.
+`agent/turn_envelope.py` (chat-turn wiring),
+`tests/agent/test_task_envelope.py`, `tests/agent/test_task_envelope_bridge.py`,
+`tests/agent/test_turn_envelope.py`.
 
 ## Problem
 
@@ -66,11 +68,31 @@ two implementations is tracked as follow-up, out of this issue's reach alone
 
 ## Still open (tracked, not blocking this ADR)
 
-- No real chat/CLI/workflow/worker call site constructs a `TaskEnvelope` yet
-  — `agent/task_envelope_bridge.py` and its tests are the smallest possible
-  vertical slice (one caller drives an envelope transition and its matching
-  protocol event together), not a production integration into
-  `agent/conversation_loop.py` or `kernel_binding`. Wiring an actual call site
-  is separate follow-up work.
+- **Partially closed.** `agent/turn_envelope.py` now wires one real
+  production call site: `agent.conversation_loop.run_conversation`
+  constructs a `TaskEnvelope` per chat turn (`start_turn_envelope`, fast-
+  forwarded to `executing`) and `agent.turn_finalizer.finalize_turn` drives
+  it to its real terminal state (`closed`/`failed`/`blocked`) via
+  `finish_turn_envelope`, using the exact `completed`/`failed`/`interrupted`
+  outcome `finalize_turn` already computes — no second status model is
+  invented. See `tests/agent/test_turn_envelope.py` for the end-to-end
+  (non-synthetic) exercise of this path.
+  - The chat wiring appends the initial `received` envelope and every
+    committed transition to the per-agent `TaskLedger`, and retains the
+    matching `protocol_v1` event trail for read-only consumers. Repeated start
+    or finalization calls for the same turn are idempotent.
+  - This covers only the **chat** surface, and only the default
+    (non-`codex_app_server`) transport within it — the `codex_app_server`
+    bypass in `run_conversation` still returns before an envelope is ever
+    started, which is a documented, deliberate gap (that subprocess-backed
+    transport has its own turn shape and needs its own integration, not a
+    forced fit into this one).
+  - **CLI, workflow, and worker surfaces still do not construct a
+    `TaskEnvelope`** — the AC "Chat, CLI, workflow and worker produce the
+    same canonical envelope" is *not* fully satisfied. `kernel_binding`,
+    the runtime `run` path, workflow dispatch, and `simplicio-loop`
+    iterations each still track their own ad-hoc status. Wiring those is
+  separate follow-up work, one surface at a time, following the same
+  smallest-blast-radius pattern used here.
 - `simplicio contracts smoke --json` is not yet wired to validate this
   schema.
