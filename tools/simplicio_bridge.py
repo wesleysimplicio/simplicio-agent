@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # Circuit breaker
 # ---------------------------------------------------------------------------
 
+
 class CircuitBreaker:
     """Bounded failure counter + health flag.
 
@@ -110,6 +111,7 @@ class CircuitBreaker:
 # Transport contract (injectable)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class KernelCallResult:
     ok: bool
@@ -129,6 +131,7 @@ class KernelTransport(SimplicioTransport):
 # ---------------------------------------------------------------------------
 # Bridge
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class BridgeMetrics:
@@ -154,11 +157,17 @@ class SimplicioBridge:
         orient_view = bridge.orient("/path/to/repo")
     """
 
-    def __init__(self, transport: Optional[KernelTransport] = None,
-                 *, failure_threshold: int = 5, cooldown_s: float = 30.0) -> None:
+    def __init__(
+        self,
+        transport: Optional[KernelTransport] = None,
+        *,
+        failure_threshold: int = 5,
+        cooldown_s: float = 30.0,
+    ) -> None:
         self._transport = transport or SimplicioTransport()
-        self._breaker = CircuitBreaker(failure_threshold=failure_threshold,
-                                       cooldown_s=cooldown_s)
+        self._breaker = CircuitBreaker(
+            failure_threshold=failure_threshold, cooldown_s=cooldown_s
+        )
         self._lock = threading.Lock()
         self._metrics = BridgeMetrics()
         # causal id -> last result, for idempotent callers
@@ -205,7 +214,9 @@ class SimplicioBridge:
         if callable(transport_health):
             try:
                 result["transport"] = transport_health()
-            except Exception as exc:  # test doubles/third-party transports may not expose state
+            except (
+                Exception
+            ) as exc:  # test doubles/third-party transports may not expose state
                 result["transport"] = {"healthy": True, "detail": str(exc)}
         return result
 
@@ -213,9 +224,14 @@ class SimplicioBridge:
         self._breaker.reset()
 
     # -- dispatch --------------------------------------------------------
-    def _dispatch(self, op: str, fn: Callable[[], KernelCallResult],
-                  *, causal_id: Optional[str] = None,
-                  idempotent: bool = False) -> Any:
+    def _dispatch(
+        self,
+        op: str,
+        fn: Callable[[], KernelCallResult],
+        *,
+        causal_id: Optional[str] = None,
+        idempotent: bool = False,
+    ) -> Any:
         cid = causal_id or self._next_causal_id(op)
         if idempotent and cid in self._seen:
             return self._seen[cid]
@@ -259,49 +275,70 @@ class SimplicioBridge:
         return value
 
     # -- typed API -------------------------------------------------------
-    def gate(self, command: str, *, pattern_key: str = "", description: str = "",
-             session_key: str = "", causal_id: Optional[str] = None) -> Optional[dict]:
+    def gate(
+        self,
+        command: str,
+        *,
+        pattern_key: str = "",
+        description: str = "",
+        session_key: str = "",
+        causal_id: Optional[str] = None,
+    ) -> Optional[dict]:
         return self._dispatch(
             "gate",
             lambda: self._transport.gate(
-                command, pattern_key=pattern_key,
-                description=description, session_key=session_key),
+                command,
+                pattern_key=pattern_key,
+                description=description,
+                session_key=session_key,
+            ),
             causal_id=causal_id,
         )
 
-    def checkpoint(self, label: str, *, workdir: str = "", extra: Optional[dict] = None,
-                   causal_id: Optional[str] = None) -> None:
+    def checkpoint(
+        self,
+        label: str,
+        *,
+        workdir: str = "",
+        extra: Optional[dict] = None,
+        causal_id: Optional[str] = None,
+    ) -> None:
         self._dispatch(
             "checkpoint",
             lambda: self._transport.checkpoint(label, workdir=workdir, extra=extra),
             causal_id=causal_id,
         )
 
-    def mechanical_edit(self, plan: dict, *, causal_id: Optional[str] = None) -> Optional[dict]:
+    def mechanical_edit(
+        self, plan: dict, *, causal_id: Optional[str] = None
+    ) -> Optional[dict]:
         return self._dispatch(
             "mechanical_edit",
             lambda: self._transport.mechanical_edit(plan),
             causal_id=causal_id,
         )
 
-    def orient(self, repo: str, *, fmt: str = "markdown",
-               causal_id: Optional[str] = None) -> Optional[str]:
+    def orient(
+        self, repo: str, *, fmt: str = "markdown", causal_id: Optional[str] = None
+    ) -> Optional[str]:
         return self._dispatch(
             "orient",
             lambda: self._transport.orient(repo, fmt=fmt),
             causal_id=causal_id,
         )
 
-    def recall(self, query: str, *, repo: str = "",
-               causal_id: Optional[str] = None) -> Optional[str]:
+    def recall(
+        self, query: str, *, repo: str = "", causal_id: Optional[str] = None
+    ) -> Optional[str]:
         return self._dispatch(
             "recall",
             lambda: self._transport.recall(query, repo=repo),
             causal_id=causal_id,
         )
 
-    def ledger(self, event: dict, *, idempotent: bool = True,
-               causal_id: Optional[str] = None) -> bool:
+    def ledger(
+        self, event: dict, *, idempotent: bool = True, causal_id: Optional[str] = None
+    ) -> bool:
         res = self._dispatch(
             "ledger",
             lambda: self._transport.ledger(event),

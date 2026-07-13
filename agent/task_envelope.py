@@ -100,9 +100,11 @@ CANONICAL_ORDER: tuple[TaskState, ...] = (
 _NON_TERMINAL_CANONICAL = CANONICAL_ORDER[:-1]  # everything before CLOSED
 
 #: Terminal states: no outgoing transitions at all (other than the no-op self-loop).
-TERMINAL_STATES: FrozenSet[TaskState] = frozenset(
-    {TaskState.CLOSED, TaskState.CANCELLED, TaskState.QUARANTINED}
-)
+TERMINAL_STATES: FrozenSet[TaskState] = frozenset({
+    TaskState.CLOSED,
+    TaskState.CANCELLED,
+    TaskState.QUARANTINED,
+})
 
 
 def _build_allowed_transitions() -> Dict[TaskState, FrozenSet[TaskState]]:
@@ -112,9 +114,7 @@ def _build_allowed_transitions() -> Dict[TaskState, FrozenSet[TaskState]]:
         if i + 1 < len(CANONICAL_ORDER):
             targets.add(CANONICAL_ORDER[i + 1])
         if state not in TERMINAL_STATES:
-            targets.update(
-                {TaskState.BLOCKED, TaskState.CANCELLED, TaskState.FAILED}
-            )
+            targets.update({TaskState.BLOCKED, TaskState.CANCELLED, TaskState.FAILED})
             if state is not TaskState.RECEIVED:
                 # quarantine requires having at least been oriented once.
                 targets.add(TaskState.QUARANTINED)
@@ -137,14 +137,18 @@ def _build_allowed_transitions() -> Dict[TaskState, FrozenSet[TaskState]]:
 
 #: ``from_state -> {allowed to_states}``. A same-state transition is always
 #: allowed (idempotent no-op) even though it is not listed explicitly here.
-ALLOWED_TRANSITIONS: Dict[TaskState, FrozenSet[TaskState]] = _build_allowed_transitions()
+ALLOWED_TRANSITIONS: Dict[TaskState, FrozenSet[TaskState]] = (
+    _build_allowed_transitions()
+)
 
 
 class InvalidTransitionError(ValueError):
     """Raised when a :class:`TaskEnvelope` transition is not allowed."""
 
     def __init__(self, from_state: TaskState, to_state: TaskState) -> None:
-        allowed = sorted(s.value for s in ALLOWED_TRANSITIONS.get(from_state, frozenset()))
+        allowed = sorted(
+            s.value for s in ALLOWED_TRANSITIONS.get(from_state, frozenset())
+        )
         super().__init__(
             f"invalid transition {from_state.value!r} -> {to_state.value!r}; "
             f"allowed from {from_state.value!r}: {allowed or '(terminal, none)'}"
@@ -212,8 +216,7 @@ class TaskEnvelope:
     def __post_init__(self) -> None:
         if self.schema != TASK_ENVELOPE_SCHEMA:
             raise ValueError(
-                f"unsupported schema {self.schema!r}; "
-                f"expected {TASK_ENVELOPE_SCHEMA!r}"
+                f"unsupported schema {self.schema!r}; expected {TASK_ENVELOPE_SCHEMA!r}"
             )
         if self.schema_version != TASK_ENVELOPE_SCHEMA_VERSION:
             raise ValueError(
@@ -318,7 +321,9 @@ class TaskEnvelope:
         if to_state is TaskState.EXECUTING:
             attempts = attempts + 1
 
-        def _merge(existing: tuple[str, ...], new: Optional[List[str] | tuple[str, ...]]) -> tuple[str, ...]:
+        def _merge(
+            existing: tuple[str, ...], new: Optional[List[str] | tuple[str, ...]]
+        ) -> tuple[str, ...]:
             if not new:
                 return existing
             merged = list(existing)
@@ -338,7 +343,9 @@ class TaskEnvelope:
             artifacts=_merge(self.artifacts, artifacts),
             receipts=_merge(self.receipts, receipts),
             evidence_refs=_merge(self.evidence_refs, evidence_refs),
-            delivery_target=delivery_target if delivery_target is not None else self.delivery_target,
+            delivery_target=delivery_target
+            if delivery_target is not None
+            else self.delivery_target,
         )
 
     @property

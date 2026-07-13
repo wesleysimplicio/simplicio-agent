@@ -66,8 +66,15 @@ class RepairAction(StrEnum):
     LOWER_RISK = "lower_risk"
 
 
-_VERSION = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:[-+][0-9A-Za-z.-]+)?$")
-_HEALTH_ORDER = {Health.HEALTHY: 0, Health.DEGRADED: 1, Health.UNKNOWN: 2, Health.UNHEALTHY: 3}
+_VERSION = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:[-+][0-9A-Za-z.-]+)?$"
+)
+_HEALTH_ORDER = {
+    Health.HEALTHY: 0,
+    Health.DEGRADED: 1,
+    Health.UNKNOWN: 2,
+    Health.UNHEALTHY: 3,
+}
 _RISK_ORDER = {Risk.LOW: 0, Risk.MEDIUM: 1, Risk.HIGH: 2, Risk.CRITICAL: 3}
 
 
@@ -106,14 +113,20 @@ class CapabilityMetadata:
             raise ValueError(f"version must be semver-like, got {version!r}")
         _nonempty(self.source, "source")
         _nonempty(self.license, "license")
-        object.__setattr__(self, "platforms", _tuple_strings(self.platforms, "platforms"))
+        object.__setattr__(
+            self, "platforms", _tuple_strings(self.platforms, "platforms")
+        )
         if not isinstance(self.health, Health):
             object.__setattr__(self, "health", Health(self.health))
         if not isinstance(self.risk, Risk):
             object.__setattr__(self, "risk", Risk(self.risk))
         if not isinstance(self.determinism, Determinism):
             object.__setattr__(self, "determinism", Determinism(self.determinism))
-        if isinstance(self.cost, bool) or not isinstance(self.cost, (int, float)) or self.cost < 0:
+        if (
+            isinstance(self.cost, bool)
+            or not isinstance(self.cost, (int, float))
+            or self.cost < 0
+        ):
             raise ValueError("cost must be a non-negative number")
         object.__setattr__(self, "cost", float(self.cost))
 
@@ -158,8 +171,12 @@ class Capability:
         object.__setattr__(self, "name", _nonempty(self.name, "name").lower())
         if not isinstance(self.metadata, CapabilityMetadata):
             raise TypeError("metadata must be a CapabilityMetadata instance")
-        object.__setattr__(self, "fallback", tuple(_nonempty(x, "fallback") for x in self.fallback))
-        object.__setattr__(self, "repair_actions", tuple(RepairAction(x) for x in self.repair_actions))
+        object.__setattr__(
+            self, "fallback", tuple(_nonempty(x, "fallback") for x in self.fallback)
+        )
+        object.__setattr__(
+            self, "repair_actions", tuple(RepairAction(x) for x in self.repair_actions)
+        )
 
     @property
     def id(self) -> str:
@@ -191,9 +208,13 @@ class RepairPlan:
     summary: str = ""
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "capability", _nonempty(self.capability, "capability").lower())
+        object.__setattr__(
+            self, "capability", _nonempty(self.capability, "capability").lower()
+        )
         object.__setattr__(self, "reason", ReasonCode(self.reason))
-        object.__setattr__(self, "actions", tuple(RepairAction(x) for x in self.actions))
+        object.__setattr__(
+            self, "actions", tuple(RepairAction(x) for x in self.actions)
+        )
         if not self.actions:
             raise ValueError("a repair plan must contain at least one action")
         # Repair is an external/state-changing operation.  It must never be
@@ -213,7 +234,8 @@ class RouteDecision:
     @property
     def selected(self) -> bool:
         return self.capability is not None and self.reason in {
-            ReasonCode.SELECTED, ReasonCode.PINNED_CAPABILITY
+            ReasonCode.SELECTED,
+            ReasonCode.PINNED_CAPABILITY,
         }
 
     @property
@@ -225,7 +247,9 @@ class RouteDecision:
             "capability": self.capability,
             "reason": self.reason.value,
             "attempted": list(self.attempted),
-            "repair_plan": dataclasses.asdict(self.repair_plan) if self.repair_plan else None,
+            "repair_plan": dataclasses.asdict(self.repair_plan)
+            if self.repair_plan
+            else None,
             "session_id": self.session_id,
             "pinned": self.pinned,
         }
@@ -318,21 +342,48 @@ class CapabilityRegistry:
     ) -> tuple[bool, ReasonCode, RepairPlan | None]:
         meta = capability.metadata
         if not capability.enabled:
-            return False, ReasonCode.HEALTH_UNAVAILABLE, self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE)
+            return (
+                False,
+                ReasonCode.HEALTH_UNAVAILABLE,
+                self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE),
+            )
         if not meta.supports_platform(platform):
             return False, ReasonCode.PLATFORM_UNSUPPORTED, None
         if max_cost is not None and meta.cost > max_cost:
             return False, ReasonCode.COST_LIMIT_EXCEEDED, None
         if meta.risk in (Risk.HIGH, Risk.CRITICAL) and not allow_risky:
-            return False, ReasonCode.RISK_REQUIRES_CONSENT, self._repair(capability, ReasonCode.RISK_REQUIRES_CONSENT)
-        if meta.determinism is Determinism.NONDETERMINISTIC and not allow_nondeterministic:
-            return False, ReasonCode.NONDETERMINISTIC_REQUIRES_CONSENT, self._repair(capability, ReasonCode.NONDETERMINISTIC_REQUIRES_CONSENT)
+            return (
+                False,
+                ReasonCode.RISK_REQUIRES_CONSENT,
+                self._repair(capability, ReasonCode.RISK_REQUIRES_CONSENT),
+            )
+        if (
+            meta.determinism is Determinism.NONDETERMINISTIC
+            and not allow_nondeterministic
+        ):
+            return (
+                False,
+                ReasonCode.NONDETERMINISTIC_REQUIRES_CONSENT,
+                self._repair(capability, ReasonCode.NONDETERMINISTIC_REQUIRES_CONSENT),
+            )
         if meta.health is Health.UNHEALTHY:
-            return False, ReasonCode.HEALTH_UNAVAILABLE, self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE)
+            return (
+                False,
+                ReasonCode.HEALTH_UNAVAILABLE,
+                self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE),
+            )
         if meta.health is Health.DEGRADED and not allow_degraded:
-            return False, ReasonCode.HEALTH_UNAVAILABLE, self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE)
+            return (
+                False,
+                ReasonCode.HEALTH_UNAVAILABLE,
+                self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE),
+            )
         if meta.health is Health.UNKNOWN and not allow_unknown_health:
-            return False, ReasonCode.HEALTH_UNAVAILABLE, self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE)
+            return (
+                False,
+                ReasonCode.HEALTH_UNAVAILABLE,
+                self._repair(capability, ReasonCode.HEALTH_UNAVAILABLE),
+            )
         return True, ReasonCode.SELECTED, None
 
     def route(
@@ -355,7 +406,9 @@ class CapabilityRegistry:
             raise ValueError("session and session_id disagree")
         session_id = session_id if session_id is not None else session
         if not isinstance(capability, str) or not capability.strip():
-            return RouteDecision(None, ReasonCode.NO_SUCH_CAPABILITY, session_id=session_id)
+            return RouteDecision(
+                None, ReasonCode.NO_SUCH_CAPABILITY, session_id=session_id
+            )
         name = capability.strip().lower()
 
         if session_id is not None:
@@ -365,23 +418,43 @@ class CapabilityRegistry:
                 pinned = self.get(existing_pin.capability)
                 if pinned is None or pinned.version != existing_pin.version:
                     return RouteDecision(
-                        None, ReasonCode.PINNED_CAPABILITY_UNAVAILABLE,
-                        attempted=(existing_pin.capability,), session_id=session_id, pinned=True,
+                        None,
+                        ReasonCode.PINNED_CAPABILITY_UNAVAILABLE,
+                        attempted=(existing_pin.capability,),
+                        session_id=session_id,
+                        pinned=True,
                     )
                 ok, reason, repair = self._eligible(
-                    pinned, platform=platform, max_cost=max_cost,
-                    allow_degraded=allow_degraded, allow_unknown_health=allow_unknown_health,
-                    allow_risky=allow_risky, allow_nondeterministic=allow_nondeterministic,
+                    pinned,
+                    platform=platform,
+                    max_cost=max_cost,
+                    allow_degraded=allow_degraded,
+                    allow_unknown_health=allow_unknown_health,
+                    allow_risky=allow_risky,
+                    allow_nondeterministic=allow_nondeterministic,
                 )
                 if ok:
-                    return RouteDecision(pinned.name, ReasonCode.PINNED_CAPABILITY,
-                                         (pinned.name,), session_id=session_id, pinned=True)
-                return RouteDecision(None, ReasonCode.PINNED_CAPABILITY_UNAVAILABLE,
-                                     (pinned.name,), repair, session_id=session_id, pinned=True)
+                    return RouteDecision(
+                        pinned.name,
+                        ReasonCode.PINNED_CAPABILITY,
+                        (pinned.name,),
+                        session_id=session_id,
+                        pinned=True,
+                    )
+                return RouteDecision(
+                    None,
+                    ReasonCode.PINNED_CAPABILITY_UNAVAILABLE,
+                    (pinned.name,),
+                    repair,
+                    session_id=session_id,
+                    pinned=True,
+                )
 
         requested = self.get(name)
         if requested is None:
-            return RouteDecision(None, ReasonCode.NO_SUCH_CAPABILITY, session_id=session_id)
+            return RouteDecision(
+                None, ReasonCode.NO_SUCH_CAPABILITY, session_id=session_id
+            )
         ordered: list[str] = []
         for candidate_name in (requested.name, *requested.fallback):
             candidate_name = candidate_name.strip().lower()
@@ -398,15 +471,24 @@ class CapabilityRegistry:
                 last_reason = ReasonCode.NO_COMPATIBLE_CANDIDATE
                 continue
             ok, reason, candidate_repair = self._eligible(
-                candidate, platform=platform, max_cost=max_cost,
-                allow_degraded=allow_degraded, allow_unknown_health=allow_unknown_health,
-                allow_risky=allow_risky or consent, allow_nondeterministic=allow_nondeterministic or consent,
+                candidate,
+                platform=platform,
+                max_cost=max_cost,
+                allow_degraded=allow_degraded,
+                allow_unknown_health=allow_unknown_health,
+                allow_risky=allow_risky or consent,
+                allow_nondeterministic=allow_nondeterministic or consent,
             )
             if ok:
                 if session_id is not None and pin:
                     self.pin_session(session_id, candidate.name)
-                return RouteDecision(candidate.name, ReasonCode.SELECTED, tuple(attempted),
-                                     session_id=session_id, pinned=False)
+                return RouteDecision(
+                    candidate.name,
+                    ReasonCode.SELECTED,
+                    tuple(attempted),
+                    session_id=session_id,
+                    pinned=False,
+                )
             last_reason = reason
             repair = candidate_repair or repair
 
@@ -414,7 +496,9 @@ class CapabilityRegistry:
             last_reason = ReasonCode.REPAIR_REQUIRES_CONSENT
         elif len(attempted) > 1 and last_reason is ReasonCode.NO_COMPATIBLE_CANDIDATE:
             last_reason = ReasonCode.FALLBACK_EXHAUSTED
-        return RouteDecision(None, last_reason, tuple(attempted), repair, session_id=session_id)
+        return RouteDecision(
+            None, last_reason, tuple(attempted), repair, session_id=session_id
+        )
 
     resolve = route
 
@@ -432,18 +516,25 @@ class CapabilityRegistry:
 def metadata_from_dict(raw: Mapping[str, Any]) -> CapabilityMetadata:
     """Construct metadata from a fixture/config mapping."""
     return CapabilityMetadata(
-        version=raw["version"], source=raw["source"], license=raw["license"],
-        platforms=tuple(raw["platforms"]), health=raw.get("health", Health.HEALTHY),
-        risk=raw.get("risk", Risk.LOW), determinism=raw.get("determinism", Determinism.DETERMINISTIC),
-        cost=raw.get("cost", 0.0), health_detail=raw.get("health_detail", ""),
+        version=raw["version"],
+        source=raw["source"],
+        license=raw["license"],
+        platforms=tuple(raw["platforms"]),
+        health=raw.get("health", Health.HEALTHY),
+        risk=raw.get("risk", Risk.LOW),
+        determinism=raw.get("determinism", Determinism.DETERMINISTIC),
+        cost=raw.get("cost", 0.0),
+        health_detail=raw.get("health_detail", ""),
     )
 
 
 def capability_from_dict(raw: Mapping[str, Any]) -> Capability:
     return Capability(
-        name=raw["name"], metadata=metadata_from_dict(raw),
+        name=raw["name"],
+        metadata=metadata_from_dict(raw),
         fallback=tuple(raw.get("fallback", ())),
-        repair_actions=tuple(raw.get("repair_actions", ())), enabled=raw.get("enabled", True),
+        repair_actions=tuple(raw.get("repair_actions", ())),
+        enabled=raw.get("enabled", True),
     )
 
 
@@ -461,9 +552,23 @@ CapabilityRisk = Risk
 
 
 __all__ = [
-    "Capability", "CapabilityMetadata", "CapabilityRecord", "CapabilityRegistry",
-    "CapabilityRouter", "CapabilitySpec", "CapabilityHealth", "CapabilityRisk",
-    "Determinism", "Health", "ReasonCode", "RepairAction", "RepairPlan",
-    "Risk", "RouteDecision", "SessionPin", "capability_from_dict",
-    "metadata_from_dict", "registry_from_dicts",
+    "Capability",
+    "CapabilityMetadata",
+    "CapabilityRecord",
+    "CapabilityRegistry",
+    "CapabilityRouter",
+    "CapabilitySpec",
+    "CapabilityHealth",
+    "CapabilityRisk",
+    "Determinism",
+    "Health",
+    "ReasonCode",
+    "RepairAction",
+    "RepairPlan",
+    "Risk",
+    "RouteDecision",
+    "SessionPin",
+    "capability_from_dict",
+    "metadata_from_dict",
+    "registry_from_dicts",
 ]
