@@ -14,6 +14,8 @@ from threading import Lock
 import time
 from typing import Any, Callable, Optional
 
+from .protocol import AgentProtocol
+
 
 class HostBackpressure(RuntimeError):
     """The host cannot admit another leased session or queued turn."""
@@ -36,7 +38,7 @@ class SessionIdentity:
 @dataclass
 class _SessionEntry:
     identity: SessionIdentity
-    agent: Any
+    agent: AgentProtocol
     turn_lock: Lock = field(default_factory=Lock)
     active_leases: int = 0
     last_used: float = field(default_factory=time.monotonic)
@@ -65,7 +67,7 @@ class SessionLease:
         self._released = False
 
     @property
-    def agent(self) -> Any:
+    def agent(self) -> AgentProtocol:
         return self.entry.agent
 
     def release(self) -> None:
@@ -85,7 +87,7 @@ class SessionPool:
 
     def __init__(
         self,
-        agent_factory: Callable[[SessionIdentity], Any],
+        agent_factory: Callable[[SessionIdentity], AgentProtocol],
         *,
         max_sessions: int = 32,
         idle_ttl: Optional[float] = None,
@@ -207,7 +209,7 @@ class AgentHost:
 
     def __init__(
         self,
-        agent_factory: Callable[[SessionIdentity], Any],
+        agent_factory: Callable[[SessionIdentity], AgentProtocol],
         *,
         max_sessions: int = 32,
         max_workers: int = 4,
