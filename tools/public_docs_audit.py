@@ -235,21 +235,20 @@ def scan(root: Path) -> tuple[list[Evidence], list[AllowlistedLine], int]:
                     reason=allowlist.reason,
                     evidence=line.strip(),
                 ))
-                continue
+            else:
+                legacy_command_match = LEGACY_COMMAND.search(line)
+                if legacy_command_match:
+                    findings.append(
+                        make_legacy_command_evidence(rel_path, line_no, line, legacy_command_match)
+                    )
+                    continue
 
-            legacy_command_match = LEGACY_COMMAND.search(line)
-            if legacy_command_match:
-                findings.append(
-                    make_legacy_command_evidence(rel_path, line_no, line, legacy_command_match)
-                )
-                continue
-
-            legacy_brand_match = LEGACY_BRAND.search(line)
-            if legacy_brand_match:
-                findings.append(
-                    make_legacy_brand_evidence(rel_path, line_no, line, legacy_brand_match)
-                )
-                continue
+                legacy_brand_match = LEGACY_BRAND.search(line)
+                if legacy_brand_match:
+                    findings.append(
+                        make_legacy_brand_evidence(rel_path, line_no, line, legacy_brand_match)
+                    )
+                    continue
 
             for rule in UNSUPPORTED_CLAIM_RULES:
                 match = rule.pattern.search(line)
