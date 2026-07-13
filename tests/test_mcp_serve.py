@@ -921,6 +921,199 @@ class TestE2EPermissions:
 
 
 # ---------------------------------------------------------------------------
+# 3b. BROWSER BRIDGE — issue #98 Fase 1 (navigate/snapshot/click/type/
+#     scroll/vision/console dispatch over tools.browser_tool)
+# ---------------------------------------------------------------------------
+
+class TestE2EBrowserBridge:
+    def test_unknown_action_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "fly"})
+        assert result["success"] is False
+        assert "Unknown browser action" in result["error"]
+
+    def test_navigate_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "url": "https://example.com"}))
+        monkeypatch.setattr("tools.browser_tool.browser_navigate", mock)
+
+        result = _run_tool(server, "browser", {"action": "navigate", "url": "https://example.com"})
+        assert result["success"] is True
+        mock.assert_called_once_with("https://example.com", task_id=None)
+
+    def test_navigate_missing_url_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "navigate"})
+        assert result["success"] is False
+        assert "requires 'url'" in result["error"]
+
+    def test_snapshot_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "snapshot": "<page/>"}))
+        monkeypatch.setattr("tools.browser_tool.browser_snapshot", mock)
+
+        result = _run_tool(server, "browser", {"action": "snapshot"})
+        assert result["success"] is True
+        assert result["snapshot"] == "<page/>"
+
+    def test_click_requires_ref(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "click"})
+        assert result["success"] is False
+        assert "requires 'ref'" in result["error"]
+
+    def test_click_dispatches_ref(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "clicked": "@e5"}))
+        monkeypatch.setattr("tools.browser_tool.browser_click", mock)
+
+        result = _run_tool(server, "browser", {"action": "click", "ref": "@e5"})
+        assert result["success"] is True
+        mock.assert_called_once_with("@e5", task_id=None)
+
+    def test_type_requires_ref_and_text(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "type", "ref": "@e3"})
+        assert result["success"] is False
+        assert "requires 'ref' and 'text'" in result["error"]
+
+    def test_type_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True}))
+        monkeypatch.setattr("tools.browser_tool.browser_type", mock)
+
+        result = _run_tool(server, "browser", {"action": "type", "ref": "@e3", "text": "hi"})
+        assert result["success"] is True
+        mock.assert_called_once_with("@e3", "hi", task_id=None)
+
+    def test_scroll_invalid_direction_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "scroll", "direction": "sideways"})
+        assert result["success"] is False
+        assert "requires direction 'up' or 'down'" in result["error"]
+
+    def test_scroll_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "scrolled": "down"}))
+        monkeypatch.setattr("tools.browser_tool.browser_scroll", mock)
+
+        result = _run_tool(server, "browser", {"action": "scroll", "direction": "down"})
+        assert result["success"] is True
+
+    def test_vision_requires_question(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "browser", {"action": "vision"})
+        assert result["success"] is False
+        assert "requires 'question'" in result["error"]
+
+    def test_vision_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "analysis": "a button"}))
+        monkeypatch.setattr("tools.browser_tool.browser_vision", mock)
+
+        result = _run_tool(server, "browser", {"action": "vision", "question": "what's here?"})
+        assert result["success"] is True
+        assert result["analysis"] == "a button"
+
+    def test_console_happy_path(self, mcp_server_e2e, _event_loop, monkeypatch):
+        server, _ = mcp_server_e2e
+        mock = MagicMock(return_value=json.dumps({"success": True, "console_messages": []}))
+        monkeypatch.setattr("tools.browser_tool.browser_console", mock)
+
+        result = _run_tool(server, "browser", {"action": "console"})
+        assert result["success"] is True
+
+    def test_underlying_exception_is_honest_error(self, mcp_server_e2e, _event_loop, monkeypatch):
+        """A crash in the underlying browser stack must surface as an
+        explicit error — never be swallowed into a fake success."""
+        server, _ = mcp_server_e2e
+        mock = MagicMock(side_effect=RuntimeError("agent-browser binary not found"))
+        monkeypatch.setattr("tools.browser_tool.browser_navigate", mock)
+
+        result = _run_tool(server, "browser", {"action": "navigate", "url": "https://example.com"})
+        assert result["success"] is False
+        assert "agent-browser binary not found" in result["error"]
+
+    def test_toolset_unavailable_is_honest_error(self, mcp_server_e2e, _event_loop, monkeypatch):
+        """When tools.browser_tool can't even be imported, refuse honestly
+        instead of raising an unhandled exception up through MCP."""
+        import sys
+        import tools as tools_pkg
+
+        server, _ = mcp_server_e2e
+        monkeypatch.delattr(tools_pkg, "browser_tool", raising=False)
+        monkeypatch.setitem(sys.modules, "tools.browser_tool", None)
+
+        result = _run_tool(server, "browser", {"action": "navigate", "url": "https://example.com"})
+        assert result["success"] is False
+        assert "unavailable" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# 3c. SAVINGS BRIDGE — issue #98 Fase 3 (read/record the token-savings
+#     ledger via agent.telemetry.{token_savings,savings_report})
+# ---------------------------------------------------------------------------
+
+class TestE2ESavingsBridge:
+    @pytest.fixture(autouse=True)
+    def _isolate_savings_log(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HERMES_TOKEN_SAVINGS_LOG", str(tmp_path / "token_savings.jsonl"))
+
+    def test_unknown_action_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "savings", {"action": "delete"})
+        assert result["success"] is False
+        assert "Unknown savings action" in result["error"]
+
+    def test_record_happy_path(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "savings", {
+            "action": "record",
+            "raw_tokens": 1000,
+            "compressed_tokens": 250,
+            "tool": "browser",
+            "adapter": "anthropic",
+        })
+        assert result["success"] is True
+        assert result["recorded"]["raw_tokens"] == 1000
+        assert result["recorded"]["compressed_tokens"] == 250
+        assert result["recorded"]["saved_tokens"] == 750
+        assert result["recorded"]["adapter"] == "anthropic"
+
+    def test_record_missing_args_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "savings", {"action": "record", "raw_tokens": 1000})
+        assert result["success"] is False
+        assert "requires 'raw_tokens' and 'compressed_tokens'" in result["error"]
+
+    def test_read_after_record_reports_totals(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        _run_tool(server, "savings", {
+            "action": "record", "raw_tokens": 1000, "compressed_tokens": 200,
+        })
+        _run_tool(server, "savings", {
+            "action": "record", "raw_tokens": 500, "compressed_tokens": 100,
+        })
+
+        result = _run_tool(server, "savings", {"action": "read", "since": "7d"})
+        assert result["success"] is True
+        assert result["report"]["totals"]["raw_tokens"] == 1500
+        assert result["report"]["totals"]["saved_tokens"] == 1200
+
+    def test_read_empty_log_reports_zero(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "savings", {"action": "read"})
+        assert result["success"] is True
+        assert result["report"]["totals"]["raw_tokens"] == 0
+
+    def test_read_invalid_since_is_honest_error(self, mcp_server_e2e, _event_loop):
+        server, _ = mcp_server_e2e
+        result = _run_tool(server, "savings", {"action": "read", "since": "not-a-window"})
+        assert result["success"] is False
+        assert "invalid --since" in result["error"] or "since" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
 # 4. TOOL LISTING — verify all 11 tools are registered
 # ---------------------------------------------------------------------------
 
@@ -944,6 +1137,12 @@ class TestToolRegistration:
             # docs/mcp-low-frequency-bridges.md for the full classification.
             "cron_status", "gateway_status", "hooks_status",
             "low_frequency_cli_fallback",
+            # browser (issue #98 Fase 1): navigate/snapshot/click/type/
+            # scroll/vision/console, reusing tools.browser_tool verbatim.
+            "browser",
+            # savings (issue #98 Fase 3): read/record the token-savings
+            # ledger, reusing agent.telemetry.{token_savings,savings_report}.
+            "savings",
         }
         assert expected == tool_names, f"Missing: {expected - tool_names}, Extra: {tool_names - expected}"
 

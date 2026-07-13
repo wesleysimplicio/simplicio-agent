@@ -15,9 +15,41 @@ _PATH_ARG_KEYS = (
     "workdir",
     "target",
 )
+
+# ---------------------------------------------------------------------------
+# Hermes-native-first policy (issue #100)
+#
+# Stable, codified guidance -- not just conversational convention -- for
+# which surface handles which kind of work:
+#
+#   1. Read / search / analyze -> native Hermes tools (`read_file`,
+#      `search_files`, grep-style tools, etc.). This is orientation work:
+#      cheapest, fastest, no repo lock-in, and it's what Hermes is already
+#      good at.
+#   2. Mutate / validate / checkpoint -> Simplicio-runtime (`simplicio edit`,
+#      `simplicio dev-cli`, `simplicio validate`, `simplicio checkpoints`,
+#      ...). Deterministic, evidence-producing, and -- for managed repos --
+#      the *only* path `_on_pre_tool_call` below allows for writes.
+#   3. Native fallback is an explicit EXCEPTION, not a silent substitute:
+#      only when the runtime doesn't cover something yet, and the gap
+#      should be logged (an issue) so the runtime grows to close it.
+#
+# This is the *task-type* axis (read vs. mutate). It composes with, and
+# deliberately does not restate, AGENTS.md "Tool routing" (issue #212),
+# which governs the *channel* axis (Simplicio CLI is the primary execution
+# surface, MCP is fallback transport only) once you've already decided to
+# mutate. See AGENTS.md#tool-routing for that piece.
+# ---------------------------------------------------------------------------
+HERMES_NATIVE_FIRST_POLICY = (
+    "Hermes-native-first: read/search/analyze with native Hermes tools; "
+    "mutate/validate/checkpoint through the Simplicio-runtime; fall back to "
+    "native tools only as an explicit exception when the runtime has a gap "
+    "(and log that gap so the runtime can close it)."
+)
+
 _TOOL_GUIDANCE = {
-    "write_file": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
-    "patch": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes.",
+    "write_file": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes, validation, and checkpoints.",
+    "patch": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes, validation, and checkpoints.",
 }
 _BLOCKED_TOOLS = frozenset(_TOOL_GUIDANCE)
 
@@ -81,7 +113,8 @@ def _block_message(tool_name: str, repo: Path) -> str:
         f"simplicio plugin blocked native Hermes tool `{tool_name}` inside managed repo `{repo_str}`. "
         "This repo must be operated through the Simplicio runtime. "
         f"{guidance} "
-        f"Canonical orient command: `simplicio runtime map --repo {repo_str} --for-llm markdown`."
+        f"Canonical orient command: `simplicio runtime map --repo {repo_str} --for-llm markdown`. "
+        f"Policy: {HERMES_NATIVE_FIRST_POLICY}"
     )
 
 

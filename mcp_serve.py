@@ -564,6 +564,186 @@ def _computer_use_result_to_mcp_content(result: Any) -> List[Any]:
 
 
 # ---------------------------------------------------------------------------
+# browser bridge (Fase 1, issue #98)
+#
+# Single action-dispatch tool mirroring the `computer_use` shape above,
+# reusing `tools.browser_tool`'s existing per-action functions verbatim
+# rather than reimplementing browser control. Every underlying function
+# already returns a JSON string with an explicit "success"/"error" field
+# (never raises for expected failure modes), so this layer's job is just
+# argument validation + dispatch — never inventing a fake success.
+# ---------------------------------------------------------------------------
+
+_BROWSER_ACTIONS = {"navigate", "snapshot", "click", "type", "scroll", "vision", "console"}
+
+
+def _browser_error(message: str) -> str:
+    return _fast_dumps({"success": False, "error": message})
+
+
+def _dispatch_browser_action(
+    action: str,
+    *,
+    url: Optional[str] = None,
+    ref: Optional[str] = None,
+    text: Optional[str] = None,
+    direction: Optional[str] = None,
+    question: Optional[str] = None,
+    annotate: bool = False,
+    expression: Optional[str] = None,
+    clear: bool = False,
+    full: bool = False,
+    task_id: Optional[str] = None,
+) -> str:
+    """Validate + dispatch one ``browser`` action. Returns a JSON string.
+
+    Kept as a plain module function (no ``mcp`` import) so it stays unit
+    testable without a running FastMCP server — same pattern as
+    ``_computer_use_mcp_refusal`` above.
+    """
+    normalized = (action or "").strip().lower()
+    if normalized not in _BROWSER_ACTIONS:
+        return _browser_error(
+            f"Unknown browser action {normalized!r}. Valid actions: "
+            f"{sorted(_BROWSER_ACTIONS)}"
+        )
+
+    try:
+        from tools import browser_tool as _bt
+    except Exception as e:
+        # Honest failure: the browser stack (agent-browser CLI, playwright,
+        # etc.) isn't available on this install — never claim success.
+        logger.debug("browser bridge: tools.browser_tool unavailable: %s", e)
+        return _browser_error(f"Browser toolset is unavailable on this install: {e}")
+
+    try:
+        if normalized == "navigate":
+            if not url:
+                return _browser_error("browser action 'navigate' requires 'url'")
+            return _bt.browser_navigate(url, task_id=task_id)
+
+        if normalized == "snapshot":
+            return _bt.browser_snapshot(full=bool(full), task_id=task_id)
+
+        if normalized == "click":
+            if not ref:
+                return _browser_error("browser action 'click' requires 'ref'")
+            return _bt.browser_click(ref, task_id=task_id)
+
+        if normalized == "type":
+            if not ref or text is None:
+                return _browser_error("browser action 'type' requires 'ref' and 'text'")
+            return _bt.browser_type(ref, text, task_id=task_id)
+
+        if normalized == "scroll":
+            if direction not in {"up", "down"}:
+                return _browser_error(
+                    f"browser action 'scroll' requires direction 'up' or 'down', got {direction!r}"
+                )
+            return _bt.browser_scroll(direction, task_id=task_id)
+
+        if normalized == "vision":
+            if not question:
+                return _browser_error("browser action 'vision' requires 'question'")
+            result = _bt.browser_vision(question, annotate=bool(annotate), task_id=task_id)
+            return result if isinstance(result, str) else _fast_dumps(result)
+
+        if normalized == "console":
+            return _bt.browser_console(clear=bool(clear), expression=expression, task_id=task_id)
+    except Exception as e:
+        # Surface the real failure instead of swallowing it into a generic
+        # success — e.g. no browser session started yet, backend crashed.
+        logger.debug("browser bridge: action %r failed: %s", normalized, e)
+        return _browser_error(f"browser action {normalized!r} failed: {e}")
+
+    # Unreachable given the membership check above, but fail honestly
+    # rather than falling through to an implicit None/success.
+    return _browser_error(f"browser action {normalized!r} is not wired up")
+
+
+# ---------------------------------------------------------------------------
+# savings bridge (Fase 3, issue #98)
+#
+# Lets Hermes read the token-savings ledger and record new events without
+# shelling out to `python -m agent.telemetry.savings_report` /
+# `record_token_saving` via the terminal tool. Reuses the existing dormant
+# telemetry stack documented in docs/mcp-telemetry.md verbatim.
+# ---------------------------------------------------------------------------
+
+_SAVINGS_ACTIONS = {"read", "record"}
+
+
+def _savings_error(message: str) -> str:
+    return _fast_dumps({"success": False, "error": message})
+
+
+def _dispatch_savings_action(
+    action: str,
+    *,
+    since: Optional[str] = None,
+    raw_tokens: Optional[int] = None,
+    compressed_tokens: Optional[int] = None,
+    tool: Optional[str] = None,
+    command: Optional[str] = None,
+    adapter: Optional[str] = None,
+    session: Optional[str] = None,
+    repo: Optional[str] = None,
+) -> str:
+    """Validate + dispatch one ``savings`` action. Returns a JSON string."""
+    normalized = (action or "").strip().lower()
+    if normalized not in _SAVINGS_ACTIONS:
+        return _savings_error(
+            f"Unknown savings action {normalized!r}. Valid actions: "
+            f"{sorted(_SAVINGS_ACTIONS)}"
+        )
+
+    try:
+        from agent.telemetry.savings_report import build_report, parse_since
+        from agent.telemetry.token_savings import iter_records, record_token_saving
+    except Exception as e:
+        logger.debug("savings bridge: telemetry stack unavailable: %s", e)
+        return _savings_error(f"Savings telemetry is unavailable on this install: {e}")
+
+    if normalized == "read":
+        try:
+            window = parse_since(since)
+        except ValueError as e:
+            return _savings_error(str(e))
+        try:
+            records = list(iter_records())
+            report = build_report(records, since=window)
+        except Exception as e:
+            logger.debug("savings bridge: read failed: %s", e)
+            return _savings_error(f"Failed to build savings report: {e}")
+        return _fast_dumps({"success": True, "report": report}, indent=2)
+
+    # action == "record"
+    if raw_tokens is None or compressed_tokens is None:
+        return _savings_error(
+            "savings action 'record' requires 'raw_tokens' and 'compressed_tokens'"
+        )
+    try:
+        record = record_token_saving(
+            raw_tokens,
+            compressed_tokens,
+            tool=tool or "mcp",
+            command=command or "unknown",
+            adapter=adapter or "unknown",
+            session=session or "unknown",
+            repo=repo or "unknown",
+        )
+    except (TypeError, ValueError) as e:
+        return _savings_error(f"Invalid savings record: {e}")
+    except Exception as e:
+        logger.debug("savings bridge: record failed: %s", e)
+        return _savings_error(f"Failed to record savings event: {e}")
+
+    return _fast_dumps(
+        {"success": True, "recorded": _fast_loads(record.to_json())}, indent=2
+    )
+
+
+# ---------------------------------------------------------------------------
 # MCP Server
 # ---------------------------------------------------------------------------
 
@@ -979,6 +1159,64 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         result = bridge.respond_to_approval(id, decision)
         return _fast_dumps(result, indent=2)
 
+    # -- browser -------------------------------------------------------
+    #
+    # Single action-dispatch tool — see `_dispatch_browser_action` above
+    # for validation/dispatch and `tools.browser_tool` for the underlying
+    # implementation (agent-browser CLI / Camofox / cloud provider).
+
+    @mcp.tool()
+    def browser(
+        action: str,
+        url: Optional[str] = None,
+        ref: Optional[str] = None,
+        text: Optional[str] = None,
+        direction: Optional[str] = None,
+        question: Optional[str] = None,
+        annotate: Optional[bool] = None,
+        expression: Optional[str] = None,
+        clear: Optional[bool] = None,
+        full: Optional[bool] = None,
+        task_id: Optional[str] = None,
+    ) -> str:
+        """Drive the Simplicio Agent browser session.
+
+        Stable actions: navigate, snapshot, click, type, scroll, vision,
+        console. Each action returns a JSON string with an explicit
+        "success" field — failures (no session started, backend crashed,
+        blocked URL, ...) are returned as an honest "error" rather than a
+        fabricated success.
+
+        Args:
+            action: navigate, snapshot, click, type, scroll, vision, or console.
+            url: Target URL for action='navigate'.
+            ref: Element reference from a snapshot (e.g. '@e5') for
+                action='click' or action='type'.
+            text: Text to type for action='type'.
+            direction: 'up' or 'down' for action='scroll'.
+            question: What to look for visually, for action='vision'.
+            annotate: For action='vision' — overlay numbered element labels.
+            expression: JavaScript to evaluate in the page for action='console'
+                (omit to just read console output/errors).
+            clear: For action='console' — clear buffers after reading.
+            full: For action='snapshot' — return the complete page content
+                instead of the compact interactive-elements view.
+            task_id: Session isolation key (default session when omitted).
+        """
+        return _dispatch_browser_action(
+            action,
+            url=url,
+            ref=ref,
+            text=text,
+            direction=direction,
+            question=question,
+            annotate=bool(annotate),
+            expression=expression,
+            clear=bool(clear),
+            full=bool(full),
+            task_id=task_id,
+        )
+
     # -- computer_use --------------------------------------------------
     #
     # Safety-gated — see `_computer_use_mcp_refusal` above. Defaults to
@@ -1104,6 +1342,58 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
     from mcp_low_freq_bridges import register_low_freq_tools
 
     register_low_freq_tools(mcp)
+
+    # -- savings ---------------------------------------------------------
+    #
+    # Read/record the token-savings ledger (see docs/mcp-telemetry.md) so
+    # Hermes can close the post-task loop without shelling out to
+    # `python -m agent.telemetry.savings_report` / `record_token_saving`.
+
+    @mcp.tool()
+    def savings(
+        action: str,
+        since: Optional[str] = None,
+        raw_tokens: Optional[int] = None,
+        compressed_tokens: Optional[int] = None,
+        tool: Optional[str] = None,
+        command: Optional[str] = None,
+        adapter: Optional[str] = None,
+        session: Optional[str] = None,
+        repo: Optional[str] = None,
+    ) -> str:
+        """Read or record Simplicio's token-savings telemetry.
+
+        action='read' aggregates the JSONL savings ledger into a report
+        (same shape as `simplicio-savings-report --json`). action='record'
+        appends one savings event to the ledger. Both return a JSON string
+        with an explicit "success" field; missing/invalid arguments or an
+        unavailable telemetry stack are reported as an honest "error".
+
+        Args:
+            action: 'read' or 'record'.
+            since: For action='read' — time window, e.g. '7d', '24h', '2w'
+                (default '7d').
+            raw_tokens: For action='record' — tokens the raw approach would
+                have used.
+            compressed_tokens: For action='record' — tokens actually spent.
+            tool: For action='record' — the tool/capability name (default
+                'mcp').
+            command: For action='record' — the command/verb invoked.
+            adapter: For action='record' — the LLM adapter/provider used.
+            session: For action='record' — the session identifier.
+            repo: For action='record' — the repo/project identifier.
+        """
+        return _dispatch_savings_action(
+            action,
+            since=since,
+            raw_tokens=raw_tokens,
+            compressed_tokens=compressed_tokens,
+            tool=tool,
+            command=command,
+            adapter=adapter,
+            session=session,
+            repo=repo,
+        )
 
     return mcp
 
