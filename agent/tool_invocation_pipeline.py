@@ -319,6 +319,9 @@ class ToolInvocationPipeline:
         *,
         status: str = "success",
     ) -> ToolInvocationOutcome:
+        trace = list(trace)
+        if "execute" not in trace and "persist" not in trace:
+            trace.append("execute")
         attempt = self._start_attempt(invocation)
         attempt = replace(
             attempt,
