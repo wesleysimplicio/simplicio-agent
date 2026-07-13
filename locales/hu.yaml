@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ Cél beállítva ({budget} körös keret): {goal}\nDolgozni fogok rajta, amíg a cél el nem készül, te nem szünetelteted/törlöd, vagy a keret ki nem merül.\nVezérlés: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Hermes parancsok**\n"
+    header:                "📖 **Simplicio Agent parancsok**\n"
     skill_header:          "\n⚡ **Készségparancsok** ({count} aktív):"
     more_use_commands:     "\n... és még {count}. Használd a `/commands` parancsot a teljes, lapozható listához."
 

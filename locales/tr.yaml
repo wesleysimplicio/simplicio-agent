@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ Hedef ayarlandı ({budget} turluk bütçe): {goal}\nHedef tamamlanana, siz duraklatana/temizleyene veya bütçe tükenene kadar çalışmaya devam edeceğim.\nKontroller: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Hermes Komutları**\n"
+    header:                "📖 **Simplicio Agent Komutları**\n"
     skill_header:          "\n⚡ **Skill Komutları** ({count} aktif):"
     more_use_commands:     "\n... ve {count} tane daha. Tam sayfalı liste için `/commands` kullanın."
 

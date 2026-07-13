@@ -60,6 +60,19 @@
         ],
         "restored_artifact_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
         "restored_release": "0.24.0",
+        "restored_identity": {
+          "agent": {
+            "digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+            "name": "simplicio-agent",
+            "version": "0.24.0"
+          },
+          "compatible": true,
+          "runtime": {
+            "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "name": "simplicio-runtime",
+            "version": "3.5.0"
+          }
+        },
         "schema": "simplicio.release-rollback-evidence/v1",
         "state_preserved": true,
         "to_release": "0.25.0"

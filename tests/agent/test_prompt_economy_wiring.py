@@ -5,7 +5,7 @@ and task-pinned-capability-bundle primitives as a standalone module with no
 consumer. This test file covers the actual consumer wired in
 ``agent/system_prompt.py``:
 
-  * the ``agent._prompt_economy_enabled`` flag (default False, set from
+  * the ``agent._prompt_economy_enabled`` flag (default True, set from
     ``config.yaml`` ``agent.prompt_economy`` in ``agent/agent_init.py``)
     gates whether the compactable guidance sections
     (``prompt_economy.COMPACTABLE_HANDLES``) are folded into one compact
@@ -87,6 +87,18 @@ class TestPromptEconomyDefaultOff:
         from agent.prompt_builder import MEMORY_GUIDANCE
 
         assert MEMORY_GUIDANCE.strip() in stable
+
+
+class TestPromptEconomyConfigDefault:
+    def test_missing_config_enables_compaction(self):
+        from agent.agent_init import _prompt_economy_enabled
+
+        assert _prompt_economy_enabled({}) is True
+
+    def test_explicit_false_preserves_full_guidance_opt_out(self):
+        from agent.agent_init import _prompt_economy_enabled
+
+        assert _prompt_economy_enabled({"prompt_economy": False}) is False
 
 
 class TestPromptEconomyOnShrinksStableTier:

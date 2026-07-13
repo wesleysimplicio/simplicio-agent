@@ -13,6 +13,11 @@ from tools.alias_registry import (
     ALIAS_WARNING_SCHEMA,
     AliasCollisionError,
     AliasSchemaError,
+    CLI_ALIAS_CANONICAL,
+    CLI_ALIAS_NAMES,
+    CLI_ALIAS_OWNER,
+    CLI_ALIAS_WARNING_CODE,
+    default_cli_alias_entries,
     load_alias_document,
     load_alias_registry,
     normalize_alias,
@@ -20,6 +25,16 @@ from tools.alias_registry import (
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "aliases"
+
+
+def test_default_cli_alias_entries_are_versioned_compatibility_metadata():
+    entries = default_cli_alias_entries()
+
+    assert tuple(entry.alias for entry in entries) == CLI_ALIAS_NAMES
+    assert {entry.canonical for entry in entries} == {CLI_ALIAS_CANONICAL}
+    assert {entry.owner for entry in entries} == {CLI_ALIAS_OWNER}
+    assert {entry.warning_code for entry in entries} == {CLI_ALIAS_WARNING_CODE}
+    assert all(entry.deprecated and entry.note == "migration_only" for entry in entries)
 
 
 def test_normalize_alias_is_casefolded_and_trimmed():

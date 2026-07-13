@@ -134,6 +134,19 @@ def test_rollback_schema_is_required_for_rollback_cases() -> None:
         restored_artifact_digest="sha256:" + "d" * 64,
         state_preserved=True,
         receipts=["rollback.json"],
+        restored_identity={
+            "agent": {
+                "name": "simplicio-agent",
+                "version": "0.24.0",
+                "digest": "sha256:" + "d" * 64,
+            },
+            "runtime": {
+                "name": "simplicio-runtime",
+                "version": "3.5.0",
+                "digest": "sha256:" + "f" * 64,
+            },
+            "compatible": True,
+        },
     )
     assert validate_rollback_evidence(good_rollback) == []
     incomplete = dict(good_rollback)
@@ -162,6 +175,47 @@ def test_rollback_schema_is_required_for_rollback_cases() -> None:
     )
     errors = validate_evidence_bundle(bundle, matrix)
     assert "records[1].rollback is required for rollback scenarios" in errors
+
+
+def test_rollback_identity_is_required_and_pinned_to_the_restored_agent() -> None:
+    good = build_rollback_evidence(
+        from_release="0.24.0",
+        to_release="0.25.0",
+        restored_release="0.24.0",
+        restored_artifact_digest="sha256:" + "d" * 64,
+        state_preserved=True,
+        receipts=["rollback.json"],
+        restored_identity={
+            "agent": {
+                "name": "simplicio-agent",
+                "version": "0.24.0",
+                "digest": "sha256:" + "d" * 64,
+            },
+            "runtime": {
+                "name": "simplicio-runtime",
+                "version": "3.5.0",
+                "digest": "sha256:" + "f" * 64,
+            },
+            "compatible": True,
+        },
+    )
+    assert validate_rollback_evidence(good) == []
+
+    legacy = dict(good)
+    legacy.pop("restored_identity")
+    assert "rollback.restored_identity must be an object" in validate_rollback_evidence(
+        legacy
+    )
+
+    mismatched = json.loads(json.dumps(good))
+    mismatched["restored_identity"]["runtime"]["name"] = "hermes-runtime"
+    mismatched["restored_identity"]["agent"]["digest"] = "sha256:" + "e" * 64
+    errors = validate_rollback_evidence(mismatched)
+    assert "rollback.restored_identity.runtime.name must be simplicio-runtime" in errors
+    assert (
+        "rollback.restored_identity.agent.digest must match restored_artifact_digest"
+        in errors
+    )
 
 
 def test_required_tier_evaluation_is_fail_closed_on_missing_required_case() -> None:

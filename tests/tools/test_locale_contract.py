@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import yaml
 
 from tools.locale_contract import (
     CURRENT_CONTRACT_VERSION,
@@ -69,3 +70,11 @@ def test_branding_classification_distinguishes_current_mixed_and_unbranded_catal
     assert catalogs["en"]["branding_classification"] == "simplicio_only"
     assert catalogs["pt"]["branding_classification"] == "mixed"
     assert catalogs["fr"]["branding_classification"] == "unbranded"
+
+
+def test_repository_help_headers_use_canonical_product_name():
+    for path in sorted(REPO_LOCALES_DIR.glob("*.yaml")):
+        catalog = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        header = catalog["gateway"]["help"]["header"]
+        assert "Simplicio Agent" in header, path.name
+        assert "Hermes" not in header, path.name

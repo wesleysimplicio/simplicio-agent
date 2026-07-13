@@ -1,23 +1,22 @@
 ---
 iteration: 1
-max_iterations: 3
-completion_promise: "ISSUE-183 RESTART RECOVERY SLICE DONE"
+max_iterations: 1
+completion_promise: "ISSUE-195 ROLLBACK IDENTITY GATE SLICE PROVEN"
 evidence_required: true
 mode: converge
 started_at: "2026-07-13T19:52:00Z"
 ---
 
-Implement issue #183 as a bounded restart/idempotency recovery slice: add a
-versioned durable effect-state model aligned with TaskEnvelope and existing
-content-addressed Receipt records. A fresh journal instance must recover
-committed as SKIP_COMMITTED (never retry), not_committed as RETRY, and unknown
-as RECONCILE_UNKNOWN with an explicit reason. Add focused tests and docs.
+Implement one bounded issue #195 release-gate slice: require rollback evidence
+to contain a digest-pinned restored Simplicio Agent identity and a separate
+digest-pinned Simplicio Runtime identity, with compatible=true; reject legacy,
+mismatched, or non-canonical identities fail-closed. Update focused tests,
+fixture, and release-gate documentation only. Run the Simplicio Runtime CLI,
+focused pytest, CLI validation, and Ruff. Do not claim clean-machine install,
+upgrade, rollback execution, full matrix coverage, or issue closure.
 
-This is a bounded model/harness, not a full process or reboot E2E. Do not claim
-that goal/anchor reconstruction, projection equivalence, notification or
-handoff recovery, cross-machine behavior, or duplicate-effect rates are proven.
-Run the Simplicio Runtime CLI if available, plus focused tests and Ruff, then
-commit this branch and record measured results.
-
-The loop helper scripts referenced by the skill are absent in this checkout;
-the durable scratchpad and real command receipts are the available evidence.
+The bound dev-cli operator was attempted once and failed with an opaque cache
+lookup error; the Runtime edit route timed out. Native apply_patch fallback was
+used only for this narrow slice. The loop helper scripts referenced by the
+skill are absent in this checkout; command outputs and this scratchpad are the
+available cross-session evidence.

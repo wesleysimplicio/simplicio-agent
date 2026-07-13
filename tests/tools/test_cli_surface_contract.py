@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tools.alias_registry import default_cli_alias_entries
 from tools.cli_surface_contract import (
     CANONICAL_COMMAND,
     CLI_SURFACE_CHECK_SCHEMA,
@@ -37,6 +38,24 @@ def test_default_manifest_matches_bounded_identity_contract():
     assert report["canonical_command"] == CANONICAL_COMMAND
     assert report["legacy_alias_count"] == 3
     assert report["receipt_count"] == 1
+
+
+def test_default_manifest_derives_legacy_aliases_from_alias_registry():
+    manifest = default_manifest()
+    registry_entries = default_cli_alias_entries()
+
+    assert [entry.alias for entry in manifest.legacy_aliases] == [
+        entry.alias for entry in registry_entries
+    ]
+    assert [entry.canonical for entry in manifest.legacy_aliases] == [
+        entry.canonical for entry in registry_entries
+    ]
+    assert [entry.owner for entry in manifest.legacy_aliases] == [
+        entry.owner for entry in registry_entries
+    ]
+    assert [entry.warning_code for entry in manifest.legacy_aliases] == [
+        entry.warning_code for entry in registry_entries
+    ]
 
 
 def test_fixture_manifest_loads_and_validates():

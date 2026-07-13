@@ -3,9 +3,9 @@
 The prompt-economy layer provides a bounded progressive-disclosure slice for
 the system prompt. The compact index keeps short handles and summaries in the
 stable prompt tier; the full text is resolved only when a caller explicitly
-expands a handle. The existing `agent.prompt_economy` setting is opt-in and
-defaults to `false`, so installations that do not opt in retain eager,
-full-text guidance.
+expands a handle. The `agent.prompt_economy` setting defaults to `true`, so
+new installations receive the measured compact path; set it to `false` to
+retain eager, full-text guidance.
 
 Safety guidance remains eager. Only the conservative handles listed by
 `agent.prompt_economy.COMPACTABLE_HANDLES` may be summarized; identity,

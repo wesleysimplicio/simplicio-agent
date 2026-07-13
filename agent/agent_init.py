@@ -163,6 +163,11 @@ def _merge_custom_provider_extra_body(agent, custom_providers: List[Dict[str, An
     agent.request_overrides = overrides
 
 
+def _prompt_economy_enabled(agent_section: Dict[str, Any]) -> bool:
+    """Resolve the prompt-economy rollout flag with the safe compact default."""
+    return bool(agent_section.get("prompt_economy", True))
+
+
 def init_agent(
     agent,
     base_url: str = None,
@@ -1338,12 +1343,12 @@ def init_agent(
     # Prompt economy (issue #196): progressive disclosure of the compactable,
     # low-stakes guidance sections cataloged in agent/prompt_economy.py
     # (agent.system_prompt.build_system_prompt_parts consumes this flag).
-    # Default False — opt-in rollout pending the quality/safety A/B corpus
-    # (issue #196 step 11); flipping it on cuts the fixed stable-tier prompt
-    # tax with no tool/schema availability change (every tool is always
-    # listed; see agent/prompt_economy.py COMPACTABLE_HANDLES docstring for
-    # which sections stay full-text regardless of this flag).
-    agent._prompt_economy_enabled = bool(_agent_section.get("prompt_economy", False))
+    # Default True — the conservative compactable set cuts the fixed
+    # stable-tier prompt tax with no tool/schema availability change (every
+    # tool is always listed; see agent/prompt_economy.py COMPACTABLE_HANDLES
+    # for which sections stay full-text regardless of this flag). Set
+    # ``agent.prompt_economy: false`` to retain eager full-text guidance.
+    agent._prompt_economy_enabled = _prompt_economy_enabled(_agent_section)
 
     # Per-platform prompt-hint overrides (config.yaml → platform_hints).
     # Lets an enterprise admin append to or replace Hermes' built-in
