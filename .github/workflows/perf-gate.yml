@@ -1,0 +1,43 @@
+name: Perf Gate
+
+# Deterministic performance-regression guard (issue #116). Runs the
+# existing offline benchmark harness (scripts/benchmark_e2e.py --json) N
+# times, takes the median per (scenario, variant), and compares it against
+# the committed CI baseline (tools/perf_gate/baseline_ci.json). Fails the
+# build if any scenario regressed beyond the baseline's threshold_pct.
+#
+# Bootstrap-safe: while baseline_ci.json's "metrics" map is empty (no real
+# GitHub Actions runner has captured one yet), tools/perf_gate/compare.py
+# exits 0 and prints instructions instead of failing — see
+# docs/performance.md and tools/perf_gate/bootstrap_baseline.py.
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  perf-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Run perf gate
+        run: |
+          set -o pipefail
+          python3 -m tools.perf_gate.compare --json perf-gate-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: perf-gate-report
+          path: perf-gate-report.json
+          retention-days: 14

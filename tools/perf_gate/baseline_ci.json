@@ -1,0 +1,10 @@
+{
+  "schema": "simplicio.perf-gate.baseline/v1",
+  "generated_at": null,
+  "runner": null,
+  "threshold_pct": 20.0,
+  "samples_per_scenario": 3,
+  "iterations": 1500,
+  "metrics": {},
+  "_note": "No real runner-measured baseline exists yet. This sandbox environment is not the target GitHub Actions ubuntu runner (issue #116 explicitly requires a runner-captured baseline, distinct from the local-machine baselines in scripts/turbo-speed/baselines/), so this PR ships the gate's mechanics with an empty 'metrics' map rather than fabricated numbers. tools/perf_gate/compare.py treats an empty 'metrics' map as bootstrap mode: it runs (and reports) but does not fail the build. The first follow-up CI run on main should execute `python3 -m tools.perf_gate.bootstrap_baseline` and commit the result in a small, reviewable follow-up PR -- see docs/performance.md."
+}

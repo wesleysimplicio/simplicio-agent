@@ -125,3 +125,33 @@ dict barely benefits (as documented in `agent/toon_codec.py`'s own module
 docstring), which is exactly why `to_toon_or_json` exists as a safe
 default everywhere rather than something callers have to reason about
 per-payload.
+
+## CI performance-regression gate
+
+`tools/perf_gate/` (issue #116) runs `scripts/benchmark_e2e.py --json` — the
+one benchmark script in this repo that is already offline and emits *only*
+JSON with `--json` — three times per (scenario, variant), takes the
+**median** `per_op_us` to reduce run-to-run noise, and compares it against
+a committed CI baseline (`tools/perf_gate/baseline_ci.json`). A regression
+beyond the baseline's `threshold_pct` (20% by default) fails the
+`perf-gate` job in CI.
+
+`scripts/turbo-speed/` scenarios are explicitly **out of scope** for this
+gate: those scripts interleave a human-readable table with their JSON
+output and probe an installed `hermes`/`simplicio-agent` binary on PATH,
+neither of which is reliably comparable across CI runner invocations —
+wiring them in is a follow-up that needs a small change to their own
+`--json` handling first.
+
+**Bootstrap mode**: the committed `baseline_ci.json` ships with an empty
+`metrics` map — this sandbox is not the target GitHub Actions `ubuntu`
+runner, so no fabricated baseline is committed. `tools/perf_gate/compare.py`
+treats an empty map as bootstrap mode: it runs and reports, but exits 0
+instead of failing. The baseline is captured explicitly and reviewably
+(same discipline as `tools/rename_guard/`, never an automatic side effect
+of a CI run):
+
+```bash
+python3 -m tools.perf_gate.bootstrap_baseline           # writes baseline_ci.json
+python3 -m tools.perf_gate.compare --json report.json   # gate check, exit 1 on regression
+```
