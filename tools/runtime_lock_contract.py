@@ -72,6 +72,12 @@ def _semver(value: object) -> bool:
     return isinstance(value, str) and _SEMVER.fullmatch(value) is not None
 
 
+def is_strict_semver(value: object) -> bool:
+    """Expose the lock contract's strict semver gate to sibling validators."""
+
+    return _semver(value)
+
+
 def _digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -197,6 +203,7 @@ __all__ = [
     "LOCK_SCHEMA",
     "LockValidation",
     "RuntimeLockReceipt",
+    "is_strict_semver",
     "load_lock",
     "target_key",
     "validate_lock",
