@@ -67,7 +67,7 @@ npm run dev          # Vite renderer + Electron, which boots the Python backend
 
 `desktop-layout.json` and `tools/desktop_layout_contract.py` define and validate
 the canonical source paths (`desktop/`, `desktop/src/`, and `desktop/electron/`)
-and reject stale `apps/desktop` references in the listed consumers. This
+and reject stale legacy-root references in the listed consumers. This
 replacement-worker contract is deterministic and stdlib-only. npm renderer
 builds, packaged installers, signing, and clean-machine installation proof are
 explicitly out of scope for this slice.

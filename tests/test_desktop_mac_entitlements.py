@@ -25,9 +25,10 @@ from pathlib import Path
 
 import pytest
 
+from tools.desktop_layout_contract import locate_desktop_root
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ELECTRON_DIR = REPO_ROOT / "apps" / "desktop" / "electron"
+ELECTRON_DIR = locate_desktop_root(REPO_ROOT) / "electron"
 MAIN_PLIST = ELECTRON_DIR / "entitlements.mac.plist"
 INHERIT_PLIST = ELECTRON_DIR / "entitlements.mac.inherit.plist"
 
