@@ -4253,7 +4253,7 @@ def cmd_daemon(args):
     sock = _socket_path(getattr(args, "socket", None))
 
     if sub == "start":
-        return _serve(sock, getattr(args, "profile", "desktop"))
+        return _serve(sock, getattr(args, "profile", "desktop"), idle_ttl_s=getattr(args, "idle_ttl_s", None))
     if sub == "stop":
         resp = _client_request(sock, {"op": "shutdown"})
         print(_json.dumps(resp))
@@ -12111,6 +12111,24 @@ def _should_background_mcp_startup(args) -> bool:
     return args.command in {None, "chat", "rl"}
 
 
+def _should_autostart_daemon(args) -> bool:
+    """Gate for warm-daemon auto-start (issue #110).
+
+    Deliberately narrower than ``_should_background_mcp_startup``: on top of
+    "this is an interactive chat/rl/TUI launch", auto-start also requires a
+    real interactive terminal on both ends and no one-shot ``-q``/``--query``
+    invocation — those are exactly the non-interactive/scripted/CI paths the
+    warm daemon must never touch (module docstring contract in
+    ``hermes_cli/daemon.py``). The ``SIMPLICIO_AGENT_NO_DAEMON`` kill-switch
+    is checked inside ``daemon.maybe_autostart()`` itself, not here.
+    """
+    if not (_should_background_mcp_startup(args) or _is_tui_chat_launch(args)):
+        return False
+    if getattr(args, "query", None):
+        return False
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def _prepare_agent_startup(args) -> None:
     """Discover plugins/MCP/hooks for commands that can run an agent turn."""
     _sub_attr, _sub_set = _AGENT_SUBCOMMANDS.get(args.command, (None, None))
@@ -12119,6 +12137,17 @@ def _prepare_agent_startup(args) -> None:
         or (_sub_attr and getattr(args, _sub_attr, None) in _sub_set)
     ):
         return
+
+    if _should_autostart_daemon(args):
+        try:
+            from hermes_cli.daemon import maybe_autostart
+
+            maybe_autostart()
+        except Exception:
+            logger.debug(
+                "Warm daemon autostart failed at CLI startup",
+                exc_info=True,
+            )
 
     _accept_hooks = bool(getattr(args, "accept_hooks", False))
     try:

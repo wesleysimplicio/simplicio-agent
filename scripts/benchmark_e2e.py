@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -388,6 +389,106 @@ def bench_dag_vs_serial(report: Report, iterations: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario: warm daemon vs cold CLI start (issue #110 AC)
+# ---------------------------------------------------------------------------
+
+def bench_daemon_warm_start(report: Report, samples: int) -> None:
+    """Warm-daemon speedup (issue #110 acceptance criterion): a real daemon
+    ``start``/``status``/``stop`` round trip over its UNIX socket ("warm"),
+    compared against the cold CLI-startup proxy ``bench_cli_startup`` also
+    uses (subprocess cold-import of ``hermes_cli.main``, i.e. what a
+    non-warmed invocation pays before it can even reach the daemon client).
+    AC target: warm round trip is >= 30% faster than the cold-import proxy.
+
+    Uses a short ``/tmp`` socket path (not ``REPO_ROOT``) for the same
+    AF_UNIX path-length reason ``tests/hermes_cli/test_daemon.py`` documents.
+    """
+    if sys.platform == "win32":
+        report.add(Result(
+            "daemon.warm_vs_cold_start", "SKIPPED", 0, 0.0,
+            notes="AF_UNIX sockets used by the daemon are not available on win32",
+        ))
+        return
+
+    sock_path = f"/tmp/hermes_daemon_bench_{os.getpid()}_{int(time.time())}.sock"
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "hermes_cli.daemon", "start",
+            "--warm-profile", "car", "--socket", sock_path,
+        ],
+        cwd=str(REPO_ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        deadline = time.time() + 15
+        while time.time() < deadline and not os.path.exists(sock_path):
+            time.sleep(0.1)
+        if not os.path.exists(sock_path):
+            report.add(Result(
+                "daemon.warm_vs_cold_start", "FAILED", 0, 0.0,
+                notes="daemon did not create its socket in time",
+            ))
+            return
+
+        cold_times = []
+        for _ in range(samples):
+            t0 = time.perf_counter()
+            r = subprocess.run(
+                [sys.executable, "-c", "import hermes_cli.main"],
+                cwd=str(REPO_ROOT), capture_output=True, timeout=60,
+            )
+            if r.returncode == 0:
+                cold_times.append(time.perf_counter() - t0)
+
+        warm_times = []
+        for _ in range(samples):
+            t0 = time.perf_counter()
+            r = subprocess.run(
+                [sys.executable, "-m", "hermes_cli.daemon", "status", "--socket", sock_path],
+                cwd=str(REPO_ROOT), capture_output=True, timeout=15,
+            )
+            if r.returncode == 0:
+                warm_times.append(time.perf_counter() - t0)
+
+        if not cold_times or not warm_times:
+            report.add(Result(
+                "daemon.warm_vs_cold_start", "FAILED", 0, 0.0,
+                notes="cold or warm subprocess samples failed to complete",
+            ))
+            return
+
+        cold_median = statistics.median(cold_times)
+        warm_median = statistics.median(warm_times)
+        pct_faster = (1 - warm_median / cold_median) * 100 if cold_median > 0 else 0.0
+
+        report.add(Result(
+            "daemon.warm_vs_cold_start",
+            f"cold (median of {len(cold_times)}, cold hermes_cli.main import)",
+            1, cold_median,
+            notes="proxy for a non-warmed invocation's full startup cost",
+        ))
+        report.add(Result(
+            "daemon.warm_vs_cold_start",
+            f"warm (median of {len(warm_times)}, `daemon status` round trip)",
+            1, warm_median,
+            notes=f"{pct_faster:.1f}% faster than cold (AC target: >= 30%)",
+        ))
+    finally:
+        subprocess.run(
+            [sys.executable, "-m", "hermes_cli.daemon", "stop", "--socket", sock_path],
+            cwd=str(REPO_ROOT), capture_output=True, timeout=15,
+        )
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        for path in (sock_path, sock_path.replace(".sock", ".pid")):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+# ---------------------------------------------------------------------------
 # Scenario: CLI cold-import time (proxy for startup cost)
 # ---------------------------------------------------------------------------
 
@@ -460,7 +561,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--iterations", type=int, default=2000, help="base iteration count for in-process scenarios (default: 2000)")
     parser.add_argument("--startup-samples", type=int, default=3, help="subprocess samples for the CLI cold-import scenario (default: 3)")
-    parser.add_argument("--skip", action="append", default=[], choices=list(SCENARIOS) + ["cli_startup"], help="scenario(s) to skip")
+    parser.add_argument("--skip", action="append", default=[], choices=list(SCENARIOS) + ["cli_startup", "daemon_warm_start"], help="scenario(s) to skip")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON instead of a table")
     args = parser.parse_args()
 
@@ -471,6 +572,8 @@ def main() -> int:
         fn(report, args.iterations)
     if "cli_startup" not in args.skip:
         bench_cli_startup(report, args.startup_samples)
+    if "daemon_warm_start" not in args.skip:
+        bench_daemon_warm_start(report, args.startup_samples)
 
     if args.json:
         print(json.dumps([

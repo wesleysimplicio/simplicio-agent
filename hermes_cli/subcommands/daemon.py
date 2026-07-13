@@ -41,6 +41,13 @@ def build_daemon_parser(subparsers, *, cmd_daemon: Callable) -> None:
         help="Warm-cache preload set to use (desktop: all caches, car: reduced set)",
     )
     daemon_start.add_argument("--socket", default=None)
+    daemon_start.add_argument(
+        "--idle-ttl-s", dest="idle_ttl_s", type=float, default=None,
+        help=(
+            "Idle TTL in seconds before auto-shutdown "
+            "(default: $SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S or 1800)"
+        ),
+    )
 
     # daemon stop
     daemon_stop = daemon_subparsers.add_parser("stop", help="Stop the warm daemon")

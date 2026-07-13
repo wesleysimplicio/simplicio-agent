@@ -207,6 +207,158 @@ def test_daemon_start_status_stop_round_trip():
                 pass
 
 
+def test_daemon_status_reports_idle_ttl_fields():
+    """AC (#110): the daemon self-reports its idle-TTL state, which
+    ``simplicio-agent doctor`` surfaces (``hermes_cli/doctor.py::_check_warm_daemon``).
+    """
+    sock_path = f"/tmp/hermes_daemon_ttl_status_{os.getpid()}_{int(time.time())}.sock"
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "hermes_cli.main", "daemon", "start",
+            "--warm-profile", "car", "--socket", sock_path, "--idle-ttl-s", "60",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        deadline = time.time() + 10
+        while time.time() < deadline and not os.path.exists(sock_path):
+            time.sleep(0.2)
+        assert os.path.exists(sock_path), "daemon did not create its socket in time"
+
+        status = _run_cli("daemon", "status", "--socket", sock_path)
+        assert status.returncode == 0, status.stderr
+        assert '"idle_ttl_s": 60.0' in status.stdout
+        assert '"idle_s"' in status.stdout
+    finally:
+        _run_cli("daemon", "stop", "--socket", sock_path)
+        proc.wait(timeout=10)
+        for path in (sock_path, sock_path.replace(".sock", ".pid")):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX sockets used by the daemon")
+def test_daemon_shuts_itself_down_after_idle_ttl():
+    """AC (#110): daemon self-terminates once the idle TTL elapses with no
+    connections — a short TTL is injected via ``--idle-ttl-s`` (equivalent to
+    the env override ``SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S`` the daemon also
+    honors) so the test doesn't wait 30 real minutes.
+    """
+    sock_path = f"/tmp/hermes_daemon_idle_shutdown_{os.getpid()}_{int(time.time())}.sock"
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-m", "hermes_cli.main", "daemon", "start",
+            "--warm-profile", "car", "--socket", sock_path, "--idle-ttl-s", "1",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        deadline = time.time() + 10
+        while time.time() < deadline and not os.path.exists(sock_path):
+            time.sleep(0.2)
+        assert os.path.exists(sock_path), "daemon did not create its socket in time"
+
+        # Do NOT talk to the socket again — any request would reset
+        # last-activity and defeat the point of this test.
+        exit_code = proc.wait(timeout=15)
+        assert exit_code == 0, proc.stdout.read() if proc.stdout else ""
+        assert not os.path.exists(sock_path), "daemon left its socket behind after idle shutdown"
+    finally:
+        for path in (sock_path, sock_path.replace(".sock", ".pid")):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+def test_no_daemon_opt_out_env_flag(monkeypatch):
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.delenv("SIMPLICIO_AGENT_NO_DAEMON", raising=False)
+    assert daemon_mod._no_daemon_opt_out() is False
+
+    monkeypatch.setenv("SIMPLICIO_AGENT_NO_DAEMON", "1")
+    assert daemon_mod._no_daemon_opt_out() is True
+
+    monkeypatch.setenv("SIMPLICIO_AGENT_NO_DAEMON", "0")
+    assert daemon_mod._no_daemon_opt_out() is False
+
+
+def test_maybe_autostart_respects_no_daemon_opt_out(monkeypatch, tmp_path):
+    """AC (#110): ``SIMPLICIO_AGENT_NO_DAEMON=1`` → no background process is
+    ever spawned, asserted directly against ``subprocess.Popen`` never being
+    called (stronger than a process-table scan: it proves this code path
+    can't spawn anything, not just that nothing happened to be running).
+    """
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.setenv("SIMPLICIO_AGENT_NO_DAEMON", "1")
+    calls = []
+    monkeypatch.setattr(daemon_mod.subprocess, "Popen", lambda *a, **k: calls.append((a, k)))
+
+    sock_path = tmp_path / "daemon.sock"
+    spawned = daemon_mod.maybe_autostart(sock_path=sock_path)
+
+    assert spawned is False
+    assert calls == []
+
+
+def test_maybe_autostart_skips_when_already_running(monkeypatch, tmp_path):
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.delenv("SIMPLICIO_AGENT_NO_DAEMON", raising=False)
+    monkeypatch.setattr(daemon_mod, "is_daemon_running", lambda *a, **k: True)
+    calls = []
+    monkeypatch.setattr(daemon_mod.subprocess, "Popen", lambda *a, **k: calls.append((a, k)))
+
+    sock_path = tmp_path / "daemon.sock"
+    spawned = daemon_mod.maybe_autostart(sock_path=sock_path)
+
+    assert spawned is False
+    assert calls == []
+
+
+def test_maybe_autostart_spawns_detached_process_when_cold(monkeypatch, tmp_path):
+    """When no daemon is running and the opt-out is unset, a real background
+    process is spawned (detached: ``start_new_session=True`` on POSIX) with
+    the socket path and profile threaded through.
+    """
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.delenv("SIMPLICIO_AGENT_NO_DAEMON", raising=False)
+    monkeypatch.setattr(daemon_mod, "is_daemon_running", lambda *a, **k: False)
+    calls = []
+
+    class _FakeProc:
+        pid = 12345
+
+    def _fake_popen(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return _FakeProc()
+
+    monkeypatch.setattr(daemon_mod.subprocess, "Popen", _fake_popen)
+
+    sock_path = tmp_path / "profile-a" / "daemon.sock"
+    spawned = daemon_mod.maybe_autostart(sock_path=sock_path, profile="car")
+
+    assert spawned is True
+    assert len(calls) == 1
+    argv, kwargs = calls[0]
+    assert "hermes_cli.daemon" in argv and "start" in argv
+    assert "--warm-profile" in argv and "car" in argv
+    assert "--socket" in argv and str(sock_path) in argv
+    if sys.platform != "win32":
+        assert kwargs.get("start_new_session") is True
+    # The socket's parent dir must exist so the real daemon can bind it.
+    assert sock_path.parent.exists()
+
+
 def test_daemon_status_without_running_daemon_falls_back_cold():
     """When no daemon is listening, status must report a cold fallback
     rather than hanging or raising. Note: hermes_cli/main.py's top-level
