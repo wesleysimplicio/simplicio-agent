@@ -208,8 +208,8 @@ def mock_session_db(tmp_path, populated_sessions_dir):
 
 
 class _FakeTool:
-    def __init__(self, fn):
-        self.name = fn.__name__
+    def __init__(self, fn, name=None):
+        self.name = name or fn.__name__
         self.description = inspect.getdoc(fn) or ""
         self.fn = fn
 
@@ -218,8 +218,9 @@ class _FakeToolManager:
     def __init__(self):
         self._tools = {}
 
-    def add_tool(self, fn):
-        self._tools[fn.__name__] = _FakeTool(fn)
+    def add_tool(self, fn, name=None):
+        tool = _FakeTool(fn, name=name)
+        self._tools[tool.name] = tool
 
     async def call_tool(self, name, args=None):
         return self._tools[name].fn(**(args or {}))
@@ -232,9 +233,9 @@ class _FakeFastMCP:
     def __init__(self, *args, **kwargs):
         self._tool_manager = _FakeToolManager()
 
-    def tool(self):
+    def tool(self, name=None, **_kwargs):
         def decorator(fn):
-            self._tool_manager.add_tool(fn)
+            self._tool_manager.add_tool(fn, name=name)
             return fn
 
         return decorator
@@ -1131,6 +1132,11 @@ class TestToolRegistration:
             # tools.computer_use.tool.handle_computer_use — see
             # mcp_serve._computer_use_mcp_refusal for the MCP-level gate.
             "computer_use",
+            # Low-frequency-domain bridges (issue #99) — registered via
+            # mcp_low_freq_bridges.register_low_freq_tools. See
+            # docs/mcp-low-frequency-bridges.md for the full classification.
+            "cron_status", "gateway_status", "hooks_status",
+            "low_frequency_cli_fallback",
             # browser (issue #98 Fase 1): navigate/snapshot/click/type/
             # scroll/vision/console, reusing tools.browser_tool verbatim.
             "browser",
