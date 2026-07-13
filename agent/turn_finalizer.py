@@ -151,6 +151,21 @@ def finalize_turn(
         interrupted=interrupted,
     )
 
+    # TaskEnvelope wiring (issue #209): finish the TaskEnvelope that
+    # agent.turn_envelope.start_turn_envelope created at the top of
+    # run_conversation, driving it to its terminal state (closed / failed /
+    # blocked) using the exact completed/failed/interrupted outcome computed
+    # above. A no-op if no envelope was started for this turn_id (e.g. the
+    # codex_app_server transport bypasses run_conversation's normal path).
+    from agent.turn_envelope import finish_turn_envelope
+    finish_turn_envelope(
+        agent,
+        turn_id=turn_id,
+        completed=completed,
+        failed=failed,
+        interrupted=interrupted,
+    )
+
     # Post-loop cleanup must never lose the response.  Trajectory save,
     # resource teardown, and session persistence all touch fallible
     # surfaces — file I/O / JSON serialization (_save_trajectory), remote
