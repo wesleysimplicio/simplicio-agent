@@ -187,6 +187,76 @@ def _module_attr(module_name: str, attr: str, repo_root: Path) -> bool:
         sys.path[:] = old_path
 
 
+def _exercise_fast_json(repo_root: Path) -> tuple[bool, str]:
+    """Exercise the selected fast backend without measuring performance.
+
+    The integration manifest must prove that the fast-json optimization is
+    actually wired into the public serializer path, not only that optional
+    packages happen to be importable.  Backend markers keep this receipt
+    deterministic and avoid making a performance claim from a smoke test.
+    """
+
+    old_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(repo_root))
+        importlib.invalidate_caches()
+        module = importlib.import_module("agent.serde.fast_json")
+        payload = {"kind": "perf-receipt", "items": [1, 2, 3]}
+        backend: str
+        if module.has_orjson():
+            backend = "orjson"
+            encoder = module.orjson.dumps
+            decoder = module.orjson.loads
+        elif module.has_msgspec():
+            backend = "msgspec"
+            encoder = module.msgspec.json.encode
+            decoder = module.msgspec.json.decode
+        else:
+            return False, "no fast backend available"
+
+        called = {"encode": False, "decode": False}
+
+        def mark_encode(value: Any) -> Any:
+            called["encode"] = True
+            return encoder(value)
+
+        def mark_decode(value: Any) -> Any:
+            called["decode"] = True
+            return decoder(value)
+
+        if backend == "orjson":
+            module.orjson.dumps = mark_encode
+            module.orjson.loads = mark_decode
+        else:
+            module.msgspec.json.encode = mark_encode
+            module.msgspec.json.decode = mark_decode
+        try:
+            encoded = module.dumps(payload)
+            decoded = module.loads(encoded)
+        finally:
+            if backend == "orjson":
+                module.orjson.dumps = encoder
+                module.orjson.loads = decoder
+            else:
+                module.msgspec.json.encode = encoder
+                module.msgspec.json.decode = decoder
+
+        ok = (
+            called["encode"]
+            and called["decode"]
+            and isinstance(encoded, bytes)
+            and decoded == payload
+        )
+        return (
+            ok,
+            f"backend={backend}; encode=called; decode=called; round_trip={'pass' if ok else 'fail'}",
+        )
+    except Exception as exc:  # pragma: no cover - defensive receipt path
+        return False, f"exercise failed: {type(exc).__name__}"
+    finally:
+        sys.path[:] = old_path
+
+
 def _spec_result(spec: AxisSpec) -> AxisResult:
     return AxisResult(
         name=spec.name,
@@ -303,9 +373,18 @@ def _check_fast_json(result: AxisResult, repo_root: Path) -> None:
         has_orjson or has_msgspec,
         reason=f"orjson={has_orjson} msgspec={has_msgspec}",
     )
+    invoked, receipt = (
+        _exercise_fast_json(repo_root)
+        if built
+        else (
+            False,
+            "serializer module is not importable",
+        )
+    )
     result.mark(
         "INVOKED",
-        built and (has_orjson or has_msgspec),
+        invoked and (has_orjson or has_msgspec),
+        reason=receipt,
         evidence=("agent.serde.fast_json:dumps/loads",),
     )
     e2e = all(
