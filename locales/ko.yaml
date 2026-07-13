@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ 목표 설정됨 ({budget}회 예산): {goal}\n목표가 완료되거나, 일시정지/삭제하거나, 예산이 소진될 때까지 계속 작업하겠습니다.\n제어: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Hermes 명령**\n"
+    header:                "📖 **Simplicio Agent 명령**\n"
     skill_header:          "\n⚡ **스킬 명령** ({count}개 활성):"
     more_use_commands:     "\n... 외 {count}개 더. 전체 목록은 `/commands`로 확인하세요."
 

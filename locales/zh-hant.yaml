@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ 目標已設定（{budget} 輪預算）：{goal}\n我會持續工作直到目標完成、你暫停／清除目標，或預算耗盡。\n控制指令：/goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Hermes 指令**\n"
+    header:                "📖 **Simplicio Agent 指令**\n"
     skill_header:          "\n⚡ **技能指令**（{count} 個作用中）："
     more_use_commands:     "\n... 還有 {count} 個。使用 `/commands` 檢視完整分頁清單。"
 

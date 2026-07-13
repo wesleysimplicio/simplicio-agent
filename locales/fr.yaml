@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ Objectif défini (budget de {budget} tours) : {goal}\nJe continuerai jusqu'à ce que l'objectif soit terminé, que vous le mettiez en pause/effaciez, ou que le budget soit épuisé.\nContrôles : /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Commandes Hermes**\n"
+    header:                "📖 **Commandes Simplicio Agent**\n"
     skill_header:          "\n⚡ **Commandes de skill** ({count} actives) :"
     more_use_commands:     "\n... et {count} de plus. Utilisez `/commands` pour la liste paginée complète."
 

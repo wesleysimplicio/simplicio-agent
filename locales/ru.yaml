@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ Цель задана (бюджет {budget} ходов): {goal}\nЯ продолжу работу, пока цель не будет достигнута, вы её не приостановите/очистите, или бюджет не исчерпается.\nУправление: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Команды Hermes**\n"
+    header:                "📖 **Команды Simplicio Agent**\n"
     skill_header:          "\n⚡ **Команды навыков** (активных: {count}):"
     more_use_commands:     "\n... и ещё {count}. Используйте `/commands` для полного списка с постраничной разбивкой."
 

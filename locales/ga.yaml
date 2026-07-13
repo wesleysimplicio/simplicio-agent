@@ -140,7 +140,7 @@ gateway:
     set:                   "⊙ Sprioc socraithe (buiséad {budget} seal): {goal}\nLeanfaidh mé ag obair go dtí go bhfuil an sprioc críochnaithe, go gcuirfidh tú ar sos / go nglanfaidh tú í, nó go n-úsáidfear an buiséad.\nSmacht: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Orduithe Hermes**\n"
+    header:                "📖 **Orduithe Simplicio Agent**\n"
     skill_header:          "\n⚡ **Orduithe Scileanna** ({count} gníomhach):"
     more_use_commands:     "\n... agus {count} eile. Úsáid `/commands` don liosta iomlán uimhrithe."
 

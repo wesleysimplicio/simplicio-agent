@@ -136,7 +136,7 @@ gateway:
     set:                   "⊙ Obiettivo impostato (budget di {budget} turni): {goal}\nContinuerò a lavorare finché l'obiettivo non sarà completato, lo metterai in pausa/lo cancellerai, oppure il budget sarà esaurito.\nControlli: /goal status · /goal pause · /goal resume · /goal clear"
 
   help:
-    header:                "📖 **Comandi Hermes**\n"
+    header:                "📖 **Comandi Simplicio Agent**\n"
     skill_header:          "\n⚡ **Comandi skill** ({count} attivi):"
     more_use_commands:     "\n... e altri {count}. Usa `/commands` per la lista paginata completa."
 
