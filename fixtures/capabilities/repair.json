@@ -1,0 +1,15 @@
+[
+  {
+    "name": "offline",
+    "version": "1.0.0",
+    "source": "bundled",
+    "license": "MIT",
+    "platforms": ["*"],
+    "health": "unhealthy",
+    "risk": "low",
+    "determinism": "deterministic",
+    "cost": 0,
+    "health_detail": "binary is missing",
+    "repair_actions": ["reinstall", "health_check"]
+  }
+]

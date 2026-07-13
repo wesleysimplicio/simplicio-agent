@@ -1,0 +1,26 @@
+[
+  {
+    "name": "local",
+    "version": "1.2.0",
+    "source": "bundled",
+    "license": "MIT",
+    "platforms": ["linux", "darwin", "win32"],
+    "health": "healthy",
+    "risk": "low",
+    "determinism": "deterministic",
+    "cost": 0,
+    "fallback": ["remote"]
+  },
+  {
+    "name": "remote",
+    "version": "2.0.1",
+    "source": "catalog",
+    "license": "Apache-2.0",
+    "platforms": ["*"],
+    "health": "healthy",
+    "risk": "medium",
+    "determinism": "repeatable",
+    "cost": 0.02,
+    "fallback": []
+  }
+]
