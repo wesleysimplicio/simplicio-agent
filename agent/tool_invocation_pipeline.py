@@ -185,9 +185,27 @@ def _coerce_mapping(value: Any, *, stage: StageName) -> dict[str, Any]:
     return dict(value)
 
 
-def _coerce_decision(
-    value: Any, *, stage: Literal["guardrail", "action-gate"]
-) -> ToolDecision:
+def _canonical_trace_prefix(trace: list[str] | tuple[str, ...]) -> tuple[StageName, ...]:
+    """Return a bounded canonical trace prefix for split completion.
+
+    Callers may round-trip the trace across process boundaries, so completion
+    normalizes the inbound value instead of trusting arbitrary ordering,
+    duplication, or unknown stage names.
+    """
+
+    seen = set(trace)
+    prefix: list[StageName] = []
+    for stage in STAGES:
+        if stage in seen:
+            prefix.append(stage)
+        if stage == "execute":
+            break
+    if "persist" in seen or "evidence" in seen:
+        return tuple(prefix)
+    return tuple(prefix + ["execute"])
+
+
+def _coerce_decision(value: Any, *, stage: Literal["guardrail", "action-gate"]) -> ToolDecision:
     if isinstance(value, ToolDecision):
         return value
     if value is False:
@@ -301,15 +319,12 @@ class ToolInvocationPipeline:
         *,
         status: str = "success",
     ) -> ToolInvocationOutcome:
-        trace = list(trace)
-        if "execute" not in trace and "persist" not in trace:
-            trace.append("execute")
         attempt = self._start_attempt(invocation)
         attempt = replace(
             attempt,
             resolved_name=invocation.name,
             normalized_args=dict(invocation.args),
-            trace=tuple(trace),
+            trace=_canonical_trace_prefix(trace),
             result=result,
             status=_coerce_status(status),
             classification=invocation.metadata.classification or "unknown",
@@ -584,8 +599,8 @@ def pipeline_for_agent(
 ) -> ToolInvocationPipeline:
     """Return the shared pipeline with agent-owned hook overrides.
 
-    tool_name is accepted for call-site compatibility and future
-    per-tool hooks; the shared pipeline is intentionally agent-scoped today.
+    tool_name is accepted for call-site compatibility and future per-tool
+    hooks; the shared pipeline is intentionally agent-scoped today.
     """
 
     del tool_name
