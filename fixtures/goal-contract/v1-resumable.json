@@ -1,0 +1,18 @@
+{
+  "schema": "simplicio.goal-contract",
+  "schema_version": "simplicio.goal-contract/v1",
+  "contract_id": "fixture-resumable",
+  "objective": "investigate the regression",
+  "objective_hash": "834485dcab3737c23431003c9538ab40aae755ee53bf84e99a7503d06068a8e3",
+  "acceptance_criteria": ["root cause documented"],
+  "acceptance_criteria_hash": "22c4d689fce369f04e564a840b1798fd62756da0950368c29e4639e2b35e7cf7",
+  "facts": [{"text": "failure reproduces", "source": "test://regression"}],
+  "inferences": [],
+  "open_questions": [{"text": "which release introduced it?", "blocking": false}],
+  "evidence": [],
+  "watchers": [],
+  "state": "paused",
+  "reason": "awaiting upstream details",
+  "created_at_ns": 1,
+  "updated_at_ns": 2
+}
