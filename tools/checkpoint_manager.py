@@ -633,11 +633,13 @@ class CheckpointManager:
         max_snapshots: int = 20,
         max_total_size_mb: int = 500,
         max_file_size_mb: int = 10,
+        checkpoint_base: Optional[Path] = None,
     ):
         self.enabled = enabled
         self.max_snapshots = max(1, int(max_snapshots))
         self.max_total_size_mb = max(0, int(max_total_size_mb))
         self.max_file_size_mb = max(0, int(max_file_size_mb))
+        self.checkpoint_base = checkpoint_base or CHECKPOINT_BASE
         self._checkpointed_dirs: Set[str] = set()
         self._git_available: Optional[bool] = None  # lazy probe
 
@@ -704,7 +706,7 @@ class CheckpointManager:
     def list_checkpoints(self, working_dir: str) -> List[Dict]:
         """List available checkpoints for a directory (most recent first)."""
         abs_dir = str(_normalize_path(working_dir))
-        store = _store_path(CHECKPOINT_BASE)
+        store = _store_path(self.checkpoint_base)
 
         if not (store / "HEAD").exists():
             return []
@@ -762,7 +764,7 @@ class CheckpointManager:
             return {"success": False, "error": hash_err}
 
         abs_dir = str(_normalize_path(working_dir))
-        store = _store_path(CHECKPOINT_BASE)
+        store = _store_path(self.checkpoint_base)
 
         if not (store / "HEAD").exists():
             return {"success": False, "error": "No checkpoints exist for this directory"}
@@ -818,7 +820,7 @@ class CheckpointManager:
             if path_err:
                 return {"success": False, "error": path_err}
 
-        store = _store_path(CHECKPOINT_BASE)
+        store = _store_path(self.checkpoint_base)
 
         if not (store / "HEAD").exists():
             return {"success": False, "error": "No checkpoints exist for this directory"}
@@ -886,7 +888,7 @@ class CheckpointManager:
 
     def _take(self, working_dir: str, reason: str) -> bool:
         """Take a snapshot.  Returns True on success."""
-        store = _store_path(CHECKPOINT_BASE)
+        store = _store_path(self.checkpoint_base)
 
         err = _init_store(store, working_dir)
         if err:
