@@ -1,0 +1,24 @@
+{
+  "name": "issue-211-bounded-slice",
+  "repo": "fixtures/golden-path",
+  "branch": "golden-path",
+  "scope": "issue-211",
+  "acceptance_criteria": [
+    "task envelope reaches closed only after evidence exists",
+    "write-set mutation is validated and requeried independently",
+    "cli and fallback transport paths preserve receipts"
+  ],
+  "worker": "golden-path-worker",
+  "lease": "lease-golden-path",
+  "delivery_target": "artifact://golden-path/report.json",
+  "write_set": [
+    "workspace/state.txt"
+  ],
+  "validation_command": "golden-path validate workspace/state.txt",
+  "mutation": {
+    "path": "workspace/state.txt",
+    "expected_before": "status=draft\nversion=1\n",
+    "expected_after": "status=ready\nversion=2\n"
+  },
+  "yool_prefix": "agent.golden_path"
+}
