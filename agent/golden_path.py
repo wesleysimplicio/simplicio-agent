@@ -17,12 +17,13 @@ envelope.
 from __future__ import annotations
 
 import json
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from agent.task_envelope import TaskEnvelope, TaskState
+from agent.protocol_v1 import Emitter
+from agent.task_envelope import TaskEnvelope, TaskLedger, TaskState
+from agent.task_envelope_bridge import STATE_TO_EVENT_TYPE, emit_for_transition
 from agent.telemetry.receipts import Receipt, receipt_path, record_receipt
 from tools.simplicio_transport import SimplicioTransport, TransportReceipt
 
@@ -126,6 +127,9 @@ class GoldenPathResult:
     final_state: dict[str, str]
     requery: dict[str, Any]
     fallback_events: tuple[dict[str, Any], ...]
+    protocol_event_types: tuple[str, ...]
+    protocol_sequences: tuple[int, ...]
+    evidence_path: str
 
 
 def _receipt_ref(receipt: Receipt) -> str:
@@ -229,8 +233,8 @@ class GoldenPathHarness:
             timeout_s=timeout_s,
         )
 
-    def run(self) -> GoldenPathResult:
-        task_id = f"golden-{uuid.uuid4().hex}"
+    def run(self, *, runtime_cli: Optional[dict[str, Any]] = None) -> GoldenPathResult:
+        task_id = "issue-211-golden-path"
         envelope = TaskEnvelope.create(
             repo=self.scenario.repo,
             branch=self.scenario.branch,
@@ -240,26 +244,50 @@ class GoldenPathHarness:
             task_id=task_id,
             correlation_id=self.scenario.name,
             write_set=[str(path) for path in self.scenario.absolute_write_set],
+            now_ns=1_000,
         )
+        ledger = TaskLedger()
+        ledger.append(envelope)
+        emitter = Emitter(
+            session_id="issue-211-session",
+            trace_id="issue-211-trace",
+        )
+        events = [
+            emitter.emit(
+                STATE_TO_EVENT_TYPE[TaskState.RECEIVED],
+                turn_id=task_id,
+                attempt_id="1",
+            )
+        ]
+
+        def commit(before: TaskEnvelope, after: TaskEnvelope) -> TaskEnvelope:
+            ledger.append(after)
+            event = emit_for_transition(before, after, emitter, turn_id=task_id)
+            if event is None:
+                raise GoldenPathError("non-idempotent golden path transition expected")
+            events.append(event)
+            return after
 
         orient = self._require_ok(
             "orient",
             self.transport.orient(str(self.scenario.workspace_root), fmt="json"),
         )
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.ORIENTED,
             receipts=[self._record_step("orient", orient.to_dict())],
-        )
+            now_ns=1_001,
+        ))
 
         plan_payload = {
             "task_id": task_id,
             "write_set": [str(path) for path in self.scenario.absolute_write_set],
             "delivery_target": self.scenario.delivery_target,
         }
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.PLANNED,
             receipts=[self._record_step("plan", plan_payload)],
-        )
+            now_ns=1_002,
+        ))
 
         lease = self._require_ok(
             "lease",
@@ -272,12 +300,13 @@ class GoldenPathHarness:
                 },
             ),
         )
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.CLAIMED,
             worker=self.scenario.worker,
             lease=self.scenario.lease,
             receipts=[self._record_step("lease", lease.to_dict())],
-        )
+            now_ns=1_003,
+        ))
 
         mutation = self._require_ok(
             "mutation",
@@ -291,11 +320,12 @@ class GoldenPathHarness:
             raise GoldenPathError(
                 f"write_set mismatch: modified {modified!r} != expected {expected_write_set!r}"
             )
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.EXECUTING,
             artifacts=list(modified),
             receipts=[self._record_step("mutation", mutation.to_dict())],
-        )
+            now_ns=1_004,
+        ))
 
         validation = self._require_ok(
             "validation",
@@ -305,10 +335,11 @@ class GoldenPathHarness:
                 session_key=task_id,
             ),
         )
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.VALIDATING,
             receipts=[self._record_step("validation", validation.to_dict())],
-        )
+            now_ns=1_005,
+        ))
 
         requery = self._requery_final_state()
         requery_ref = self._record_step("requery", requery)
@@ -322,7 +353,7 @@ class GoldenPathHarness:
             "final_state": requery["observed"],
         }
         evidence_ref = self._record_step("evidence", evidence_payload)
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.EVIDENCE_READY,
             receipts=[evidence_ref],
             evidence_refs=[
@@ -330,7 +361,8 @@ class GoldenPathHarness:
                 requery_ref,
                 evidence_ref,
             ],
-        )
+            now_ns=1_006,
+        ))
 
         delivery = self._require_ok(
             "delivery",
@@ -343,12 +375,62 @@ class GoldenPathHarness:
             ),
         )
         delivery_ref = self._record_step("delivery", delivery.to_dict())
-        envelope = envelope.transition(
+        envelope = commit(envelope, envelope.transition(
             TaskState.DELIVERED,
             receipts=[delivery_ref],
             delivery_target=self.scenario.delivery_target,
+            now_ns=1_007,
+        ))
+        envelope = commit(envelope, envelope.transition(TaskState.CLOSED, now_ns=1_008))
+
+        evidence = {
+            "schema": "simplicio-agent/issue-211-evidence/v1",
+            "proof": {
+                "repo_scope": "temporary",
+                "clean_machine_proof": "not_claimed",
+                "external_services": False,
+            },
+            "task": {
+                "task_id": envelope.task_id,
+                "state": envelope.state.value,
+                "states": [record["state"] for record in ledger.history(task_id)],
+                "attempts": envelope.attempts,
+                "evidence_refs": list(envelope.evidence_refs),
+            },
+            "protocol": {
+                "event_types": [event.event_type for event in events],
+                "sequences": [event.seq for event in events],
+            },
+            "transport": {
+                "operations": {
+                    step: {
+                        "ok": receipt.ok,
+                        "transport": receipt.transport,
+                        "fallback_reason": receipt.fallback_reason,
+                    }
+                    for step, receipt in self._transport_receipts.items()
+                },
+                "health": {
+                    key: self.transport.health()[key]
+                    for key in (
+                        "calls",
+                        "cli_calls",
+                        "mcp_calls",
+                        "failures",
+                        "fallbacks",
+                    )
+                },
+            },
+            "receipts": dict(self._receipt_refs),
+            "runtime_cli": runtime_cli
+            or {"available": False, "status": "not-probed"},
+        }
+        evidence_path = self.scenario.workspace_root / "evidence" / "issue-211-golden-path.json"
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_path.write_text(
+            json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
-        envelope = envelope.transition(TaskState.CLOSED)
 
         return GoldenPathResult(
             scenario=self.scenario,
@@ -360,11 +442,18 @@ class GoldenPathHarness:
             final_state=requery["observed"],
             requery=requery,
             fallback_events=self.transport.fallback_events,
+            protocol_event_types=tuple(event.event_type for event in events),
+            protocol_sequences=tuple(event.seq for event in events),
+            evidence_path=str(evidence_path),
         )
 
-    def _record_step(self, step: str, payload: dict[str, Any]) -> str:
+    def _record_step(self, step: str, _payload: dict[str, Any]) -> str:
         receipt = record_receipt(
-            payload=json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            payload=json.dumps(
+                {"scenario": self.scenario.name, "step": step},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
             yool_id=f"{self.scenario.yool_prefix}.{step}",
             lane="fast",
             status="ok",
