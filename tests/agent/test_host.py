@@ -6,6 +6,7 @@ from threading import Event
 import pytest
 
 from agent.host import AgentHost, HostBackpressure, SessionIdentity
+from agent.protocol import HostTurnRequest
 
 
 class FakeAgent:
@@ -111,5 +112,31 @@ def test_profile_isolation_uses_distinct_agents():
         assert host.submit("a", "s", "x", idempotency_key="a").result(timeout=2)["final_response"] == "a:x"
         assert host.submit("b", "s", "x", idempotency_key="b").result(timeout=2)["final_response"] == "b:x"
         assert created == [SessionIdentity("a", "s"), SessionIdentity("b", "s")]
+    finally:
+        host.shutdown()
+
+
+def test_typed_host_turn_request_preserves_existing_host_behavior():
+    created = []
+
+    def factory(identity):
+        agent = FakeAgent(identity.session_id, Event())
+        created.append(agent)
+        return agent
+
+    host = AgentHost(factory, max_sessions=4)
+    try:
+        request = HostTurnRequest(
+            profile="p",
+            session_id="s",
+            user_message="hello",
+            idempotency_key="same",
+            conversation_kwargs={"task_id": "task-1"},
+        )
+        result = host.run_turn(request)
+        duplicate = host.submit(request)
+        assert result["final_response"] == "s:hello"
+        assert duplicate.result(timeout=2)["final_response"] == "s:hello"
+        assert created[0].calls == [("hello", {"task_id": "task-1"})]
     finally:
         host.shutdown()

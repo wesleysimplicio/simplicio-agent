@@ -8,6 +8,7 @@ from agent.tool_invocation_pipeline import (
     ToolInvocation,
     ToolInvocationMetadata,
     ToolInvocationPipeline,
+    pipeline_for_agent,
 )
 
 
@@ -109,6 +110,41 @@ def test_pipeline_begin_complete_matches_run_stage_and_evidence_contract():
     assert split.evidence["tool_call_id"] == direct.evidence["tool_call_id"]
     assert split.receipt is not None
     assert split.receipt.receipt_id == direct.receipt.receipt_id
+
+
+def test_pipeline_complete_canonicalizes_split_trace_to_bounded_stage_order():
+    invocation = ToolInvocation(**_fixture("invocation.json"))
+    result = {"ok": True}
+    noisy_trace = [
+        "normalize",
+        "resolve",
+        "resolve",
+        "unknown",
+        "checkpoint",
+        "classify",
+        "persist",
+        "evidence",
+    ]
+
+    outcome = ToolInvocationPipeline().complete(invocation, result, noisy_trace)
+
+    assert outcome.trace == [
+        "resolve",
+        "normalize",
+        "classify",
+        "checkpoint",
+        "persist",
+        "evidence",
+    ]
+    assert outcome.evidence["trace"] == outcome.trace
+
+
+def test_pipeline_for_agent_accepts_optional_tool_name_for_existing_call_sites():
+    agent = type("FakeAgent", (), {})()
+
+    pipeline = pipeline_for_agent(agent, "demo.tool")
+
+    assert isinstance(pipeline, ToolInvocationPipeline)
 
 
 def test_pipeline_applies_fail_safe_metadata_defaults_and_redacts_external_results():

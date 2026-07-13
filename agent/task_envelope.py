@@ -165,6 +165,25 @@ class CloseGateError(ValueError):
         self.decision = decision
 
 
+class CloseGateReason(str, Enum):
+    """Typed reasons for strict close-gate decisions."""
+
+    DELIVERED_REQUIRED = "delivered_required"
+    EVIDENCE_REQUIRED = "evidence_required"
+    VERIFIED_EVIDENCE_MISSING = "verified_evidence_missing"
+    VERIFIED = "verified"
+
+
+_CLOSE_GATE_REASON_TEXT: Dict[CloseGateReason, str] = {
+    CloseGateReason.DELIVERED_REQUIRED: "close requires a delivered envelope",
+    CloseGateReason.EVIDENCE_REQUIRED: "close requires at least one evidence reference",
+    CloseGateReason.VERIFIED_EVIDENCE_MISSING: (
+        "close requires every evidence reference to be verified"
+    ),
+    CloseGateReason.VERIFIED: "all required evidence references are verified",
+}
+
+
 @dataclass(frozen=True)
 class CloseGateDecision:
     """Deterministic result of checking whether a task may be closed.
@@ -177,6 +196,7 @@ class CloseGateDecision:
 
     allowed: bool
     status: str
+    reason_code: CloseGateReason
     reason: str
     required_evidence_refs: tuple[str, ...] = ()
     verified_evidence_refs: tuple[str, ...] = ()
@@ -190,6 +210,7 @@ class CloseGateDecision:
         return {
             "allowed": self.allowed,
             "status": self.status,
+            "reason_code": self.reason_code.value,
             "reason": self.reason,
             "required_evidence_refs": list(self.required_evidence_refs),
             "verified_evidence_refs": list(self.verified_evidence_refs),
@@ -501,6 +522,17 @@ class TaskLedger:
         self._records: Dict[str, List[Dict[str, Any]]] = {}
         self._quarantine_records: Dict[str, List[Dict[str, Any]]] = {}
 
+    @staticmethod
+    def _quarantine_record_key(record: Dict[str, Any]) -> tuple[Any, ...]:
+        return (
+            record.get("task_id"),
+            record.get("envelope_hash"),
+            record.get("reason_code"),
+            tuple(record.get("required_evidence_refs", ()) or ()),
+            tuple(record.get("verified_evidence_refs", ()) or ()),
+            tuple(record.get("missing_evidence_refs", ()) or ()),
+        )
+
     def append(self, envelope: TaskEnvelope) -> Dict[str, Any]:
         record = envelope.ledger_record()
         history = self._records.setdefault(envelope.task_id, [])
@@ -509,6 +541,48 @@ class TaskLedger:
             return history[-1]
         history.append(record)
         return record
+
+    def snapshot(self) -> Dict[str, Any]:
+        """Return a JSON-serializable snapshot for recovery/replay."""
+        return {
+            "records": {
+                task_id: [dict(record) for record in history]
+                for task_id, history in self._records.items()
+            },
+            "quarantine_records": {
+                task_id: [dict(record) for record in history]
+                for task_id, history in self._quarantine_records.items()
+            },
+        }
+
+    def replay_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        """Merge a prior snapshot back into this ledger idempotently."""
+        for task_id, history in snapshot.get("records", {}).items():
+            current = self._records.setdefault(task_id, [])
+            seen_hashes = {record["envelope_hash"] for record in current}
+            for record in history:
+                envelope_hash = record.get("envelope_hash")
+                if not envelope_hash or envelope_hash in seen_hashes:
+                    continue
+                current.append(dict(record))
+                seen_hashes.add(envelope_hash)
+
+        for task_id, history in snapshot.get("quarantine_records", {}).items():
+            current = self._quarantine_records.setdefault(task_id, [])
+            seen_keys = {self._quarantine_record_key(record) for record in current}
+            for record in history:
+                key = self._quarantine_record_key(record)
+                if key in seen_keys:
+                    continue
+                current.append(dict(record))
+                seen_keys.add(key)
+
+    @classmethod
+    def from_snapshot(cls, snapshot: Dict[str, Any]) -> "TaskLedger":
+        """Rebuild a ledger snapshot without duplicating replayed records."""
+        ledger = cls()
+        ledger.replay_snapshot(snapshot)
+        return ledger
 
     def history(self, task_id: str) -> tuple[Dict[str, Any], ...]:
         return tuple(self._records.get(task_id, ()))
@@ -534,7 +608,8 @@ class TaskLedger:
             return CloseGateDecision(
                 allowed=False,
                 status=TaskState.QUARANTINED.value,
-                reason="close requires a delivered envelope",
+                reason_code=CloseGateReason.DELIVERED_REQUIRED,
+                reason=_CLOSE_GATE_REASON_TEXT[CloseGateReason.DELIVERED_REQUIRED],
                 required_evidence_refs=required,
                 verified_evidence_refs=observed,
                 missing_evidence_refs=missing,
@@ -543,7 +618,8 @@ class TaskLedger:
             return CloseGateDecision(
                 allowed=False,
                 status=TaskState.QUARANTINED.value,
-                reason="close requires at least one evidence reference",
+                reason_code=CloseGateReason.EVIDENCE_REQUIRED,
+                reason=_CLOSE_GATE_REASON_TEXT[CloseGateReason.EVIDENCE_REQUIRED],
                 required_evidence_refs=required,
                 verified_evidence_refs=observed,
                 missing_evidence_refs=missing,
@@ -552,7 +628,10 @@ class TaskLedger:
             return CloseGateDecision(
                 allowed=False,
                 status=TaskState.QUARANTINED.value,
-                reason="close requires every evidence reference to be verified",
+                reason_code=CloseGateReason.VERIFIED_EVIDENCE_MISSING,
+                reason=_CLOSE_GATE_REASON_TEXT[
+                    CloseGateReason.VERIFIED_EVIDENCE_MISSING
+                ],
                 required_evidence_refs=required,
                 verified_evidence_refs=observed,
                 missing_evidence_refs=missing,
@@ -560,7 +639,8 @@ class TaskLedger:
         return CloseGateDecision(
             allowed=True,
             status=TaskState.CLOSED.value,
-            reason="all required evidence references are verified",
+            reason_code=CloseGateReason.VERIFIED,
+            reason=_CLOSE_GATE_REASON_TEXT[CloseGateReason.VERIFIED],
             required_evidence_refs=required,
             verified_evidence_refs=observed,
         )
@@ -572,12 +652,17 @@ class TaskLedger:
             "task_id": envelope.task_id,
             "envelope_hash": envelope.content_hash(),
             "state": TaskState.QUARANTINED.value,
+            "reason_code": decision.reason_code.value,
             "reason": decision.reason,
+            "required_evidence_refs": list(decision.required_evidence_refs),
+            "verified_evidence_refs": list(decision.verified_evidence_refs),
             "missing_evidence_refs": list(decision.missing_evidence_refs),
         }
         history = self._quarantine_records.setdefault(envelope.task_id, [])
-        if record in history:
-            return record
+        key = self._quarantine_record_key(record)
+        for existing in history:
+            if self._quarantine_record_key(existing) == key:
+                return existing
         history.append(record)
         return record
 
@@ -620,6 +705,7 @@ __all__ = [
     "ALLOWED_TRANSITIONS",
     "InvalidTransitionError",
     "CloseGateError",
+    "CloseGateReason",
     "CloseGateDecision",
     "is_transition_allowed",
     "TaskEnvelope",

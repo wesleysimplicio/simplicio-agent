@@ -45,6 +45,8 @@ The module also owns:
 - `ToolInvocationAttempt` as the immutable per-stage state carrier
 - `SerialToolExecutorAdapter` so synchronous executors can participate without
   modification
+- split-completion trace canonicalization so replayed traces remain bounded to
+  known stages, in canonical order, with duplicate/unknown entries ignored
 - external-result redaction inside evidence while preserving the live tool
   result returned to callers
 
