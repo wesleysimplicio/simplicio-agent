@@ -117,6 +117,24 @@ def test_prism_bijection():
         assert ok_bad is False
 
 
+def test_prism_crt_capacity_held():
+    import prism_comb as pc
+
+    capacity = pc.crt_capacity()
+    assert capacity == 3 * 5 * 17 * 257
+
+    # within capacity: exact recovery of x itself, not just x mod M
+    x = capacity - 1
+    residues = pc.crt_decompose(x)
+    status, recomputed = pc.crt_recombine(residues, domain_size=capacity)
+    assert status == "ok" and recomputed == x
+
+    # declared domain larger than capacity: must Held, never silently
+    # answer with a reduced (x mod M) value mislabeled as exact.
+    status_held, value_held = pc.crt_recombine(residues, domain_size=capacity + 1)
+    assert status_held == "held" and value_held is None
+
+
 def test_prism_crt_lossless():
     import prism_comb as pc
     x = 123456789

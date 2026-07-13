@@ -22,6 +22,26 @@ MEASURED proof we add (0-loss round-trip):
     H(f(v)) == H(v)              (entropy invariant, 0 loss)
   This is what makes confabulation and loss the SAME impossibility.
 
+Scientific-integrity correction (issue #124 comment, ref #141) folded in here:
+  - Bijection is proven by round-trip AND injectivity over the declared
+    domain (all forward(addr) values for the tested addrs are pairwise
+    distinct), not by hash-vs-int comparison alone.
+  - Entropy invariance is measured as the empirical Shannon entropy
+    (population_entropy, H = -sum p_i log2 p_i) of the *distribution* of
+    ground-truth values vs. the distribution of their sealed images over the
+    SAME finite sample -- never a single-integer log2(x+1) proxy compared
+    against a hash's raw numeric value (that measures nothing about H(X)).
+    A 1:1 relabeling of a finite population cannot change its symbol
+    frequencies, so H is exactly preserved -- this is what "0-loss" means
+    here, not a claim about entropy of an unbounded random variable.
+  - CRT recombination explicitly declares its capacity
+    M = product(moduli) and REFUSES to claim losslessness outside it:
+    crt_recombine() returns ("held", None) whenever the caller-declared
+    domain_size exceeds M, instead of silently returning `x mod M` and
+    calling that "the same x". Losslessness is only asserted for
+    domain_size <= M, where CRT recombination of the per-modulus residues
+    recovers the original value exactly (not merely x mod M).
+
 Consent stays outside the bijection (LAW.md): observation/correction nest
 infinitely (they are the inverse maps), but consent is non-recursive —
 authorization to scale anchors only at the human apex. A bijection can verify
@@ -80,8 +100,58 @@ def population_entropy(symbols) -> float:
     return -sum((c / n) * math.log2(c / n) for c in Counter(symbols).values())
 
 
+# --- CRT many->1 recombination (explicit capacity, Held when insufficient) --
+# Prism-style recombination: N pairwise-coprime moduli decompose a value into
+# residues; CRT recombines the residues back into a single value. This is
+# lossless ONLY within the declared capacity M = product(moduli) -- a value
+# outside [0, M) cannot be told apart from (value mod M) by its residues
+# alone, so claiming "0 loss" there would be exactly the confabulation this
+# module exists to rule out. See issue #124 comment (ref #141).
+CRT_MODULI: tuple[int, ...] = (3, 5, 17, 257)  # pairwise coprime
+
+
+def crt_capacity(moduli: tuple[int, ...] = CRT_MODULI) -> int:
+    """M = product(moduli): the largest domain size CRT can recombine losslessly."""
+    m_total = 1
+    for m in moduli:
+        m_total *= m
+    return m_total
+
+
+def crt_decompose(x: int, moduli: tuple[int, ...] = CRT_MODULI) -> tuple[int, ...]:
+    """Prism step: x -> per-modulus residues."""
+    return tuple(x % m for m in moduli)
+
+
+def crt_recombine(
+    residues: tuple[int, ...],
+    moduli: tuple[int, ...] = CRT_MODULI,
+    domain_size: int | None = None,
+) -> tuple[str, int | None]:
+    """Comb step: residues -> recombined value.
+
+    Returns (status, value):
+      - ("ok", x)     when domain_size is None or domain_size <= capacity --
+                      x is recovered exactly (not merely x mod M).
+      - ("held", None) when the caller declares domain_size > capacity: CRT
+                      alone cannot guarantee losslessness there, so this
+                      function refuses to answer rather than silently return
+                      a reduced (x mod M) value mislabeled as exact.
+    """
+    m_total = crt_capacity(moduli)
+    if domain_size is not None and domain_size > m_total:
+        return "held", None
+    x_recomb = 0
+    for r, m in zip(residues, moduli):
+        m_i = m_total // m
+        inv = pow(m_i, -1, m)
+        x_recomb = (x_recomb + r * m_i * inv) % m_total
+    return "ok", x_recomb
+
+
 def selftest():
-    # 1) round-trip bijection over many leaves: f^-1(f(v)) == v
+    # 1) round-trip bijection over many leaves: f^-1(f(v)) == v, AND injectivity
+    #    (all forward(addr) values are pairwise distinct over the tested domain).
     addrs = [f"R.{a}.{b}.{c}" for a in range(3) for b in range(3) for c in range(3)]
     raw_v = []
     raw_seal = []
@@ -92,6 +162,8 @@ def selftest():
         assert ok and recomputed == v, f"bijection round-trip failed at {addr}"
         raw_v.append(v)
         raw_seal.append(int(s, 16))
+    assert len(set(raw_v)) == len(raw_v), \
+        "forward() is not injective over the tested domain -- not a bijection"
         # 2) entropy invariant under the bijection (0 loss): the *distribution*
         #    of leaf symbols is preserved by a 1:1 relabel, so H is unchanged.
     h_v = population_entropy(raw_v)
@@ -106,21 +178,20 @@ def selftest():
     ok_conf, _ = inverse(good_addr, confabulated_seal)
     assert ok_conf is False, "confabulated seal must NOT close the inverse map"
 
-    # 4) many->1 recombination (CRT-style prism): residues recombine to exactly one x
-    #    x mod m_i for pairwise-coprime m_i, then CRT recombine == x (no loss).
-    x = 123456789
-    mods = [3, 5, 17, 257]  # pairwise coprime
-    residues = [x % m for m in mods]
-    M = 1
-    for m in mods:
-        M *= m
-    # CRT recombination
-    x_recomb = 0
-    for i, m in enumerate(mods):
-        Mi = M // m
-        inv = pow(Mi, -1, m)
-        x_recomb = (x_recomb + residues[i] * Mi * inv) % M
-    assert x_recomb == x % M, "CRT recombination lost information (loss != 0)"
+    # 4) many->1 recombination (CRT-style prism), WITHIN declared capacity:
+    #    residues recombine to exactly x (0 loss), not merely x mod M.
+    capacity = crt_capacity()
+    x = capacity - 1  # boundary value still inside [0, M)
+    residues = crt_decompose(x)
+    status_ok, x_recomb = crt_recombine(residues, domain_size=capacity)
+    assert status_ok == "ok" and x_recomb == x, \
+        "CRT recombination lost information within declared capacity (loss != 0)"
+
+    # 4b) capacity is EXPLICIT: a domain declared larger than M must be Held,
+    #     never silently answered with a reduced (x mod M) value.
+    status_held, value_held = crt_recombine(residues, domain_size=capacity + 1)
+    assert status_held == "held" and value_held is None, \
+        "CRT recombine must return Held when domain_size exceeds capacity"
 
     print(f"PRISM-COMB-0LOSS|bijection_roundtrip=PASS|entropy_invariant=PASS|"
           f"confabulation_no_inverse=PASS|crt_recombine_lossless=PASS|PASS")
