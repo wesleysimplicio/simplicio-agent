@@ -22,6 +22,7 @@ import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
 from tools import runtime_manager
@@ -284,8 +285,11 @@ class SimplicioTransport:
         argv, input_data = self._argv(operation, args)
         started = time.monotonic()
         try:
+            command = [cli_bin, *argv]
+            if os.name == "nt" and Path(cli_bin).suffix.lower() in {".cmd", ".bat"}:
+                command = ["cmd.exe", "/d", "/c", cli_bin, *argv]
             proc = subprocess.run(
-                [cli_bin, *argv],
+                command,
                 input=input_data,
                 capture_output=True,
                 text=True,
