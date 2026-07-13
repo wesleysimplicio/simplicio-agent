@@ -68,43 +68,25 @@ class TransportReceipt:
 
     @classmethod
     def success(
-        cls,
-        operation: str,
-        value: Any = None,
-        *,
-        transport: str = "cli",
-        fallback_reason: Optional[str] = None,
-        request_id: Optional[str] = None,
+        cls, operation: str, value: Any = None, *, transport: str = "cli",
+        fallback_reason: Optional[str] = None, request_id: Optional[str] = None,
         elapsed_ms: Optional[float] = None,
     ) -> "TransportReceipt":
         return cls(
-            operation=operation,
-            ok=True,
-            value=value,
-            transport=transport,
-            fallback_reason=fallback_reason,
-            request_id=request_id or uuid.uuid4().hex,
+            operation=operation, ok=True, value=value, transport=transport,
+            fallback_reason=fallback_reason, request_id=request_id or uuid.uuid4().hex,
             elapsed_ms=elapsed_ms,
         )
 
     @classmethod
     def failure(
-        cls,
-        operation: str,
-        error: TransportError,
-        *,
-        transport: str = "cli",
-        fallback_reason: Optional[str] = None,
-        request_id: Optional[str] = None,
+        cls, operation: str, error: TransportError, *, transport: str = "cli",
+        fallback_reason: Optional[str] = None, request_id: Optional[str] = None,
         elapsed_ms: Optional[float] = None,
     ) -> "TransportReceipt":
         return cls(
-            operation=operation,
-            ok=False,
-            error=error,
-            transport=transport,
-            fallback_reason=fallback_reason,
-            request_id=request_id or uuid.uuid4().hex,
+            operation=operation, ok=False, error=error, transport=transport,
+            fallback_reason=fallback_reason, request_id=request_id or uuid.uuid4().hex,
             elapsed_ms=elapsed_ms,
         )
 
@@ -163,25 +145,13 @@ class SimplicioTransport:
         self._fallback_events: list[dict[str, Any]] = []
 
     # -- public operation methods -------------------------------------
-    def gate(
-        self,
-        command: str,
-        *,
-        pattern_key: str = "",
-        description: str = "",
-        session_key: str = "",
-    ) -> TransportReceipt:
-        return self.call(
-            "gate",
-            command=command,
-            pattern_key=pattern_key,
-            description=description,
-            session_key=session_key,
-        )
+    def gate(self, command: str, *, pattern_key: str = "", description: str = "",
+             session_key: str = "") -> TransportReceipt:
+        return self.call("gate", command=command, pattern_key=pattern_key,
+                         description=description, session_key=session_key)
 
-    def checkpoint(
-        self, label: str, *, workdir: str = "", extra: Optional[dict] = None
-    ) -> TransportReceipt:
+    def checkpoint(self, label: str, *, workdir: str = "",
+                   extra: Optional[dict] = None) -> TransportReceipt:
         return self.call("checkpoint", label=label, workdir=workdir, extra=extra)
 
     def mechanical_edit(self, plan: dict) -> TransportReceipt:
@@ -201,16 +171,12 @@ class SimplicioTransport:
         request_id = uuid.uuid4().hex
         started = time.monotonic()
         if operation not in self._COMMANDS:
-            return self._finish(
-                TransportReceipt.failure(
-                    operation,
-                    TransportError(
-                        "unknown_operation", f"unsupported operation: {operation}"
-                    ),
-                    request_id=request_id,
-                    elapsed_ms=(time.monotonic() - started) * 1000,
-                )
-            )
+            return self._finish(TransportReceipt.failure(
+                operation,
+                TransportError("unknown_operation", f"unsupported operation: {operation}"),
+                request_id=request_id,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            ))
 
         cli_result = self._call_cli(operation, arguments, request_id=request_id)
         if cli_result is not None:
@@ -227,23 +193,14 @@ class SimplicioTransport:
         if mcp_result is None:
             mcp_result = TransportReceipt.failure(
                 operation,
-                TransportError(
-                    "mcp_unavailable", "CLI unavailable and MCP fallback is unavailable"
-                ),
-                transport="mcp",
-                fallback_reason=reason,
-                request_id=request_id,
+                TransportError("mcp_unavailable", "CLI unavailable and MCP fallback is unavailable"),
+                transport="mcp", fallback_reason=reason, request_id=request_id,
             )
         elif mcp_result.fallback_reason is None:
             mcp_result = TransportReceipt(
-                operation=mcp_result.operation,
-                ok=mcp_result.ok,
-                value=mcp_result.value,
-                error=mcp_result.error,
-                transport="mcp",
-                fallback_reason=reason,
-                request_id=request_id,
-                elapsed_ms=mcp_result.elapsed_ms,
+                operation=mcp_result.operation, ok=mcp_result.ok, value=mcp_result.value,
+                error=mcp_result.error, transport="mcp", fallback_reason=reason,
+                request_id=request_id, elapsed_ms=mcp_result.elapsed_ms,
             )
         return self._finish(self._with_elapsed(mcp_result, started))
 
@@ -275,9 +232,7 @@ class SimplicioTransport:
         path, _source = runtime_manager.resolve_kernel()
         return path
 
-    def _call_cli(
-        self, operation: str, args: dict[str, Any], *, request_id: str
-    ) -> Optional[TransportReceipt]:
+    def _call_cli(self, operation: str, args: dict[str, Any], *, request_id: str) -> Optional[TransportReceipt]:
         cli_bin = self._resolve_cli()
         if not cli_bin:
             return None
@@ -285,12 +240,8 @@ class SimplicioTransport:
         started = time.monotonic()
         try:
             proc = subprocess.run(
-                [cli_bin, *argv],
-                input=input_data,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_s,
-                **self._windows_flags(),
+                [cli_bin, *argv], input=input_data, capture_output=True, text=True,
+                timeout=self.timeout_s, **self._windows_flags(),
             )
         except (FileNotFoundError, PermissionError) as exc:
             logger.debug("simplicio CLI unavailable: %s", exc)
@@ -302,20 +253,16 @@ class SimplicioTransport:
             return None
         except subprocess.TimeoutExpired as exc:
             return TransportReceipt.failure(
-                operation,
-                TransportError("cli_timeout", str(exc), retryable=True),
-                request_id=request_id,
-                elapsed_ms=(time.monotonic() - started) * 1000,
+                operation, TransportError("cli_timeout", str(exc), retryable=True),
+                request_id=request_id, elapsed_ms=(time.monotonic() - started) * 1000,
             )
         with self._lock:
             self._cli_calls += 1
         if proc.returncode != 0:
             message = (proc.stderr or proc.stdout or "CLI command failed").strip()[:500]
             return TransportReceipt.failure(
-                operation,
-                TransportError("cli_command_failed", message, retryable=False),
-                request_id=request_id,
-                elapsed_ms=(time.monotonic() - started) * 1000,
+                operation, TransportError("cli_command_failed", message, retryable=False),
+                request_id=request_id, elapsed_ms=(time.monotonic() - started) * 1000,
             )
         raw = (proc.stdout or "").strip()
         if not raw:
@@ -326,18 +273,11 @@ class SimplicioTransport:
             except json.JSONDecodeError as exc:
                 return TransportReceipt.failure(
                     operation,
-                    TransportError(
-                        "cli_invalid_json",
-                        f"CLI returned invalid JSON: {exc}",
-                        retryable=False,
-                    ),
-                    request_id=request_id,
-                    elapsed_ms=(time.monotonic() - started) * 1000,
+                    TransportError("cli_invalid_json", f"CLI returned invalid JSON: {exc}", retryable=False),
+                    request_id=request_id, elapsed_ms=(time.monotonic() - started) * 1000,
                 )
         return TransportReceipt.success(
-            operation,
-            value,
-            request_id=request_id,
+            operation, value, request_id=request_id,
             elapsed_ms=(time.monotonic() - started) * 1000,
         )
 
@@ -347,33 +287,22 @@ class SimplicioTransport:
             return {}
         try:
             from hermes_cli._subprocess_compat import windows_hide_flags
-
             return {"creationflags": windows_hide_flags()}
         except Exception:
             return {}
 
-    def _argv(
-        self, operation: str, args: dict[str, Any]
-    ) -> tuple[list[str], Optional[str]]:
+    def _argv(self, operation: str, args: dict[str, Any]) -> tuple[list[str], Optional[str]]:
         base = list(self._COMMANDS[operation])
         if operation == "gate":
             base += ["--action", str(args["command"]), "--json"]
         elif operation == "checkpoint":
             return base + ["--json"], json.dumps({
-                "label": args["label"],
-                "workdir": args.get("workdir", ""),
-                **(args.get("extra") or {}),
+                "label": args["label"], "workdir": args.get("workdir", ""), **(args.get("extra") or {})
             })
         elif operation == "mechanical_edit":
             base += [json.dumps(args["plan"]), "--json"]
         elif operation == "orient":
-            base += [
-                "--repo",
-                str(args["repo"]),
-                "--for-llm",
-                str(args.get("fmt", "markdown")),
-                "--json",
-            ]
+            base += ["--repo", str(args["repo"]), "--for-llm", str(args.get("fmt", "markdown")), "--json"]
         elif operation == "recall":
             base += [str(args["query"]), "--json"]
             if args.get("repo"):
@@ -383,9 +312,7 @@ class SimplicioTransport:
         return base, None
 
     # -- MCP -----------------------------------------------------------
-    def _call_mcp(
-        self, operation: str, args: dict[str, Any], *, request_id: str
-    ) -> Optional[TransportReceipt]:
+    def _call_mcp(self, operation: str, args: dict[str, Any], *, request_id: str) -> Optional[TransportReceipt]:
         if self.mcp_call is not None:
             started = time.monotonic()
             try:
@@ -396,19 +323,12 @@ class SimplicioTransport:
                     return value
                 with self._lock:
                     self._mcp_calls += 1
-                return TransportReceipt.success(
-                    operation,
-                    value,
-                    transport="mcp",
-                    request_id=request_id,
-                    elapsed_ms=(time.monotonic() - started) * 1000,
-                )
+                return TransportReceipt.success(operation, value, transport="mcp", request_id=request_id,
+                                               elapsed_ms=(time.monotonic() - started) * 1000)
             except Exception as exc:
                 return TransportReceipt.failure(
-                    operation,
-                    TransportError("mcp_call_failed", str(exc), retryable=True),
-                    transport="mcp",
-                    request_id=request_id,
+                    operation, TransportError("mcp_call_failed", str(exc), retryable=True),
+                    transport="mcp", request_id=request_id,
                     elapsed_ms=(time.monotonic() - started) * 1000,
                 )
         if not self.mcp_command:
@@ -421,44 +341,23 @@ class SimplicioTransport:
         proc = None
         try:
             proc = subprocess.Popen(
-                list(self.mcp_command),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                bufsize=1,
-                **self._windows_flags(),
+                list(self.mcp_command), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, text=True, bufsize=1, **self._windows_flags(),
             )
             assert proc.stdin is not None and proc.stdout is not None
-            proc.stdin.write(
-                json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2025-03-26",
-                        "capabilities": {},
-                        "clientInfo": {"name": "simplicio-agent", "version": "1"},
-                    },
-                })
-                + "\n"
-            )
+            proc.stdin.write(json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+                           "clientInfo": {"name": "simplicio-agent", "version": "1"}},
+            }) + "\n")
             proc.stdin.flush()
             init_line = proc.stdout.readline()
             if not init_line:
                 raise OSError("MCP server closed during initialize")
-            proc.stdin.write(
-                json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": self._MCP_TOOLS[operation],
-                        "arguments": mcp_arguments,
-                    },
-                })
-                + "\n"
-            )
+            proc.stdin.write(json.dumps({
+                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                "params": {"name": self._MCP_TOOLS[operation], "arguments": mcp_arguments},
+            }) + "\n")
             proc.stdin.flush()
             line = proc.stdout.readline()
             if not line:
@@ -473,26 +372,16 @@ class SimplicioTransport:
                 if isinstance(text_value, str):
                     value = json.loads(text_value)
             result = TransportReceipt.success(
-                operation,
-                value,
-                transport="mcp",
-                request_id=request_id,
+                operation, value, transport="mcp", request_id=request_id,
                 elapsed_ms=(time.monotonic() - started) * 1000,
             )
             with self._lock:
                 self._mcp_calls += 1
             return result
-        except (
-            OSError,
-            subprocess.TimeoutExpired,
-            json.JSONDecodeError,
-            RuntimeError,
-        ) as exc:
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError, RuntimeError) as exc:
             return TransportReceipt.failure(
-                operation,
-                TransportError("mcp_unavailable", str(exc), retryable=True),
-                transport="mcp",
-                request_id=request_id,
+                operation, TransportError("mcp_unavailable", str(exc), retryable=True),
+                transport="mcp", request_id=request_id,
                 elapsed_ms=(time.monotonic() - started) * 1000,
             )
         finally:
@@ -509,11 +398,8 @@ class SimplicioTransport:
         if operation == "gate":
             return {"action": args["command"]}
         if operation == "checkpoint":
-            return {
-                "label": args["label"],
-                "workdir": args.get("workdir", ""),
-                **(args.get("extra") or {}),
-            }
+            return {"label": args["label"], "workdir": args.get("workdir", ""),
+                    **(args.get("extra") or {})}
         if operation == "mechanical_edit":
             return {"plan": args["plan"]}
         if operation == "orient":
@@ -552,22 +438,14 @@ class SimplicioTransport:
         if receipt.elapsed_ms is not None:
             return receipt
         return TransportReceipt(
-            operation=receipt.operation,
-            ok=receipt.ok,
-            value=receipt.value,
-            error=receipt.error,
-            transport=receipt.transport,
-            fallback_reason=receipt.fallback_reason,
-            request_id=receipt.request_id,
+            operation=receipt.operation, ok=receipt.ok, value=receipt.value,
+            error=receipt.error, transport=receipt.transport,
+            fallback_reason=receipt.fallback_reason, request_id=receipt.request_id,
             elapsed_ms=(time.monotonic() - started) * 1000,
         )
 
 
 __all__ = [
-    "ERROR_SCHEMA",
-    "FALLBACK_REASON_CLI_UNAVAILABLE",
-    "RECEIPT_SCHEMA",
-    "SimplicioTransport",
-    "TransportError",
-    "TransportReceipt",
+    "ERROR_SCHEMA", "FALLBACK_REASON_CLI_UNAVAILABLE", "RECEIPT_SCHEMA",
+    "SimplicioTransport", "TransportError", "TransportReceipt",
 ]
