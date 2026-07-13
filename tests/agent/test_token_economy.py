@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from agent.context_references import ContextReference
+from agent.model_metadata import estimate_tokens_rough
+from agent.telemetry.receipts import Cost, Receipt, content_hash
+from agent.token_economy import (
+    PaidArtifactRegistry,
+    ShrinkingSummary,
+    make_shrinking_summary,
+    register_context_artifact,
+)
+
+
+def _reference() -> ContextReference:
+    return ContextReference(
+        raw="@file:notes.txt",
+        kind="file",
+        target="notes.txt",
+        start=0,
+        end=15,
+    )
+
+
+def _receipt(text: str, *, tokens: int | None = None) -> Receipt:
+    measured = tokens if tokens is not None else estimate_tokens_rough(text)
+    return Receipt(
+        sha=content_hash(text),
+        cost=Cost(tokens=measured, tokens_raw=measured),
+    )
+
+
+def test_registry_is_lazy_deduplicated_and_hash_checked(tmp_path: Path) -> None:
+    text = "a" * 80
+    calls = 0
+
+    def load() -> str:
+        nonlocal calls
+        calls += 1
+        return text
+
+    registry = PaidArtifactRegistry(max_resident=30, tail_capacity=1)
+    handle = register_context_artifact(
+        registry, _reference(), text, receipt_directory=tmp_path
+    )
+    duplicate = registry.register(_receipt(text), load, label="duplicate")
+
+    assert handle is duplicate
+    assert calls == 0
+    assert registry.lookup(handle.sha) is handle
+    assert registry.admit(handle).admitted
+    assert registry.materialize(handle) == text
+    assert registry.materialize(handle) == text
+    assert calls == 0  # the bridge's original lazy value is cached in the registry
+
+    data = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
+    assert data["cost"]["tokens"] > 0
+    assert data["meta"]["proof_kind"] == "measured_rough_estimate"
+
+
+def test_registry_rejects_zero_cost_and_does_not_materialize() -> None:
+    registry = PaidArtifactRegistry(max_resident=10)
+    receipt = Receipt(sha=content_hash("paid"), cost=Cost(tokens=0, tokens_raw=0))
+    with pytest.raises(ValueError, match="positive measured token cost"):
+        registry.register(receipt, lambda: "paid")
+
+
+def test_admission_is_bounded_before_loader_and_release_reclaims_budget() -> None:
+    first = "first artifact" * 4
+    second = "second artifact" * 4
+    calls = 0
+
+    def blocked_loader() -> str:
+        nonlocal calls
+        calls += 1
+        return second
+
+    registry = PaidArtifactRegistry(
+        max_resident=max(estimate_tokens_rough(first), estimate_tokens_rough(second))
+    )
+    first_handle = registry.register(_receipt(first), lambda: first)
+    second_handle = registry.register(_receipt(second), blocked_loader)
+
+    assert registry.admit(first_handle).admitted
+    decision = registry.admit(second_handle)
+    assert not decision.admitted
+    assert decision.reason == "resident-budget"
+    assert calls == 0
+    assert registry.materialize(first_handle) == first
+    assert registry.release(first_handle)
+    assert registry.resident_tokens == 0
+    assert registry.admit(second_handle).admitted
+
+
+def test_registry_rejects_stale_or_adversarial_materializer() -> None:
+    registry = PaidArtifactRegistry(max_resident=10)
+    handle = registry.register(_receipt("trusted"), lambda: "tampered")
+    assert registry.admit(handle).admitted
+    with pytest.raises(ValueError, match="content hash"):
+        registry.materialize(handle)
+
+
+def test_tail_is_bounded_and_lookup_remains_content_addressed() -> None:
+    registry = PaidArtifactRegistry(max_resident=100, tail_capacity=2)
+    handles = [
+        registry.register(_receipt(f"artifact-{i}"), lambda i=i: f"artifact-{i}")
+        for i in range(3)
+    ]
+
+    assert [handle.label for handle in registry.tail()] == [
+        "context-artifact",
+        "context-artifact",
+    ]
+    assert registry.lookup(handles[0].sha) is handles[0]
+    assert registry.lookup(handles[2].sha) is handles[2]
+
+
+def test_summary_contract_shrinks_with_positive_measured_receipt(
+    tmp_path: Path,
+) -> None:
+    source = "header\n" + ("important middle detail\n" * 80) + "tail"
+    summary = make_shrinking_summary(
+        source,
+        max_tokens=estimate_tokens_rough(source) // 2,
+        receipt_directory=tmp_path,
+    )
+    smaller = summary.shrink(max_tokens=summary.tokens // 2)
+
+    assert isinstance(summary, ShrinkingSummary)
+    assert summary.source_sha == smaller.source_sha == content_hash(source)
+    assert 0 < smaller.tokens < summary.tokens < estimate_tokens_rough(source)
+    assert smaller.level == summary.level + 1
+    assert smaller.receipt.cost.tokens > 0
+    assert smaller.receipt.cost.tokens_raw == summary.tokens
+    assert smaller.receipt.cost.tokens_saved == summary.tokens - smaller.tokens
+    assert smaller.receipt.meta["proof_kind"] == "measured_rough_estimate"
+
+
+def test_summary_rejects_non_shrinking_or_empty_inputs() -> None:
+    with pytest.raises(ValueError, match="at least two"):
+        make_shrinking_summary("tiny", max_tokens=1)
+    with pytest.raises(ValueError, match="smaller"):
+        source = "four words here now"
+        make_shrinking_summary(source, max_tokens=estimate_tokens_rough(source))
