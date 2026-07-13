@@ -100,10 +100,10 @@ if [[ -x "$RUNTIME_REPO/target/release/simplicio" ]]; then KERNEL_SRC="$RUNTIME_
 elif [[ -x "$HOME/.local/bin/simplicio" ]]; then KERNEL_SRC="$HOME/.local/bin/simplicio"
 elif command -v simplicio >/dev/null 2>&1; then KERNEL_SRC="$(command -v simplicio)"; fi
 [[ -n "$KERNEL_SRC" ]] || fail 'Simplicio Runtime binary not found; refusing incomplete official bundle'
-mkdir -p "$STAGE/runtime"
-cp "$KERNEL_SRC" "$STAGE/runtime/simplicio"
-chmod +x "$STAGE/runtime/simplicio"
-"$STAGE/runtime/simplicio" --version >/dev/null || fail 'Runtime smoke test failed'
+mkdir -p "$STAGE/kernel"
+cp "$KERNEL_SRC" "$STAGE/kernel/simplicio"
+chmod +x "$STAGE/kernel/simplicio"
+"$STAGE/kernel/simplicio" --version >/dev/null || fail 'Runtime smoke test failed'
 
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$REPO_ROOT" show -s --format=%ct "$COMMIT")}"
 cat > "$STAGE/build-info.json" <<JSON
@@ -113,7 +113,7 @@ cat > "$STAGE/build-info.json" <<JSON
   "repo": "wesleysimplicio/simplicio-agent",
   "commit": "$COMMIT",
   "python": "$("$STAGE/venv/bin/python" --version 2>&1)",
-  "runtime": "$("$STAGE/runtime/simplicio" --version 2>&1 | head -1)"
+  "runtime": "$("$STAGE/kernel/simplicio" --version 2>&1 | head -1)"
 }
 JSON
 mkdir -p "$STAGE/manifests"
