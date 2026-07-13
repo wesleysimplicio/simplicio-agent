@@ -26,6 +26,7 @@ generic, tested primitive that catalog would eventually call into.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
 _CANONICAL_PREFIX = "SIMPLICIO_AGENT_"
 _LEGACY_PREFIX = "HERMES_"
@@ -41,7 +42,12 @@ def legacy_env_name(suffix: str) -> str:
     return f"{_LEGACY_PREFIX}{suffix}"
 
 
-def env_get(suffix: str, default: str | None = None) -> str | None:
+def env_get(
+    suffix: str,
+    default: str | None = None,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
     """Resolve an aliased env var: ``SIMPLICIO_AGENT_<suffix>`` wins over
     ``HERMES_<suffix>``, which wins over *default*.
 
@@ -49,13 +55,16 @@ def env_get(suffix: str, default: str | None = None) -> str | None:
     ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME``, or ``"TOKEN_SAVINGS_LOG"`` for
     ``SIMPLICIO_AGENT_TOKEN_SAVINGS_LOG``/``HERMES_TOKEN_SAVINGS_LOG``.
 
-    A value is only used if it is non-empty after stripping whitespace —
+    ``environ`` can be supplied for subprocess/test snapshots; otherwise the
+    live process environment is read. A value is only used if it is non-empty
+    after stripping whitespace —
     an explicitly-set-but-blank env var (``HERMES_X=""``) is treated the
     same as unset, matching the existing behaviour of
     ``hermes_constants.get_hermes_home()``.
     """
+    source = os.environ if environ is None else environ
     for name in (canonical_env_name(suffix), legacy_env_name(suffix)):
-        val = os.environ.get(name, "")
+        val = source.get(name, "")
         if val.strip():
             return val
     return default

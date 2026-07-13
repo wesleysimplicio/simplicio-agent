@@ -1,6 +1,6 @@
 # Desktop Design System
 
-Conventions for the Electron desktop app (`apps/desktop`). Read this before
+Conventions for the Electron desktop app (`desktop/`). Read this before
 adding a component, overlay, or style. The rule of thumb: **one source per
 concern, tokens over literals, flat over boxed.** If you reach for a raw color,
 a one-off shadow, a bespoke button, or a hardcoded `px-*` on a control — stop,

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "canonicalRoot": "desktop",
+  "legacyRoots": ["apps/desktop"],
+  "required": {
+    "packageJson": { "path": "desktop/package.json", "type": "file" },
+    "renderer": { "path": "desktop/src", "type": "directory" },
+    "electron": { "path": "desktop/electron", "type": "directory" },
+    "sharedPackage": { "path": "apps/shared", "type": "directory" }
+  },
+  "consumers": [
+    ".envrc",
+    ".github/workflows/typecheck.yml",
+    "package.json",
+    "desktop/README.md",
+    "desktop/DESIGN.md"
+  ]
+}

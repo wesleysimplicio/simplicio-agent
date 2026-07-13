@@ -13,7 +13,7 @@ from typing import Any
 
 from hermes_cli import __release_date__, __version__
 
-__all__ = ["Agent", "CLI", "__release_date__", "__version__", "main"]
+__all__ = ["Agent", "CLI", "__release_date__", "__version__", "asolaria", "main"]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "Agent": ("run_agent", "AIAgent"),
@@ -23,6 +23,8 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 
 
 def __getattr__(name: str) -> Any:
+    if name == "asolaria":
+        return import_module(f"{__name__}.asolaria")
     target = _EXPORTS.get(name)
     if target is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
