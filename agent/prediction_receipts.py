@@ -23,6 +23,7 @@ PREDICTION_RECEIPT_SCHEMA = "simplicio.prediction-receipt"
 PREDICTION_RECEIPT_SCHEMA_VERSION = "simplicio.prediction-receipt/v1"
 _COUNTERFACTUAL_EXECUTION = "model_only"
 _MISSING = object()
+_RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
 class ObservationState(str, Enum):
@@ -49,6 +50,7 @@ class ReconciliationDecision(str, Enum):
 
     PENDING = "pending"
     NONE = "none"
+    CHECK_EFFECT_JOURNAL = "check_effect_journal"
     RECONCILE = "reconcile"
     UPDATE_BELIEF = "update_belief"
     ESCALATE = "escalate"
@@ -59,6 +61,179 @@ class CounterfactualKind(str, Enum):
 
     NO_ACTION = "no_action"
     ALTERNATIVE = "alternative"
+
+
+class PreconditionKind(str, Enum):
+    """Supported references for the receipt's pre-action assumptions."""
+
+    BELIEF = "belief"
+    RECEIPT = "receipt"
+
+
+@dataclass(frozen=True)
+class Precondition:
+    """A fresh belief or receipt reference required before mutation."""
+
+    kind: PreconditionKind
+    reference: str
+    fresh: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "kind", PreconditionKind(self.kind))
+        reference = self.reference.strip()
+        if not reference:
+            raise ValueError("precondition reference must be non-empty")
+        if not self.fresh:
+            raise ValueError("preconditions must be fresh")
+        object.__setattr__(self, "reference", reference)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind.value,
+            "reference": self.reference,
+            "fresh": self.fresh,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "Precondition":
+        return cls(
+            kind=PreconditionKind(value["kind"]),
+            reference=str(value["reference"]),
+            fresh=bool(value.get("fresh", True)),
+        )
+
+    @classmethod
+    def from_value(
+        cls, value: "Precondition | str | Mapping[str, Any]"
+    ) -> "Precondition":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            kind, _, reference = value.partition(":")
+            if not _ or kind not in {
+                PreconditionKind.BELIEF.value,
+                PreconditionKind.RECEIPT.value,
+            }:
+                raise ValueError("preconditions must use belief:<ref> or receipt:<sha>")
+            return cls(kind=PreconditionKind(kind), reference=reference, fresh=True)
+        return cls.from_dict(value)
+
+
+@dataclass(frozen=True)
+class Verifier:
+    """Declared verifier contract for recomputing the expected effects."""
+
+    label: str
+    source: str
+    recomputable: bool = True
+
+    def __post_init__(self) -> None:
+        label = self.label.strip()
+        source = self.source.strip()
+        if not label or not source:
+            raise ValueError("verifier label and source must be declared")
+        if not self.recomputable:
+            raise ValueError("verifier must be recomputable")
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "source", source)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "source": self.source,
+            "recomputable": self.recomputable,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "Verifier":
+        return cls(
+            label=str(value["label"]),
+            source=str(value["source"]),
+            recomputable=bool(value.get("recomputable", True)),
+        )
+
+    @classmethod
+    def from_value(cls, value: "Verifier | str | Mapping[str, Any]") -> "Verifier":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            label = value.strip()
+            if not label:
+                raise ValueError("verifier label and source must be declared")
+            return cls(label=label, source=label, recomputable=True)
+        return cls.from_dict(value)
+
+
+@dataclass(frozen=True)
+class TimeoutReconciliation:
+    """Required reconciliation contract when commit status is ambiguous."""
+
+    effect_journal_ref: str
+    verifier_query: str
+    retry_permitted: bool = False
+
+    def __post_init__(self) -> None:
+        effect_journal_ref = self.effect_journal_ref.strip()
+        verifier_query = self.verifier_query.strip()
+        if not effect_journal_ref or not verifier_query:
+            raise ValueError(
+                "timeout reconciliation requires effect journal and verifier query"
+            )
+        if self.retry_permitted:
+            raise ValueError("ambiguous timeout cannot permit blind retry")
+        object.__setattr__(self, "effect_journal_ref", effect_journal_ref)
+        object.__setattr__(self, "verifier_query", verifier_query)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "effect_journal_ref": self.effect_journal_ref,
+            "verifier_query": self.verifier_query,
+            "retry_permitted": self.retry_permitted,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "TimeoutReconciliation":
+        return cls(
+            effect_journal_ref=str(value["effect_journal_ref"]),
+            verifier_query=str(value["verifier_query"]),
+            retry_permitted=bool(value.get("retry_permitted", False)),
+        )
+
+
+@dataclass(frozen=True)
+class HardPolicyConstraint:
+    """Non-negotiable limits that block unsafe optimistic execution."""
+
+    label: str
+    max_risk: str
+    max_cost_estimate: int
+
+    def __post_init__(self) -> None:
+        label = self.label.strip()
+        max_risk = self.max_risk.strip().casefold()
+        if not label:
+            raise ValueError("policy constraint label must be non-empty")
+        if max_risk not in _RISK_ORDER:
+            raise ValueError("policy constraint risk must be low/medium/high/critical")
+        if self.max_cost_estimate < 0:
+            raise ValueError("policy constraint max_cost_estimate must be non-negative")
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "max_risk", max_risk)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "max_risk": self.max_risk,
+            "max_cost_estimate": self.max_cost_estimate,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "HardPolicyConstraint":
+        return cls(
+            label=str(value["label"]),
+            max_risk=str(value["max_risk"]),
+            max_cost_estimate=int(value["max_cost_estimate"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -230,43 +405,81 @@ def _observations(
     return tuple(sorted(result, key=lambda value: value.key))
 
 
+def _preconditions(
+    values: Iterable[Precondition | str | Mapping[str, Any]],
+) -> tuple[Precondition, ...]:
+    result = tuple(Precondition.from_value(value) for value in values)
+    keys = [(value.kind.value, value.reference) for value in result]
+    if len(keys) != len(set(keys)):
+        raise ValueError("precondition references must be unique")
+    return tuple(sorted(result, key=lambda value: (value.kind.value, value.reference)))
+
+
+def _policy_constraints(
+    values: Iterable[HardPolicyConstraint | Mapping[str, Any]],
+) -> tuple[HardPolicyConstraint, ...]:
+    result = tuple(
+        value
+        if isinstance(value, HardPolicyConstraint)
+        else HardPolicyConstraint.from_dict(value)
+        for value in values
+    )
+    labels = [value.label for value in result]
+    if len(labels) != len(set(labels)):
+        raise ValueError("policy constraint labels must be unique")
+    return tuple(sorted(result, key=lambda value: value.label))
+
+
+def _risk_rank(value: str) -> int:
+    normalized = value.strip().casefold()
+    if normalized not in _RISK_ORDER:
+        raise ValueError("risk must be low/medium/high/critical")
+    return _RISK_ORDER[normalized]
+
+
+def _strategy_fingerprint(action_digest: str, basis: str) -> str:
+    return f"{action_digest}|{basis}"
+
+
 @dataclass(frozen=True)
 class PredictionReceipt:
     """Immutable pre/post-action prediction contract.
 
-    Preconditions must point to a fresh belief or an existing receipt using
-    ``belief:<ref>`` or ``receipt:<sha>``.  Expected effects are known,
-    verifiable observations; ``must work`` is intentionally rejected as a
-    non-observation.
+    Preconditions must point to fresh beliefs or receipts. Expected effects are
+    known, verifier-recomputable observations; ``must work`` is intentionally
+    rejected as a non-observation. Timeout handling, hard policy limits, and
+    strategy/failure fingerprints are declared explicitly so the caller cannot
+    silently convert an ambiguous commit into a retry.
     """
 
     action_digest: str
-    preconditions: tuple[str, ...]
+    preconditions: tuple[Precondition, ...]
     expected_effects: tuple[Observation, ...]
     allowed_variance: Mapping[str, float] = field(default_factory=dict)
     confidence: float = 0.0
     risk: str = ""
     cost_estimate: int = 0
-    verifier: str = ""
+    verifier: Verifier | str | Mapping[str, Any] = ""
     rollback: str = ""
     counterfactuals: tuple[Counterfactual, ...] = ()
     counterfactual_required: bool = True
+    timeout_reconciliation: TimeoutReconciliation | Mapping[str, Any] | None = None
+    hard_policy_constraints: tuple[HardPolicyConstraint, ...] = ()
+    strategy_fingerprint: str = ""
     actual_observations: tuple[Observation, ...] = ()
     prediction_error: PredictionError = field(default_factory=PredictionError.unknown)
     outcome: PredictionOutcome = PredictionOutcome.PENDING
     reconciliation: ReconciliationDecision = ReconciliationDecision.PENDING
     update_decision: str = "pending"
+    failure_fingerprint: str = ""
+    next_strategy_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         if not self.action_digest.strip():
             raise ValueError("action_digest must be non-empty")
-        preconditions = tuple(
-            sorted(item.strip() for item in self.preconditions if item.strip())
-        )
+        preconditions = _preconditions(self.preconditions)
         if not preconditions:
             raise ValueError("preconditions must reference a belief or receipt")
-        if any(not item.startswith(("belief:", "receipt:")) for item in preconditions):
-            raise ValueError("preconditions must use belief:<ref> or receipt:<sha>")
         object.__setattr__(self, "preconditions", preconditions)
 
         expected = _observations(self.expected_effects)
@@ -295,14 +508,14 @@ class PredictionReceipt:
 
         if not math.isfinite(self.confidence) or not 0 <= self.confidence <= 1:
             raise ValueError("confidence must be between 0 and 1")
-        if (
-            not self.risk.strip()
-            or not self.verifier.strip()
-            or not self.rollback.strip()
-        ):
+        risk = self.risk.strip().casefold()
+        if not risk or not self.rollback.strip():
             raise ValueError("risk, verifier, and rollback must be declared")
+        _risk_rank(risk)
+        object.__setattr__(self, "risk", risk)
         if self.cost_estimate < 0:
             raise ValueError("cost_estimate must be non-negative")
+        object.__setattr__(self, "verifier", Verifier.from_value(self.verifier))
 
         counterfactuals = tuple(
             item if isinstance(item, Counterfactual) else Counterfactual.from_dict(item)
@@ -323,6 +536,30 @@ class PredictionReceipt:
                 sorted(counterfactuals, key=lambda item: (item.kind.value, item.label))
             ),
         )
+        if self.timeout_reconciliation is None:
+            raise ValueError("timeout_reconciliation must be declared")
+        object.__setattr__(
+            self,
+            "timeout_reconciliation",
+            self.timeout_reconciliation
+            if isinstance(self.timeout_reconciliation, TimeoutReconciliation)
+            else TimeoutReconciliation.from_dict(self.timeout_reconciliation),
+        )
+        constraints = _policy_constraints(self.hard_policy_constraints)
+        for constraint in constraints:
+            if _risk_rank(self.risk) > _risk_rank(constraint.max_risk):
+                raise ValueError(
+                    f"risk exceeds hard policy constraint: {constraint.label}"
+                )
+            if self.cost_estimate > constraint.max_cost_estimate:
+                raise ValueError(
+                    f"cost exceeds hard policy constraint: {constraint.label}"
+                )
+        object.__setattr__(self, "hard_policy_constraints", constraints)
+        strategy_fingerprint = self.strategy_fingerprint.strip()
+        if not strategy_fingerprint:
+            raise ValueError("strategy_fingerprint must be declared")
+        object.__setattr__(self, "strategy_fingerprint", strategy_fingerprint)
         object.__setattr__(
             self, "actual_observations", _observations(self.actual_observations)
         )
@@ -337,12 +574,23 @@ class PredictionReceipt:
         object.__setattr__(
             self, "reconciliation", ReconciliationDecision(self.reconciliation)
         )
+        object.__setattr__(
+            self, "failure_fingerprint", self.failure_fingerprint.strip()
+        )
+        next_strategy_fingerprint = self.next_strategy_fingerprint.strip()
+        object.__setattr__(
+            self,
+            "next_strategy_fingerprint",
+            next_strategy_fingerprint or strategy_fingerprint,
+        )
         if self.outcome is PredictionOutcome.PENDING:
             if (
                 self.actual_observations
                 or self.prediction_error.state is not ObservationState.UNKNOWN
                 or self.reconciliation is not ReconciliationDecision.PENDING
                 or self.update_decision != "pending"
+                or self.failure_fingerprint
+                or self.next_strategy_fingerprint != self.strategy_fingerprint
             ):
                 raise ValueError(
                     "pending prediction receipt cannot contain assessment data"
@@ -352,22 +600,41 @@ class PredictionReceipt:
             or self.update_decision == "pending"
         ):
             raise ValueError("assessed prediction receipt requires reconciliation data")
+        elif self.outcome is PredictionOutcome.MATCH:
+            if self.failure_fingerprint:
+                raise ValueError("match outcome cannot carry a failure fingerprint")
+            if self.next_strategy_fingerprint != self.strategy_fingerprint:
+                raise ValueError("match outcome cannot change strategy fingerprint")
+        else:
+            if not self.failure_fingerprint:
+                raise ValueError(
+                    "non-match outcomes require a failure fingerprint"
+                )
+            if self.next_strategy_fingerprint == self.strategy_fingerprint:
+                raise ValueError(
+                    "non-match outcomes must change strategy fingerprint"
+                )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema": PREDICTION_RECEIPT_SCHEMA,
             "schema_version": PREDICTION_RECEIPT_SCHEMA_VERSION,
             "action_digest": self.action_digest,
-            "preconditions": list(self.preconditions),
+            "preconditions": [item.to_dict() for item in self.preconditions],
             "expected_effects": [item.to_dict() for item in self.expected_effects],
             "allowed_variance": dict(self.allowed_variance),
             "confidence": self.confidence,
             "risk": self.risk,
             "cost_estimate": self.cost_estimate,
-            "verifier": self.verifier,
+            "verifier": self.verifier.to_dict(),
             "rollback": self.rollback,
             "counterfactuals": [item.to_dict() for item in self.counterfactuals],
             "counterfactual_required": self.counterfactual_required,
+            "timeout_reconciliation": self.timeout_reconciliation.to_dict(),
+            "hard_policy_constraints": [
+                item.to_dict() for item in self.hard_policy_constraints
+            ],
+            "strategy_fingerprint": self.strategy_fingerprint,
             "actual_observations": [
                 item.to_dict() for item in self.actual_observations
             ],
@@ -375,6 +642,8 @@ class PredictionReceipt:
             "outcome": self.outcome.value,
             "reconciliation": self.reconciliation.value,
             "update_decision": self.update_decision,
+            "failure_fingerprint": self.failure_fingerprint,
+            "next_strategy_fingerprint": self.next_strategy_fingerprint,
         }
 
     def to_json(self) -> str:
@@ -400,13 +669,21 @@ class PredictionReceipt:
             confidence=float(value["confidence"]),
             risk=str(value["risk"]),
             cost_estimate=int(value["cost_estimate"]),
-            verifier=str(value["verifier"]),
+            verifier=Verifier.from_dict(value["verifier"]),
             rollback=str(value["rollback"]),
             counterfactuals=tuple(
                 Counterfactual.from_dict(item)
                 for item in value.get("counterfactuals", ())
             ),
             counterfactual_required=bool(value.get("counterfactual_required", True)),
+            timeout_reconciliation=TimeoutReconciliation.from_dict(
+                value["timeout_reconciliation"]
+            ),
+            hard_policy_constraints=tuple(
+                HardPolicyConstraint.from_dict(item)
+                for item in value.get("hard_policy_constraints", ())
+            ),
+            strategy_fingerprint=str(value["strategy_fingerprint"]),
             actual_observations=tuple(
                 Observation.from_dict(item)
                 for item in value.get("actual_observations", ())
@@ -415,6 +692,10 @@ class PredictionReceipt:
             outcome=PredictionOutcome(value["outcome"]),
             reconciliation=ReconciliationDecision(value["reconciliation"]),
             update_decision=str(value["update_decision"]),
+            failure_fingerprint=str(value.get("failure_fingerprint", "")),
+            next_strategy_fingerprint=str(
+                value.get("next_strategy_fingerprint", "")
+            ),
         )
 
     @classmethod
@@ -422,7 +703,10 @@ class PredictionReceipt:
         return cls.from_dict(json.loads(text))
 
     def assess(
-        self, observations: Iterable[Observation | Mapping[str, Any]]
+        self,
+        observations: Iterable[Observation | Mapping[str, Any]],
+        *,
+        ambiguous_timeout: bool = False,
     ) -> "PredictionReceipt":
         """Compare actual observations without retrying or executing anything."""
 
@@ -465,6 +749,16 @@ class PredictionReceipt:
             )
             reconciliation = ReconciliationDecision.ESCALATE
             update = "hold_and_escalate"
+            failure_basis = "error:" + ",".join(sorted(errors))
+        elif ambiguous_timeout:
+            unresolved_keys = sorted(unresolved or expected_by_key)
+            outcome = PredictionOutcome.UNKNOWN
+            error = PredictionError.unknown(
+                "ambiguous timeout; consult effect journal before retry"
+            )
+            reconciliation = ReconciliationDecision.CHECK_EFFECT_JOURNAL
+            update = "consult_effect_journal_before_retry"
+            failure_basis = "ambiguous_timeout:" + ",".join(unresolved_keys)
         elif unresolved:
             outcome = PredictionOutcome.UNKNOWN
             error = PredictionError.unknown(
@@ -472,21 +766,30 @@ class PredictionReceipt:
             )
             reconciliation = ReconciliationDecision.RECONCILE
             update = "hold_until_reconciled"
+            failure_basis = "unknown:" + ",".join(sorted(unresolved))
         else:
             bad = len(mismatched)
             if not bad:
                 outcome = PredictionOutcome.MATCH
                 reconciliation = ReconciliationDecision.NONE
                 update = "no_update"
+                failure_basis = ""
             elif matched:
                 outcome = PredictionOutcome.PARTIAL_MATCH
                 reconciliation = ReconciliationDecision.UPDATE_BELIEF
                 update = "update_belief_and_strategy"
+                failure_basis = "partial:" + ",".join(sorted(mismatched))
             else:
                 outcome = PredictionOutcome.MISMATCH
                 reconciliation = ReconciliationDecision.UPDATE_BELIEF
                 update = "update_belief_and_strategy"
+                failure_basis = "mismatch:" + ",".join(sorted(mismatched))
             error = PredictionError(ObservationState.KNOWN, rate=bad / total)
+        next_strategy = (
+            self.strategy_fingerprint
+            if outcome is PredictionOutcome.MATCH
+            else _strategy_fingerprint(self.action_digest, failure_basis)
+        )
         return replace(
             self,
             actual_observations=actual,
@@ -494,6 +797,8 @@ class PredictionReceipt:
             outcome=outcome,
             reconciliation=reconciliation,
             update_decision=update,
+            failure_fingerprint=failure_basis,
+            next_strategy_fingerprint=next_strategy,
         )
 
     def record_ledger(self, directory: str | Path | None = None) -> Receipt:
@@ -532,7 +837,12 @@ __all__ = [
     "PredictionOutcome",
     "ReconciliationDecision",
     "CounterfactualKind",
+    "PreconditionKind",
     "PredictionError",
+    "Precondition",
+    "Verifier",
+    "TimeoutReconciliation",
+    "HardPolicyConstraint",
     "Observation",
     "Counterfactual",
     "PredictionReceipt",
