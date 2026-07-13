@@ -19,9 +19,12 @@ from __future__ import annotations
 import pytest
 
 from agent.prompt_economy import (
+    ExpansionReceipt,
     INSTRUCTION_CATALOG,
+    expand_instruction_with_receipt,
     instruction_index_full_size,
     instruction_index_summary_size,
+    instruction_expansion_receipt,
     pin_capability_bundle,
     pin_capability_bundle_names,
     resolve_instruction_index,
@@ -275,3 +278,78 @@ def test_index_plus_bundle_compose():
     bundle = pin_capability_bundle(_canonical_tools(), task="send a message")
     assert idx and bundle
     assert len(bundle) == 29
+
+
+# ───────────────────────────────────────────────────────────────────────
+# (d) Expansion receipts are deterministic and fallback-safe
+# ───────────────────────────────────────────────────────────────────────
+
+class TestExpansionReceipts:
+    def test_receipt_is_deterministic_and_json_friendly(self):
+        tools = _canonical_tools()
+        first_text, first = expand_instruction_with_receipt(
+            "sec:memory", tools=tools, task="read and write memory"
+        )
+        second_text, second = expand_instruction_with_receipt(
+            "sec:memory", tools=tools, task="read and write memory"
+        )
+
+        assert isinstance(first, ExpansionReceipt)
+        assert first_text == second_text
+        assert first == second
+        assert first.sha256 == first.content_sha256 == first.content_hash
+        assert first.size == first.bytes == len(first_text.encode("utf-8"))
+        assert first.chars == len(first_text)
+        assert first.selected_bundle == tuple(
+            pin_capability_bundle_names(tools, task="read and write memory")
+        )
+        assert first.to_dict() == first.as_dict()
+        assert first.to_dict()["selected_bundle"] == list(first.selected_bundle)
+
+    def test_default_expansion_is_append_only_cache_safe(self):
+        _text, receipt = expand_instruction_with_receipt("sec:session-search")
+        assert receipt.cache_stable is True
+        assert receipt.prefix_invalidated is False
+        assert receipt.fallback is False
+        assert receipt.fallback_reason == ""
+
+    def test_explicit_fallback_handles_unknown_handle(self):
+        text, receipt = expand_instruction_with_receipt(
+            "sec:future", fallback="Use the future capability safely."
+        )
+        assert text == "Use the future capability safely."
+        assert receipt.fallback is True
+        assert receipt.fallback_reason == "unknown_handle"
+        assert receipt.handle == "sec:future"
+
+    def test_known_handle_falls_back_when_body_is_unavailable(self, monkeypatch):
+        import agent.prompt_economy as economy
+
+        monkeypatch.setattr(economy, "_catalog_symbol_value", lambda _symbol: None)
+        text, receipt = expand_instruction_with_receipt(
+            "sec:memory", fallback="Caller-provided memory fallback."
+        )
+        assert text == "Caller-provided memory fallback."
+        assert receipt.fallback is True
+        assert receipt.fallback_reason == "body_unavailable"
+
+    def test_catalog_summary_is_the_final_known_handle_fallback(self, monkeypatch):
+        import agent.prompt_economy as economy
+
+        monkeypatch.setattr(economy, "_catalog_symbol_value", lambda _symbol: None)
+        text, receipt = expand_instruction_with_receipt("sec:memory")
+        assert text == next(e["summary"] for e in INSTRUCTION_CATALOG if e["handle"] == "sec:memory")
+        assert receipt.fallback is True
+        assert receipt.fallback_reason == "body_unavailable:catalog_summary"
+
+    def test_prefix_invalidation_is_never_reported_as_cache_stable(self):
+        _text, receipt = expand_instruction_with_receipt(
+            "sec:memory", cache_stable=True, prefix_invalidated=True
+        )
+        assert receipt.prefix_invalidated is True
+        assert receipt.cache_stable is False
+
+    def test_receipt_only_helper_matches_expansion(self):
+        text, receipt = expand_instruction_with_receipt("sec:skills")
+        assert instruction_expansion_receipt("sec:skills") == receipt
+        assert receipt.chars == len(text)

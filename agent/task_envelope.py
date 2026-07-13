@@ -210,6 +210,11 @@ class TaskEnvelope:
     delivery_target: Optional[str]
 
     def __post_init__(self) -> None:
+        if self.schema != TASK_ENVELOPE_SCHEMA:
+            raise ValueError(
+                f"unsupported schema {self.schema!r}; "
+                f"expected {TASK_ENVELOPE_SCHEMA!r}"
+            )
         if self.schema_version != TASK_ENVELOPE_SCHEMA_VERSION:
             raise ValueError(
                 f"unsupported schema_version {self.schema_version!r}; "
@@ -217,6 +222,8 @@ class TaskEnvelope:
             )
         if not self.task_id:
             raise ValueError("task_id must be non-empty")
+        if not isinstance(self.state, TaskState):
+            raise ValueError(f"state must be a TaskState, got {self.state!r}")
         if self.attempts < 0:
             raise ValueError(f"attempts must be >= 0, got {self.attempts!r}")
         if self.state in (TaskState.CLOSED,) and not self.evidence_refs:
@@ -296,6 +303,10 @@ class TaskEnvelope:
         same ``updated_at_ns``) so a duplicated event never double-counts an
         attempt or re-appends a receipt/evidence ref.
         """
+        try:
+            to_state = TaskState(to_state)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid state {to_state!r}") from exc
         if to_state is self.state:
             return self
 

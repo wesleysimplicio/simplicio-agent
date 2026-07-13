@@ -14,17 +14,21 @@ the assembled ``result`` dict is returned to ``run_conversation`` which returns 
 to the caller. The function is synchronous with a single return — mirroring the
 region it replaces (no awaits, no early returns).
 
-Module ``logger`` is imported lazily inside the body (``from
-agent.conversation_loop import logger``) so this module never imports
-``agent.conversation_loop`` at import time -> no import cycle, and the log records
-keep the exact logger name (``"agent.conversation_loop"``).
+The module owns a logger named ``"agent.conversation_loop"`` directly, rather
+than importing ``agent.conversation_loop`` just to reuse its logger. This
+keeps the exact log name without introducing an import cycle (or forcing
+optional conversation-loop dependencies on focused finalizer consumers).
 """
 
 from __future__ import annotations
 
 import os
+import logging
 
 from agent.codex_responses_adapter import _summarize_user_message_for_log
+
+
+logger = logging.getLogger("agent.conversation_loop")
 
 
 def finalize_turn(
@@ -48,8 +52,6 @@ def finalize_turn(
     Lifted verbatim from ``run_conversation`` (the region after the main agent
     loop). See module docstring.
     """
-    from agent.conversation_loop import logger
-
     if final_response is None and (
         api_call_count >= agent.max_iterations
         or agent.iteration_budget.remaining <= 0
@@ -130,6 +132,21 @@ def finalize_turn(
             api_call_count < agent.max_iterations
             or normal_text_response
         )
+    )
+
+    # TaskEnvelope wiring (issue #209): finish the TaskEnvelope that
+    # agent.turn_envelope.start_turn_envelope created at the top of
+    # run_conversation, driving it to its terminal state (closed / failed /
+    # blocked) using the exact completed/failed/interrupted outcome computed
+    # above. A no-op if no envelope was started for this turn_id (e.g. the
+    # codex_app_server transport bypasses run_conversation's normal path).
+    from agent.turn_envelope import finish_turn_envelope
+    finish_turn_envelope(
+        agent,
+        turn_id=turn_id,
+        completed=completed,
+        failed=failed,
+        interrupted=interrupted,
     )
 
     # Post-loop cleanup must never lose the response.  Trajectory save,

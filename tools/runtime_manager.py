@@ -312,6 +312,61 @@ class RuntimeStatus:
         return self.bin_path is not None
 
 
+def runtime_health(lock: Optional[dict] = None) -> dict:
+    """Return the runtime status in the stable health/doctor shape.
+
+    This is intentionally read-only.  CLI doctor can call ``doctor_status``
+    when it wants the optional repair path, while status endpoints and the
+    transport bridge can use this function without accidentally installing a
+    binary.
+    """
+    status = runtime_status(lock)
+    return {
+        "schema": "simplicio-runtime/health/v1",
+        "healthy": status.satisfied,
+        "status": "healthy" if status.satisfied else ("stale" if status.present else "absent"),
+        "bin_path": status.bin_path,
+        "source": status.source,
+        "version": status.version,
+        "min_version": status.min_version,
+        "detail": status.detail,
+        "doctor_command": "simplicio-agent doctor --fix",
+    }
+
+
+def doctor_status(*, fix: bool = False) -> dict:
+    """Return a JSON-safe health report for ``simplicio-agent doctor``.
+
+    ``fix=False`` is a pure handshake.  ``fix=True`` delegates to the
+    existing explicit-consent installer and reports its resulting state.
+    Never raises so callers can render a diagnostic section reliably.
+    """
+    try:
+        status = ensure_runtime(install=fix)
+        report = {
+            "schema": "simplicio-runtime/doctor/v1",
+            "healthy": status.satisfied,
+            "status": "healthy" if status.satisfied else ("stale" if status.present else "absent"),
+            "bin_path": status.bin_path,
+            "source": status.source,
+            "version": status.version,
+            "min_version": status.min_version,
+            "detail": status.detail,
+            "fixed": bool(fix and status.satisfied),
+            "doctor_command": "simplicio-agent doctor --fix",
+        }
+        return report
+    except Exception as exc:  # diagnostics must not take down the CLI
+        return {
+            "schema": "simplicio-runtime/doctor/v1",
+            "healthy": False,
+            "status": "error",
+            "detail": str(exc),
+            "fixed": False,
+            "doctor_command": "simplicio-agent doctor --fix",
+        }
+
+
 def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     """Handshake the resolved kernel against the ``runtime.lock`` pin."""
     lock = lock or load_runtime_lock()

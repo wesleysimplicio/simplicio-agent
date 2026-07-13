@@ -45,12 +45,16 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 __all__ = [
     "INSTRUCTION_CATALOG",
     "resolve_instruction_index",
     "expand_instruction",
+    "expand_instruction_with_receipt",
+    "instruction_expansion_receipt",
+    "ExpansionReceipt",
     "pin_capability_bundle",
     "instruction_index_summary_size",
     "instruction_index_full_size",
@@ -211,6 +215,65 @@ INSTRUCTION_CATALOG: List[Dict[str, str]] = [
 _HANDLE_INDEX: Dict[str, Dict[str, str]] = {e["handle"]: e for e in INSTRUCTION_CATALOG}
 
 
+@dataclass(frozen=True)
+class ExpansionReceipt:
+    """Deterministic evidence for one instruction expansion.
+
+    This is an in-memory value object rather than a telemetry event: it has no
+    timestamp, provider claim, or session identifier. Repeated expansions of
+    the same content are therefore directly comparable. Provider-side token
+    savings must be measured by the provider and are intentionally not claimed
+    here.
+
+    ``prefix_invalidated`` is false for the normal append-only expansion path.
+    A caller rebuilding a cached system prompt can set it explicitly so a
+    receipt cannot accidentally imply cache preservation. ``selected_bundle``
+    records an already-pinned tool order, when supplied, without changing or
+    subsetting that bundle.
+    """
+
+    handle: str
+    content_sha256: str
+    chars: int
+    bytes: int
+    selected_bundle: tuple[str, ...] = ()
+    fallback: bool = False
+    fallback_reason: str = ""
+    cache_stable: bool = True
+    prefix_invalidated: bool = False
+
+    @property
+    def sha256(self) -> str:
+        """Convenient alias for the canonical content hash field."""
+        return self.content_sha256
+
+    @property
+    def size(self) -> int:
+        """UTF-8 byte size, useful for honest wire-size accounting."""
+        return self.bytes
+
+    @property
+    def content_hash(self) -> str:
+        """Compatibility alias used by receipt consumers."""
+        return self.content_sha256
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a stable JSON-friendly representation."""
+        return {
+            "handle": self.handle,
+            "content_sha256": self.content_sha256,
+            "chars": self.chars,
+            "bytes": self.bytes,
+            "selected_bundle": list(self.selected_bundle),
+            "fallback": self.fallback,
+            "fallback_reason": self.fallback_reason,
+            "cache_stable": self.cache_stable,
+            "prefix_invalidated": self.prefix_invalidated,
+        }
+
+    as_dict = to_dict
+
+
 def resolve_instruction_index() -> List[Dict[str, str]]:
     """Return the compact instruction index.
 
@@ -248,21 +311,153 @@ def _catalog_symbol_value(symbol: str) -> Optional[str]:
     return getattr(pb, symbol, None)
 
 
-def expand_instruction(handle: str) -> str:
-    """Lazily resolve the full text for an instruction ``handle``.
+def _receipt_bundle(
+    selected_bundle: Optional[Sequence[Union[str, Mapping[str, Any]]]],
+    tools: Optional[Sequence[Union[str, Mapping[str, Any]]]],
+    task: Optional[str],
+) -> tuple[str, ...]:
+    """Normalize a receipt's selected bundle without changing its order."""
+    if selected_bundle is None and tools is not None:
+        return tuple(pin_capability_bundle_names(tools, task=task))
+    if selected_bundle is None:
+        return ()
+    result = []
+    for item in selected_bundle:
+        if isinstance(item, str):
+            result.append(item)
+        elif isinstance(item, Mapping):
+            result.append(str(item.get("name", "")))
+        else:
+            result.append(str(item))
+    return tuple(result)
 
-    This is the *progressive-disclosure* escape hatch: the compact index only
-    ships handles; the model names a handle and the full text is pulled here.
-    Falls back to the catalog ``summary`` when the real body cannot be
-    resolved, so callers always get a usable string.
+
+def _build_expansion_receipt(
+    handle: str,
+    text: str,
+    *,
+    selected_bundle: Optional[Sequence[Union[str, Mapping[str, Any]]]] = None,
+    tools: Optional[Sequence[Union[str, Mapping[str, Any]]]] = None,
+    task: Optional[str] = None,
+    fallback: bool = False,
+    fallback_reason: str = "",
+    cache_stable: bool = True,
+    prefix_invalidated: bool = False,
+) -> ExpansionReceipt:
+    """Build a deterministic receipt for *text*.
+
+    The cache flags describe the caller's insertion strategy; expanding a
+    section itself never mutates the cached system prompt. If a caller marks a
+    prefix as invalidated, the receipt defensively reports ``cache_stable`` as
+    false even if an inconsistent true value was supplied.
+    """
+    prefix_invalidated = bool(prefix_invalidated)
+    cache_stable = bool(cache_stable) and not prefix_invalidated
+    encoded = text.encode("utf-8")
+    return ExpansionReceipt(
+        handle=handle,
+        content_sha256=hashlib.sha256(encoded).hexdigest(),
+        chars=len(text),
+        bytes=len(encoded),
+        selected_bundle=_receipt_bundle(selected_bundle, tools, task),
+        fallback=bool(fallback),
+        fallback_reason=str(fallback_reason or ""),
+        cache_stable=cache_stable,
+        prefix_invalidated=prefix_invalidated,
+    )
+
+
+def expand_instruction_with_receipt(
+    handle: str,
+    *,
+    fallback: Optional[str] = None,
+    selected_bundle: Optional[Sequence[Union[str, Mapping[str, Any]]]] = None,
+    tools: Optional[Sequence[Union[str, Mapping[str, Any]]]] = None,
+    task: Optional[str] = None,
+    cache_stable: bool = True,
+    prefix_invalidated: bool = False,
+) -> tuple[str, ExpansionReceipt]:
+    """Expand an instruction and return deterministic evidence beside it.
+
+    The compact index remains cache-stable because this function only resolves
+    text; callers should append the expansion as a tool-result/user-approved
+    payload rather than rebuilding the stable system prompt. ``fallback`` is
+    an explicit, full caller-owned fallback for unknown handles or unavailable
+    source bodies. With no explicit fallback, an unknown handle retains the
+    historical ``KeyError`` contract, while a known handle falls back to its
+    catalog summary so a missing optional prompt-builder import never blocks a
+    turn.
+
+    ``tools`` + ``task`` is an optional convenience for recording the exact
+    deterministic order returned by :func:`pin_capability_bundle`; callers
+    may instead pass an already-pinned ``selected_bundle``. Neither path
+    changes the tool set or claims provider-token savings.
     """
     entry = _HANDLE_INDEX.get(handle)
     if entry is None:
-        raise KeyError(f"unknown instruction handle: {handle!r}")
+        if fallback is None:
+            raise KeyError(f"unknown instruction handle: {handle!r}")
+        text = fallback
+        receipt = _build_expansion_receipt(
+            handle,
+            text,
+            selected_bundle=selected_bundle,
+            tools=tools,
+            task=task,
+            fallback=True,
+            fallback_reason="unknown_handle",
+            cache_stable=cache_stable,
+            prefix_invalidated=prefix_invalidated,
+        )
+        return text, receipt
+
     full = _catalog_symbol_value(entry["symbol"])
     if isinstance(full, str) and full:
-        return full
-    return entry["summary"]
+        text = full
+        used_fallback = False
+        reason = ""
+    elif fallback is not None:
+        text = fallback
+        used_fallback = True
+        reason = "body_unavailable"
+    else:
+        text = entry["summary"]
+        used_fallback = True
+        reason = "body_unavailable:catalog_summary"
+
+    receipt = _build_expansion_receipt(
+        handle,
+        text,
+        selected_bundle=selected_bundle,
+        tools=tools,
+        task=task,
+        fallback=used_fallback,
+        fallback_reason=reason,
+        cache_stable=cache_stable,
+        prefix_invalidated=prefix_invalidated,
+    )
+    return text, receipt
+
+
+def instruction_expansion_receipt(
+    handle: str,
+    **kwargs: Any,
+) -> ExpansionReceipt:
+    """Return only the deterministic receipt for an instruction expansion."""
+    _text, receipt = expand_instruction_with_receipt(handle, **kwargs)
+    return receipt
+
+
+def expand_instruction(handle: str, **kwargs: Any) -> str:
+    """Lazily resolve full text while preserving the original string API.
+
+    See :func:`expand_instruction_with_receipt` for opt-in receipts and
+    explicit fallback/cache metadata. Existing callers that pass only a
+    handle receive the same string (and the same unknown-handle ``KeyError``)
+    as before.
+    """
+    text, _receipt = expand_instruction_with_receipt(handle, **kwargs)
+    return text
 
 
 def instruction_index_summary_size() -> int:

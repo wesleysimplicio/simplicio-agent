@@ -1,0 +1,18 @@
+{
+  "schema": "simplicio.goal-contract",
+  "schema_version": "simplicio.goal-contract/v1",
+  "contract_id": "fixture-basic",
+  "objective": "ship the release",
+  "objective_hash": "e8eeccd4b2d7f0f5196bbe0fb778fc8ba2a3ce982a4fea4ef320ef52484fe64b",
+  "acceptance_criteria": ["tests pass", "receipt is recorded"],
+  "acceptance_criteria_hash": "d12bd765760a230b27a6a53197ec62f13faea85f2ad10f76c8dc8b097dfeb356",
+  "facts": [{"text": "CI completed", "source": "ci://run/1", "confidence": 1.0}],
+  "inferences": [{"text": "release is safe", "basis": ["CI completed"], "confidence": 0.9}],
+  "open_questions": [],
+  "evidence": [{"reference": "receipt://ci/1", "kind": "test", "verified": true}],
+  "watchers": [{"name": "ci", "required": true, "satisfied": true, "receipt": "receipt://watch/1", "recomputed": true}],
+  "state": "completed_verified",
+  "reason": "verified by CI",
+  "created_at_ns": 1,
+  "updated_at_ns": 2
+}

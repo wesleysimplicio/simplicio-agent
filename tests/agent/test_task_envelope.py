@@ -54,6 +54,20 @@ def test_wrong_schema_version_is_rejected():
         TaskEnvelope.from_dict(data)
 
 
+def test_wrong_schema_id_is_rejected():
+    data = _make().to_dict()
+    data["schema"] = "other.task-envelope"
+    with pytest.raises(ValueError):
+        TaskEnvelope.from_dict(data)
+
+
+def test_transition_accepts_wire_state_value_and_rejects_unknown_state():
+    env = _make().transition("oriented")
+    assert env.state is TaskState.ORIENTED
+    with pytest.raises(ValueError, match="invalid state"):
+        env.transition("teleported")
+
+
 # ---------------------------------------------------------------------------
 # E2E happy path: received -> ... -> evidence_ready -> delivered -> closed
 # ---------------------------------------------------------------------------
