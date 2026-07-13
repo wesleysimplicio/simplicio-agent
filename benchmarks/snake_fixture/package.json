@@ -1,0 +1,15 @@
+{
+  "name": "simplicio-snake-benchmark-fixture",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Self-contained playable Snake browser fixture with a name prompt and persistent top-10 scoreboard, used by the runtime performance harness (issue #266).",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "serve": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}
