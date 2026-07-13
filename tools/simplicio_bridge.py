@@ -32,6 +32,8 @@ from typing import Any, Callable, Dict, Optional
 
 import logging
 
+from tools.simplicio_transport import SimplicioTransport, TransportReceipt
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,59 +117,13 @@ class KernelCallResult:
     error: Optional[str] = None
 
 
-class KernelTransport:
-    """Default transport: delegates to ``tools.kernel_binding``.
+class KernelTransport(SimplicioTransport):
+    """Compatibility name for the default CLI-first transport.
 
-    Override in tests with a stub that returns ``KernelCallResult``.
+    Older callers imported ``KernelTransport`` from this module.  Keeping it
+    as a subclass makes those imports stable while ensuring the default path
+    now follows the CLI-first/MCP-fallback contract.
     """
-
-    def gate(self, command: str, *, pattern_key: str, description: str,
-             session_key: str) -> KernelCallResult:
-        from tools.kernel_binding import evaluate_action_gate
-        try:
-            v = evaluate_action_gate(
-                command, pattern_key=pattern_key,
-                description=description, session_key=session_key,
-            )
-            return KernelCallResult(ok=True, value=v)
-        except Exception as exc:  # pragma: no cover - defensive
-            return KernelCallResult(ok=False, error=str(exc))
-
-    def checkpoint(self, label: str, *, workdir: str, extra: Optional[dict]) -> KernelCallResult:
-        from tools.kernel_binding import mirror_checkpoint
-        try:
-            mirror_checkpoint(label, workdir=workdir, extra=extra)
-            return KernelCallResult(ok=True)
-        except Exception as exc:
-            return KernelCallResult(ok=False, error=str(exc))
-
-    def mechanical_edit(self, plan: dict) -> KernelCallResult:
-        from tools.kernel_binding import edit_mechanical
-        try:
-            return KernelCallResult(ok=True, value=edit_mechanical(plan))
-        except Exception as exc:
-            return KernelCallResult(ok=False, error=str(exc))
-
-    def orient(self, repo: str, *, fmt: str = "markdown") -> KernelCallResult:
-        from tools.kernel_binding import orient_map
-        try:
-            return KernelCallResult(ok=True, value=orient_map(repo, fmt=fmt))
-        except Exception as exc:
-            return KernelCallResult(ok=False, error=str(exc))
-
-    def recall(self, query: str, *, repo: str = "") -> KernelCallResult:
-        from tools.kernel_binding import memory_recall
-        try:
-            return KernelCallResult(ok=True, value=memory_recall(query, repo=repo))
-        except Exception as exc:
-            return KernelCallResult(ok=False, error=str(exc))
-
-    def ledger(self, event: dict) -> KernelCallResult:
-        from tools.kernel_binding import ledger_append
-        try:
-            return KernelCallResult(ok=True, value=ledger_append(event))
-        except Exception as exc:
-            return KernelCallResult(ok=False, error=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +138,8 @@ class BridgeMetrics:
     consecutive_failures: int = 0
     last_error: Optional[str] = None
     last_call_at: Optional[float] = None
+    last_transport: Optional[str] = None
+    last_fallback_reason: Optional[str] = None
 
 
 class SimplicioBridge:
@@ -198,7 +156,7 @@ class SimplicioBridge:
 
     def __init__(self, transport: Optional[KernelTransport] = None,
                  *, failure_threshold: int = 5, cooldown_s: float = 30.0) -> None:
-        self._transport = transport or KernelTransport()
+        self._transport = transport or SimplicioTransport()
         self._breaker = CircuitBreaker(failure_threshold=failure_threshold,
                                        cooldown_s=cooldown_s)
         self._lock = threading.Lock()
@@ -224,13 +182,15 @@ class SimplicioBridge:
                 consecutive_failures=self._breaker.consecutive_failures,
                 last_error=self._metrics.last_error,
                 last_call_at=self._metrics.last_call_at,
+                last_transport=self._metrics.last_transport,
+                last_fallback_reason=self._metrics.last_fallback_reason,
             )
         return m
 
     def health(self) -> dict:
         """Structured health snapshot for diagnostics/logging."""
         m = self.metrics()
-        return {
+        result = {
             "healthy": (not m.circuit_open),
             "circuit_open": m.circuit_open,
             "consecutive_failures": m.consecutive_failures,
@@ -238,7 +198,16 @@ class SimplicioBridge:
             "failures": m.failures,
             "last_error": m.last_error,
             "last_call_at": m.last_call_at,
+            "last_transport": m.last_transport,
+            "last_fallback_reason": m.last_fallback_reason,
         }
+        transport_health = getattr(self._transport, "health", None)
+        if callable(transport_health):
+            try:
+                result["transport"] = transport_health()
+            except Exception as exc:  # test doubles/third-party transports may not expose state
+                result["transport"] = {"healthy": True, "detail": str(exc)}
+        return result
 
     def reset_circuit(self) -> None:
         self._breaker.reset()
@@ -264,18 +233,30 @@ class SimplicioBridge:
         with self._lock:
             self._metrics.total_calls += 1
             self._metrics.last_call_at = time.monotonic()
-            if res.ok:
+            if isinstance(res, TransportReceipt):
+                receipt = res
+                value = receipt.value
+                ok = receipt.ok
+                error = receipt.error.message if receipt.error else None
+                self._metrics.last_transport = receipt.transport
+                self._metrics.last_fallback_reason = receipt.fallback_reason
+            else:
+                receipt = None
+                value = res.value
+                ok = res.ok
+                error = res.error
+            if ok:
                 self._breaker.record_success()
             else:
                 self._breaker.record_failure()
                 self._metrics.failures += 1
-                self._metrics.last_error = res.error
-        if not res.ok:
-            logger.debug("SimplicioBridge.%s failed: %s", op, res.error)
+                self._metrics.last_error = error
+        if not ok:
+            logger.debug("SimplicioBridge.%s failed: %s", op, error)
             return None
         if idempotent:
-            self._seen[cid] = res.value
-        return res.value
+            self._seen[cid] = value
+        return value
 
     # -- typed API -------------------------------------------------------
     def gate(self, command: str, *, pattern_key: str = "", description: str = "",
