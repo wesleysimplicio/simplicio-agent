@@ -42,6 +42,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from agent.transports.hermes_tools_mcp_server import (
+    LEGACY_MCP_SERVER_NAME,
+    MCP_SERVER_NAME,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -692,11 +697,15 @@ def migrate(
     # doesn't ship with — web_search, browser_*, delegate_task, vision,
     # memory, skills, session_search, image_generate, text_to_speech.
     # The server itself is agent/transports/hermes_tools_mcp_server.py
-    # and is launched on demand by codex (stdio MCP).
+    # and is launched on demand by codex (stdio MCP). Client-facing name
+    # is MCP_SERVER_NAME ("simplicio-agent-tools", issue #204); drop any
+    # stale entry under the pre-rebrand "hermes-tools" key so a
+    # re-migration doesn't leave both registered side by side.
     if expose_hermes_tools:
-        translated["hermes-tools"] = _build_hermes_tools_mcp_entry()
-        if "hermes-tools" not in report.migrated:
-            report.migrated.append("hermes-tools")
+        translated.pop(LEGACY_MCP_SERVER_NAME, None)
+        translated[MCP_SERVER_NAME] = _build_hermes_tools_mcp_entry()
+        if MCP_SERVER_NAME not in report.migrated:
+            report.migrated.append(MCP_SERVER_NAME)
 
     # Build the new managed block
     managed_block = render_codex_toml_section(

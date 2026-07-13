@@ -12,8 +12,9 @@ the agent. The kernel-scope freeze (`docs/ADR-2026-07-06-KERNEL-SCOPE-FREEZE.md`
 in the runtime repo) is **revoked** — agent-parity, chat UX, autonomy, and
 organism expansion are in scope here as first-class capabilities.
 
-**Execution channel (standing directive):** the `simplicio` CLI is the primary
-surface; MCP is fallback only. Bind to the one runtime via `simplicio <cmd>`.
+**Execution channel:** canonical statement lives in "## Tool routing" below —
+do not restate the hierarchy here or anywhere else; link to that section
+instead.
 
 ## Product identity — Simplicio Agent
 
@@ -67,9 +68,33 @@ growing the core.
 
 ## Tool routing
 
-- **Hermes-native tools first** for reading, searching, reasoning, and coordination.
-- **Simplicio CLI/MCP second** for execution, deterministic edits, validation, evidence, and other repo mutations.
-- When both could work, keep Hermes in the driver’s seat and use Simplicio as the actuator.
+> **Canonical source (issue #212, effective 2026-07-13).** This is the only
+> place the tool-routing hierarchy is declared. Every other doc — ADRs,
+> roadmap notes, skill docs, chat/cron/worker/desktop/dev-cli examples — must
+> link back here (`AGENTS.md#tool-routing`) instead of restating or
+> paraphrasing the order below. If you find a doc stating a different order,
+> that doc is wrong; fix it to link here.
+
+Official hierarchy, in order:
+
+1. **Hermes-native tools first** — reading, searching, reasoning, and
+   coordination. Hermes stays in the driver's seat.
+2. **Simplicio CLI second, as the actuator** — `simplicio <cmd>` is the
+   primary execution surface for deterministic edits, validation, evidence,
+   action-gate, checkpoints, and other repo mutations.
+3. **Simplicio MCP is fallback transport only** (`simplicio serve --mcp`) —
+   used only when the CLI process path isn't available or when an explicit
+   opt-in warm connection is active (`SIMPLICIO_AGENT_KERNEL_WARM=1`, see
+   ADR-0003). MCP never supersedes the CLI as the default execution channel.
+
+**Historical note — retired ambiguity.** An earlier revision of this file
+paired "Hermes-native tools first" with a follow-up line naming the
+Simplicio CLI and MCP together as one step, with no primary/fallback
+qualifier — read literally, it implied CLI and MCP were an interchangeable,
+equal-priority pair. That wording is retired as of 2026-07-13: CLI and MCP
+are not equal-priority — CLI is primary, MCP is fallback only. This section,
+not that old phrasing, is authoritative going forward.
+
 - The simplicio kernel is a **managed, pinned dependency**: `runtime.lock` pins
   the minimum version, `tools/runtime_manager.py` owns the handshake and the
   managed install (`~/.simplicio/bin`), and `simplicio-agent doctor` surfaces/fixes
@@ -1425,3 +1450,7 @@ not the specific names.
 
 Reviewers should reject new change-detector tests; authors should convert
 them into invariants before re-requesting review.
+
+
+## Simplicio capability contract (mandatory)
+Read `docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md` before acting. It is the canonical index of the Runtime, neural database, Tokio/fan-out, commands, fast stack, seeds, and installed skills. Load the complete relevant `SKILL.md` before using a capability; use `simplicio` CLI, deterministic edits, real validation, and evidence receipts.
