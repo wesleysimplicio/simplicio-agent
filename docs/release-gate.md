@@ -54,7 +54,13 @@ Every evidence record is tied to one expanded case ID and must include:
 - artifact identity with `sha256:` digest;
 - environment descriptor with canonical manifest digest;
 - receipts list;
-- rollback evidence when `scenario=rollback`.
+- rollback evidence when `scenario=rollback`, including digest-pinned
+  `simplicio-agent` and `simplicio-runtime` identities with `compatible=true`.
+
+Rollback promotion is fail-closed unless the restored Agent identity matches both
+`restored_release` and `restored_artifact_digest`. The Runtime identity is recorded
+separately so rollback evidence cannot silently prove only the Agent half of the
+Agent+Runtime unit.
 
 The evaluator is intentionally fail-closed for stable promotion:
 

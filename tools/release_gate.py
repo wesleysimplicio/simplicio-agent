@@ -81,6 +81,7 @@ def build_rollback_evidence(
     restored_artifact_digest: str,
     state_preserved: bool,
     receipts: Sequence[str],
+    restored_identity: Mapping[str, Any] | None = None,
     blocked_reason: str = "",
 ) -> dict[str, Any]:
     evidence: dict[str, Any] = {
@@ -92,6 +93,10 @@ def build_rollback_evidence(
         "state_preserved": bool(state_preserved),
         "receipts": list(receipts),
     }
+    if restored_identity is not None:
+        evidence["restored_identity"] = json.loads(
+            json.dumps(restored_identity, sort_keys=True)
+        )
     if blocked_reason:
         evidence["blocked_reason"] = blocked_reason
     return evidence
@@ -295,6 +300,43 @@ def validate_rollback_evidence(document: Mapping[str, Any]) -> list[str]:
     digest = document.get("restored_artifact_digest", "")
     if isinstance(digest, str) and not digest.startswith("sha256:"):
         errors.append("rollback.restored_artifact_digest must use sha256")
+    identity = document.get("restored_identity")
+    if not isinstance(identity, Mapping):
+        errors.append("rollback.restored_identity must be an object")
+    else:
+        if identity.get("compatible") is not True:
+            errors.append("rollback.restored_identity.compatible must be true")
+        expected_names = {
+            "agent": "simplicio-agent",
+            "runtime": "simplicio-runtime",
+        }
+        for component, expected_name in expected_names.items():
+            value = identity.get(component)
+            prefix = f"rollback.restored_identity.{component}"
+            if not isinstance(value, Mapping):
+                errors.append(f"{prefix} must be an object")
+                continue
+            if value.get("name") != expected_name:
+                errors.append(f"{prefix}.name must be {expected_name}")
+            for key in ("version", "digest"):
+                if not isinstance(value.get(key), str) or not value[key]:
+                    errors.append(f"{prefix}.{key} must be a non-empty string")
+            component_digest = value.get("digest")
+            if isinstance(component_digest, str) and not component_digest.startswith(
+                "sha256:"
+            ):
+                errors.append(f"{prefix}.digest must use sha256")
+        agent = identity.get("agent")
+        if isinstance(agent, Mapping):
+            if agent.get("version") != document.get("restored_release"):
+                errors.append(
+                    "rollback.restored_identity.agent.version must match restored_release"
+                )
+            if agent.get("digest") != document.get("restored_artifact_digest"):
+                errors.append(
+                    "rollback.restored_identity.agent.digest must match "
+                    "restored_artifact_digest"
+                )
     return sorted(set(errors))
 
 
