@@ -1,0 +1,400 @@
+{
+  "axes": [
+    {
+      "call_sites": [
+        {
+          "path": "hermes_cli/main.py",
+          "symbol": "install_uvloop_policy()"
+        },
+        {
+          "path": "hermes_cli/gateway.py",
+          "symbol": "install_uvloop_policy()"
+        }
+      ],
+      "config": [
+        {
+          "key": "fast.uvloop",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Optional libuv event-loop policy for async entrypoints.",
+      "fallback": {
+        "available": true,
+        "description": "asyncio default policy",
+        "paths": [
+          "agent/uvloop_utils.py"
+        ]
+      },
+      "name": "uvloop",
+      "ok": true,
+      "source": [
+        "agent/async_dag/uvloop_runner.py",
+        "agent/uvloop_utils.py"
+      ],
+      "source_sha256": {
+        "agent/async_dag/uvloop_runner.py": "c415e18f3a81ce936371e86b3685d1ea77ff3b69e9233c373618a10f82aa9394",
+        "agent/uvloop_utils.py": "84f2d8848873aad7976d6d9e4f686961421d9a4f9b0708d58bbd0089df0b975c"
+      },
+      "stage_results": {
+        "BUILT": {
+          "evidence": [
+            "agent.uvloop_utils"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "DEFAULT": {
+          "evidence": [
+            "pyproject.toml:fast"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "E2E": {
+          "evidence": [
+            "hermes_cli/main.py:install_uvloop_policy()",
+            "hermes_cli/gateway.py:install_uvloop_policy()"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "GATED": {
+          "evidence": [
+            "hermes_cli/doctor.py:uvloop event loop"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": true,
+          "reason": "uvloop is not supported on Windows",
+          "status": "not_applicable"
+        },
+        "INVOKED": {
+          "ok": true,
+          "reason": "asyncio fallback is the Windows path",
+          "status": "not_applicable"
+        },
+        "PACKAGED": {
+          "evidence": [
+            "pyproject.toml:project.optional-dependencies.fast"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/uvloop_utils.py",
+            "agent/async_dag/uvloop_runner.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "SAME_SOURCE": {
+          "evidence": [
+            "agent/uvloop_utils.py:install_uvloop_policy"
+          ],
+          "ok": true,
+          "status": "pass"
+        }
+      },
+      "stage_status": {
+        "BUILT": "pass",
+        "DEFAULT": "pass",
+        "E2E": "pass",
+        "GATED": "pass",
+        "INSTALLED": "not_applicable",
+        "INVOKED": "not_applicable",
+        "PACKAGED": "pass",
+        "PRESENT": "pass",
+        "SAME_SOURCE": "pass"
+      },
+      "stages": {
+        "BUILT": true,
+        "DEFAULT": true,
+        "E2E": true,
+        "GATED": true,
+        "INSTALLED": true,
+        "INVOKED": true,
+        "PACKAGED": true,
+        "PRESENT": true,
+        "SAME_SOURCE": true
+      }
+    },
+    {
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "from agent._fastjson"
+        },
+        {
+          "path": "agent/telemetry/receipts.py",
+          "symbol": "from agent.serde"
+        }
+      ],
+      "config": [
+        {
+          "key": "fast.orjson",
+          "path": "pyproject.toml"
+        },
+        {
+          "key": "fast.msgspec",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Fast JSON serialization with msgspec/orjson and stdlib fallback.",
+      "fallback": {
+        "available": true,
+        "description": "stdlib json",
+        "paths": [
+          "agent/_fastjson.py"
+        ]
+      },
+      "name": "fast-json",
+      "ok": true,
+      "source": [
+        "agent/_fastjson.py",
+        "agent/serde/__init__.py",
+        "agent/serde/fast_json.py"
+      ],
+      "source_sha256": {
+        "agent/_fastjson.py": "22ca36a05f84dab3b0859b5f9cff0e203d1aa123c254244f1392fdd8b6f2f172",
+        "agent/serde/__init__.py": "0da142c171757126545c1571fbe5f9bb03db8ff644954c2cf98620692d7c7ae2",
+        "agent/serde/fast_json.py": "8aaf7fc80362d5e0ada871451e2d55aea689b8ba8dad911f5ec69f4dc0c68cff"
+      },
+      "stage_results": {
+        "BUILT": {
+          "evidence": [
+            "agent.serde.fast_json"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "DEFAULT": {
+          "evidence": [
+            "pyproject.toml:fast"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "E2E": {
+          "evidence": [
+            "run_agent.py:from agent._fastjson",
+            "agent/telemetry/receipts.py:from agent.serde"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "GATED": {
+          "evidence": [
+            "hermes_cli/doctor.py:Fast JSON"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": true,
+          "reason": "orjson=True msgspec=False",
+          "status": "pass"
+        },
+        "INVOKED": {
+          "evidence": [
+            "agent.serde.fast_json:dumps/loads"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "PACKAGED": {
+          "evidence": [
+            "pyproject.toml:project.optional-dependencies.fast"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/serde/fast_json.py",
+            "agent/serde/__init__.py",
+            "agent/_fastjson.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "SAME_SOURCE": {
+          "evidence": [
+            "agent/serde/fast_json.py:has_msgspec"
+          ],
+          "ok": true,
+          "status": "pass"
+        }
+      },
+      "stage_status": {
+        "BUILT": "pass",
+        "DEFAULT": "pass",
+        "E2E": "pass",
+        "GATED": "pass",
+        "INSTALLED": "pass",
+        "INVOKED": "pass",
+        "PACKAGED": "pass",
+        "PRESENT": "pass",
+        "SAME_SOURCE": "pass"
+      },
+      "stages": {
+        "BUILT": true,
+        "DEFAULT": true,
+        "E2E": true,
+        "GATED": true,
+        "INSTALLED": true,
+        "INVOKED": true,
+        "PACKAGED": true,
+        "PRESENT": true,
+        "SAME_SOURCE": true
+      }
+    },
+    {
+      "call_sites": [
+        {
+          "path": "agent/skill_commands.py",
+          "symbol": "prewarm_skill_payloads"
+        },
+        {
+          "path": "hermes_cli/model_switch.py",
+          "symbol": "prewarm_picker_cache_async"
+        }
+      ],
+      "config": [
+        {
+          "key": "prewarm_max_items",
+          "path": "hermes_cli/config.py"
+        },
+        {
+          "key": "prewarm_cache_max_entries",
+          "path": "hermes_cli/config.py"
+        }
+      ],
+      "description": "Bounded background prewarm for skills and model picker caches.",
+      "fallback": {
+        "available": true,
+        "description": "bounded no-op on errors",
+        "paths": [
+          "agent/skill_commands.py"
+        ]
+      },
+      "name": "prewarm",
+      "ok": true,
+      "source": [
+        "agent/agent_init.py",
+        "agent/skill_commands.py",
+        "hermes_cli/model_switch.py"
+      ],
+      "source_sha256": {
+        "agent/agent_init.py": "02aa7d6c6d43eb98f99cf0997f223c3a3c28425c72beb48d6bc99f82bee7f540",
+        "agent/skill_commands.py": "38c0b8cf18b90defd59a5b61ac22ca40656a3dc6dc4d2f7f5e3ba282f51e4071",
+        "hermes_cli/model_switch.py": "db5322bf583fa51b65b1eeee6fd01951d9158c4005199e8272868d69b387ec88"
+      },
+      "stage_results": {
+        "BUILT": {
+          "evidence": [
+            "agent.skill_commands",
+            "hermes_cli.model_switch"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "DEFAULT": {
+          "evidence": [
+            "hermes_cli/config.py:prewarm_max_items",
+            "hermes_cli/config.py:prewarm_cache_max_entries"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "E2E": {
+          "evidence": [
+            "agent/agent_init.py:_openrouter_prewarm_done"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "GATED": {
+          "evidence": [
+            "hermes_cli/config.py:prewarm"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "evidence": [
+            "prewarm_skill_payloads",
+            "prewarm_picker_cache_async"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "INVOKED": {
+          "evidence": [
+            "hermes_cli/model_switch.py:_picker_prewarm_done"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "PACKAGED": {
+          "evidence": [
+            "hermes_cli/config.py:prewarm_max_items",
+            "hermes_cli/config.py:prewarm_cache_max_entries"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/skill_commands.py",
+            "hermes_cli/model_switch.py",
+            "agent/agent_init.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "SAME_SOURCE": {
+          "evidence": [
+            "agent/skill_commands.py:prewarm_skill_payloads",
+            "hermes_cli/model_switch.py:prewarm_picker_cache_async"
+          ],
+          "ok": true,
+          "status": "pass"
+        }
+      },
+      "stage_status": {
+        "BUILT": "pass",
+        "DEFAULT": "pass",
+        "E2E": "pass",
+        "GATED": "pass",
+        "INSTALLED": "pass",
+        "INVOKED": "pass",
+        "PACKAGED": "pass",
+        "PRESENT": "pass",
+        "SAME_SOURCE": "pass"
+      },
+      "stages": {
+        "BUILT": true,
+        "DEFAULT": true,
+        "E2E": true,
+        "GATED": true,
+        "INSTALLED": true,
+        "INVOKED": true,
+        "PACKAGED": true,
+        "PRESENT": true,
+        "SAME_SOURCE": true
+      }
+    }
+  ],
+  "generator": "tools/perf_integration_manifest.py",
+  "repo": ".",
+  "schema": "simplicio.perf-integration-manifest/v1",
+  "summary": {
+    "axis_count": 3,
+    "failed": 0,
+    "ok": true
+  },
+  "version": 1
+}
