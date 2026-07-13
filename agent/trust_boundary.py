@@ -39,6 +39,10 @@ class FailClosedTrustBoundaryError(TrustBoundaryError):
     """Raised when the boundary cannot prove integrity and must deny by default."""
 
 
+class ReplayDetectedTrustBoundaryError(FailClosedTrustBoundaryError):
+    """Raised when an authenticated control event nonce is reused."""
+
+
 class TrustClass(str, Enum):
     """Typed trust classes used by the boundary."""
 
@@ -62,6 +66,7 @@ class BlockedReason(str, Enum):
     """Fail-closed reasons exposed to callers."""
 
     UNAUTHENTICATED_CONTROL_EVENT = "unauthenticated_control_event"
+    REPLAYED_CONTROL_EVENT = "replayed_control_event"
     TAMPERED_RECEIPT = "tampered_receipt"
     UNTRUSTED_PROVENANCE = "untrusted_provenance"
     MALFORMED_INPUT = "malformed_input"
@@ -253,6 +258,30 @@ class ControlEvent:
             payload=payload,
             auth=AuthenticatedDigest.from_dict(auth_value),
         )
+
+
+@dataclass
+class ControlEventReplayGuard:
+    """In-memory nonce guard for callers that need replay protection."""
+
+    _seen_nonces: set[str] = field(default_factory=set, repr=False)
+
+    def verify(
+        self,
+        event: ControlEvent | Mapping[str, Any],
+        *,
+        keyring: Mapping[str, str | bytes],
+    ) -> TrustProvenance:
+        """Authenticate an event, then reject and remember each nonce once."""
+
+        control_event = event if isinstance(event, ControlEvent) else ControlEvent.from_dict(event)
+        provenance = verify_control_event(control_event, keyring=keyring)
+        if control_event.nonce in self._seen_nonces:
+            raise ReplayDetectedTrustBoundaryError(
+                "control event nonce has already been used"
+            )
+        self._seen_nonces.add(control_event.nonce)
+        return provenance
 
 
 @dataclass(frozen=True)
@@ -602,11 +631,21 @@ def enforce_control_event(
     event: ControlEvent | Mapping[str, Any],
     *,
     keyring: Mapping[str, str | bytes],
+    replay_guard: ControlEventReplayGuard | None = None,
 ) -> TrustProvenance | BlockedCognitiveIntegrity:
     """Verify a control event, returning a sanitized blocked result on failure."""
 
     try:
+        if replay_guard is not None:
+            return replay_guard.verify(event, keyring=keyring)
         return verify_control_event(event, keyring=keyring)
+    except ReplayDetectedTrustBoundaryError:
+        return blocked_cognitive_integrity(
+            BlockedReason.REPLAYED_CONTROL_EVENT,
+            message="control event replay rejected",
+            details={"event_id": _safe_lookup(event, "event_id")},
+            source="control-event",
+        )
     except (TrustBoundaryError, ValueError, TypeError, KeyError, AttributeError) as exc:
         return blocked_cognitive_integrity(
             BlockedReason.UNAUTHENTICATED_CONTROL_EVENT,
