@@ -22,6 +22,8 @@ from .protocol import (
     SessionSnapshot,
 )
 
+from .protocol import AgentProtocol
+
 
 class HostBackpressure(RuntimeError):
     """The host cannot admit another leased session or queued turn."""
