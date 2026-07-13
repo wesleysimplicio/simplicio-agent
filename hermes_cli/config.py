@@ -2020,9 +2020,14 @@ DEFAULT_CONFIG = {
         # see agent/toon_codec.py + agent/toon_boundary.py). Read ONCE at
         # session start and pinned for the whole conversation — never
         # toggled mid-session, since that would change previously-cached
-        # message bytes and blow the upstream prompt cache. Default off
-        # (rollback-safe); flip to true to opt in.
-        "toon_prompts": False,
+        # message bytes and blow the upstream prompt cache. Default ON for
+        # brand-new configs (issue #112: 60.9% measured token savings on the
+        # golden-corpus benchmark). Existing installs keep their prior
+        # behavior — the version-32→33 migration in migrate_config() writes
+        # an explicit "toon_prompts: false" into any config.yaml that never
+        # set the key, so this flip only affects genuinely new sessions.
+        # Set this key back to false in config.yaml to opt out.
+        "toon_prompts": True,
         # Extra tool names exempt from TOON re-encoding at the
         # tool_executor boundary, layered on top of the built-in default
         # (agent.toon_boundary.TOON_EXEMPT_TOOLS). Use this for a
@@ -3059,7 +3064,7 @@ DEFAULT_CONFIG = {
 
 
     # Config schema version - bump this when adding new required fields
-    "_config_version": 32,
+    "_config_version": 33,
 }
 
 # =============================================================================
@@ -5543,6 +5548,30 @@ def migrate_config(interactive: bool = True, quiet: bool = False) -> Dict[str, A
                     "the old default was written into your config as a literal "
                     "true. Set it to true again to re-enable, or \"auto\" for the "
                     "legacy surface-aware behavior."
+                )
+
+    # ── Version 32 → 33: pin toon_prompts=false for pre-existing installs ──
+    # DEFAULT_CONFIG flips context.toon_prompts to True for brand-new configs
+    # (issue #112), but an existing install that never explicitly set the key
+    # must keep its prior (off) behavior — write the literal false so the
+    # deep-merge in load_config() has an explicit value to preserve instead of
+    # silently inheriting the new default.
+    if current_ver < 33:
+        config = read_raw_config()
+        raw_context = config.get("context")
+        if not isinstance(raw_context, dict):
+            raw_context = {}
+        if "toon_prompts" not in raw_context:
+            raw_context["toon_prompts"] = False
+            config["context"] = raw_context
+            _persist_migration(config)
+            results["config_added"].append("context.toon_prompts=false (pinned for existing install)")
+            if not quiet:
+                print(
+                    "  ✓ Pinned context.toon_prompts=false for this existing "
+                    "install — new installs now default to TOON-encoded tool "
+                    "results (60.9% measured token savings); set it to true in "
+                    "config.yaml to opt in."
                 )
 
     # ── Post-migration: disable exfiltration-shaped MCP stdio entries ──

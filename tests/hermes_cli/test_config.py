@@ -1511,6 +1511,64 @@ class TestVerifyOnStopMigration:
             raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
             assert raw["agent"]["verify_on_stop"] is True
 
+
+class TestToonPromptsDefaultOnMigration:
+    """v32 → v33 (issue #112): flip DEFAULT_CONFIG toon_prompts to True for
+    brand-new configs, while pinning existing installs to their prior
+    (implicit) False behavior via an explicit migration write."""
+
+    def _write(self, tmp_path, body):
+        (tmp_path / "config.yaml").write_text(body, encoding="utf-8")
+
+    def test_new_config_defaults_toon_prompts_true(self, tmp_path):
+        from hermes_cli.config import DEFAULT_CONFIG
+
+        assert DEFAULT_CONFIG["context"]["toon_prompts"] is True
+
+    def test_pre_v33_missing_key_pinned_false(self, tmp_path):
+        with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+            self._write(tmp_path, "_config_version: 32\nmodel:\n  provider: openrouter\n")
+            migrate_config(interactive=False, quiet=True)
+            raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
+            assert raw["context"]["toon_prompts"] is False
+
+    def test_pre_v33_no_context_section_pinned_false(self, tmp_path):
+        with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+            self._write(tmp_path, "_config_version: 30\nagent:\n  max_turns: 5\n")
+            migrate_config(interactive=False, quiet=True)
+            raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
+            assert raw["context"]["toon_prompts"] is False
+
+    def test_pre_v33_explicit_true_preserved(self, tmp_path):
+        with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+            self._write(tmp_path, "_config_version: 30\ncontext:\n  toon_prompts: true\n")
+            migrate_config(interactive=False, quiet=True)
+            raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
+            assert raw["context"]["toon_prompts"] is True
+
+    def test_pre_v33_explicit_false_preserved(self, tmp_path):
+        with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+            self._write(tmp_path, "_config_version: 30\ncontext:\n  toon_prompts: false\n")
+            migrate_config(interactive=False, quiet=True)
+            raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
+            assert raw["context"]["toon_prompts"] is False
+
+    def test_already_current_version_is_noop(self, tmp_path):
+        from hermes_cli.config import DEFAULT_CONFIG
+
+        with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+            self._write(
+                tmp_path,
+                f"_config_version: {DEFAULT_CONFIG['_config_version']}\n"
+                "model:\n  provider: openrouter\n",
+            )
+            migrate_config(interactive=False, quiet=True)
+            raw = yaml.safe_load((tmp_path / "config.yaml").read_text())
+            # No context section written at all — nothing to migrate at the
+            # already-current version, and defaults are read-time only.
+            assert "context" not in raw or "toon_prompts" not in raw.get("context", {})
+
+
 class TestConfigNormalizationDoesNotOverwriteUserValues:
     """Regression tests for #27354."""
 
