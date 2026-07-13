@@ -2032,7 +2032,7 @@
     "tests/tools/test_perf_integration_manifest.py": 1,
     "tests/tools/test_process_registry.py": 16,
     "tests/tools/test_refresh_agent_mcp_tools.py": 7,
-    "tests/tools/test_rename_guard.py": 16,
+    "tests/tools/test_rename_guard.py": 20,
     "tests/tools/test_runtime_manager.py": 2,
     "tests/tools/test_search_hidden_dirs.py": 4,
     "tests/tools/test_send_message_tool.py": 36,
@@ -2176,7 +2176,7 @@
     "tools/project_tools.py": 5,
     "tools/read_terminal_tool.py": 5,
     "tools/registry.py": 2,
-    "tools/rename_guard/allowlist.json": 3,
+    "tools/rename_guard/allowlist.json": 6,
     "tools/runtime_manager.py": 4,
     "tools/send_message_tool.py": 17,
     "tools/session_search_tool.py": 12,
@@ -2329,6 +2329,6 @@
     "ui-tui/tsconfig.build.json": 2,
     "utils.py": 2
   },
-  "generated_at": "2026-07-12",
+  "generated_at": "2026-07-13",
   "schema": "simplicio.rename-guard.baseline/v1"
 }

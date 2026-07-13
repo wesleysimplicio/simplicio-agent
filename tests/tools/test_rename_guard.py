@@ -1,4 +1,4 @@
-"""Fixture corpus for the branding-regression guard (issue #194)."""
+"""Fixture corpus for the branding-regression guard (issue #194, #187)."""
 from __future__ import annotations
 
 import subprocess
@@ -112,10 +112,84 @@ def test_output_is_machine_readable_with_required_fields(tmp_path):
     assert set(occ) == {"path", "line", "surface", "term", "class", "reason"}
 
 
+def test_summary_counts_by_class_and_surface(tmp_path):
+    """issue #187 AC: 'Summary conta por surface/classification sem inventar
+    completion' — the top-level report carries aggregate counts derived
+    straight from the occurrence list, not a fabricated completion figure."""
+    repo = _init_repo(tmp_path, {
+        "src/app.py": "hermes_token = 1\n",
+        "tests/fixture.py": "hermes_fixture = 1\n",
+    })
+    allowlist = [{
+        "path_glob": "tests/*", "term": None, "class": "historical-fixture",
+        "reason": "test fixture", "owner": "x", "expiry": None,
+    }]
+    occurrences = scan(repo, {"exclude_globs": []}, allowlist, {}, date(2026, 1, 1))
+    report = to_report(occurrences)
+    assert report["by_class"] == {"historical-fixture": 1, "new": 1}
+    assert report["by_surface"] == {"src": 1, "tests": 1}
+    assert sum(report["by_class"].values()) == report["total"]
+    assert sum(report["by_surface"].values()) == report["total"]
+
+
+def test_allowlisted_private_internal_symbol_passes(tmp_path):
+    """False positive corpus (#187 evidence requirement): a private,
+    internal-only symbol reviewed and classified, not a public regression."""
+    repo = _init_repo(tmp_path, {"internal/_priv.py": "_hermes_internal_flag = True\n"})
+    allowlist = [{
+        "path_glob": "internal/*", "term": None, "class": "private-internal-reviewed",
+        "reason": "private module-internal flag, reviewed, not public API", "owner": "x",
+        "expiry": None,
+    }]
+    occurrences = scan(repo, {"exclude_globs": []}, allowlist, {}, date(2026, 1, 1))
+    report = to_report(occurrences)
+    assert report["new_count"] == 0
+    assert report["occurrences"][0]["class"] == "private-internal-reviewed"
+
+
+def test_allowlisted_alias_passes(tmp_path):
+    """False positive corpus (#187 evidence requirement): a deprecated CLI
+    alias kept for compatibility, explicitly classified as such."""
+    repo = _init_repo(tmp_path, {"cli.py": "ALIASES = ['hermes-agent']\n"})
+    allowlist = [{
+        "path_glob": "cli.py", "term": None, "class": "compatibility-temporary",
+        "reason": "deprecated alias kept working for backward compatibility", "owner": "x",
+        "expiry": None,
+    }]
+    occurrences = scan(repo, {"exclude_globs": []}, allowlist, {}, date(2026, 1, 1))
+    report = to_report(occurrences)
+    assert report["new_count"] == 0
+    assert report["occurrences"][0]["class"] == "compatibility-temporary"
+
+
+def test_repo_capability_contract_and_rename_status_docs_are_allowlisted():
+    """The two docs added after the baseline freeze (capability contract
+    skill catalog + this issue's own status report) quote legacy internal
+    paths verbatim; they must be explicitly allowlisted, not silently
+    swallowed by an ever-growing baseline (#187 AC: 'Allowlist usa
+    path+pattern+reason+expiry/owner; não regex global permissiva')."""
+    import json as _json
+
+    from tools.rename_guard.scanner import DEFAULT_ALLOWLIST
+
+    entries = _json.loads(DEFAULT_ALLOWLIST.read_text(encoding="utf-8"))["entries"]
+    globs = {entry["path_glob"] for entry in entries}
+    assert "docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md" in globs
+    assert "docs/rename-inventory-status.md" in globs
+    for entry in entries:
+        if entry["path_glob"] in {
+            "docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md",
+            "docs/rename-inventory-status.md",
+        }:
+            assert entry["owner"]
+            assert entry["reason"]
+
+
 def test_repo_baseline_and_allowlist_are_valid_and_guard_passes_on_head():
     """The live repo's own baseline.json/allowlist.json must be internally
     consistent and the guard must currently report zero new occurrences —
-    this is the CI gate itself (issue #194 AC: 'roda pelo wrapper de testes e CI')."""
+    this is the CI gate itself (issue #194 AC: 'roda pelo wrapper de testes e
+    CI'; issue #187 AC: 'Public occurrences não podem ficar UNCLASSIFIED')."""
     from tools.rename_guard.scanner import DEFAULT_ALLOWLIST, DEFAULT_BASELINE, DEFAULT_CONFIG, main
 
     assert DEFAULT_ALLOWLIST.exists()

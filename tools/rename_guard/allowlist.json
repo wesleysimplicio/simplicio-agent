@@ -32,6 +32,22 @@
       "reason": "frozen archive of pre-fork upstream source, retained for reference — not shipped in any artifact",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
+    },
+    {
+      "path_glob": "docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "capability-contract skill catalog lists installed skill directories/descriptions (issue #186 epic) that legitimately quote legacy 'hermes-agent' skill names and product history; not a new branding regression",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docs/rename-inventory-status.md",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "rename-guard status report for issue #187 that quotes internal paths (hermes_cli/*, hermes_constants.py) verbatim for auditing purposes; not a branding regression",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
     }
   ]
 }
