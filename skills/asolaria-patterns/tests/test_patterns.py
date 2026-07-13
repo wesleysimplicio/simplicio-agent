@@ -3,8 +3,9 @@
 
 import os
 import sys
-import subprocess
-import tempfile
+import contextlib
+import io
+import runpy
 
 LIB = os.path.join(os.path.dirname(__file__), "..", "lib")
 sys.path.insert(0, os.path.abspath(LIB))
@@ -90,17 +91,23 @@ def test_selftest_scripts_exit_zero():
         "nest_depthn",
         "prism_comb",
     ):
-        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
-            r = subprocess.run(
-                [sys.executable, os.path.join(LIB, mod + ".py"), "--selftest"],
-                stdout=output,
-                stderr=output,
-                close_fds=False,
-                text=True,
-            )
-            output.seek(0)
-            receipt = output.read()
-        assert r.returncode == 0, f"{mod} selftest failed: {receipt}"
+        path = os.path.join(LIB, mod + ".py")
+        output = io.StringIO()
+        error = io.StringIO()
+        old_argv = sys.argv
+        sys.argv = [path, "--selftest"]
+        try:
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+                try:
+                    runpy.run_path(path, run_name="__main__")
+                except SystemExit as exc:
+                    return_code = exc.code if isinstance(exc.code, int) else 1
+                else:
+                    return_code = 0
+        finally:
+            sys.argv = old_argv
+        receipt = output.getvalue()
+        assert return_code == 0, f"{mod} selftest failed: {error.getvalue()}"
         assert "PASS" in receipt, f"{mod} selftest missing PASS: {receipt}"
 
 
