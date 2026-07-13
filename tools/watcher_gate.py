@@ -15,10 +15,12 @@ silently grant consent.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Literal
+from pathlib import Path
+from typing import Any, Callable, Literal, Mapping
 
 
 class Verdict(str, Enum):
@@ -28,6 +30,14 @@ class Verdict(str, Enum):
     CANON = "CANON"
     UNVERIFIED = "UNVERIFIED"
     FABRICATED = "FABRICATED"
+
+
+class EvidenceKind(str, Enum):
+    """Evidence shapes supported by this bounded local gate."""
+
+    FILE = "file"
+    HASH = "hash"
+    COMMAND = "command"
 
 
 VerdictName = Literal["MEASURED", "CANON", "UNVERIFIED", "FABRICATED"]
@@ -88,6 +98,8 @@ class GateResult:
     reported_canonical: str | None = None
     recomputed_canonical: str | None = None
     reason: str = ""
+    kind: EvidenceKind | None = None
+    subject: str = ""
 
     @property
     def passed(self) -> bool:
@@ -100,6 +112,55 @@ class GateResult:
         """String form convenient for JSON/UI consumers."""
 
         return self.verdict.value
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a stable receipt shape for ledgers and trajectory adapters."""
+
+        return {
+            "verdict": self.verdict.value,
+            "matches": self.matches,
+            "consented": self.consented,
+            "reported": self.reported_canonical,
+            "recomputed": self.recomputed_canonical,
+            "reason": self.reason,
+            "kind": self.kind.value if self.kind is not None else None,
+            "subject": self.subject,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CommandObservation:
+    """Stable command outcome; output is compared by SHA-256."""
+
+    exit_code: int
+    output_sha256: str
+
+    @classmethod
+    def from_output(cls, exit_code: int, output: bytes | str) -> "CommandObservation":
+        payload = output if isinstance(output, bytes) else str(output).encode("utf-8")
+        return cls(int(exit_code), hashlib.sha256(payload).hexdigest())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"exit_code": self.exit_code, "output_sha256": self.output_sha256}
+
+
+class ConsentError(ValueError):
+    """Base class for explicit, non-recursive consent failures."""
+
+
+class ConsentRequiredError(ConsentError):
+    """Raised when an action has no direct boolean consent."""
+
+
+class RecursiveConsentError(ConsentError):
+    """Raised when a watcher or nested agent tries to authorize an action."""
+
+
+@dataclass(frozen=True, slots=True)
+class ActionAuthorization:
+    principal: str
+    depth: int
+    action: str
 
 
 def compare_reported_to_recomputed(
@@ -162,6 +223,237 @@ def compare_reported_to_recomputed(
     )
 
 
+def _with_context(result: GateResult, kind: EvidenceKind, subject: str) -> GateResult:
+    return GateResult(
+        result.verdict,
+        matches=result.matches,
+        consented=result.consented,
+        reported_canonical=result.reported_canonical,
+        recomputed_canonical=result.recomputed_canonical,
+        reason=result.reason,
+        kind=kind,
+        subject=subject,
+    )
+
+
+def _unverified(
+    kind: EvidenceKind, subject: str, reported: Any, reason: str
+) -> GateResult:
+    return GateResult(
+        Verdict.UNVERIFIED,
+        matches=False,
+        consented=False,
+        reported_canonical=None,
+        recomputed_canonical=None,
+        reason=reason,
+        kind=kind,
+        subject=subject,
+    )
+
+
+def _safe_file(root: str | Path, relative_path: str | Path) -> tuple[Path, str]:
+    root_path = Path(root).expanduser().resolve()
+    candidate = (root_path / Path(relative_path)).resolve()
+    try:
+        subject = candidate.relative_to(root_path).as_posix()
+    except ValueError as exc:
+        raise ValueError("file evidence path escapes its workspace") from exc
+    if not subject or subject == ".":
+        raise ValueError("file evidence path must identify a file")
+    return candidate, subject
+
+
+def watch_file(
+    root: str | Path,
+    relative_path: str | Path,
+    reported: Mapping[str, Any] | None,
+) -> GateResult:
+    """Re-hash one local regular file and compare its stable facts."""
+
+    subject = str(relative_path)
+    if not isinstance(reported, Mapping):
+        return _unverified(
+            EvidenceKind.FILE,
+            subject,
+            reported,
+            "file claim must be an object with exists, size, and sha256",
+        )
+    try:
+        path, subject = _safe_file(root, relative_path)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return _unverified(
+            EvidenceKind.FILE,
+            subject,
+            reported,
+            f"file could not be safely recomputed: {exc}",
+        )
+    try:
+        if path.is_file():
+            payload = path.read_bytes()
+            recomputed = {
+                "exists": True,
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        else:
+            recomputed = {"exists": False, "size": None, "sha256": None}
+    except OSError as exc:
+        return _unverified(
+            EvidenceKind.FILE,
+            subject,
+            reported,
+            f"file could not be read for recomputation: {exc}",
+        )
+    return _with_context(
+        compare_reported_to_recomputed(dict(reported), recomputed),
+        EvidenceKind.FILE,
+        subject,
+    )
+
+
+def watch_hash(
+    value: Any,
+    reported: str | Mapping[str, Any] | None,
+    *,
+    algorithm: str = "sha256",
+    subject: str = "value",
+) -> GateResult:
+    """Hash bytes, text, or canonical JSON and compare the reported digest."""
+
+    normalized_algorithm = algorithm.lower().strip()
+    if normalized_algorithm not in hashlib.algorithms_available:
+        return _unverified(
+            EvidenceKind.HASH,
+            subject,
+            reported,
+            f"unsupported hash algorithm: {algorithm}",
+        )
+    if isinstance(value, bytes):
+        payload = value
+    elif isinstance(value, str):
+        payload = value.encode("utf-8")
+    else:
+        try:
+            payload = canonical_json(value).encode("utf-8")
+        except TypeError as exc:
+            return _unverified(EvidenceKind.HASH, subject, reported, str(exc))
+    digest = hashlib.new(normalized_algorithm, payload).hexdigest()
+    recomputed = {"algorithm": normalized_algorithm, "digest": digest}
+    if isinstance(reported, Mapping):
+        normalized_reported: Any = {
+            "algorithm": str(reported.get("algorithm", normalized_algorithm)).lower(),
+            "digest": str(reported.get("digest", "")).lower(),
+        }
+    else:
+        normalized_reported = {
+            "algorithm": normalized_algorithm,
+            "digest": str(reported or "").lower(),
+        }
+    return _with_context(
+        compare_reported_to_recomputed(normalized_reported, recomputed),
+        EvidenceKind.HASH,
+        subject,
+    )
+
+
+def _command_observation(value: Any) -> CommandObservation | None:
+    if isinstance(value, CommandObservation):
+        return value
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        exit_code = int(value["exit_code"])
+        output_hash = value.get("output_sha256")
+        if output_hash is None and "output" in value:
+            output_hash = hashlib.sha256(
+                str(value["output"]).encode("utf-8")
+            ).hexdigest()
+        if not isinstance(output_hash, str) or not output_hash:
+            return None
+        return CommandObservation(exit_code, output_hash.lower())
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def watch_command(
+    command: str,
+    reported: CommandObservation | Mapping[str, Any] | None,
+    recompute: Callable[[], CommandObservation | Mapping[str, Any]] | None,
+) -> GateResult:
+    """Compare command evidence using one injected callback, never a subprocess.
+
+    A missing or failing callback is ``UNVERIFIED``.  This makes fake exit
+    codes observable in tests without implying that a real external command
+    was run by this module.
+    """
+
+    normalized_reported = _command_observation(reported)
+    if not str(command).strip():
+        return _unverified(
+            EvidenceKind.COMMAND,
+            command,
+            reported,
+            "command claim has no command text",
+        )
+    if normalized_reported is None:
+        return _unverified(
+            EvidenceKind.COMMAND,
+            command,
+            reported,
+            "command claim must include exit_code and output_sha256",
+        )
+    if recompute is None:
+        return _unverified(
+            EvidenceKind.COMMAND,
+            command,
+            reported,
+            "no bounded command recompute callback was provided",
+        )
+    try:
+        recomputed = _command_observation(recompute())
+    except Exception as exc:  # noqa: BLE001 - never turn failure into a pass
+        return _unverified(
+            EvidenceKind.COMMAND,
+            command,
+            reported,
+            f"command recomputation failed: {exc}",
+        )
+    if recomputed is None:
+        return _unverified(
+            EvidenceKind.COMMAND,
+            command,
+            reported,
+            "command recompute returned an invalid observation",
+        )
+    return _with_context(
+        compare_reported_to_recomputed(
+            normalized_reported.to_dict(), recomputed.to_dict()
+        ),
+        EvidenceKind.COMMAND,
+        command,
+    )
+
+
+def authorize_action(
+    action: str,
+    *,
+    principal: str,
+    depth: int = 0,
+    consent: Any = False,
+) -> ActionAuthorization:
+    """Allow consent only from the explicit depth-0 operator."""
+
+    if not has_explicit_consent(consent):
+        raise ConsentRequiredError("explicit operator consent is required")
+    if principal != "operator" or depth != 0:
+        raise RecursiveConsentError(
+            "only the depth-0 operator may authorize an action"
+        )
+    if not str(action).strip():
+        raise ValueError("action must be non-empty")
+    return ActionAuthorization(principal=principal, depth=depth, action=action)
+
+
 def evaluate_watcher(*args: Any, **kwargs: Any) -> GateResult:
     """Short alias for :func:`compare_reported_to_recomputed`."""
 
@@ -169,11 +461,21 @@ def evaluate_watcher(*args: Any, **kwargs: Any) -> GateResult:
 
 
 __all__ = [
+    "ActionAuthorization",
+    "CommandObservation",
+    "ConsentError",
+    "ConsentRequiredError",
+    "EvidenceKind",
     "GateResult",
+    "RecursiveConsentError",
     "Verdict",
     "VerdictName",
+    "authorize_action",
     "canonical_json",
     "compare_reported_to_recomputed",
     "evaluate_watcher",
     "has_explicit_consent",
+    "watch_command",
+    "watch_file",
+    "watch_hash",
 ]

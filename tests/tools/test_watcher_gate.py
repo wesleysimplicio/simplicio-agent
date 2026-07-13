@@ -1,9 +1,25 @@
-"""Focused tests for the deterministic watcher gate."""
+"""Focused tests for the deterministic watcher gate.
+
+The fake callbacks deliberately exercise the comparison boundary only; they
+are not evidence that a real external command or service was verified.
+"""
+
+import hashlib
+
+import pytest
 
 from tools.watcher_gate import (
+    CommandObservation,
+    ConsentRequiredError,
+    EvidenceKind,
+    RecursiveConsentError,
     Verdict,
+    authorize_action,
     compare_reported_to_recomputed,
     has_explicit_consent,
+    watch_command,
+    watch_file,
+    watch_hash,
 )
 
 
@@ -75,3 +91,112 @@ def test_non_json_values_are_unverified():
 
     assert result.verdict is Verdict.UNVERIFIED
     assert result.passed is False
+
+
+def _file_claim(payload: bytes) -> dict[str, object]:
+    return {
+        "exists": True,
+        "size": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
+def test_file_match_is_measured(tmp_path):
+    payload = b"trusted local fixture\n"
+    (tmp_path / "receipt.txt").write_bytes(payload)
+
+    result = watch_file(tmp_path, "receipt.txt", _file_claim(payload))
+
+    assert result.verdict is Verdict.MEASURED
+    assert result.passed
+
+
+def test_file_injected_hash_is_caught_at_injection_point(tmp_path):
+    payload = b"actual bytes\n"
+    (tmp_path / "receipt.txt").write_bytes(payload)
+    forged = _file_claim(payload)
+    forged["sha256"] = "0" * 64
+
+    result = watch_file(tmp_path, "receipt.txt", forged)
+
+    assert result.kind is EvidenceKind.FILE
+    assert result.verdict is Verdict.FABRICATED
+    assert result.passed is False
+
+
+def test_file_path_escape_is_unverified_not_a_fake_pass(tmp_path):
+    result = watch_file(tmp_path, "../outside.txt", _file_claim(b"x"))
+
+    assert result.verdict is Verdict.UNVERIFIED
+    assert result.passed is False
+
+
+def test_hash_injected_digest_is_caught_at_injection_point():
+    result = watch_hash(b"actual", "f" * 64)
+
+    assert result.kind is EvidenceKind.HASH
+    assert result.verdict is Verdict.FABRICATED
+
+
+def test_hash_match_uses_canonical_json():
+    value = {"b": 2, "a": [1, True]}
+    digest = hashlib.sha256(b'{"a":[1,true],"b":2}').hexdigest()
+
+    result = watch_hash(value, {"algorithm": "SHA256", "digest": digest})
+
+    assert result.verdict is Verdict.MEASURED
+    assert result.passed
+
+
+def test_command_forged_exit_code_is_caught_at_injection_point():
+    reported = CommandObservation.from_output(0, "reported pass")
+    actual = CommandObservation.from_output(1, "real failure")
+    calls = 0
+
+    def recompute():
+        nonlocal calls
+        calls += 1
+        return actual
+
+    result = watch_command("pytest tests/unit.py", reported, recompute)
+
+    assert calls == 1
+    assert result.verdict is Verdict.FABRICATED
+    assert result.kind is EvidenceKind.COMMAND
+
+
+def test_command_without_recompute_is_unverified():
+    result = watch_command(
+        "pytest tests/unit.py",
+        CommandObservation.from_output(0, "pass"),
+        None,
+    )
+
+    assert result.verdict is Verdict.UNVERIFIED
+    assert not result.passed
+
+
+def test_command_recompute_failure_is_unverified_not_fabricated():
+    def recompute():
+        raise RuntimeError("fake runner unavailable")
+
+    result = watch_command(
+        "pytest tests/unit.py",
+        CommandObservation.from_output(0, "pass"),
+        recompute,
+    )
+
+    assert result.verdict is Verdict.UNVERIFIED
+    assert "failed" in result.reason
+
+
+def test_only_depth_zero_operator_can_authorize():
+    authorization = authorize_action(
+        "publish", principal="operator", depth=0, consent=True
+    )
+    assert authorization.action == "publish"
+
+    with pytest.raises(RecursiveConsentError):
+        authorize_action("publish", principal="sub-agent", depth=1, consent=True)
+    with pytest.raises(ConsentRequiredError):
+        authorize_action("publish", principal="operator", consent=False)

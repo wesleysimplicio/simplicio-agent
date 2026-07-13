@@ -47,7 +47,7 @@ guaranteed agent in the world**, merging three lineages:
 | Issue | What | Status |
 |---|---|---|
 | #20 | F2 kernel binding (remaining 4 bindings) | Partial (2/6 done) |
-| #21 | F3 N-Nest watcher-gate | Not started |
+| #21 | F3 N-Nest watcher-gate | Partial (bounded local evidence gate; integrations pending) |
 | #22 | F4 ASOLARIA/economy (handles, tail-O(1)) | Not started |
 | #31 | Unified skills system | Not started |
 | #32 | BEHCS multi-agent supervisors | Not started |
