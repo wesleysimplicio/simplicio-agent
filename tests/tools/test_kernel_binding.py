@@ -126,14 +126,15 @@ class TestRunKernel:
             result = kb._run_kernel(["gate", "classify"])
             assert result == {"decision": "allow"}
 
-    def test_empty_stdout_is_empty_dict(self, monkeypatch):
+    def test_empty_stdout_is_an_error(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         with mock_patch("shutil.which", return_value="/usr/bin/simplicio"), \
              mock_patch("subprocess.run") as run:
             run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="", stderr="",
             )
-            assert kb._run_kernel(["checkpoint", "record"]) == {}
+            with pytest.raises(kb.KernelBindingError, match="empty output"):
+                kb._run_kernel(["checkpoint", "record"])
 
     def test_nonzero_exit_raises(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
@@ -285,6 +286,15 @@ class TestEvaluateActionGate:
              mock_patch.object(kb, "_run_kernel", side_effect=kb.KernelBindingError("boom")):
             assert kb.evaluate_action_gate("rm -rf /tmp/x") is None
 
+    def test_unknown_gate_response_fails_closed_in_required_mode(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(kb, "_run_kernel", return_value={"op": "list"}):
+            result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
+        assert result["approved"] is False
+        assert "recognized decision" in result["message"]
+
     def test_stale_kernel_required_mode_fails_closed_with_detail(self, monkeypatch):
         """PATH collisions are real: a binary merely *named* simplicio must
         never be treated as the kernel. Unverified -> block with the why."""
@@ -308,14 +318,16 @@ class TestMirrorCheckpoint:
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         with mock_patch("hermes_cli.config.load_config", return_value={}), \
              mock_patch("shutil.which", return_value=None):
-            kb.mirror_checkpoint("auto", workdir="/tmp/proj")  # must not raise
+            assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is False
 
     def test_calls_kernel_when_present(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         with mock_patch("hermes_cli.config.load_config", return_value={}), \
-             mock_patch("shutil.which", return_value="/usr/bin/simplicio"), \
-             mock_patch.object(kb, "_run_kernel", return_value={}) as run:
-            kb.mirror_checkpoint("auto", workdir="/tmp/proj")
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(
+                 kb, "_run_kernel", return_value={"recorded": True}
+             ) as run:
+            assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is True
             run.assert_called_once()
             args = run.call_args[0][0]
             assert args[:2] == ["checkpoint", "record"]
@@ -323,9 +335,23 @@ class TestMirrorCheckpoint:
     def test_kernel_error_is_swallowed(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         with mock_patch("hermes_cli.config.load_config", return_value={}), \
-             mock_patch("shutil.which", return_value="/usr/bin/simplicio"), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
              mock_patch.object(kb, "_run_kernel", side_effect=kb.KernelBindingError("boom")):
-            kb.mirror_checkpoint("auto", workdir="/tmp/proj")  # must not raise
+            assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is False
+
+    def test_required_mode_raises_when_kernel_is_unavailable(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        cfg = {"kernel_binding": {"checkpoint": {"mode": "required"}}}
+        with mock_patch("hermes_cli.config.load_config", return_value=cfg), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(False, "missing")):
+            with pytest.raises(kb.KernelBindingError, match="no healthy kernel"):
+                kb.mirror_checkpoint("auto", workdir="/tmp/proj")
+
+    def test_unacknowledged_response_is_not_reported_as_mirrored(self, monkeypatch):
+        with mock_patch("hermes_cli.config.load_config", return_value={}), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(kb, "_run_kernel", return_value={"op": "list"}):
+            assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is False
 
 
 # =========================================================================
@@ -365,6 +391,36 @@ class TestEditMechanical:
             call_args = run.call_args[0][0]
             assert call_args[0] == "edit"
             assert json.loads(call_args[1]) == plan
+
+    def test_unacknowledged_result_does_not_claim_success(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        plan = {"file": "x.py", "operations": []}
+        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("auto")), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(kb, "_run_kernel", return_value={"status": "error"}):
+            assert kb.edit_mechanical(plan) is None
+
+
+# =========================================================================
+# ledger_append -- only an explicit append acknowledgement counts
+# =========================================================================
+
+class TestLedgerAppend:
+    def test_unacknowledged_json_is_not_success(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch("hermes_cli.config.load_config", return_value={}), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(kb, "_run_kernel", return_value={"op": "list"}):
+            assert kb.ledger_append({"kind": "test"}) is False
+
+    def test_explicit_append_acknowledgement_is_success(self, monkeypatch):
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        with mock_patch("hermes_cli.config.load_config", return_value={}), \
+             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
+             mock_patch.object(
+                 kb, "_run_kernel", return_value={"appended": True}
+             ):
+            assert kb.ledger_append({"kind": "test"}) is True
 
 
 # =========================================================================
