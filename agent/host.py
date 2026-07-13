@@ -12,9 +12,15 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Lock
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, overload
 
-from .protocol import AgentProtocol
+from .protocol import (
+    AgentConversationResult,
+    AgentProtocol,
+    HostStatusSnapshot,
+    HostTurnRequest,
+    SessionSnapshot,
+)
 
 
 class HostBackpressure(RuntimeError):
@@ -164,7 +170,7 @@ class SessionPool:
             self._entries.pop(identity)
             return True
 
-    def snapshot(self) -> list[dict[str, Any]]:
+    def snapshot(self) -> list[SessionSnapshot]:
         with self._lock:
             return [
                 {
@@ -233,6 +239,38 @@ class AgentHost:
         self._stopping = False
         self._idempotent: dict[tuple[SessionIdentity, str], Future[Any]] = {}
 
+    @staticmethod
+    def _coerce_turn_request(
+        profile: str | HostTurnRequest,
+        session_id: str | None = None,
+        user_message: str | None = None,
+        *,
+        idempotency_key: Optional[str] = None,
+        incarnation: str = "default",
+        revision: int = 0,
+        **conversation_kwargs: Any,
+    ) -> HostTurnRequest:
+        if isinstance(profile, HostTurnRequest):
+            return profile
+        if session_id is None or user_message is None:
+            raise TypeError("session_id and user_message are required")
+        return HostTurnRequest(
+            profile=profile,
+            session_id=session_id,
+            user_message=user_message,
+            idempotency_key=idempotency_key,
+            incarnation=incarnation,
+            revision=revision,
+            conversation_kwargs=conversation_kwargs,
+        )
+
+    @overload
+    def submit(
+        self,
+        profile: HostTurnRequest,
+    ) -> Future[AgentConversationResult]: ...
+
+    @overload
     def submit(
         self,
         profile: str,
@@ -243,11 +281,35 @@ class AgentHost:
         incarnation: str = "default",
         revision: int = 0,
         **conversation_kwargs: Any,
-    ) -> Future[Any]:
-        identity = self.directory.resolve(
-            profile, session_id, incarnation=incarnation, revision=revision
+    ) -> Future[AgentConversationResult]: ...
+
+    def submit(
+        self,
+        profile: str | HostTurnRequest,
+        session_id: str | None = None,
+        user_message: str | None = None,
+        *,
+        idempotency_key: Optional[str] = None,
+        incarnation: str = "default",
+        revision: int = 0,
+        **conversation_kwargs: Any,
+    ) -> Future[AgentConversationResult]:
+        request = self._coerce_turn_request(
+            profile,
+            session_id,
+            user_message,
+            idempotency_key=idempotency_key,
+            incarnation=incarnation,
+            revision=revision,
+            **conversation_kwargs,
         )
-        key = (identity, idempotency_key) if idempotency_key else None
+        identity = self.directory.resolve(
+            request.profile,
+            request.session_id,
+            incarnation=request.incarnation,
+            revision=request.revision,
+        )
+        key = (identity, request.idempotency_key) if request.idempotency_key else None
         with self._lock:
             if self._stopping:
                 raise HostShutdown("agent host is draining")
@@ -259,7 +321,8 @@ class AgentHost:
             future = self.scheduler.submit(
                 lease.entry,
                 lambda: lease.agent.run_conversation(
-                    user_message, **conversation_kwargs
+                    request.user_message,
+                    **dict(request.conversation_kwargs),
                 ),
             )
         except BaseException:
@@ -275,9 +338,25 @@ class AgentHost:
                 self._idempotent[key] = future
         return future
 
+    @overload
+    def run_turn(self, profile: HostTurnRequest) -> AgentConversationResult: ...
+
+    @overload
     def run_turn(
-        self, profile: str, session_id: str, user_message: str, **kwargs: Any
-    ) -> Any:
+        self,
+        profile: str,
+        session_id: str,
+        user_message: str,
+        **kwargs: Any,
+    ) -> AgentConversationResult: ...
+
+    def run_turn(
+        self,
+        profile: str | HostTurnRequest,
+        session_id: str | None = None,
+        user_message: str | None = None,
+        **kwargs: Any,
+    ) -> AgentConversationResult:
         """Synchronous adapter for legacy CLI/TUI call sites."""
         return self.submit(profile, session_id, user_message, **kwargs).result()
 
@@ -294,7 +373,7 @@ class AgentHost:
         )
         return self.pool.recover(identity)
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> HostStatusSnapshot:
         with self._lock:
             stopping = self._stopping
         return {

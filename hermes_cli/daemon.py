@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.host import AgentHost, HostBackpressure, HostShutdown
+from agent.protocol import HostTurnRequest
 
 try:
     from hermes_constants import get_hermes_home
@@ -359,14 +360,11 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                     resp = {"ok": True, "host": host.status()}
                 elif op == "turn.start":
                     try:
-                        future = host.submit(
-                            str(req.get("profile", profile)),
-                            str(req["session_id"]),
-                            str(req["message"]),
-                            idempotency_key=req.get("idempotency_key"),
-                            incarnation=str(req.get("incarnation", "default")),
-                            revision=int(req.get("revision", 0)),
+                        request = HostTurnRequest.from_mapping(
+                            req,
+                            default_profile=profile,
                         )
+                        future = host.submit(request)
                         result = future.result(timeout=float(req.get("timeout", 300)))
                         resp = {"ok": True, "result": result}
                     except (KeyError, ValueError) as exc:
