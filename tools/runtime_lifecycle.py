@@ -37,16 +37,28 @@ class ReadinessProbes:
     caller that only knows about the binary version from claiming readiness.
     """
 
+    health_ready: bool = False
     migrations_ready: bool = False
+    seed_ready: bool = False
     neural_db_ready: bool = False
+    required_schemas: Mapping[str, bool] = field(default_factory=dict)
     required_capabilities: Mapping[str, bool] = field(default_factory=dict)
     optional_capabilities: Mapping[str, bool] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.health_ready, bool):
+            raise TypeError("health_ready must be bool")
         if not isinstance(self.migrations_ready, bool):
             raise TypeError("migrations_ready must be bool")
+        if not isinstance(self.seed_ready, bool):
+            raise TypeError("seed_ready must be bool")
         if not isinstance(self.neural_db_ready, bool):
             raise TypeError("neural_db_ready must be bool")
+        object.__setattr__(
+            self,
+            "required_schemas",
+            _freeze_capabilities(self.required_schemas),
+        )
         object.__setattr__(
             self,
             "required_capabilities",
@@ -66,11 +78,19 @@ class RuntimeReadiness:
     schema: str
     phase: LifecyclePhase
     reason_code: str
+    requested_min_version: str
     runtime_version: Optional[str]
+    selected_source: str
+    binary_resolved: bool
+    binary_compatible: bool
+    health_ready: bool
     migrations_ready: bool
+    seed_ready: bool
     neural_db_ready: bool
+    required_schemas: Mapping[str, bool]
     required_capabilities: Mapping[str, bool]
     optional_capabilities: Mapping[str, bool]
+    repair_plan: tuple[str, ...]
     detail: str = ""
 
     @property
@@ -84,11 +104,19 @@ class RuntimeReadiness:
             "schema": self.schema,
             "phase": self.phase.value,
             "reason_code": self.reason_code,
+            "requested_min_version": self.requested_min_version,
             "runtime_version": self.runtime_version,
+            "selected_source": self.selected_source,
+            "binary_resolved": self.binary_resolved,
+            "binary_compatible": self.binary_compatible,
+            "health_ready": self.health_ready,
             "migrations_ready": self.migrations_ready,
+            "seed_ready": self.seed_ready,
             "neural_db_ready": self.neural_db_ready,
+            "required_schemas": dict(self.required_schemas),
             "required_capabilities": dict(self.required_capabilities),
             "optional_capabilities": dict(self.optional_capabilities),
+            "repair_plan": list(self.repair_plan),
             "ready": self.ready,
             "detail": self.detail,
         }
@@ -136,7 +164,16 @@ class RuntimeLifecycleManager:
                 reason_code=reason_code,
                 status=status,
                 probes=probes,
-                detail="runtime version handshake is not compatible",
+                detail=status.detail or "runtime version handshake is not compatible",
+            )
+
+        if not probes.health_ready:
+            return _result(
+                phase=LifecyclePhase.NOT_READY,
+                reason_code="runtime_health_not_ready",
+                status=status,
+                probes=probes,
+                detail="runtime health probe is not ready",
             )
 
         if not probes.migrations_ready:
@@ -148,6 +185,15 @@ class RuntimeLifecycleManager:
                 detail="runtime migrations are not ready",
             )
 
+        if not probes.seed_ready:
+            return _result(
+                phase=LifecyclePhase.NOT_READY,
+                reason_code="seed_not_ready",
+                status=status,
+                probes=probes,
+                detail="runtime seed state is not ready",
+            )
+
         if not probes.neural_db_ready:
             return _result(
                 phase=LifecyclePhase.NOT_READY,
@@ -155,6 +201,16 @@ class RuntimeLifecycleManager:
                 status=status,
                 probes=probes,
                 detail="neural database is not ready",
+            )
+
+        unhealthy_schemas = _unhealthy(probes.required_schemas)
+        if unhealthy_schemas:
+            return _result(
+                phase=LifecyclePhase.NOT_READY,
+                reason_code="required_schema_missing",
+                status=status,
+                probes=probes,
+                detail="required schemas unavailable: " + ", ".join(unhealthy_schemas),
             )
 
         unhealthy_required = _unhealthy(probes.required_capabilities)
@@ -216,10 +272,50 @@ def _result(
         schema=_HANDSHAKE_SCHEMA,
         phase=phase,
         reason_code=reason_code,
+        requested_min_version=status.min_version,
         runtime_version=status.version,
+        selected_source=status.source,
+        binary_resolved=status.present,
+        binary_compatible=status.satisfied,
+        health_ready=probes.health_ready,
         migrations_ready=probes.migrations_ready,
+        seed_ready=probes.seed_ready,
         neural_db_ready=probes.neural_db_ready,
+        required_schemas=probes.required_schemas,
         required_capabilities=probes.required_capabilities,
         optional_capabilities=probes.optional_capabilities,
+        repair_plan=_repair_plan(reason_code, status),
         detail=detail,
     )
+
+
+def _repair_plan(reason_code: str, status: RuntimeStatus) -> tuple[str, ...]:
+    if reason_code == "runtime_absent":
+        return ("run `simplicio-agent doctor --fix` to install the managed runtime",)
+    if reason_code == "blocked_runtime_handshake":
+        return (
+            "verify the selected binary is the Simplicio Runtime and rerun the handshake",
+            "run `simplicio-agent doctor --fix` if the managed runtime needs reinstall",
+        )
+    if reason_code == "blocked_incompatible_runtime":
+        plan = ["run `simplicio-agent doctor --fix` to install or update the pinned runtime"]
+        if status.source in {"env", "path"}:
+            plan.append(
+                "remove or upgrade the user-managed runtime that is winning selection"
+            )
+        return tuple(plan)
+    if reason_code == "runtime_health_not_ready":
+        return ("restart or reconnect the managed runtime process before governed effects",)
+    if reason_code == "migrations_not_ready":
+        return ("apply runtime migrations before the first governed mutation",)
+    if reason_code == "seed_not_ready":
+        return ("complete runtime seed/bootstrap before the first governed mutation",)
+    if reason_code == "neural_db_not_ready":
+        return ("repair or reinitialize the neural database before governed effects",)
+    if reason_code == "required_schema_missing":
+        return ("negotiate the required handshake schemas before governed effects",)
+    if reason_code == "required_capability_unhealthy":
+        return ("restore required runtime capabilities before governed effects",)
+    if reason_code == "optional_capability_unhealthy":
+        return ("optional capability degraded; repair it or continue in degraded mode",)
+    return ()

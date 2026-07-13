@@ -21,15 +21,21 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Callable, Mapping
+from typing import Callable, Iterable, Mapping
+
+from tools.runtime_lock_contract import is_strict_semver
 
 
 MANIFEST_SCHEMA_VERSION = 1
+COMPATIBILITY_SCHEMA = "simplicio.update-compatibility/v1"
+COMPATIBILITY_VERSION = 1
 MAX_ARTIFACT_BYTES = 128 * 1024 * 1024
 MAX_FILES = 10_000
 MAX_UNPACKED_BYTES = 256 * 1024 * 1024
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SLOT_NAME = re.compile(r"candidate-[0-9a-f]{32}\Z")
+_MIGRATION_ID = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*\Z")
+_EFFECT_NAME = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*\Z")
 _SLOTS_DIR = "slots"
 _ACTIVE_FILE = "active.json"
 _STATE_FILE = "update-state.json"
@@ -46,6 +52,30 @@ class UpdateError(RuntimeError):
 
 class UpdateInterrupted(UpdateError):
     """Deterministic fault-injection signal used by recovery tests."""
+
+
+def _require_string_list(
+    value: object,
+    name: str,
+    *,
+    pattern: re.Pattern[str] | None = None,
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise UpdateError(f"{name} must be a list of strings")
+    items: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise UpdateError(f"{name} must contain only non-empty strings")
+        normalized = item.strip()
+        if pattern is not None and not pattern.fullmatch(normalized):
+            raise UpdateError(f"{name} contains an invalid value: {normalized!r}")
+        if normalized not in seen:
+            seen.add(normalized)
+            items.append(normalized)
+    return tuple(items)
 
 
 def _require_int(value: object, name: str) -> int:
@@ -155,6 +185,151 @@ class ActivationRecord:
     version: str
     previous_slot: str | None = None
     previous_version: str | None = None
+    applied_migrations: tuple[str, ...] = ()
+    previous_applied_migrations: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CompatibilityRule:
+    """One exact version transition and its migration gates."""
+
+    from_version: str | None
+    to_version: str
+    supported: bool
+    migration_ids: tuple[str, ...] = ()
+    blocked_effects: tuple[str, ...] = ()
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        if self.from_version is not None and not is_strict_semver(self.from_version):
+            raise UpdateError("compatibility from_version must be strict semver or null")
+        if not is_strict_semver(self.to_version):
+            raise UpdateError("compatibility to_version must be strict semver")
+        for migration_id in self.migration_ids:
+            if not _MIGRATION_ID.fullmatch(migration_id):
+                raise UpdateError(
+                    f"compatibility migration id is invalid: {migration_id!r}"
+                )
+        for effect in self.blocked_effects:
+            if not _EFFECT_NAME.fullmatch(effect):
+                raise UpdateError(
+                    f"compatibility blocked effect is invalid: {effect!r}"
+                )
+        if not self.supported and self.migration_ids:
+            raise UpdateError("unsupported transitions cannot declare migrations")
+
+
+@dataclass(frozen=True)
+class CompatibilityMatrix:
+    """Machine-readable authority for update and downgrade transitions."""
+
+    schema: str
+    version: int
+    rows: tuple[CompatibilityRule, ...]
+
+    def __post_init__(self) -> None:
+        if self.schema != COMPATIBILITY_SCHEMA:
+            raise UpdateError(f"unsupported compatibility schema: {self.schema!r}")
+        if self.version != COMPATIBILITY_VERSION:
+            raise UpdateError(
+                f"unsupported compatibility version: {self.version!r}"
+            )
+        seen: set[tuple[str | None, str]] = set()
+        for row in self.rows:
+            key = (row.from_version, row.to_version)
+            if key in seen:
+                raise UpdateError("compatibility rows must be unique per transition")
+            seen.add(key)
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> "CompatibilityMatrix":
+        if not isinstance(value, Mapping):
+            raise UpdateError("compatibility matrix must be a JSON object")
+        rows_value = value.get("rows")
+        if not isinstance(rows_value, list):
+            raise UpdateError("compatibility rows must be a list")
+        rows: list[CompatibilityRule] = []
+        for item in rows_value:
+            if not isinstance(item, Mapping):
+                raise UpdateError("compatibility rows must contain only objects")
+            from_version = item.get("from_version")
+            if from_version is not None and not isinstance(from_version, str):
+                raise UpdateError("compatibility from_version must be a string or null")
+            to_version = item.get("to_version")
+            if not isinstance(to_version, str):
+                raise UpdateError("compatibility to_version must be a string")
+            supported = item.get("supported")
+            if not isinstance(supported, bool):
+                raise UpdateError("compatibility supported must be a boolean")
+            notes = item.get("notes", "")
+            if not isinstance(notes, str):
+                raise UpdateError("compatibility notes must be a string")
+            rows.append(
+                CompatibilityRule(
+                    from_version=from_version,
+                    to_version=to_version,
+                    supported=supported,
+                    migration_ids=_require_string_list(
+                        item.get("migration_ids", []),
+                        "compatibility migration_ids",
+                        pattern=_MIGRATION_ID,
+                    ),
+                    blocked_effects=_require_string_list(
+                        item.get("blocked_effects", []),
+                        "compatibility blocked_effects",
+                        pattern=_EFFECT_NAME,
+                    ),
+                    notes=notes,
+                )
+            )
+        version = value.get("version")
+        if isinstance(version, bool) or not isinstance(version, int):
+            raise UpdateError("compatibility version must be an integer")
+        return cls(
+            schema=str(value.get("schema", "")),
+            version=version,
+            rows=tuple(rows),
+        )
+
+    def transition(
+        self, current_version: str | None, target_version: str
+    ) -> CompatibilityRule | None:
+        return next(
+            (
+                row
+                for row in self.rows
+                if row.from_version == current_version and row.to_version == target_version
+            ),
+            None,
+        )
+
+
+@dataclass(frozen=True)
+class UpdatePlan:
+    """Deterministic validation result for one update transition."""
+
+    current_version: str | None
+    target_version: str
+    direction: str
+    allowed: bool
+    migration_ids: tuple[str, ...]
+    blocked_effects: tuple[str, ...]
+    rollback_available: bool
+    reason: str
+    notes: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "current_version": self.current_version,
+            "target_version": self.target_version,
+            "direction": self.direction,
+            "allowed": self.allowed,
+            "migration_ids": list(self.migration_ids),
+            "blocked_effects": list(self.blocked_effects),
+            "rollback_available": self.rollback_available,
+            "reason": self.reason,
+            "notes": self.notes,
+        }
 
 
 @dataclass(frozen=True)
@@ -263,7 +438,113 @@ class UpdateContract:
         _validate_slot_name(active_slot)
         if previous_slot is not None:
             _validate_slot_name(previous_slot)
-        return ActivationRecord(active_slot, version, previous_slot, previous_version)
+        return ActivationRecord(
+            active_slot,
+            version,
+            previous_slot,
+            previous_version,
+            _require_string_list(
+                value.get("applied_migrations"),
+                "active.applied_migrations",
+                pattern=_MIGRATION_ID,
+            ),
+            _require_string_list(
+                value.get("previous_applied_migrations"),
+                "active.previous_applied_migrations",
+                pattern=_MIGRATION_ID,
+            ),
+        )
+
+    def plan(
+        self,
+        manifest: UpdateManifest,
+        matrix: CompatibilityMatrix,
+        *,
+        in_flight_effects: Iterable[str] = (),
+    ) -> UpdatePlan:
+        """Validate one transition before activation, fail-closed."""
+
+        if self.state_path.exists():
+            raise UpdateError("cannot validate a plan while another update is in flight")
+        current = self.current()
+        current_version = current.version if current is not None else None
+        target_version = manifest.version
+        if current_version is None:
+            return UpdatePlan(
+                current_version=None,
+                target_version=target_version,
+                direction="install",
+                allowed=True,
+                migration_ids=(),
+                blocked_effects=(),
+                rollback_available=False,
+                reason="fresh_install",
+            )
+        transition = matrix.transition(current_version, target_version)
+        direction = _plan_direction(
+            current_version,
+            target_version,
+            has_pending_migrations=bool(transition and transition.migration_ids),
+        )
+        if transition is None:
+            return UpdatePlan(
+                current_version=current_version,
+                target_version=target_version,
+                direction=direction,
+                allowed=False,
+                migration_ids=(),
+                blocked_effects=(),
+                rollback_available=current.previous_slot is not None,
+                reason="unsupported_transition",
+            )
+        if not transition.supported:
+            return UpdatePlan(
+                current_version=current_version,
+                target_version=target_version,
+                direction=direction,
+                allowed=False,
+                migration_ids=(),
+                blocked_effects=(),
+                rollback_available=current.previous_slot is not None,
+                reason="incompatible_transition",
+                notes=transition.notes,
+            )
+        active_effects = {item.strip() for item in in_flight_effects if item.strip()}
+        pending_migrations = tuple(
+            migration_id
+            for migration_id in transition.migration_ids
+            if migration_id not in set(current.applied_migrations)
+        )
+        blocked_effects = tuple(
+            effect for effect in transition.blocked_effects if effect in active_effects
+        )
+        if blocked_effects:
+            return UpdatePlan(
+                current_version=current_version,
+                target_version=target_version,
+                direction=direction,
+                allowed=False,
+                migration_ids=pending_migrations,
+                blocked_effects=blocked_effects,
+                rollback_available=current.previous_slot is not None,
+                reason="blocked_in_flight_effects",
+                notes=transition.notes,
+            )
+        if current_version == target_version and not pending_migrations:
+            direction = "noop"
+        elif current_version == target_version:
+            direction = "migrate"
+        return UpdatePlan(
+            current_version=current_version,
+            target_version=target_version,
+            direction=direction,
+            allowed=True,
+            migration_ids=pending_migrations,
+            blocked_effects=(),
+            rollback_available=current.previous_slot is not None,
+            reason="compatible",
+            notes=transition.notes,
+        )
 
     def stage(
         self,
@@ -332,6 +613,7 @@ class UpdateContract:
         self,
         staged: StagedUpdate,
         *,
+        plan: UpdatePlan | None = None,
         health_check: Callable[[Path], bool] | None = None,
         interrupt_after: str | None = None,
     ) -> ActivationRecord:
@@ -347,6 +629,13 @@ class UpdateContract:
         ):
             raise UpdateError("staged update is not the pending candidate")
         old = self.current()
+        if plan is not None:
+            if not plan.allowed:
+                raise UpdateError(f"update plan is blocked: {plan.reason}")
+            if plan.target_version != staged.manifest.version:
+                raise UpdateError("update plan does not match the staged version")
+            if plan.current_version != (old.version if old is not None else None):
+                raise UpdateError("update plan does not match the current installation")
         staging = self.slots / _STAGING_DIR
         candidate = self.slots / staged.slot
         if not staging.is_dir():
@@ -365,11 +654,17 @@ class UpdateContract:
         })
         if interrupt_after == "state":
             raise UpdateInterrupted("interrupted after activation state")
+        applied_migrations = _merge_migrations(
+            old.applied_migrations if old is not None else (),
+            plan.migration_ids if plan is not None else (),
+        )
         record = ActivationRecord(
             staged.slot,
             staged.manifest.version,
             old.active_slot if old else None,
             old.version if old else None,
+            applied_migrations,
+            old.applied_migrations if old else (),
         )
         self._write_active(record)
         if interrupt_after == "pointer":
@@ -412,6 +707,8 @@ class UpdateContract:
             current.previous_version or self._slot_version(previous_path),
             current.active_slot,
             current.version,
+            current.previous_applied_migrations,
+            current.applied_migrations,
         )
         self._write_active(record)
         self._write_state({
@@ -443,19 +740,8 @@ class UpdateContract:
         if phase == "activating":
             current = self.current()
             if current is not None and current.active_slot == slot:
-                committed = ActivationRecord(
-                    slot,
-                    str(state.get("version", current.version)),
-                    str(state["old_active_slot"])
-                    if state.get("old_active_slot")
-                    else None,
-                    str(state["old_active_version"])
-                    if state.get("old_active_version")
-                    else None,
-                )
-                self._write_active(committed)
-                self._finish_commit(committed)
-                return committed
+                self._finish_commit(current)
+                return current
             shutil.rmtree(self.slots / slot, ignore_errors=True)
             self.state_path.unlink(missing_ok=True)
             return current
@@ -502,6 +788,8 @@ class UpdateContract:
                 "version": record.version,
                 "previous_slot": record.previous_slot,
                 "previous_version": record.previous_version,
+                "applied_migrations": list(record.applied_migrations),
+                "previous_applied_migrations": list(record.previous_applied_migrations),
             },
         )
 
@@ -526,8 +814,37 @@ class UpdateContract:
         return "unknown"
 
 
+def _merge_migrations(
+    existing: Iterable[str], new_items: Iterable[str]
+) -> tuple[str, ...]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for item in list(existing) + list(new_items):
+        if item not in seen:
+            seen.add(item)
+            merged.append(item)
+    return tuple(merged)
+
+
+def _plan_direction(
+    current_version: str,
+    target_version: str,
+    *,
+    has_pending_migrations: bool,
+) -> str:
+    if current_version == target_version:
+        return "migrate" if has_pending_migrations else "noop"
+    current_parts = tuple(int(piece) for piece in current_version.split("."))
+    target_parts = tuple(int(piece) for piece in target_version.split("."))
+    return "upgrade" if target_parts > current_parts else "downgrade"
+
+
 __all__ = [
     "ActivationRecord",
+    "CompatibilityMatrix",
+    "CompatibilityRule",
+    "COMPATIBILITY_SCHEMA",
+    "COMPATIBILITY_VERSION",
     "ManifestError",
     "MAX_ARTIFACT_BYTES",
     "MAX_FILES",
@@ -537,5 +854,6 @@ __all__ = [
     "UpdateError",
     "UpdateInterrupted",
     "UpdateManifest",
+    "UpdatePlan",
     "directory_sha256",
 ]

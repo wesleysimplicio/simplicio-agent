@@ -1,15 +1,15 @@
-"""Pure closed-loop action policy primitives.
+"""Pure closed-loop controller contract for bounded next-step decisions.
 
-This module chooses the next *bounded* step from an explicit estimate and a
-set of action candidates.  It never executes an action or changes authority:
-the Runtime action gate remains the enforcement point.  Unknown, stale, or
-conflicting state fails closed to observation, and a committed-but-unverified
-effect always wins over retrying the candidate.
+This module is intentionally narrow: it accepts a typed state estimate,
+candidate actions, anti-oscillation signals, and a versioned policy.  It
+returns one bounded decision for the *next* observation boundary only.  The
+controller never executes tools, mutates state stores, or bypasses the Runtime
+action gate.
 
-The contract is intentionally small so callers can feed it snapshots from
-operational awareness (#160), goals from ``GoalContract`` (#147), and policy
-from the universal action policy (#156) without creating another state store
-or resource governor.
+Missing, stale, conflicting, or otherwise insufficient state fails closed to
+observe/wait/clarify/block outcomes.  A committed-but-unverified effect wins
+over retrying the same action, and repeated failure fingerprints can suppress
+oscillating retries until a different strategy is chosen.
 """
 
 from __future__ import annotations
@@ -24,8 +24,6 @@ CONTROLLER_SCHEMA_VERSION = "simplicio.closed-loop-controller/v1"
 
 
 class DecisionKind(str, Enum):
-    """The only outcomes a controller may return."""
-
     ACTION = "action"
     OBSERVE = "observe"
     WAIT = "wait"
@@ -34,16 +32,12 @@ class DecisionKind(str, Enum):
 
 
 class Freshness(str, Enum):
-    """Freshness of the state boundary used for a decision."""
-
     FRESH = "fresh"
     STALE = "stale"
     UNKNOWN = "unknown"
 
 
 class RiskClass(str, Enum):
-    """Risk vocabulary shared with the action-policy boundary."""
-
     READ = "read"
     REVERSIBLE_WRITE = "reversible_write"
     INSTALL = "install"
@@ -57,12 +51,11 @@ class RiskClass(str, Enum):
 
 
 class ReasonCode(str, Enum):
-    """Stable, user-safe reasons; these are not chain-of-thought."""
-
     ACTION_SELECTED = "action_selected"
     COMMITTED_EFFECT_REQUIRES_RECONCILIATION = (
         "committed_effect_requires_reconciliation"
     )
+    MISSING_OBSERVATIONS = "missing_observations"
     CONFLICTING_OBSERVATIONS = "conflicting_observations"
     STATE_NOT_FRESH = "state_not_fresh"
     LOW_PRECONDITION_CONFIDENCE = "low_precondition_confidence"
@@ -71,7 +64,17 @@ class ReasonCode(str, Enum):
     HUMAN_GATE_REQUIRED = "human_gate_required"
     BUDGET_EXCEEDED = "budget_exceeded"
     MUTATION_DISABLED = "mutation_disabled"
+    OSCILLATION_COOLDOWN_ACTIVE = "oscillation_cooldown_active"
+    STRATEGY_SWITCH_REQUIRED = "strategy_switch_required"
     NO_SAFE_ACTION = "no_safe_action"
+
+
+class ConstraintStatus(str, Enum):
+    PASSED = "passed"
+    BLOCKED = "blocked"
+    REQUIRES_CLARIFY = "requires_clarify"
+    WAITING = "waiting"
+    SUPPRESSED = "suppressed"
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -95,7 +98,7 @@ def _nonnegative(value: float, field_name: str) -> float:
     return value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ActionCost:
     """Predicted cost receipt for one candidate action."""
 
@@ -140,7 +143,7 @@ class ActionCost:
         }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ActionBudget:
     """Optional ceilings supplied by the existing resource governor."""
 
@@ -181,13 +184,24 @@ class ActionBudget:
             exceeded.append("resource_units")
         return tuple(exceeded)
 
+    def active_constraints(self) -> tuple[str, ...]:
+        constraints: list[str] = []
+        if self.latency_ms is not None:
+            constraints.append(f"budget.latency_ms<={self.latency_ms}")
+        if self.tokens is not None:
+            constraints.append(f"budget.tokens<={self.tokens}")
+        if self.resource_units is not None:
+            constraints.append(f"budget.resource_units<={self.resource_units}")
+        return tuple(constraints)
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class StateEstimate:
-    """Minimal explicit state boundary consumed by the policy."""
+    """Explicit state boundary consumed by the policy."""
 
     freshness: Freshness = Freshness.UNKNOWN
     confidence: float | None = None
+    missing_inputs: tuple[str, ...] = ()
     conflicts: tuple[str, ...] = ()
     capability_available: bool = False
     effect_committed: bool = False
@@ -201,12 +215,28 @@ class StateEstimate:
             )
         object.__setattr__(
             self,
-            "conflicts",
-            tuple(_require_text(item, "conflict") for item in self.conflicts),
+            "missing_inputs",
+            tuple(
+                sorted(
+                    {
+                        _require_text(item, "missing_input")
+                        for item in self.missing_inputs
+                    }
+                )
+            ),
         )
+        object.__setattr__(
+            self,
+            "conflicts",
+            tuple(sorted({_require_text(item, "conflict") for item in self.conflicts})),
+        )
+        if not isinstance(self.capability_available, bool):
+            raise TypeError("capability_available must be boolean")
+        if not isinstance(self.effect_committed, bool):
+            raise TypeError("effect_committed must be boolean")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ActionCandidate:
     """A proposed action with enough data for a safe, explainable choice."""
 
@@ -243,19 +273,165 @@ class ActionCandidate:
         object.__setattr__(
             self, "uncertainty", _unit_interval(self.uncertainty, "uncertainty")
         )
+        if not isinstance(self.mutating, bool):
+            raise TypeError("mutating must be boolean")
+        if not isinstance(self.irreversible, bool):
+            raise TypeError("irreversible must be boolean")
+        if not isinstance(self.requires_human_gate, bool):
+            raise TypeError("requires_human_gate must be boolean")
 
 
-_DEFAULT_HUMAN_GATED_RISKS = frozenset({
-    RiskClass.EXTERNAL_COMMUNICATION,
-    RiskClass.PUBLISH,
-    RiskClass.DELETE,
-    RiskClass.PAYMENT,
-    RiskClass.CREDENTIAL,
-    RiskClass.PRIVILEGE_ESCALATION,
-})
+@dataclass(frozen=True, slots=True)
+class ConstraintReceipt:
+    """Explicit policy or budget constraint evaluation."""
+
+    constraint_id: str
+    status: ConstraintStatus
+    detail: str
+    candidate_digest: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "constraint_id", _require_text(self.constraint_id, "constraint_id")
+        )
+        if not isinstance(self.status, ConstraintStatus):
+            object.__setattr__(self, "status", ConstraintStatus(self.status))
+        object.__setattr__(self, "detail", _require_text(self.detail, "detail"))
+        if self.candidate_digest:
+            object.__setattr__(
+                self,
+                "candidate_digest",
+                _require_text(self.candidate_digest, "candidate_digest"),
+            )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "constraint_id": self.constraint_id,
+            "status": self.status.value,
+            "detail": self.detail,
+            "candidate_digest": self.candidate_digest,
+        }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
+class AntiOscillationState:
+    """Recent failure fingerprint state shared by the caller."""
+
+    fingerprint: str = ""
+    repeated_failures: int = 0
+    cooldown_remaining: int = 0
+    last_action_digest: str = ""
+    suppressed_actions: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.fingerprint:
+            object.__setattr__(
+                self, "fingerprint", _require_text(self.fingerprint, "fingerprint")
+            )
+        if (
+            not isinstance(self.repeated_failures, int)
+            or isinstance(self.repeated_failures, bool)
+            or self.repeated_failures < 0
+        ):
+            raise ValueError("repeated_failures must be a non-negative integer")
+        if (
+            not isinstance(self.cooldown_remaining, int)
+            or isinstance(self.cooldown_remaining, bool)
+            or self.cooldown_remaining < 0
+        ):
+            raise ValueError("cooldown_remaining must be a non-negative integer")
+        if self.last_action_digest:
+            object.__setattr__(
+                self,
+                "last_action_digest",
+                _require_text(self.last_action_digest, "last_action_digest"),
+            )
+        object.__setattr__(
+            self,
+            "suppressed_actions",
+            tuple(
+                sorted(
+                    {
+                        _require_text(item, "suppressed_action")
+                        for item in self.suppressed_actions
+                    }
+                )
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AntiOscillationReceipt:
+    """Deterministic receipt for cooldown / hysteresis / strategy switching."""
+
+    fingerprint: str
+    repeated_failures: int
+    retry_limit: int
+    cooldown_remaining: int
+    suppressed_actions: tuple[str, ...]
+    strategy_switch_required: bool
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "fingerprint", _require_text(self.fingerprint, "fingerprint")
+        )
+        if (
+            not isinstance(self.repeated_failures, int)
+            or isinstance(self.repeated_failures, bool)
+            or self.repeated_failures < 0
+        ):
+            raise ValueError("repeated_failures must be a non-negative integer")
+        if (
+            not isinstance(self.retry_limit, int)
+            or isinstance(self.retry_limit, bool)
+            or self.retry_limit < 1
+        ):
+            raise ValueError("retry_limit must be a positive integer")
+        if (
+            not isinstance(self.cooldown_remaining, int)
+            or isinstance(self.cooldown_remaining, bool)
+            or self.cooldown_remaining < 0
+        ):
+            raise ValueError("cooldown_remaining must be a non-negative integer")
+        object.__setattr__(
+            self,
+            "suppressed_actions",
+            tuple(
+                sorted(
+                    {
+                        _require_text(item, "suppressed_action")
+                        for item in self.suppressed_actions
+                    }
+                )
+            ),
+        )
+        if not isinstance(self.strategy_switch_required, bool):
+            raise TypeError("strategy_switch_required must be boolean")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "fingerprint": self.fingerprint,
+            "repeated_failures": self.repeated_failures,
+            "retry_limit": self.retry_limit,
+            "cooldown_remaining": self.cooldown_remaining,
+            "suppressed_actions": list(self.suppressed_actions),
+            "strategy_switch_required": self.strategy_switch_required,
+        }
+
+
+_DEFAULT_HUMAN_GATED_RISKS = frozenset(
+    {
+        RiskClass.EXTERNAL_COMMUNICATION,
+        RiskClass.PUBLISH,
+        RiskClass.DELETE,
+        RiskClass.PAYMENT,
+        RiskClass.CREDENTIAL,
+        RiskClass.PRIVILEGE_ESCALATION,
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
 class ControllerPolicy:
     """Versioned decision policy; no online tuning is performed here."""
 
@@ -264,6 +440,7 @@ class ControllerPolicy:
     budget: ActionBudget = ActionBudget()
     allow_mutations: bool = True
     human_gated_risks: frozenset[RiskClass] = _DEFAULT_HUMAN_GATED_RISKS
+    max_repeat_failures: int = 2
     failure_weight: float = 1.0
     latency_weight: float = 1.0
     token_weight: float = 1.0
@@ -291,6 +468,14 @@ class ControllerPolicy:
                 for risk in self.human_gated_risks
             ),
         )
+        if (
+            not isinstance(self.max_repeat_failures, int)
+            or isinstance(self.max_repeat_failures, bool)
+            or self.max_repeat_failures < 1
+        ):
+            raise ValueError("max_repeat_failures must be a positive integer")
+        if not isinstance(self.allow_mutations, bool):
+            raise TypeError("allow_mutations must be boolean")
         for field_name in (
             "failure_weight",
             "latency_weight",
@@ -305,8 +490,6 @@ class ControllerPolicy:
             )
 
     def score(self, candidate: ActionCandidate) -> float:
-        """Return the deterministic, versioned ordering score for a candidate."""
-
         cost = candidate.cost
         return (
             self.failure_weight * candidate.expected_failure
@@ -318,44 +501,229 @@ class ControllerPolicy:
             + self.uncertainty_weight * candidate.uncertainty
         )
 
+    def active_constraints(self) -> tuple[str, ...]:
+        return (
+            f"policy.version={self.policy_version}",
+            f"policy.min_precondition_confidence>={self.min_precondition_confidence}",
+            f"policy.allow_mutations={str(self.allow_mutations).lower()}",
+            f"policy.max_repeat_failures={self.max_repeat_failures}",
+            *self.budget.active_constraints(),
+        )
 
-@dataclass(frozen=True)
-class ControllerDecision:
-    """Safe-to-serialize decision and prediction receipt."""
 
+@dataclass(frozen=True, slots=True)
+class DecisionBase:
     kind: DecisionKind
     reason_code: ReasonCode
     policy_version: str
     alternatives_considered: tuple[str, ...] = ()
-    action_digest: str = ""
-    predicted_effect: str = ""
-    predicted_cost: ActionCost | None = None
-    risk: RiskClass | None = None
-    verifier: str = ""
-    requires_human_gate: bool = False
-    score: float | None = None
+    active_constraints: tuple[str, ...] = ()
+    constraint_receipts: tuple[ConstraintReceipt, ...] = ()
+    anti_oscillation: AntiOscillationReceipt | None = None
 
-    def to_dict(self) -> dict[str, object]:
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, DecisionKind):
+            object.__setattr__(self, "kind", DecisionKind(self.kind))
+        if not isinstance(self.reason_code, ReasonCode):
+            object.__setattr__(self, "reason_code", ReasonCode(self.reason_code))
+        object.__setattr__(
+            self,
+            "policy_version",
+            _require_text(self.policy_version, "policy_version"),
+        )
+        object.__setattr__(
+            self,
+            "alternatives_considered",
+            tuple(self.alternatives_considered),
+        )
+        object.__setattr__(self, "active_constraints", tuple(self.active_constraints))
+        object.__setattr__(
+            self, "constraint_receipts", tuple(self.constraint_receipts)
+        )
+
+    def _base_dict(self) -> dict[str, object]:
         return {
             "schema_version": CONTROLLER_SCHEMA_VERSION,
             "kind": self.kind.value,
             "reason_code": self.reason_code.value,
             "policy_version": self.policy_version,
             "alternatives_considered": list(self.alternatives_considered),
-            "action_digest": self.action_digest,
-            "predicted_effect": self.predicted_effect,
-            "predicted_cost": self.predicted_cost.to_dict()
-            if self.predicted_cost
+            "active_constraints": list(self.active_constraints),
+            "constraint_receipts": [
+                receipt.to_dict() for receipt in self.constraint_receipts
+            ],
+            "anti_oscillation": self.anti_oscillation.to_dict()
+            if self.anti_oscillation
             else None,
-            "risk": self.risk.value if self.risk else None,
-            "verifier": self.verifier,
-            "requires_human_gate": self.requires_human_gate,
-            "score": self.score,
         }
+
+    def to_dict(self) -> dict[str, object]:
+        return self._base_dict()
+
+
+@dataclass(frozen=True, slots=True)
+class ActionDecision(DecisionBase):
+    action_digest: str = ""
+    predicted_effect: str = ""
+    predicted_cost: ActionCost | None = None
+    risk: RiskClass | None = None
+    verifier: str = ""
+    score: float | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(self, "kind", DecisionKind.ACTION)
+        object.__setattr__(
+            self, "action_digest", _require_text(self.action_digest, "action_digest")
+        )
+        object.__setattr__(
+            self,
+            "predicted_effect",
+            _require_text(self.predicted_effect, "predicted_effect"),
+        )
+        if not isinstance(self.predicted_cost, ActionCost):
+            raise TypeError("predicted_cost must be an ActionCost")
+        if not isinstance(self.risk, RiskClass):
+            object.__setattr__(self, "risk", RiskClass(self.risk))
+        object.__setattr__(self, "verifier", _require_text(self.verifier, "verifier"))
+        if self.score is None or not math.isfinite(float(self.score)):
+            raise ValueError("score must be finite")
+        object.__setattr__(self, "score", float(self.score))
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self._base_dict()
+        payload.update(
+            {
+                "action_digest": self.action_digest,
+                "predicted_effect": self.predicted_effect,
+                "predicted_cost": self.predicted_cost.to_dict(),
+                "risk": self.risk.value,
+                "verifier": self.verifier,
+                "score": self.score,
+            }
+        )
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class ObserveDecision(DecisionBase):
+    missing_inputs: tuple[str, ...] = ()
+    conflicting_inputs: tuple[str, ...] = ()
+    observation_request: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(self, "kind", DecisionKind.OBSERVE)
+        object.__setattr__(self, "missing_inputs", tuple(self.missing_inputs))
+        object.__setattr__(self, "conflicting_inputs", tuple(self.conflicting_inputs))
+        object.__setattr__(
+            self,
+            "observation_request",
+            _require_text(self.observation_request, "observation_request"),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self._base_dict()
+        payload.update(
+            {
+                "missing_inputs": list(self.missing_inputs),
+                "conflicting_inputs": list(self.conflicting_inputs),
+                "observation_request": self.observation_request,
+            }
+        )
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class WaitDecision(DecisionBase):
+    wait_for: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(self, "kind", DecisionKind.WAIT)
+        object.__setattr__(self, "wait_for", _require_text(self.wait_for, "wait_for"))
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self._base_dict()
+        payload["wait_for"] = self.wait_for
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class ClarifyDecision(DecisionBase):
+    action_digest: str = ""
+    predicted_effect: str = ""
+    predicted_cost: ActionCost | None = None
+    risk: RiskClass | None = None
+    verifier: str = ""
+    clarify_prompt: str = ""
+    score: float | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(self, "kind", DecisionKind.CLARIFY)
+        object.__setattr__(
+            self, "action_digest", _require_text(self.action_digest, "action_digest")
+        )
+        object.__setattr__(
+            self,
+            "predicted_effect",
+            _require_text(self.predicted_effect, "predicted_effect"),
+        )
+        if not isinstance(self.predicted_cost, ActionCost):
+            raise TypeError("predicted_cost must be an ActionCost")
+        if not isinstance(self.risk, RiskClass):
+            object.__setattr__(self, "risk", RiskClass(self.risk))
+        object.__setattr__(self, "verifier", _require_text(self.verifier, "verifier"))
+        object.__setattr__(
+            self,
+            "clarify_prompt",
+            _require_text(self.clarify_prompt, "clarify_prompt"),
+        )
+        if self.score is None or not math.isfinite(float(self.score)):
+            raise ValueError("score must be finite")
+        object.__setattr__(self, "score", float(self.score))
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self._base_dict()
+        payload.update(
+            {
+                "action_digest": self.action_digest,
+                "predicted_effect": self.predicted_effect,
+                "predicted_cost": self.predicted_cost.to_dict(),
+                "risk": self.risk.value,
+                "verifier": self.verifier,
+                "clarify_prompt": self.clarify_prompt,
+                "score": self.score,
+            }
+        )
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class BlockDecision(DecisionBase):
+    blocked_by: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(self, "kind", DecisionKind.BLOCK)
+        object.__setattr__(
+            self, "blocked_by", _require_text(self.blocked_by, "blocked_by")
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        payload = self._base_dict()
+        payload["blocked_by"] = self.blocked_by
+        return payload
+
+
+ControllerDecision = (
+    ActionDecision | ObserveDecision | WaitDecision | ClarifyDecision | BlockDecision
+)
 
 
 class ClosedLoopController:
-    """Pure policy evaluator; callers own execution and observation."""
+    """Pure policy evaluator; callers own execution, observation, and replay."""
 
     def __init__(self, policy: ControllerPolicy | None = None) -> None:
         self.policy = policy or ControllerPolicy()
@@ -365,61 +733,183 @@ class ClosedLoopController:
         goal: str,
         state: StateEstimate,
         candidates: Iterable[ActionCandidate],
+        *,
+        anti_oscillation: AntiOscillationState | None = None,
     ) -> ControllerDecision:
-        """Select one bounded step, or fail closed with a reason code.
-
-        Candidate order is deliberately ignored.  Ties are resolved by the
-        action digest, making replay independent of discovery order.
-        """
+        """Select one bounded step, or fail closed with an explicit contract."""
 
         _require_text(goal, "goal")
+        if not isinstance(state, StateEstimate):
+            raise TypeError("state must be a StateEstimate")
+        anti_oscillation = anti_oscillation or AntiOscillationState()
         ordered = tuple(sorted(candidates, key=lambda item: item.action_digest))
         alternatives = tuple(item.action_digest for item in ordered)
+        active_constraints = self.policy.active_constraints()
+        base_receipts: list[ConstraintReceipt] = []
 
         if state.effect_committed:
-            return self._decision(
-                DecisionKind.OBSERVE,
-                ReasonCode.COMMITTED_EFFECT_REQUIRES_RECONCILIATION,
-                alternatives,
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.COMMITTED_EFFECT_REQUIRES_RECONCILIATION,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "effect.reconciliation",
+                        ConstraintStatus.WAITING,
+                        "committed effect must be reconciled before retry",
+                    ),
+                ),
+                observation_request="reconcile_committed_effect",
+            )
+        if state.missing_inputs:
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.MISSING_OBSERVATIONS,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "state.missing_inputs",
+                        ConstraintStatus.WAITING,
+                        "missing state inputs prevent a bounded mutation",
+                    ),
+                ),
+                missing_inputs=state.missing_inputs,
+                observation_request="collect_missing_inputs",
             )
         if state.conflicts:
-            return self._decision(
-                DecisionKind.OBSERVE,
-                ReasonCode.CONFLICTING_OBSERVATIONS,
-                alternatives,
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.CONFLICTING_OBSERVATIONS,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "state.conflicts",
+                        ConstraintStatus.WAITING,
+                        "conflicting observations require re-anchoring",
+                    ),
+                ),
+                conflicting_inputs=state.conflicts,
+                observation_request="resolve_conflicting_inputs",
             )
         if state.freshness is not Freshness.FRESH:
-            return self._decision(
-                DecisionKind.OBSERVE, ReasonCode.STATE_NOT_FRESH, alternatives
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.STATE_NOT_FRESH,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "state.freshness",
+                        ConstraintStatus.WAITING,
+                        f"state freshness is {state.freshness.value}",
+                    ),
+                ),
+                observation_request="refresh_state_boundary",
             )
         if (
             state.confidence is None
             or state.confidence < self.policy.min_precondition_confidence
         ):
-            return self._decision(
-                DecisionKind.OBSERVE,
-                ReasonCode.LOW_PRECONDITION_CONFIDENCE,
-                alternatives,
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.LOW_PRECONDITION_CONFIDENCE,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "state.precondition_confidence",
+                        ConstraintStatus.WAITING,
+                        "precondition confidence is below policy threshold",
+                    ),
+                ),
+                observation_request="improve_precondition_confidence",
             )
         if not state.capability_available:
-            return self._decision(
-                DecisionKind.WAIT, ReasonCode.CAPABILITY_UNAVAILABLE, alternatives
+            return WaitDecision(
+                kind=DecisionKind.WAIT,
+                reason_code=ReasonCode.CAPABILITY_UNAVAILABLE,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "capability.available",
+                        ConstraintStatus.WAITING,
+                        "required capability is unavailable or unhealthy",
+                    ),
+                ),
+                wait_for="capability_health",
             )
         if not ordered:
-            return self._decision(
-                DecisionKind.OBSERVE, ReasonCode.NO_ACTION_CANDIDATE, alternatives
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.NO_ACTION_CANDIDATE,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=(
+                    ConstraintReceipt(
+                        "candidate.available",
+                        ConstraintStatus.WAITING,
+                        "no candidate actions were supplied",
+                    ),
+                ),
+                observation_request="enumerate_candidates",
             )
+
+        oscillation_receipt = self._anti_oscillation_receipt(anti_oscillation)
+        suppressed = set(anti_oscillation.suppressed_actions)
+        if (
+            anti_oscillation.repeated_failures >= self.policy.max_repeat_failures
+            and anti_oscillation.last_action_digest
+        ):
+            suppressed.add(anti_oscillation.last_action_digest)
 
         safe: list[ActionCandidate] = []
         gated: list[ActionCandidate] = []
-        budget_blocked = False
-        mutation_blocked = False
+        budget_blocked: list[ConstraintReceipt] = []
+        mutation_blocked: list[ConstraintReceipt] = []
+        suppressed_receipts: list[ConstraintReceipt] = []
+
         for candidate in ordered:
-            if self.policy.budget.exceeded(candidate.cost):
-                budget_blocked = True
+            exceeded = self.policy.budget.exceeded(candidate.cost)
+            if exceeded:
+                budget_blocked.append(
+                    ConstraintReceipt(
+                        "budget",
+                        ConstraintStatus.BLOCKED,
+                        f"candidate exceeds {','.join(exceeded)} budget",
+                        candidate.action_digest,
+                    )
+                )
                 continue
             if candidate.mutating and not self.policy.allow_mutations:
-                mutation_blocked = True
+                mutation_blocked.append(
+                    ConstraintReceipt(
+                        "policy.allow_mutations",
+                        ConstraintStatus.BLOCKED,
+                        "mutating candidate is disabled by policy",
+                        candidate.action_digest,
+                    )
+                )
+                continue
+            if candidate.action_digest in suppressed:
+                suppressed_receipts.append(
+                    ConstraintReceipt(
+                        "anti_oscillation",
+                        ConstraintStatus.SUPPRESSED,
+                        "candidate suppressed after repeated failure fingerprint",
+                        candidate.action_digest,
+                    )
+                )
                 continue
             requires_gate = (
                 candidate.requires_human_gate
@@ -428,66 +918,151 @@ class ClosedLoopController:
             )
             if requires_gate:
                 gated.append(candidate)
+                base_receipts.append(
+                    ConstraintReceipt(
+                        "human_gate",
+                        ConstraintStatus.REQUIRES_CLARIFY,
+                        "candidate requires a human gate before execution",
+                        candidate.action_digest,
+                    )
+                )
             else:
                 safe.append(candidate)
+                base_receipts.append(
+                    ConstraintReceipt(
+                        "candidate.eligible",
+                        ConstraintStatus.PASSED,
+                        "candidate satisfies current policy constraints",
+                        candidate.action_digest,
+                    )
+                )
 
         if safe:
             selected = min(
                 safe, key=lambda item: (self.policy.score(item), item.action_digest)
             )
-            return self._decision(
-                DecisionKind.ACTION,
-                ReasonCode.ACTION_SELECTED,
-                alternatives,
-                selected,
+            return ActionDecision(
+                kind=DecisionKind.ACTION,
+                reason_code=ReasonCode.ACTION_SELECTED,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(
+                    base_receipts + budget_blocked + mutation_blocked + suppressed_receipts
+                ),
+                anti_oscillation=oscillation_receipt,
+                action_digest=selected.action_digest,
+                predicted_effect=selected.predicted_effect,
+                predicted_cost=selected.cost,
+                risk=selected.risk,
+                verifier=selected.verifier,
                 score=self.policy.score(selected),
-            )
-        if budget_blocked:
-            return self._decision(
-                DecisionKind.BLOCK, ReasonCode.BUDGET_EXCEEDED, alternatives
             )
         if gated:
             selected = min(
                 gated, key=lambda item: (self.policy.score(item), item.action_digest)
             )
-            return self._decision(
-                DecisionKind.CLARIFY,
-                ReasonCode.HUMAN_GATE_REQUIRED,
-                alternatives,
-                selected,
-                requires_human_gate=True,
+            return ClarifyDecision(
+                kind=DecisionKind.CLARIFY,
+                reason_code=ReasonCode.HUMAN_GATE_REQUIRED,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(
+                    base_receipts + budget_blocked + mutation_blocked + suppressed_receipts
+                ),
+                anti_oscillation=oscillation_receipt,
+                action_digest=selected.action_digest,
+                predicted_effect=selected.predicted_effect,
+                predicted_cost=selected.cost,
+                risk=selected.risk,
+                verifier=selected.verifier,
+                clarify_prompt="human gate required before high-risk or irreversible action",
                 score=self.policy.score(selected),
             )
-        if mutation_blocked:
-            return self._decision(
-                DecisionKind.BLOCK, ReasonCode.MUTATION_DISABLED, alternatives
+        if (
+            oscillation_receipt is not None
+            and oscillation_receipt.cooldown_remaining > 0
+            and suppressed
+        ):
+            return WaitDecision(
+                kind=DecisionKind.WAIT,
+                reason_code=ReasonCode.OSCILLATION_COOLDOWN_ACTIVE,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(suppressed_receipts),
+                anti_oscillation=oscillation_receipt,
+                wait_for="anti_oscillation_cooldown",
             )
-        return self._decision(
-            DecisionKind.BLOCK, ReasonCode.NO_SAFE_ACTION, alternatives
-        )
-
-    def _decision(
-        self,
-        kind: DecisionKind,
-        reason_code: ReasonCode,
-        alternatives: tuple[str, ...],
-        candidate: ActionCandidate | None = None,
-        *,
-        requires_human_gate: bool = False,
-        score: float | None = None,
-    ) -> ControllerDecision:
-        return ControllerDecision(
-            kind=kind,
-            reason_code=reason_code,
+        if oscillation_receipt is not None and oscillation_receipt.strategy_switch_required:
+            return BlockDecision(
+                kind=DecisionKind.BLOCK,
+                reason_code=ReasonCode.STRATEGY_SWITCH_REQUIRED,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(
+                    suppressed_receipts + budget_blocked + mutation_blocked
+                ),
+                anti_oscillation=oscillation_receipt,
+                blocked_by="anti_oscillation",
+            )
+        if budget_blocked:
+            return BlockDecision(
+                kind=DecisionKind.BLOCK,
+                reason_code=ReasonCode.BUDGET_EXCEEDED,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(budget_blocked),
+                anti_oscillation=oscillation_receipt,
+                blocked_by="budget",
+            )
+        if mutation_blocked:
+            return BlockDecision(
+                kind=DecisionKind.BLOCK,
+                reason_code=ReasonCode.MUTATION_DISABLED,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(mutation_blocked),
+                anti_oscillation=oscillation_receipt,
+                blocked_by="mutation_policy",
+            )
+        return BlockDecision(
+            kind=DecisionKind.BLOCK,
+            reason_code=ReasonCode.NO_SAFE_ACTION,
             policy_version=self.policy.policy_version,
             alternatives_considered=alternatives,
-            action_digest=candidate.action_digest if candidate else "",
-            predicted_effect=candidate.predicted_effect if candidate else "",
-            predicted_cost=candidate.cost if candidate else None,
-            risk=candidate.risk if candidate else None,
-            verifier=candidate.verifier if candidate else "",
-            requires_human_gate=requires_human_gate,
-            score=score,
+            active_constraints=active_constraints,
+            constraint_receipts=tuple(base_receipts + suppressed_receipts),
+            anti_oscillation=oscillation_receipt,
+            blocked_by="no_safe_candidate",
+        )
+
+    def _anti_oscillation_receipt(
+        self, state: AntiOscillationState
+    ) -> AntiOscillationReceipt | None:
+        if not state.fingerprint:
+            return None
+        strategy_switch_required = (
+            state.repeated_failures >= self.policy.max_repeat_failures
+            and state.cooldown_remaining == 0
+        )
+        suppressed = state.suppressed_actions
+        if (
+            state.repeated_failures >= self.policy.max_repeat_failures
+            and state.last_action_digest
+        ):
+            suppressed = tuple(sorted({*suppressed, state.last_action_digest}))
+        return AntiOscillationReceipt(
+            fingerprint=state.fingerprint,
+            repeated_failures=state.repeated_failures,
+            retry_limit=self.policy.max_repeat_failures,
+            cooldown_remaining=state.cooldown_remaining,
+            suppressed_actions=suppressed,
+            strategy_switch_required=strategy_switch_required,
         )
 
 
@@ -496,12 +1071,22 @@ __all__ = [
     "ActionBudget",
     "ActionCandidate",
     "ActionCost",
+    "ActionDecision",
+    "AntiOscillationReceipt",
+    "AntiOscillationState",
+    "BlockDecision",
+    "ClarifyDecision",
     "ClosedLoopController",
+    "ConstraintReceipt",
+    "ConstraintStatus",
     "ControllerDecision",
     "ControllerPolicy",
+    "DecisionBase",
     "DecisionKind",
     "Freshness",
+    "ObserveDecision",
     "ReasonCode",
     "RiskClass",
     "StateEstimate",
+    "WaitDecision",
 ]

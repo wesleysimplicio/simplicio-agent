@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from hermes_cli.update_contract import (
+    COMPATIBILITY_SCHEMA,
+    COMPATIBILITY_VERSION,
+    CompatibilityMatrix,
     ManifestError,
     UpdateContract,
     UpdateError,
@@ -25,6 +28,16 @@ def _artifact(tmp_path: Path, version: str) -> tuple[Path, UpdateManifest]:
     files, size, digest = directory_sha256(artifact)
     assert files == 2
     return artifact, UpdateManifest(version, "payload", digest, size)
+
+
+def _matrix(*rows: dict[str, object]) -> CompatibilityMatrix:
+    return CompatibilityMatrix.from_dict(
+        {
+            "schema": COMPATIBILITY_SCHEMA,
+            "version": COMPATIBILITY_VERSION,
+            "rows": list(rows),
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -164,3 +177,101 @@ def test_failed_health_check_rolls_back_without_losing_previous(tmp_path: Path) 
     assert current.active_slot == first.active_slot
     assert current.version == first.version
     assert not contract.state_path.exists()
+
+
+def test_plan_rejects_incompatible_downgrade(tmp_path: Path) -> None:
+    contract = UpdateContract(tmp_path / "install")
+    first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
+    contract.activate(contract.stage(first_manifest, first_artifact))
+    second_artifact, second_manifest = _artifact(tmp_path, "2.0.0")
+    contract.activate(contract.stage(second_manifest, second_artifact))
+
+    matrix = _matrix(
+        {
+            "from_version": "1.0.0",
+            "to_version": "2.0.0",
+            "supported": True,
+            "migration_ids": ["settings-v2"],
+        },
+        {
+            "from_version": "2.0.0",
+            "to_version": "1.0.0",
+            "supported": False,
+            "notes": "downgrade requires clean-machine restore",
+        },
+    )
+
+    plan = contract.plan(first_manifest, matrix)
+
+    assert plan.allowed is False
+    assert plan.direction == "downgrade"
+    assert plan.reason == "incompatible_transition"
+    assert "clean-machine restore" in plan.notes
+
+
+def test_plan_tracks_idempotent_migrations_across_activation(tmp_path: Path) -> None:
+    contract = UpdateContract(tmp_path / "install")
+    first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
+    contract.activate(contract.stage(first_manifest, first_artifact))
+    second_artifact, second_manifest = _artifact(tmp_path, "2.0.0")
+    matrix = _matrix(
+        {
+            "from_version": "1.0.0",
+            "to_version": "2.0.0",
+            "supported": True,
+            "migration_ids": ["settings-v2", "ledger-v1"],
+        },
+        {
+            "from_version": "2.0.0",
+            "to_version": "2.0.0",
+            "supported": True,
+            "migration_ids": ["settings-v2", "ledger-v1"],
+        },
+    )
+
+    first_plan = contract.plan(second_manifest, matrix)
+    record = contract.activate(
+        contract.stage(second_manifest, second_artifact),
+        plan=first_plan,
+    )
+    second_plan = contract.plan(second_manifest, matrix)
+
+    assert first_plan.allowed is True
+    assert first_plan.migration_ids == ("settings-v2", "ledger-v1")
+    assert record.applied_migrations == ("settings-v2", "ledger-v1")
+    assert second_plan.allowed is True
+    assert second_plan.direction == "noop"
+    assert second_plan.migration_ids == ()
+
+
+def test_plan_blocks_effects_while_runtime_work_is_in_flight(tmp_path: Path) -> None:
+    contract = UpdateContract(tmp_path / "install")
+    first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
+    contract.activate(contract.stage(first_manifest, first_artifact))
+    second_artifact, second_manifest = _artifact(tmp_path, "2.0.0")
+    matrix = _matrix(
+        {
+            "from_version": "1.0.0",
+            "to_version": "2.0.0",
+            "supported": True,
+            "migration_ids": ["ledger-v1"],
+            "blocked_effects": ["runtime-session", "gateway-turn"],
+        }
+    )
+
+    blocked = contract.plan(
+        second_manifest,
+        matrix,
+        in_flight_effects=("runtime-session",),
+    )
+    allowed = contract.plan(
+        second_manifest,
+        matrix,
+        in_flight_effects=("unrelated-effect",),
+    )
+
+    assert blocked.allowed is False
+    assert blocked.reason == "blocked_in_flight_effects"
+    assert blocked.blocked_effects == ("runtime-session",)
+    assert allowed.allowed is True
+    assert allowed.migration_ids == ("ledger-v1",)

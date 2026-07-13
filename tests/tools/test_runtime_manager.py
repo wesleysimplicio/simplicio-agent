@@ -18,6 +18,13 @@ import pytest
 
 import tools.kernel_binding as kb
 import tools.runtime_manager as rm
+from tools.runtime_handshake import (
+    HANDSHAKE_PROTOCOL_STATUS_UNREPORTED,
+    HANDSHAKE_REASON_HANDSHAKE_FAILED,
+    HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME,
+    HANDSHAKE_REASON_READY,
+    HANDSHAKE_REASON_RUNTIME_MISSING,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -281,6 +288,9 @@ class TestRuntimeStatus:
         assert st.satisfied and st.present
         assert st.source == "path" and st.version == "3.5.0"
         assert st.verified and st.ready and st.lock_valid
+        assert st.reason_code == HANDSHAKE_REASON_READY
+        assert st.handshake is not None
+        assert st.handshake.protocol_status == HANDSHAKE_PROTOCOL_STATUS_UNREPORTED
 
     def test_stale(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch, min_version="3.4.0")
@@ -291,12 +301,16 @@ class TestRuntimeStatus:
             st = rm.runtime_status()
         assert st.present and not st.satisfied
         assert "3.3.0" in st.detail and "3.4.0" in st.detail
+        assert st.reason_code == HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
+        assert st.handshake is not None
+        assert st.handshake.to_dict()["reason_code"] == HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
 
     def test_absent(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
         with mock_patch.object(rm, "resolve_kernel", return_value=(None, "absent")):
             st = rm.runtime_status()
         assert not st.present and not st.satisfied
+        assert st.reason_code == HANDSHAKE_REASON_RUNTIME_MISSING
 
     def test_handshake_failure(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
@@ -307,6 +321,7 @@ class TestRuntimeStatus:
             st = rm.runtime_status()
         assert st.present and not st.satisfied
         assert "handshake" in st.detail
+        assert st.reason_code == HANDSHAKE_REASON_HANDSHAKE_FAILED
 
     def test_tampered_binary_is_rejected_before_handshake(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
