@@ -469,7 +469,13 @@ def test_delegate_task_background_detaches_child_from_parent(monkeypatch):
 
 def test_concurrent_dispatch_respects_capacity():
     """Two threads racing dispatch with cap=1 must yield exactly one accept
-    (capacity check and record insert are atomic under the records lock)."""
+    (capacity check and record insert are atomic under the records lock).
+
+    Uses DISTINCT goals per racer (issue #70 added dedup: two dispatches
+    with the identical goal/context/toolsets/role/model/session_key now
+    correctly short-circuit to "duplicate" before the capacity check even
+    runs — that's covered separately in TestDedup below). Distinct goals
+    keep this test isolated to the capacity mechanism alone."""
     gate = threading.Event()
 
     def blocker():
@@ -479,17 +485,17 @@ def test_concurrent_dispatch_respects_capacity():
     results = []
     barrier = threading.Barrier(2)
 
-    def racer():
+    def racer(idx):
         barrier.wait(timeout=5)
         results.append(
             ad.dispatch_async_delegation(
-                goal="race", context=None, toolsets=None, role="leaf",
+                goal=f"race-{idx}", context=None, toolsets=None, role="leaf",
                 model="m", session_key="", runner=blocker,
                 max_async_children=1,
             )
         )
 
-    threads = [threading.Thread(target=racer) for _ in range(2)]
+    threads = [threading.Thread(target=racer, args=(i,)) for i in range(2)]
     for t in threads:
         t.start()
     for t in threads:
@@ -497,6 +503,239 @@ def test_concurrent_dispatch_respects_capacity():
     statuses = sorted(r["status"] for r in results)
     assert statuses == ["dispatched", "rejected"]
     gate.set()
+
+
+# ---------------------------------------------------------------------------
+# Dedup: identical concurrent dispatches (issue #70)
+# ---------------------------------------------------------------------------
+
+class TestDedup:
+    def test_identical_dispatch_while_running_is_deduped(self):
+        gate = threading.Event()
+
+        def blocker():
+            gate.wait(timeout=5)
+            return {"status": "completed", "summary": "x"}
+
+        first = ad.dispatch_async_delegation(
+            goal="same task", context="ctx", toolsets=["read_file"], role="leaf",
+            model="m", session_key="sess-1", runner=blocker,
+            max_async_children=5,
+        )
+        assert first["status"] == "dispatched"
+
+        second = ad.dispatch_async_delegation(
+            goal="same task", context="ctx", toolsets=["read_file"], role="leaf",
+            model="m", session_key="sess-1", runner=blocker,
+            max_async_children=5,
+        )
+        assert second["status"] == "duplicate"
+        assert second["delegation_id"] == first["delegation_id"]
+        assert "already running" in second["error"]
+
+        gate.set()
+
+    def test_different_goal_is_not_deduped(self):
+        gate = threading.Event()
+
+        def blocker():
+            gate.wait(timeout=5)
+            return {"status": "completed", "summary": "x"}
+
+        first = ad.dispatch_async_delegation(
+            goal="task A", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-1", runner=blocker,
+            max_async_children=5,
+        )
+        second = ad.dispatch_async_delegation(
+            goal="task B", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-1", runner=blocker,
+            max_async_children=5,
+        )
+        assert first["status"] == "dispatched"
+        assert second["status"] == "dispatched"
+        assert first["delegation_id"] != second["delegation_id"]
+
+        gate.set()
+
+    def test_different_session_is_not_deduped(self):
+        """The same goal from two DIFFERENT sessions is legitimately
+        separate work, not a duplicate."""
+        gate = threading.Event()
+
+        def blocker():
+            gate.wait(timeout=5)
+            return {"status": "completed", "summary": "x"}
+
+        first = ad.dispatch_async_delegation(
+            goal="same task", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-1", runner=blocker,
+            max_async_children=5,
+        )
+        second = ad.dispatch_async_delegation(
+            goal="same task", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-2", runner=blocker,
+            max_async_children=5,
+        )
+        assert first["status"] == "dispatched"
+        assert second["status"] == "dispatched"
+
+        gate.set()
+
+    def test_identical_dispatch_after_completion_is_not_deduped(self):
+        """Once the first dispatch finishes (status != running), an
+        identical re-dispatch is a legitimate NEW request, not a duplicate
+        of stale, already-completed work."""
+        done = {"summary": "x"}
+
+        def fast():
+            return {"status": "completed", **done}
+
+        first = ad.dispatch_async_delegation(
+            goal="same task", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-1", runner=fast,
+            max_async_children=5,
+        )
+        assert first["status"] == "dispatched"
+        # Wait for the worker thread to finish and finalize the record.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            rec = ad._records.get(first["delegation_id"])
+            if rec and rec.get("status") != "running":
+                break
+            time.sleep(0.01)
+
+        second = ad.dispatch_async_delegation(
+            goal="same task", context=None, toolsets=None, role="leaf",
+            model="m", session_key="sess-1", runner=fast,
+            max_async_children=5,
+        )
+        assert second["status"] == "dispatched"
+        assert second["delegation_id"] != first["delegation_id"]
+
+    def test_dedupe_key_is_order_independent_for_toolsets(self):
+        """Toolset order shouldn't affect the fingerprint — the caller may
+        pass the same set in a different order across two calls that are
+        semantically identical."""
+        key1 = ad._dedupe_key("g", "c", ["a", "b"], "role", "m", "s")
+        key2 = ad._dedupe_key("g", "c", ["b", "a"], "role", "m", "s")
+        assert key1 == key2
+
+    def test_dedupe_key_differs_on_any_field_change(self):
+        base = ad._dedupe_key("g", "c", ["a"], "role", "m", "s")
+        assert ad._dedupe_key("g2", "c", ["a"], "role", "m", "s") != base
+        assert ad._dedupe_key("g", "c2", ["a"], "role", "m", "s") != base
+        assert ad._dedupe_key("g", "c", ["a", "b"], "role", "m", "s") != base
+        assert ad._dedupe_key("g", "c", ["a"], "role2", "m", "s") != base
+        assert ad._dedupe_key("g", "c", ["a"], "role", "m2", "s") != base
+        assert ad._dedupe_key("g", "c", ["a"], "role", "m", "s2") != base
+
+
+# ---------------------------------------------------------------------------
+# dispatch_rate_per_minute opt-in override (issue #70)
+# ---------------------------------------------------------------------------
+
+class TestDispatchRatePerMinute:
+    def test_none_default_preserves_existing_behavior(self):
+        """The parameter's default (None) must not change today's behavior:
+        the tier's rate still comes from the env var / built-in default."""
+        gate = threading.Event()
+
+        def blocker():
+            gate.wait(timeout=5)
+            return {"status": "completed"}
+
+        result = ad.dispatch_async_delegation(
+            goal="x", context=None, toolsets=None, role="a-fresh-tier",
+            model="m", session_key="s", runner=blocker,
+            max_async_children=5,
+        )
+        assert result["status"] == "dispatched"
+        from agent.tier_rate_limiter import rate_limiter
+        assert rate_limiter.remaining("a-fresh-tier") == pytest.approx(59.0, abs=0.5)
+        gate.set()
+
+    def test_explicit_override_seeds_a_tighter_bucket(self):
+        gate = threading.Event()
+
+        def blocker():
+            gate.wait(timeout=5)
+            return {"status": "completed"}
+
+        first = ad.dispatch_async_delegation(
+            goal="x", context=None, toolsets=None, role="tight-tier",
+            model="m", session_key="s", runner=blocker,
+            max_async_children=5, dispatch_rate_per_minute=1.0,
+        )
+        assert first["status"] == "dispatched"
+
+        second = ad.dispatch_async_delegation(
+            goal="y", context=None, toolsets=None, role="tight-tier",  # different goal, not deduped
+            model="m", session_key="s", runner=blocker,
+            max_async_children=5, dispatch_rate_per_minute=1.0,
+        )
+        assert second["status"] == "rejected"
+        assert "Rate limit" in second["error"]
+        gate.set()
+
+
+# ---------------------------------------------------------------------------
+# Python 3.14 ThreadPoolExecutor _worker compat shim (issue #70)
+# ---------------------------------------------------------------------------
+
+class TestWorkerCompatShim:
+    def test_kwargs_match_current_worker_signature(self):
+        """On THIS Python version, the shim must produce a kwargs dict that
+        _worker actually accepts (proves the introspection logic works
+        against the real, live signature rather than a hard-coded guess)."""
+        import inspect
+        from concurrent.futures.thread import _worker
+
+        kwargs = ad._worker_call_kwargs("ref", "queue", "init", "initargs")
+        sig = inspect.signature(_worker)
+        sig.bind(**kwargs)  # raises TypeError if kwargs don't match — must not raise
+
+    def test_known_params_are_filled_correctly(self):
+        kwargs = ad._worker_call_kwargs("REF", "QUEUE", "INIT", "INITARGS")
+        assert kwargs["executor_reference"] == "REF"
+        assert kwargs["work_queue"] == "QUEUE"
+        assert kwargs["initializer"] == "INIT"
+        assert kwargs["initargs"] == "INITARGS"
+
+    def test_unrecognized_required_param_raises_actionable_error(self, monkeypatch):
+        """Simulates a hypothetical future Python whose _worker gained a new
+        REQUIRED parameter this shim doesn't know about yet — must fail
+        loudly with a clear message, not silently pass a wrong value."""
+        import inspect
+
+        def _fake_worker(executor_reference, work_queue, initializer, initargs, new_required_param):
+            pass
+
+        monkeypatch.setattr(ad, "_worker", _fake_worker)
+        with pytest.raises(RuntimeError, match="new_required_param"):
+            ad._worker_call_kwargs("ref", "queue", "init", "initargs")
+
+    def test_unrecognized_param_with_default_is_safely_skipped(self, monkeypatch):
+        def _fake_worker(executor_reference, work_queue, initializer, initargs, optional_new=None):
+            pass
+
+        monkeypatch.setattr(ad, "_worker", _fake_worker)
+        kwargs = ad._worker_call_kwargs("ref", "queue", "init", "initargs")
+        assert "optional_new" not in kwargs
+        assert kwargs == {
+            "executor_reference": "ref", "work_queue": "queue",
+            "initializer": "init", "initargs": "initargs",
+        }
+
+    def test_daemon_executor_actually_runs_a_task(self):
+        """End-to-end: the shimmed worker call must actually work, not just
+        pass signature introspection — submit real work and get a result."""
+        executor = ad._DaemonThreadPoolExecutor(max_workers=2, thread_name_prefix="test-shim")
+        try:
+            future = executor.submit(lambda: 21 * 2)
+            assert future.result(timeout=5) == 42
+        finally:
+            executor.shutdown(wait=False)
 
 
 # ---------------------------------------------------------------------------

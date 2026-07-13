@@ -36,6 +36,7 @@ logic stays in one place.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 import time
@@ -49,6 +50,48 @@ from tools.thread_context import propagate_context_to_thread
 
 from agent.tier_rate_limiter import rate_limiter
 logger = logging.getLogger(__name__)
+
+
+def _worker_call_kwargs(executor_ref, work_queue, initializer, initargs) -> Dict[str, Any]:
+    """Build the keyword-argument call for stdlib's private
+    ``concurrent.futures.thread._worker`` by introspecting its ACTUAL
+    signature at runtime, instead of hard-coding 4 positional args
+    (issue #70 — forward-compat with Python 3.14, which restructured
+    ``_worker``'s parameters; verified here on 3.11's
+    ``(executor_reference, work_queue, initializer, initargs)`` shape).
+
+    Known parameter names are filled with their real value. Any
+    unrecognized parameter with NO default is a genuine "this shim needs
+    an update for this Python version" case — fail loudly with an
+    actionable message rather than silently pass a wrong/None value into
+    a stdlib internal (this codebase's "no silent fake" rule applies to
+    forward-compat shims too).
+    """
+    import inspect
+
+    known = {
+        "executor_reference": executor_ref,
+        "work_queue": work_queue,
+        "initializer": initializer,
+        "initargs": initargs,
+    }
+    sig = inspect.signature(_worker)
+    kwargs: Dict[str, Any] = {}
+    for name, param in sig.parameters.items():
+        if name in known:
+            kwargs[name] = known[name]
+        elif param.default is not inspect.Parameter.empty:
+            continue  # has its own default — safe to omit
+        else:
+            raise RuntimeError(
+                f"concurrent.futures.thread._worker gained an unrecognized "
+                f"required parameter {name!r} on this Python version "
+                f"({__import__('sys').version.split()[0]}) — "
+                f"tools.async_delegation._DaemonThreadPoolExecutor's compat "
+                f"shim (issue #70) needs updating for it before this can "
+                f"run safely."
+            )
+    return kwargs
 
 
 class _DaemonThreadPoolExecutor(ThreadPoolExecutor):
@@ -73,7 +116,7 @@ class _DaemonThreadPoolExecutor(ThreadPoolExecutor):
             t = threading.Thread(
                 name=thread_name,
                 target=_worker,
-                args=(
+                kwargs=_worker_call_kwargs(
                     weakref.ref(self, weakref_cb),
                     self._work_queue,
                     self._initializer,
@@ -134,6 +177,36 @@ def _new_delegation_id() -> str:
     return f"deleg_{uuid.uuid4().hex[:8]}"
 
 
+def _dedupe_key(
+    goal: Optional[str],
+    context: Optional[str],
+    toolsets: Optional[List[str]],
+    role: str,
+    model: Optional[str],
+    session_key: str,
+) -> str:
+    """SHA-256 fingerprint of a dispatch's identity (issue #70).
+
+    Scoped to the SAME session (``session_key`` is part of the hash) —
+    two different sessions independently asking for the identical task are
+    legitimately separate work, not a duplicate. Within one session, an
+    identical (goal, context, toolsets, role, model) re-dispatched while
+    the first is still running is almost always an accidental retry (a
+    flaky tool-call, a model re-emitting the same delegate_task after a
+    stream hiccup) rather than deliberate parallel work.
+    """
+    parts = [
+        goal or "",
+        context or "",
+        ",".join(sorted(toolsets)) if toolsets else "",
+        role or "",
+        model or "",
+        session_key or "",
+    ]
+    digest = hashlib.sha256("\x1f".join(parts).encode("utf-8", errors="surrogatepass")).hexdigest()
+    return digest
+
+
 def _prune_completed_locked() -> None:
     """Drop the oldest completed records beyond the retention cap.
 
@@ -163,6 +236,7 @@ def dispatch_async_delegation(
     runner: Callable[[], Dict[str, Any]],
     interrupt_fn: Optional[Callable[[], None]] = None,
     max_async_children: int = _DEFAULT_MAX_ASYNC_CHILDREN,
+    dispatch_rate_per_minute: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Spawn ``runner`` on the daemon executor and return a handle immediately.
 
@@ -186,16 +260,25 @@ def dispatch_async_delegation(
         Concurrency cap. When at capacity the dispatch is REJECTED (the caller
         should fall back to sync or tell the user) rather than queued, so a
         runaway model can't pile up unbounded background work.
+    dispatch_rate_per_minute
+        Optional per-tier rate override (issue #70), tokens/minute. ``None``
+        (the default) preserves today's behavior exactly — the tier's rate
+        comes from ``HERMES_TIER_RATE_LIMIT_<TIER>`` or the built-in 60/min
+        default, same as before this parameter existed. Only takes effect
+        the FIRST time this tier's bucket is created in this process; an
+        already-created bucket keeps its original rate.
 
     Returns
     -------
     dict
-        ``{"status": "dispatched", "delegation_id": ...}`` on success, or
-        ``{"status": "rejected", "error": ...}`` when at capacity.
+        ``{"status": "dispatched", "delegation_id": ...}`` on success,
+        ``{"status": "rejected", "error": ...}`` when at capacity or rate-limited,
+        or ``{"status": "duplicate", "delegation_id": ..., "error": ...}``
+        when an identical dispatch is already in flight (issue #70).
     """
     # ----- Rate limiter check -----
     tier = role or "subagent"
-    if not rate_limiter.try_acquire(tier):
+    if not rate_limiter.try_acquire(tier, rate_override=dispatch_rate_per_minute):
         return {
             "status": "rejected",
             "error": (
@@ -209,6 +292,7 @@ def dispatch_async_delegation(
 
     delegation_id = _new_delegation_id()
     dispatched_at = time.time()
+    dedupe_key = _dedupe_key(goal, context, toolsets, role, model, session_key)
     record: Dict[str, Any] = {
         "delegation_id": delegation_id,
         "goal": goal,
@@ -221,11 +305,35 @@ def dispatch_async_delegation(
         "dispatched_at": dispatched_at,
         "completed_at": None,
         "interrupt_fn": interrupt_fn,
+        "dedupe_key": dedupe_key,
     }
-    # Capacity check and record insert under ONE lock hold — checking
-    # active_count() separately would let two concurrent dispatches (e.g.
-    # from different gateway sessions) both pass the check and exceed the cap.
+    # Dedup + capacity check + record insert under ONE lock hold — checking
+    # either separately would let two concurrent dispatches (e.g. from
+    # different gateway sessions, or the model re-emitting the same
+    # delegate_task twice before the first record is visible) both pass the
+    # check.
     with _records_lock:
+        duplicate = next(
+            (
+                r for r in _records.values()
+                if r.get("status") == "running" and r.get("dedupe_key") == dedupe_key
+            ),
+            None,
+        )
+        if duplicate is not None:
+            return {
+                "status": "duplicate",
+                "delegation_id": duplicate["delegation_id"],
+                "error": (
+                    f"An identical async delegation is already running "
+                    f"(delegation_id={duplicate['delegation_id']!r}, dispatched "
+                    f"{round(time.time() - duplicate['dispatched_at'], 1)}s ago) — "
+                    f"not dispatching a duplicate. Wait for it to finish (its "
+                    f"result will re-enter the chat) rather than re-issuing the "
+                    f"same delegate_task call."
+                ),
+            }
+
         running = sum(
             1 for r in _records.values() if r.get("status") == "running"
         )
@@ -364,6 +472,7 @@ def dispatch_async_delegation_batch(
     runner: Callable[[], Dict[str, Any]],
     interrupt_fn: Optional[Callable[[], None]] = None,
     max_async_children: int = _DEFAULT_MAX_ASYNC_CHILDREN,
+    dispatch_rate_per_minute: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Dispatch a WHOLE fan-out batch as ONE background unit.
 
@@ -387,7 +496,7 @@ def dispatch_async_delegation_batch(
     """
     # ----- Rate limiter check -----
     tier = role or "subagent"
-    if not rate_limiter.try_acquire(tier):
+    if not rate_limiter.try_acquire(tier, rate_override=dispatch_rate_per_minute):
         return {
             "status": "rejected",
             "error": (
@@ -588,3 +697,9 @@ def _reset_for_tests() -> None:
         _executor_max_workers = 0
     with _records_lock:
         _records.clear()
+    # The tier rate limiter is a process-global singleton (agent.tier_rate_
+    # limiter.rate_limiter) — without resetting it here, tests that dispatch
+    # several times against the same tier (e.g. "leaf") deplete the shared
+    # bucket across test functions and later tests see spurious "rejected"
+    # results that have nothing to do with what they're testing.
+    rate_limiter.reset_all()
