@@ -188,7 +188,9 @@ def _selected_manifest_paths(
     for raw_path in selected:
         value = str(raw_path).replace("\\", "/").strip()
         if not value:
-            raise DesktopLayoutContractError("selected manifest paths must be non-empty")
+            raise DesktopLayoutContractError(
+                "selected manifest paths must be non-empty"
+            )
         candidate = Path(value)
         if candidate.is_absolute() or ".." in candidate.parts:
             raise DesktopLayoutContractError(

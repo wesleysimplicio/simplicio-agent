@@ -110,7 +110,9 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     """Write JSON through a sibling temporary file and atomic replace."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     os.replace(temporary, path)
 
 
@@ -125,7 +127,11 @@ def _append_journal(path: Path, event: str, **fields: Any) -> None:
 def _same_entry(source: Path, destination: Path) -> bool:
     if source.is_symlink() or destination.is_symlink():
         try:
-            return source.is_symlink() and destination.is_symlink() and os.readlink(source) == os.readlink(destination)
+            return (
+                source.is_symlink()
+                and destination.is_symlink()
+                and os.readlink(source) == os.readlink(destination)
+            )
         except OSError:
             return False
     if source.is_dir() or destination.is_dir():
@@ -180,11 +186,15 @@ def _merge_entry(source: Path, destination: Path, relative: str) -> None:
     if _lexists(destination):
         if source.is_dir() and not source.is_symlink():
             for child in sorted(source.iterdir(), key=lambda item: item.name):
-                _merge_entry(child, destination / child.name, f"{relative}/{child.name}")
+                _merge_entry(
+                    child, destination / child.name, f"{relative}/{child.name}"
+                )
         return
     if source.is_symlink():
         destination.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(os.readlink(source), destination, target_is_directory=source.is_dir())
+        os.symlink(
+            os.readlink(source), destination, target_is_directory=source.is_dir()
+        )
     elif source.is_dir():
         destination.mkdir(parents=True, exist_ok=True)
         for child in sorted(source.iterdir(), key=lambda item: item.name):
@@ -211,7 +221,10 @@ def _manifest_payload(
         "staging": str(staging),
         "status": status,
         "updated_at": _utc_now(),
-        "entries": [{"name": entry.name, "status": states.get(entry.name, "planned")} for entry in entries],
+        "entries": [
+            {"name": entry.name, "status": states.get(entry.name, "planned")}
+            for entry in entries
+        ],
     }
 
 
@@ -251,19 +264,32 @@ def migrate_state(
     }
 
     if no_migrate:
-        return MigrationReport(**base_report, skipped_reason="migration disabled via --no-migrate / environment")
+        return MigrationReport(
+            **base_report,
+            skipped_reason="migration disabled via --no-migrate / environment",
+        )
 
     marker = new_home / MARKER_NAME
     if marker.exists():
         return MigrationReport(**base_report, already_migrated=True)
 
     if _resolved_eq(legacy_home, new_home):
-        return MigrationReport(**base_report, skipped_reason="source and destination resolve to the same path")
+        return MigrationReport(
+            **base_report,
+            skipped_reason="source and destination resolve to the same path",
+        )
     if not _has_content(legacy_home):
-        return MigrationReport(**base_report, skipped_reason="no legacy state found at source (fresh install)")
+        return MigrationReport(
+            **base_report,
+            skipped_reason="no legacy state found at source (fresh install)",
+        )
 
     try:
-        entries = [entry for entry in sorted(legacy_home.iterdir(), key=lambda item: item.name) if entry.name not in _METADATA_NAMES]
+        entries = [
+            entry
+            for entry in sorted(legacy_home.iterdir(), key=lambda item: item.name)
+            if entry.name not in _METADATA_NAMES
+        ]
     except OSError as exc:
         return MigrationReport(**base_report, errors=[f"cannot list source: {exc}"])
 
@@ -277,7 +303,12 @@ def migrate_state(
             existing_manifest.get("source") != str(legacy_home)
             or existing_manifest.get("destination") != str(new_home)
         ):
-            return MigrationReport(**base_report, conflicts=["migration workspace belongs to another source or destination"])
+            return MigrationReport(
+                **base_report,
+                conflicts=[
+                    "migration workspace belongs to another source or destination"
+                ],
+            )
         workspace.mkdir(parents=True, exist_ok=True)
         staged_root.mkdir(parents=True, exist_ok=True)
         entry_status = {
@@ -287,11 +318,20 @@ def migrate_state(
         }
         _atomic_json(
             manifest_path,
-            _manifest_payload(legacy_home, new_home, staged_root, entries, status="staging", entry_status=entry_status),
+            _manifest_payload(
+                legacy_home,
+                new_home,
+                staged_root,
+                entries,
+                status="staging",
+                entry_status=entry_status,
+            ),
         )
         _append_journal(journal_path, "migration_started", entries=names)
     except (OSError, ValueError, TypeError) as exc:
-        return MigrationReport(**base_report, errors=[f"cannot initialize migration journal: {exc}"])
+        return MigrationReport(
+            **base_report, errors=[f"cannot initialize migration journal: {exc}"]
+        )
 
     copied: list[str] = []
     errors: list[str] = []
@@ -302,7 +342,14 @@ def migrate_state(
             entry_status[entry.name] = "staged"
             _atomic_json(
                 manifest_path,
-                _manifest_payload(legacy_home, new_home, staged_root, entries, status="staging", entry_status=entry_status),
+                _manifest_payload(
+                    legacy_home,
+                    new_home,
+                    staged_root,
+                    entries,
+                    status="staging",
+                    entry_status=entry_status,
+                ),
             )
             _append_journal(journal_path, "entry_staged", entry=entry.name)
         except OSError as exc:
@@ -311,9 +358,18 @@ def migrate_state(
             try:
                 _atomic_json(
                     manifest_path,
-                    _manifest_payload(legacy_home, new_home, staged_root, entries, status="staging_failed", entry_status=entry_status),
+                    _manifest_payload(
+                        legacy_home,
+                        new_home,
+                        staged_root,
+                        entries,
+                        status="staging_failed",
+                        entry_status=entry_status,
+                    ),
                 )
-                _append_journal(journal_path, "entry_failed", entry=entry.name, error=str(exc))
+                _append_journal(
+                    journal_path, "entry_failed", entry=entry.name, error=str(exc)
+                )
             except OSError as journal_exc:
                 errors.append(f"journal update failed: {journal_exc}")
 
@@ -328,12 +384,24 @@ def migrate_state(
         try:
             _atomic_json(
                 manifest_path,
-                _manifest_payload(legacy_home, new_home, staged_root, entries, status="conflict", entry_status=entry_status),
+                _manifest_payload(
+                    legacy_home,
+                    new_home,
+                    staged_root,
+                    entries,
+                    status="conflict",
+                    entry_status=entry_status,
+                ),
             )
             _append_journal(journal_path, "conflict", paths=conflicts)
         except OSError as exc:
             errors.append(f"journal update failed: {exc}")
-        return MigrationReport(**base_report, copied_entries=copied, conflicts=sorted(set(conflicts)), errors=errors)
+        return MigrationReport(
+            **base_report,
+            copied_entries=copied,
+            conflicts=sorted(set(conflicts)),
+            errors=errors,
+        )
 
     for entry, staged in zip(entries, staged_entries):
         try:
@@ -341,7 +409,14 @@ def migrate_state(
             entry_status[entry.name] = "committed"
             _atomic_json(
                 manifest_path,
-                _manifest_payload(legacy_home, new_home, staged_root, entries, status="committing", entry_status=entry_status),
+                _manifest_payload(
+                    legacy_home,
+                    new_home,
+                    staged_root,
+                    entries,
+                    status="committing",
+                    entry_status=entry_status,
+                ),
             )
             _append_journal(journal_path, "entry_committed", entry=entry.name)
         except (_MergeConflict, OSError) as exc:
@@ -354,7 +429,14 @@ def migrate_state(
     try:
         _atomic_json(
             manifest_path,
-            _manifest_payload(legacy_home, new_home, staged_root, entries, status="complete", entry_status=entry_status),
+            _manifest_payload(
+                legacy_home,
+                new_home,
+                staged_root,
+                entries,
+                status="complete",
+                entry_status=entry_status,
+            ),
         )
         _append_journal(journal_path, "migration_complete", entries=names)
         _atomic_json(
@@ -369,7 +451,11 @@ def migrate_state(
             },
         )
     except OSError as exc:
-        return MigrationReport(**base_report, copied_entries=copied, errors=[f"completion record failed: {exc}"])
+        return MigrationReport(
+            **base_report,
+            copied_entries=copied,
+            errors=[f"completion record failed: {exc}"],
+        )
 
     return MigrationReport(**base_report, migrated=True, copied_entries=copied)
 
@@ -378,7 +464,9 @@ def canonical_new_home() -> Path:
     """Return the platform-native target for the future default-home rename."""
     if sys.platform == "win32":
         local_appdata = os.environ.get("LOCALAPPDATA", "").strip()
-        base = Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
+        base = (
+            Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
+        )
         return base / "simplicio" / "agent"
     return Path.home() / ".simplicio" / "agent"
 
@@ -392,7 +480,9 @@ def migrate_default_state(*, dry_run: bool = False) -> MigrationReport:
     """
     legacy_value = os.environ.get("HERMES_HOME", "").strip()
     legacy_home = Path(legacy_value) if legacy_value else _legacy_platform_home()
-    canonical_value = env_get("HOME") if os.environ.get("SIMPLICIO_AGENT_HOME", "").strip() else None
+    canonical_value = (
+        env_get("HOME") if os.environ.get("SIMPLICIO_AGENT_HOME", "").strip() else None
+    )
     destination = Path(canonical_value) if canonical_value else canonical_new_home()
     return migrate_state(
         legacy_home,
@@ -406,6 +496,8 @@ def _legacy_platform_home() -> Path:
     """Return the pre-rename platform default without consulting HOME aliases."""
     if sys.platform == "win32":
         local_appdata = os.environ.get("LOCALAPPDATA", "").strip()
-        base = Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
+        base = (
+            Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
+        )
         return base / "hermes"
     return Path.home() / ".hermes"

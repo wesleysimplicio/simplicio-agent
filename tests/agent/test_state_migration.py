@@ -48,7 +48,9 @@ class TestMigrateState:
         assert not report.errors
         assert set(report.copied_entries) == {"config.yaml", "profiles", "sessions"}
         assert (new / "config.yaml").read_text() == "model: deepseek-chat\n"
-        assert (new / "profiles" / "coder" / "config.yaml").read_text() == "model: coder\n"
+        assert (
+            new / "profiles" / "coder" / "config.yaml"
+        ).read_text() == "model: coder\n"
         assert (new / "sessions" / "sessions.json").read_text() == "{}"
         # Non-destructive: legacy is untouched.
         assert (legacy / "config.yaml").exists()
@@ -110,8 +112,11 @@ class TestMigrateState:
         report = migrate_state(legacy, new, no_migrate=True)
 
         assert report.migrated is False
-        assert report.skipped_reason and "no-migrate" in report.skipped_reason.lower() \
+        assert (
+            report.skipped_reason
+            and "no-migrate" in report.skipped_reason.lower()
             or "NO_MIGRATE" in (report.skipped_reason or "")
+        )
         assert not new.exists()
         assert (legacy / "config.yaml").exists()  # legacy still intact
 
@@ -146,7 +151,9 @@ class TestMigrateState:
         assert report.migrated is False
         assert report.skipped_reason and "no legacy state" in report.skipped_reason
 
-    def test_legacy_file_conflicts_do_not_crash_and_are_reported(self, tmp_path, monkeypatch):
+    def test_legacy_file_conflicts_do_not_crash_and_are_reported(
+        self, tmp_path, monkeypatch
+    ):
         """An OSError while copying one entry is captured, not raised, and the
         marker is withheld so a retry can finish the job."""
         legacy = tmp_path / "hermes"
@@ -172,9 +179,14 @@ class TestMigrateState:
         # The directory entries were staged, but the transactional commit did
         # not start while one source entry was unavailable.
         assert not (new / "profiles" / "coder" / "config.yaml").exists()
-        assert report.staging_path and (report.staging_path / "profiles" / "coder" / "config.yaml").exists()
+        assert (
+            report.staging_path
+            and (report.staging_path / "profiles" / "coder" / "config.yaml").exists()
+        )
 
-    def test_interrupted_staging_rerun_finishes_from_manifest(self, tmp_path, monkeypatch):
+    def test_interrupted_staging_rerun_finishes_from_manifest(
+        self, tmp_path, monkeypatch
+    ):
         legacy = tmp_path / "hermes"
         new = tmp_path / "simplicio" / "agent"
         _populate_legacy(legacy)
@@ -215,7 +227,10 @@ class TestMigrateState:
         assert "config.yaml" in report.conflicts
         assert (new / "config.yaml").read_text() == "model: user-owned\n"
         assert not (new / MARKER_NAME).exists()
-        assert report.manifest_path and json.loads(report.manifest_path.read_text())["status"] == "conflict"
+        assert (
+            report.manifest_path
+            and json.loads(report.manifest_path.read_text())["status"] == "conflict"
+        )
 
         # Resolving the conflict permits the staged transaction to resume.
         (new / "config.yaml").write_text((legacy / "config.yaml").read_text())
@@ -226,8 +241,13 @@ class TestMigrateState:
 class TestCanonicalNewHome:
     def test_posix_default(self, monkeypatch):
         monkeypatch.setattr("agent.state_migration.sys.platform", "linux")
-        monkeypatch.setattr("agent.state_migration.Path.home", lambda: __import__("pathlib").Path("/home/u"))
-        assert canonical_new_home() == __import__("pathlib").Path("/home/u/.simplicio/agent")
+        monkeypatch.setattr(
+            "agent.state_migration.Path.home",
+            lambda: __import__("pathlib").Path("/home/u"),
+        )
+        assert canonical_new_home() == __import__("pathlib").Path(
+            "/home/u/.simplicio/agent"
+        )
 
     def test_windows_uses_localappdata(self, tmp_path, monkeypatch):
         monkeypatch.setattr("agent.state_migration.sys.platform", "win32")
@@ -245,7 +265,9 @@ class TestMigrateDefaultState:
         monkeypatch.delenv("HERMES_NO_MIGRATE", raising=False)
 
         new_home = tmp_path / "simplicio-new"
-        monkeypatch.setattr("agent.state_migration.canonical_new_home", lambda: new_home)
+        monkeypatch.setattr(
+            "agent.state_migration.canonical_new_home", lambda: new_home
+        )
 
         report = migrate_default_state()
 
@@ -261,7 +283,9 @@ class TestMigrateDefaultState:
         monkeypatch.setenv("SIMPLICIO_AGENT_NO_MIGRATE", "1")
 
         new_home = tmp_path / "simplicio-new"
-        monkeypatch.setattr("agent.state_migration.canonical_new_home", lambda: new_home)
+        monkeypatch.setattr(
+            "agent.state_migration.canonical_new_home", lambda: new_home
+        )
 
         report = migrate_default_state()
 

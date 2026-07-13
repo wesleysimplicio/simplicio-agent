@@ -21,7 +21,9 @@ def _desktop_fixture(root: Path) -> None:
     (root / "package.json").write_text('{"name": "fixture"}\n', encoding="utf-8")
 
 
-def test_locates_canonical_desktop_root_and_returns_json_ready_receipt(tmp_path: Path) -> None:
+def test_locates_canonical_desktop_root_and_returns_json_ready_receipt(
+    tmp_path: Path,
+) -> None:
     _desktop_fixture(tmp_path)
     receipt = build_desktop_layout_receipt(tmp_path, manifest_paths=["package.json"])
     assert locate_desktop_root(tmp_path) == tmp_path / "desktop"
@@ -50,16 +52,22 @@ def test_falls_back_to_legacy_desktop_root(tmp_path: Path) -> None:
 def test_rejects_ambiguous_layout(tmp_path: Path) -> None:
     (tmp_path / "desktop").mkdir()
     (tmp_path / "apps" / "desktop").mkdir(parents=True)
-    with pytest.raises(DesktopLayoutAmbiguousError, match="both desktop and apps/desktop"):
+    with pytest.raises(
+        DesktopLayoutAmbiguousError, match="both desktop and apps/desktop"
+    ):
         locate_desktop_root(tmp_path)
 
 
 def test_rejects_missing_layout(tmp_path: Path) -> None:
-    with pytest.raises(DesktopLayoutMissingError, match="expected desktop or apps/desktop"):
+    with pytest.raises(
+        DesktopLayoutMissingError, match="expected desktop or apps/desktop"
+    ):
         locate_desktop_root(tmp_path)
 
 
-@pytest.mark.parametrize("reference", ["apps/desktop/package.json", r"apps\desktop\package.json"])
+@pytest.mark.parametrize(
+    "reference", ["apps/desktop/package.json", r"apps\desktop\package.json"]
+)
 def test_reports_stale_reference_in_selected_manifest(
     tmp_path: Path, reference: str
 ) -> None:
@@ -73,7 +81,9 @@ def test_reports_stale_reference_in_selected_manifest(
     assert receipt.stale_references[0].line == 1
 
 
-def test_selected_manifests_are_bounded_and_missing_files_fail_closed(tmp_path: Path) -> None:
+def test_selected_manifests_are_bounded_and_missing_files_fail_closed(
+    tmp_path: Path,
+) -> None:
     _desktop_fixture(tmp_path)
     receipt = build_desktop_layout_receipt(
         tmp_path, manifest_paths=["package.json", "not-selected.json"]

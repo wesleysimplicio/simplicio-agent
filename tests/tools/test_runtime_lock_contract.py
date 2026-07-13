@@ -5,7 +5,12 @@ import json
 
 import pytest
 
-from tools.runtime_lock_contract import LOCK_SCHEMA, load_lock, target_key, validate_lock
+from tools.runtime_lock_contract import (
+    LOCK_SCHEMA,
+    load_lock,
+    target_key,
+    validate_lock,
+)
 
 
 def _lock(tmp_path, *, signature="verified", target="linux-x86_64", payload=b"runtime"):

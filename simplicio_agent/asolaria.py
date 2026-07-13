@@ -25,7 +25,9 @@ __all__ = [
     "selftest",
 ]
 
-_PATTERN_DIR = Path(__file__).resolve().parents[1] / "skills" / "asolaria-patterns" / "lib"
+_PATTERN_DIR = (
+    Path(__file__).resolve().parents[1] / "skills" / "asolaria-patterns" / "lib"
+)
 _MODULES: dict[str, ModuleType] = {}
 
 

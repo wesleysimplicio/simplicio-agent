@@ -86,7 +86,13 @@ def validate_lock(
     if not isinstance(selected, Mapping):
         errors.append(f"no asset for target {target}")
         return RuntimeLockReceipt(
-            str(payload.get("schema", "")), target, False, False, "unknown", None, tuple(errors)
+            str(payload.get("schema", "")),
+            target,
+            False,
+            False,
+            "unknown",
+            None,
+            tuple(errors),
         )
 
     required = ("name", "version", "url", "sha256", "size", "target")
@@ -99,7 +105,13 @@ def validate_lock(
         errors.append("asset.version must be strict semver")
     url = selected.get("url")
     parsed = urlparse(url) if isinstance(url, str) else None
-    if parsed is None or parsed.scheme != "https" or not parsed.netloc or parsed.query or parsed.fragment:
+    if (
+        parsed is None
+        or parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.query
+        or parsed.fragment
+    ):
         errors.append("asset.url must be an immutable HTTPS URL")
     digest = selected.get("sha256")
     if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
@@ -109,7 +121,10 @@ def validate_lock(
         errors.append("asset.size must be a positive integer")
 
     metadata = selected.get("target")
-    if not isinstance(metadata, Mapping) or target_key(metadata.get("os"), metadata.get("arch")) != target:
+    if (
+        not isinstance(metadata, Mapping)
+        or target_key(metadata.get("os"), metadata.get("arch")) != target
+    ):
         errors.append("asset.target does not match requested target")
 
     if artifact is not None and not errors:
@@ -122,7 +137,9 @@ def validate_lock(
             if _digest(artifact_path).lower() != str(digest).lower():
                 errors.append("artifact sha256 does not match lock")
 
-    signature_status = str(payload.get("provenance", {}).get("signature_status", "unverified"))
+    signature_status = str(
+        payload.get("provenance", {}).get("signature_status", "unverified")
+    )
     valid = not errors
     stable_ready = valid and signature_status == "verified"
     return RuntimeLockReceipt(
@@ -145,4 +162,10 @@ def load_lock(path: str | Path) -> dict[str, Any]:
     return value
 
 
-__all__ = ["LOCK_SCHEMA", "RuntimeLockReceipt", "load_lock", "target_key", "validate_lock"]
+__all__ = [
+    "LOCK_SCHEMA",
+    "RuntimeLockReceipt",
+    "load_lock",
+    "target_key",
+    "validate_lock",
+]
