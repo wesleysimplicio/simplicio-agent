@@ -54,3 +54,14 @@ Scenarios must be inside the recognized `1. Critérios de Aceite` section. Passi
 ## Evidence from the session
 
 The loop compiled `SCN1` and created run manifests/journal/watcher state, but three runs remained blocked before mutation because the mapper reindexed loop-generated files and returned `fresh=false`. The correct status was `UNVERIFIED`, not success. The issue stayed open.
+
+## Canonical readiness receipt (issue #142)
+
+The symptoms above (`artifacts_missing`, `fresh: false`, `delivery.ready: false`)
+are exactly the conditions `agent.telemetry.lane_readiness` turns into an
+explicit, machine-readable `LaneReadinessReceipt` instead of silent
+non-progress — including distinguishing a *legitimate* mapper/index lock
+(active heartbeat within its TTL) from a *stale* one (dead or unproven). See
+`docs/LANE_READINESS_RECOVERY.md` for the recovery sequence per blocked
+reason, and `tests/agent/telemetry/test_lane_readiness.py` for a runnable
+`blocked -> artifacts_ready -> handoff_ready` transition.
