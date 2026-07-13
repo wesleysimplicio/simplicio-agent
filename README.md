@@ -196,6 +196,26 @@ Simplicio Agent has two entry points: start the terminal UI with `simplicio-agen
 
 For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
 
+### MCP tool vs CLI fallback for the rare commands
+
+Most day-to-day work goes through MCP tools. A long tail of rarer commands
+(cron, gateway, workflow, issue-factory, agent control, desktop app
+launching, plan/decide/sprint/learn, doctor/hooks/tokio-runtime/health/
+settings) doesn't all have a dedicated MCP tool yet, and that's by design,
+not a gap:
+
+- **Read-only status checks** (`cron_status`, `gateway_status`,
+  `hooks_status`, plus the routing lookup `low_frequency_cli_fallback`) are
+  real MCP tools — see `mcp_low_freq_bridges.py`.
+- **Everything else in that long tail** is an explicit CLI fallback: call
+  `simplicio-agent` / `simplicio` directly, or ask any connected agent to
+  call the `low_frequency_cli_fallback` tool with the domain name to get
+  back the exact command to run.
+
+The full classification (which domain is MCP today, which is CLI fallback,
+and why) lives in
+[`docs/mcp-low-frequency-bridges.md`](docs/mcp-low-frequency-bridges.md).
+
 ---
 
 ## Documentation

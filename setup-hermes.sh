@@ -668,6 +668,17 @@ else
     echo -e "${YELLOW}⚠${NC} MCP register não disponível — pule este passo"
 fi
 
+# 7c-2. Routing note: not every command has an MCP tool. Read-only status
+# checks (cron/gateway/hooks) are real MCP tools now; everything else in
+# the long tail (workflow, issue-factory, agent, desktop, plan/decide/
+# sprint/learn, doctor/tokio-runtime/health/settings) is an intentional
+# CLI fallback, not missing coverage — see
+# docs/mcp-low-frequency-bridges.md and mcp_low_freq_bridges.py.
+echo -e "${CYAN}→${NC} MCP vs CLI: comandos raros (cron/gateway/workflow/issue-factory/"
+echo -e "  agent/desktop/plan/decide/sprint/learn/doctor) seguem "
+echo -e "  docs/mcp-low-frequency-bridges.md — cron/gateway/hooks já são MCP,"
+echo -e "  o resto usa CLI fallback explícito (nunca falha em silêncio)."
+
 # 7d. Health check
 echo ""
 echo -e "${CYAN}→${NC} Verificando saúde do Simplicio Runtime..."

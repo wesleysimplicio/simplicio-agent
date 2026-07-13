@@ -1095,6 +1095,16 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         result = handle_computer_use(call_args)
         return _computer_use_result_to_mcp_content(result)
 
+    # -- low-frequency-domain bridges (cron/gateway/hooks + CLI-fallback
+    # contract for workflow/issue-factory/agent/desktop/plan-decide-sprint-
+    # learn/doctor-tokio-health-settings) — see issue #99 and
+    # docs/mcp-low-frequency-bridges.md. Kept in a separate module so those
+    # tools stay independently testable without booting this whole server.
+
+    from mcp_low_freq_bridges import register_low_freq_tools
+
+    register_low_freq_tools(mcp)
+
     return mcp
 
 
