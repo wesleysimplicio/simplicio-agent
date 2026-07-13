@@ -54,6 +54,20 @@ class RuntimeLockReceipt:
         }
 
 
+@dataclass(frozen=True)
+class LockValidation:
+    """Compatibility view consumed by ``tools.runtime_manager``."""
+
+    valid: bool
+    target: str
+    asset: Mapping[str, Any] | None
+    errors: tuple[str, ...] = ()
+
+    @property
+    def detail(self) -> str:
+        return "; ".join(self.errors)
+
+
 def _semver(value: object) -> bool:
     return isinstance(value, str) and _SEMVER.fullmatch(value) is not None
 
@@ -162,10 +176,30 @@ def load_lock(path: str | Path) -> dict[str, Any]:
     return value
 
 
+def validate_lock_manifest(
+    manifest: object,
+    *,
+    target: str | None = None,
+) -> LockValidation:
+    """Expose the manager-facing validation shape over the public receipt API."""
+
+    requested = target or target_key()
+    if not isinstance(manifest, Mapping):
+        return LockValidation(False, requested, None, ("lock is not an object",))
+    receipt = validate_lock(manifest, target=requested)
+    return LockValidation(receipt.valid, receipt.target, receipt.asset, receipt.errors)
+
+
+validate_runtime_lock = validate_lock_manifest
+
+
 __all__ = [
     "LOCK_SCHEMA",
+    "LockValidation",
     "RuntimeLockReceipt",
     "load_lock",
     "target_key",
     "validate_lock",
+    "validate_lock_manifest",
+    "validate_runtime_lock",
 ]

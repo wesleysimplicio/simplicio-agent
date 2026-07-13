@@ -151,7 +151,19 @@ def validate_runtime_lock(
     requested = target or _target_key()
     result = validate_lock_manifest(lock, target=requested)
     asset = dict(result.asset) if result.asset is not None else None
-    return RuntimeLockValidation(result.valid, result.target, asset, result.errors)
+    # Keep the manager's established diagnostic vocabulary while the shared
+    # receipt contract uses shorter, public-facing messages.
+    errors = tuple(
+        error.replace(
+            "asset.target does not match requested target",
+            "asset.target does not match its target key",
+        ).replace(
+            "no asset for target ",
+            "no verified runtime asset for target ",
+        )
+        for error in result.errors
+    )
+    return RuntimeLockValidation(result.valid, result.target, asset, errors)
 
     errors: list[str] = []
     if not isinstance(lock, dict):
