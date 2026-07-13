@@ -81,6 +81,7 @@ _DEFAULT_LOCK = {
 # Lock file
 # ---------------------------------------------------------------------------
 
+
 def repo_root() -> Path:
     """The simplicio-agent repo root (parent of ``tools/``)."""
     return Path(__file__).resolve().parent.parent
@@ -109,6 +110,7 @@ def load_runtime_lock() -> dict:
 # ---------------------------------------------------------------------------
 # Version handshake
 # ---------------------------------------------------------------------------
+
 
 def parse_semver(text: str) -> Optional[tuple[int, int, int]]:
     """Extract the first ``X.Y.Z`` triple from arbitrary version output."""
@@ -140,13 +142,17 @@ def kernel_version(bin_path: str) -> Optional[str]:
     """
     try:
         from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+
         extra = {"creationflags": windows_hide_flags()} if IS_WINDOWS else {}
     except Exception:
         extra = {}
     try:
         proc = subprocess.run(
             [bin_path, "--version"],
-            capture_output=True, text=True, timeout=10, **extra,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            **extra,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         logger.debug("kernel --version failed for %s: %s", bin_path, exc)
@@ -162,6 +168,7 @@ def kernel_version(bin_path: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
+
 
 def managed_bin_dir() -> Path:
     """``~/.simplicio/bin`` (honors ``SIMPLICIO_HOME`` for tests/relocation)."""
@@ -239,7 +246,8 @@ def canonical_symlink_path(lock: Optional[dict] = None) -> Path:
 
 
 def sync_canonical_symlink(
-    status: Optional[RuntimeStatus] = None, lock: Optional[dict] = None,
+    status: Optional[RuntimeStatus] = None,
+    lock: Optional[dict] = None,
 ) -> Optional[str]:
     """Idempotently point the canonical shim at the resolved kernel binary.
 
@@ -296,12 +304,13 @@ def sync_canonical_symlink(
 # Status + ensure
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RuntimeStatus:
     """One handshake result: what resolved, at what version, vs the pin."""
 
     bin_path: Optional[str]
-    source: str                 # env | path | managed | absent
+    source: str  # env | path | managed | absent
     version: Optional[str]
     min_version: str
     satisfied: bool
@@ -324,7 +333,9 @@ def runtime_health(lock: Optional[dict] = None) -> dict:
     return {
         "schema": "simplicio-runtime/health/v1",
         "healthy": status.satisfied,
-        "status": "healthy" if status.satisfied else ("stale" if status.present else "absent"),
+        "status": "healthy"
+        if status.satisfied
+        else ("stale" if status.present else "absent"),
         "bin_path": status.bin_path,
         "source": status.source,
         "version": status.version,
@@ -346,7 +357,9 @@ def doctor_status(*, fix: bool = False) -> dict:
         report = {
             "schema": "simplicio-runtime/doctor/v1",
             "healthy": status.satisfied,
-            "status": "healthy" if status.satisfied else ("stale" if status.present else "absent"),
+            "status": "healthy"
+            if status.satisfied
+            else ("stale" if status.present else "absent"),
             "bin_path": status.bin_path,
             "source": status.source,
             "version": status.version,
@@ -374,21 +387,30 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     bin_path, source = resolve_kernel(lock)
     if not bin_path:
         return RuntimeStatus(
-            bin_path=None, source="absent", version=None,
-            min_version=minimum, satisfied=False,
+            bin_path=None,
+            source="absent",
+            version=None,
+            min_version=minimum,
+            satisfied=False,
             detail="kernel binary not found (env override, PATH, managed dir)",
         )
     version = kernel_version(bin_path)
     if version is None:
         return RuntimeStatus(
-            bin_path=bin_path, source=source, version=None,
-            min_version=minimum, satisfied=False,
+            bin_path=bin_path,
+            source=source,
+            version=None,
+            min_version=minimum,
+            satisfied=False,
             detail="binary resolved but --version handshake failed",
         )
     ok = version_satisfies(version, minimum)
     return RuntimeStatus(
-        bin_path=bin_path, source=source, version=version,
-        min_version=minimum, satisfied=ok,
+        bin_path=bin_path,
+        source=source,
+        version=version,
+        min_version=minimum,
+        satisfied=ok,
         detail="" if ok else f"installed {version} < pinned {minimum}",
     )
 
@@ -401,8 +423,8 @@ def _asset_entry(lock: dict) -> tuple[Optional[str], Optional[str]]:
     ``(None, None)`` when no asset is published for this platform.
     """
     assets = lock.get("assets") or {}
-    system = platform.system().lower()      # darwin / linux / windows
-    machine = platform.machine().lower()    # arm64 / x86_64 / amd64
+    system = platform.system().lower()  # darwin / linux / windows
+    machine = platform.machine().lower()  # arm64 / x86_64 / amd64
     machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
     entry = assets.get(f"{system}-{machine}")
     if entry is None:
@@ -460,9 +482,21 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
     tmp = dest.parent / f".{dest.name}.download.{os.getpid()}"
     try:
         proc = subprocess.run(
-            ["gh", "release", "download", "--repo", repo,
-             "--pattern", asset, "--output", str(tmp), "--clobber"],
-            capture_output=True, text=True, timeout=300,
+            [
+                "gh",
+                "release",
+                "download",
+                "--repo",
+                repo,
+                "--pattern",
+                asset,
+                "--output",
+                str(tmp),
+                "--clobber",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         _cleanup_tmp(tmp)
@@ -492,7 +526,9 @@ def _install_from_sibling(lock: dict, dest: Path) -> Optional[str]:
     """``cargo build --release`` in the sibling checkout, then copy the
     binary into ``dest``. Returns an error string on failure, None on
     success. This is the only install path on Windows."""
-    sibling = (repo_root() / str(lock.get("sibling_checkout") or "../simplicio-runtime")).resolve()
+    sibling = (
+        repo_root() / str(lock.get("sibling_checkout") or "../simplicio-runtime")
+    ).resolve()
     if not (sibling / "Cargo.toml").is_file():
         return f"sibling checkout not found at {sibling}"
     if not shutil.which("cargo"):
@@ -500,13 +536,21 @@ def _install_from_sibling(lock: dict, dest: Path) -> Optional[str]:
     try:
         proc = subprocess.run(
             ["cargo", "build", "--release"],
-            cwd=str(sibling), capture_output=True, text=True, timeout=3600,
+            cwd=str(sibling),
+            capture_output=True,
+            text=True,
+            timeout=3600,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"cargo build failed to run: {exc}"
     if proc.returncode != 0:
         return f"cargo build failed: {(proc.stderr or '').strip()[-300:]}"
-    built = sibling / "target" / "release" / _bin_name(str(lock.get("kernel") or "simplicio"))
+    built = (
+        sibling
+        / "target"
+        / "release"
+        / _bin_name(str(lock.get("kernel") or "simplicio"))
+    )
     if not built.is_file():
         return f"cargo build succeeded but binary not found at {built}"
     try:
@@ -626,6 +670,7 @@ def _reset_kernel_binding_cache() -> None:
     failure -- a stale cache is a staleness bug, not a crash."""
     try:
         from tools.kernel_binding import reset_kernel_cache
+
         reset_kernel_cache()
     except Exception as exc:
         logger.debug("failed to reset kernel_binding cache after install: %s", exc)
