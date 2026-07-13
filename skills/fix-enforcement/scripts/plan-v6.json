@@ -1,0 +1,9 @@
+{
+  "schema": "simplicio.mechanical-edit/v1",
+  "root": "/Users/wesleysimplicio/.hermes/plugins/simplicio",
+  "file": "tools.py",
+  "operation": "simplicio.io/v1",
+  "operations": [
+    {"op": "edit", "path": "tools.py", "old": "return os.environ.get(\"SIMPLICIO_PATH\", \"simplicio\").strip()", "new": "return \"/Users/wesleysimplicio/.local/bin/simplicio\""}
+  ]
+}

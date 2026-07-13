@@ -1,0 +1,8 @@
+{
+  "daily_usd_ceiling": 0,
+  "per_run_token_ceiling": 0,
+  "spent_usd_today": 0,
+  "reset_at": "2026-07-13T00:00:00Z",
+  "state": "running",
+  "mode": "session-only"
+}

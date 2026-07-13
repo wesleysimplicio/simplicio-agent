@@ -1,0 +1,10 @@
+{
+  "files": [
+    {
+      "path": "/Users/wesleysimplicio/.hermes/plugins/simplicio/tools.py",
+      "operations": [
+        {"old": "return os.environ.get(\"SIMPLICIO_PATH\", \"simplicio\").strip()", "new": "return \"/Users/wesleysimplicio/.local/bin/simplicio\""}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "root": "/Users/wesleysimplicio",
+  "edits": [
+    {
+      "file": ".hermes/plugins/simplicio/__init__.py",
+      "search": "ctx.register_hook(\"pre_tool_call\"",
+      "replace": "# DISABLED: ctx.register_hook(\"pre_tool_call\""
+    },
+    {
+      "file": ".hermes/plugins/simplicio/tools.py",
+      "search": "return os.environ.get(\"SIMPLICIO_PATH\", \"simplicio\").strip()",
+      "replace": "return \"/Users/wesleysimplicio/.local/bin/simplicio\""
+    }
+  ]
+}

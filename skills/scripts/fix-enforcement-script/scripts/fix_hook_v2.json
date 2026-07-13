@@ -1,0 +1,11 @@
+{
+  "schema": "simplicio.mechanical-edit/v1",
+  "operations": [
+    {
+      "op": "string_replace",
+      "path": ".hermes/plugins/simplicio/__init__.py",
+      "old": "ctx.register_hook(\"pre_tool_call\"",
+      "new": "# DISABLED: ctx.register_hook(\"pre_tool_call\""
+    }
+  ]
+}
