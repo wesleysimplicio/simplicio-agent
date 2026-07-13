@@ -559,6 +559,14 @@ def _looks_like_test_tempdir(path: str) -> bool:
     return any(needle in normalized for needle in needles)
 
 
+# Wire-level MCP server key written to ~/.codex/config.toml as
+# [mcp_servers.simplicio-tools]. Renamed from "hermes-tools" (issue #191);
+# kept as a module constant so the config-writer, the switch-report
+# exclusion list, and the elicitation-callback matcher can't drift apart.
+_SIMPLICIO_TOOLS_MCP_KEY = "simplicio-tools"
+_LEGACY_HERMES_TOOLS_MCP_KEY = "hermes-tools"
+
+
 def _build_hermes_tools_mcp_entry() -> dict:
     """Build the codex stdio-transport entry that launches Hermes' own
     tool surface as an MCP server. Codex's subprocess will call back into
