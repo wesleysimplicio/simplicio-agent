@@ -30,9 +30,9 @@ from agent.context_engine import ContextEngine
 from agent.model_metadata import (
     MINIMUM_CONTEXT_LENGTH,
     get_model_context_length,
-    estimate_messages_tokens_rough,
 )
 from agent.redact import redact_sensitive_text
+from agent.tokens.message_estimator import estimate_messages_tokens_fast as estimate_messages_tokens_rough
 
 logger = logging.getLogger(__name__)
 

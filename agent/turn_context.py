@@ -31,9 +31,9 @@ from typing import Any, Dict, List, Optional
 from agent.conversation_compression import conversation_history_after_compression
 from agent.iteration_budget import IterationBudget
 from agent.model_metadata import (
-    estimate_messages_tokens_rough,
     estimate_request_tokens_rough,
 )
+from agent.tokens.message_estimator import estimate_messages_tokens_fast as estimate_messages_tokens_rough
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,16 @@ def _should_run_preflight_estimate(
           the count condition, so compression was never attempted and the
           turn hit a hard context-overflow error).
 
-    Branch (b) uses ``estimate_messages_tokens_rough`` (the shared char-based
-    estimator) so a single large base64 image isn't mistaken for ~250K tokens.
-    It intentionally undercounts vs. the full request estimate — it omits the
-    system prompt and tool schemas — because it is only a *hint* deciding
-    whether to pay for the authoritative ``estimate_request_tokens_rough``,
+    Branch (b) uses ``estimate_messages_tokens_fast`` (issue #111 — delegates
+    text counting to ``agent.tokens.fast_estimator``, tiktoken when
+    installed else the same ``len // 4`` fallback, ~15-30% faster than the
+    prior char-based estimator per ``scripts/bench_token_estimators.py``;
+    image-token-cost handling is imported unchanged from
+    ``agent.model_metadata._count_image_tokens``, so a single large base64
+    image still isn't mistaken for ~250K tokens). It intentionally
+    undercounts vs. the full request estimate — it omits the system prompt
+    and tool schemas — because it is only a *hint* deciding whether to pay
+    for the authoritative ``estimate_request_tokens_rough``,
     which (together with ``should_compress``) makes the real decision.
     """
     if len(messages) > protect_first_n + protect_last_n + 1:
