@@ -194,7 +194,10 @@ def finish_turn_envelope(
             evidence_ref = f"turn:{turn_id}"
             plan = (
                 (TaskState.VALIDATING, {}),
-                (TaskState.EVIDENCE_READY, {"evidence_refs": (evidence_ref,)}),
+                (
+                    TaskState.EVIDENCE_READY,
+                    {"evidence_refs": (evidence_ref,), "receipts": (evidence_ref,)},
+                ),
                 (TaskState.DELIVERED, {"delivery_target": "chat-response"}),
                 (TaskState.CLOSED, {}),
             )
@@ -211,7 +214,13 @@ def finish_turn_envelope(
 
         for state, kwargs in plan:
             before = envelope
-            envelope = envelope.transition(state, **kwargs)
+            if state is TaskState.CLOSED:
+                evidence_ref = f"turn:{turn_id}"
+                envelope = _get_ledger(agent).close_if_verified(
+                    envelope, verified_evidence_refs=(evidence_ref,)
+                )
+            else:
+                envelope = envelope.transition(state, **kwargs)
             agent._task_envelope = envelope
             _record(agent, envelope)
             _emit(
