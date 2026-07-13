@@ -10,13 +10,23 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 _ENV = "HERMES_TOKEN_SAVINGS_LOG"
-_REL = Path(".hermes") / "telemetry" / "token_savings.jsonl"
+_REL = Path("telemetry") / "token_savings.jsonl"
 
 
 def default_log_path() -> Path:
-    """Return the JSONL log path (env override or ``~/.hermes/...``)."""
+    """Return the JSONL log path (env override or ``<HERMES_HOME>/...``).
+
+    Delegates the base directory to ``hermes_constants.get_hermes_home()``
+    instead of hardcoding ``Path.home() / ".hermes"`` — the hardcoded form
+    silently ignored ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any future
+    migration/default change in the accessor (issue #117).
+    """
     override = os.environ.get(_ENV)
-    return Path(override).expanduser() if override else Path.home() / _REL
+    if override:
+        return Path(override).expanduser()
+    from hermes_constants import get_hermes_home
+
+    return get_hermes_home() / _REL
 
 
 def _utc_now() -> str:

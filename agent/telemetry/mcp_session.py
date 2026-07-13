@@ -32,8 +32,22 @@ from agent.telemetry.stage_timer import record_stage
 
 logger = logging.getLogger(__name__)
 
-# Constants
-_DEFAULT_LEDGER_DIR = Path.home() / ".hermes" / "telemetry" / "mcp_sessions"
+def _default_ledger_dir() -> Path:
+    """Return ``<HERMES_HOME>/telemetry/mcp_sessions``.
+
+    Derived from ``hermes_constants.get_hermes_home()`` instead of a
+    hardcoded ``Path.home() / ".hermes"`` so it honors
+    ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any migration (issue #117).
+    """
+    from hermes_constants import get_hermes_home
+
+    return get_hermes_home() / "telemetry" / "mcp_sessions"
+
+
+# Constants. ``_DEFAULT_LEDGER_DIR`` stays a module attribute (not just a
+# function) for backward compatibility with callers/tests that read or
+# monkeypatch ``mcp_session._DEFAULT_LEDGER_DIR`` directly.
+_DEFAULT_LEDGER_DIR = _default_ledger_dir()
 _ENV_LEDGER_DIR = "HERMES_MCP_TELEMETRY_DIR"
 
 def _utc_now() -> str:

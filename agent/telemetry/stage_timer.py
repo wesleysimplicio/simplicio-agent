@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-_DEFAULT_LOG = Path.home() / ".hermes" / "telemetry.jsonl"
 _log_path: Optional[Path] = None
 
 
@@ -35,11 +34,21 @@ def set_log_path(path: str | os.PathLike[str]) -> None:
 
 
 def get_log_path() -> Path:
-    """Resolve the active JSONL output path."""
+    """Resolve the active JSONL output path.
+
+    The default is derived from ``hermes_constants.get_hermes_home()``
+    rather than a module-level ``Path.home() / ".hermes"`` constant, so it
+    always honors ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any migration
+    the accessor performs (issue #117).
+    """
     if _log_path is not None:
         return _log_path
     env = os.environ.get("HERMES_TELEMETRY_LOG")
-    return Path(env) if env else _DEFAULT_LOG
+    if env:
+        return Path(env)
+    from hermes_constants import get_hermes_home
+
+    return get_hermes_home() / "telemetry.jsonl"
 
 
 def record_stage(
