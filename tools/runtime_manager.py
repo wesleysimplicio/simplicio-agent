@@ -45,12 +45,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from tools.runtime_lock_contract import validate_lock_manifest
 
 logger = logging.getLogger(__name__)
 
 _LOCK_FILENAME = "runtime.lock"
+_LOCK_SCHEMA = "runtime-lock/v2"
 _KERNEL_BIN_ENV = "HERMES_KERNEL_BIN"
 _MANAGED_DIR_ENV = "SIMPLICIO_HOME"
+_DEV_BUILD_ENV = "HERMES_RUNTIME_DEV_BUILD"
 
 _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
@@ -67,7 +70,7 @@ _KERNEL_BANNER_RE = re.compile(
 )
 
 _DEFAULT_LOCK = {
-    "schema": "runtime-lock/v1",
+    "schema": _LOCK_SCHEMA,
     "kernel": "simplicio",
     "min_version": "0.0.0",
     "release_repo": "wesleysimplicio/simplicio",
@@ -75,6 +78,20 @@ _DEFAULT_LOCK = {
     "assets": {},
     "sibling_checkout": "../simplicio-runtime",
 }
+
+
+@dataclass(frozen=True)
+class RuntimeLockValidation:
+    """The bounded, read-only result of validating a runtime lock."""
+
+    valid: bool
+    target: str
+    asset: Optional[dict]
+    errors: tuple[str, ...] = ()
+
+    @property
+    def detail(self) -> str:
+        return "; ".join(self.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -90,21 +107,129 @@ def repo_root() -> Path:
 def load_runtime_lock() -> dict:
     """Read ``runtime.lock`` from the repo root.
 
-    Returns the parsed dict merged over safe defaults. A missing or corrupt
-    lock degrades to a ``min_version`` of ``0.0.0`` (any kernel satisfies),
-    matching the pre-lock behavior — never raises.
+    Returns the parsed dict merged over defaults. Missing, corrupt, or
+    incomplete locks are deliberately retained as invalid input: readiness
+    validates the result and fails closed instead of treating a missing lock
+    as permission to run any kernel.
     """
     lock_path = repo_root() / _LOCK_FILENAME
     merged = dict(_DEFAULT_LOCK)
     try:
         raw = json.loads(lock_path.read_text(encoding="utf-8"))
         if isinstance(raw, dict):
-            merged.update({k: v for k, v in raw.items() if v is not None})
+            merged.update(raw)
     except FileNotFoundError:
         logger.debug("runtime.lock not found at %s -- using defaults", lock_path)
     except Exception as exc:
         logger.warning("runtime.lock unreadable (%s) -- using defaults", exc)
     return merged
+
+
+def _normalize_machine(machine: str) -> str:
+    return {"amd64": "x86_64", "aarch64": "arm64"}.get(
+        machine.lower(), machine.lower()
+    )
+
+
+def _target_key(system: Optional[str] = None, machine: Optional[str] = None) -> str:
+    system = (system or platform.system()).lower()
+    machine = _normalize_machine(machine or platform.machine())
+    return f"{system}-{machine}"
+
+
+def validate_runtime_lock(
+    lock: object, *, target: Optional[str] = None
+) -> RuntimeLockValidation:
+    """Validate the release metadata needed before runtime readiness.
+
+    This is intentionally stricter than JSON parsing. Every asset must carry
+    an immutable HTTPS URL, non-null size and SHA-256, a semver release
+    version compatible with ``min_version``, and explicit OS/architecture
+    metadata matching its map key. A missing current target is unavailable;
+    it is never silently replaced with a different target or a sibling build.
+    """
+    requested = target or _target_key()
+    result = validate_lock_manifest(lock, target=requested)
+    asset = dict(result.asset) if result.asset is not None else None
+    return RuntimeLockValidation(result.valid, result.target, asset, result.errors)
+
+    errors: list[str] = []
+    if not isinstance(lock, dict):
+        return RuntimeLockValidation(False, requested, None, ("lock is not an object",))
+
+    if lock.get("schema") != _LOCK_SCHEMA:
+        errors.append(f"schema must be {_LOCK_SCHEMA}")
+    kernel = lock.get("kernel")
+    if not isinstance(kernel, str) or not kernel.strip():
+        errors.append("kernel must be a non-empty string")
+    minimum = lock.get("min_version")
+    if not isinstance(minimum, str) or not _STRICT_SEMVER_RE.fullmatch(minimum):
+        errors.append("min_version must be a strict semver")
+
+    assets = lock.get("assets")
+    if not isinstance(assets, dict) or not assets:
+        errors.append("assets must contain at least one target")
+        return RuntimeLockValidation(False, requested, None, tuple(errors))
+
+    selected: Optional[dict] = None
+    for key, entry in assets.items():
+        prefix = f"assets[{key!r}]"
+        if not isinstance(key, str) or "-" not in key:
+            errors.append(f"{prefix} target key must be <os>-<arch>")
+            continue
+        key_os, key_arch = key.split("-", 1)
+        if not isinstance(entry, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        for field in ("name", "version", "url", "sha256", "size", "target"):
+            if field not in entry or entry[field] is None:
+                errors.append(f"{prefix}.{field} must be non-null")
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            errors.append(f"{prefix}.name must be a non-empty string")
+        version = entry.get("version")
+        if not isinstance(version, str) or not _STRICT_SEMVER_RE.fullmatch(version):
+            errors.append(f"{prefix}.version must be a strict semver")
+        elif isinstance(minimum, str) and _STRICT_SEMVER_RE.fullmatch(minimum):
+            if parse_semver(version) < parse_semver(minimum):
+                errors.append(f"{prefix}.version {version} is below min_version {minimum}")
+        url = entry.get("url")
+        parsed_url = urlparse(url) if isinstance(url, str) else None
+        if (
+            parsed_url is None
+            or parsed_url.scheme != "https"
+            or not parsed_url.netloc
+            or parsed_url.query
+            or parsed_url.fragment
+            or not isinstance(name, str)
+            or not parsed_url.path.rstrip("/").endswith(f"/{name}")
+        ):
+            errors.append(f"{prefix}.url must be an immutable HTTPS asset URL")
+        sha256 = entry.get("sha256")
+        if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+            errors.append(f"{prefix}.sha256 must be a 64-character hex digest")
+        size = entry.get("size")
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            errors.append(f"{prefix}.size must be a positive integer")
+        target_meta = entry.get("target")
+        if not isinstance(target_meta, dict):
+            errors.append(f"{prefix}.target must be an object")
+        else:
+            target_os = target_meta.get("os")
+            target_arch = target_meta.get("arch")
+            if not isinstance(target_os, str) or not isinstance(target_arch, str):
+                errors.append(f"{prefix}.target requires os and arch")
+            elif (
+                target_os.lower() != key_os.lower()
+                or _normalize_machine(target_arch) != _normalize_machine(key_arch)
+            ):
+                errors.append(f"{prefix}.target does not match its target key")
+        if key == requested:
+            selected = entry
+
+    if selected is None:
+        errors.append(f"no verified runtime asset for target {requested}")
+    return RuntimeLockValidation(not errors, requested, selected, tuple(errors))
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +379,6 @@ def sync_canonical_symlink(
     Returns an error string describing what went wrong, or ``None`` on
     success *or* a legitimate no-op:
 
-    * ``sys.platform == "win32"`` -- no fixed-path convention there, no-op.
     * no kernel currently resolves (``status.present`` is False) -- nothing
       to link to yet; not an error, just "install the kernel first".
     * the shim already points at the resolved binary -- already in sync.
@@ -264,15 +388,14 @@ def sync_canonical_symlink(
     symlink, or creates the path fresh) -- mirrors the "never clobber a
     user-managed install" rule ``ensure_runtime`` applies to the managed dir.
     """
-    if sys.platform == "win32":
-        return None
     lock = lock or load_runtime_lock()
     status = status or runtime_status(lock)
     if not status.present or not status.bin_path:
         return None
 
     link = canonical_symlink_path(lock)
-    resolved_target = str(Path(status.bin_path).resolve())
+    target = Path(status.bin_path)
+    resolved_target = str(target.resolve())
 
     if link.exists() and not link.is_symlink():
         if str(link.resolve()) == resolved_target:
@@ -294,7 +417,7 @@ def sync_canonical_symlink(
         link.parent.mkdir(parents=True, exist_ok=True)
         if link.is_symlink() or link.exists():
             link.unlink()
-        link.symlink_to(status.bin_path)
+        link.symlink_to(target)
     except OSError as exc:
         return f"failed to create canonical symlink {link}: {exc}"
     return None
@@ -315,10 +438,20 @@ class RuntimeStatus:
     min_version: str
     satisfied: bool
     detail: str = ""
+    lock_valid: bool = False
+    target: Optional[str] = None
+    asset_name: Optional[str] = None
+    sha256: Optional[str] = None
+    verified: bool = False
 
     @property
     def present(self) -> bool:
         return self.bin_path is not None
+
+    @property
+    def ready(self) -> bool:
+        """Alias for callers that want the readiness contract explicitly."""
+        return self.satisfied
 
 
 def runtime_health(lock: Optional[dict] = None) -> dict:
@@ -340,6 +473,11 @@ def runtime_health(lock: Optional[dict] = None) -> dict:
         "source": status.source,
         "version": status.version,
         "min_version": status.min_version,
+        "target": status.target,
+        "asset_name": status.asset_name,
+        "sha256": status.sha256,
+        "verified": status.verified,
+        "lock_valid": status.lock_valid,
         "detail": status.detail,
         "doctor_command": "simplicio-agent doctor --fix",
     }
@@ -364,6 +502,11 @@ def doctor_status(*, fix: bool = False) -> dict:
             "source": status.source,
             "version": status.version,
             "min_version": status.min_version,
+            "target": status.target,
+            "asset_name": status.asset_name,
+            "sha256": status.sha256,
+            "verified": status.verified,
+            "lock_valid": status.lock_valid,
             "detail": status.detail,
             "fixed": bool(fix and status.satisfied),
             "doctor_command": "simplicio-agent doctor --fix",
@@ -381,9 +524,24 @@ def doctor_status(*, fix: bool = False) -> dict:
 
 
 def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
-    """Handshake the resolved kernel against the ``runtime.lock`` pin."""
+    """Resolve, verify, and handshake the runtime as one readiness result."""
     lock = lock or load_runtime_lock()
     minimum = str(lock.get("min_version") or "0.0.0")
+    validation = validate_runtime_lock(lock)
+    if not validation.valid:
+        return RuntimeStatus(
+            bin_path=None,
+            source="absent",
+            version=None,
+            min_version=minimum,
+            satisfied=False,
+            detail=f"runtime lock invalid: {validation.detail}",
+            lock_valid=False,
+            target=validation.target,
+        )
+    asset = validation.asset or {}
+    asset_name = str(asset["name"])
+    expected_sha256 = str(asset["sha256"])
     bin_path, source = resolve_kernel(lock)
     if not bin_path:
         return RuntimeStatus(
@@ -393,6 +551,55 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             min_version=minimum,
             satisfied=False,
             detail="kernel binary not found (env override, PATH, managed dir)",
+            lock_valid=True,
+            target=validation.target,
+            asset_name=asset_name,
+            sha256=expected_sha256,
+        )
+    try:
+        actual_size = Path(bin_path).stat().st_size
+    except OSError as exc:
+        return RuntimeStatus(
+            bin_path=bin_path,
+            source=source,
+            version=None,
+            min_version=minimum,
+            satisfied=False,
+            detail=f"runtime binary cannot be stat'ed: {exc}",
+            lock_valid=True,
+            target=validation.target,
+            asset_name=asset_name,
+            sha256=expected_sha256,
+        )
+    actual_sha256 = _sha256_file(Path(bin_path))
+    if actual_sha256.lower() != expected_sha256.lower():
+        return RuntimeStatus(
+            bin_path=bin_path,
+            source=source,
+            version=None,
+            min_version=minimum,
+            satisfied=False,
+            detail=(
+                f"runtime sha256 mismatch: expected {expected_sha256}, "
+                f"got {actual_sha256}"
+            ),
+            lock_valid=True,
+            target=validation.target,
+            asset_name=asset_name,
+            sha256=expected_sha256,
+        )
+    if actual_size != asset["size"]:
+        return RuntimeStatus(
+            bin_path=bin_path,
+            source=source,
+            version=None,
+            min_version=minimum,
+            satisfied=False,
+            detail=f"runtime size mismatch: expected {asset['size']}, got {actual_size}",
+            lock_valid=True,
+            target=validation.target,
+            asset_name=asset_name,
+            sha256=expected_sha256,
         )
     version = kernel_version(bin_path)
     if version is None:
@@ -403,6 +610,11 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             min_version=minimum,
             satisfied=False,
             detail="binary resolved but --version handshake failed",
+            lock_valid=True,
+            target=validation.target,
+            asset_name=asset_name,
+            sha256=expected_sha256,
+            verified=True,
         )
     ok = version_satisfies(version, minimum)
     return RuntimeStatus(
@@ -412,6 +624,11 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
         min_version=minimum,
         satisfied=ok,
         detail="" if ok else f"installed {version} < pinned {minimum}",
+        lock_valid=True,
+        target=validation.target,
+        asset_name=asset_name,
+        sha256=expected_sha256,
+        verified=True,
     )
 
 
@@ -423,10 +640,7 @@ def _asset_entry(lock: dict) -> tuple[Optional[str], Optional[str]]:
     ``(None, None)`` when no asset is published for this platform.
     """
     assets = lock.get("assets") or {}
-    system = platform.system().lower()  # darwin / linux / windows
-    machine = platform.machine().lower()  # arm64 / x86_64 / amd64
-    machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
-    entry = assets.get(f"{system}-{machine}")
+    entry = assets.get(_target_key())
     if entry is None:
         return None, None
     if isinstance(entry, dict):
@@ -471,11 +685,19 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
     download race clobbering another process's in-flight file, and is
     always removed on any failure path.
     """
-    asset, pinned_sha256 = _asset_entry(lock)
-    if not asset:
-        return f"no release asset published for this platform ({platform.system()}-{platform.machine()})"
-    if not pinned_sha256:
+    legacy_asset, legacy_sha256 = _asset_entry(lock)
+    if legacy_asset and not legacy_sha256:
         return "no pinned sha256 for asset -- refusing unverified download"
+
+    validation = validate_runtime_lock(lock)
+    if not validation.valid:
+        detail = validation.detail
+        if "sha256" in detail or (legacy_asset and not legacy_sha256):
+            detail += " (no pinned sha256 -- refusing unverified download)"
+        return f"runtime lock invalid: {detail}"
+    entry = validation.asset or {}
+    asset = str(entry["name"])
+    pinned_sha256 = str(entry["sha256"])
     if not shutil.which("gh"):
         return "gh CLI not available for release download"
     repo = str(lock.get("release_repo") or "")
@@ -486,6 +708,7 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
                 "gh",
                 "release",
                 "download",
+                f"v{entry['version']}",
                 "--repo",
                 repo,
                 "--pattern",
@@ -512,6 +735,11 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
     if digest.lower() != pinned_sha256.lower():
         _cleanup_tmp(tmp)
         return f"sha256 mismatch for {asset}: expected {pinned_sha256}, got {digest}"
+    expected_size = int(entry["size"])
+    actual_size = tmp.stat().st_size
+    if actual_size != expected_size:
+        _cleanup_tmp(tmp)
+        return f"size mismatch for {asset}: expected {expected_size}, got {actual_size}"
 
     try:
         tmp.chmod(0o755)
@@ -622,6 +850,11 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
     if status.satisfied or not install:
         return status
 
+    validation = validate_runtime_lock(lock)
+    if not validation.valid:
+        status.detail = f"runtime lock invalid: {validation.detail}"
+        return status
+
     # Never overwrite a user-managed install (env/PATH) — the managed dir
     # is the only place this module writes to. A stale PATH kernel is
     # reported, not replaced behind the user's back.
@@ -640,8 +873,12 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
         return status
     dest = dest_dir / _bin_name(str(lock.get("kernel") or "simplicio"))
 
+    developer_build = os.environ.get(_DEV_BUILD_ENV, "").strip() == "1"
+    strategies = [_install_from_release]
+    if developer_build:
+        strategies.append(_install_from_sibling)
     errors = []
-    for strategy in (_install_from_release, _install_from_sibling):
+    for strategy in strategies:
         err = strategy(lock, dest)
         if err is None:
             # The install changed what's on disk at the managed path -- the
@@ -659,6 +896,10 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
             return refreshed
         errors.append(err)
 
+    if not developer_build:
+        errors.append(
+            f"developer sibling build disabled; set {_DEV_BUILD_ENV}=1 explicitly"
+        )
     status.detail = "install failed: " + "; ".join(errors)
     return status
 
