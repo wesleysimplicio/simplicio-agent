@@ -1,0 +1,108 @@
+{
+  "axes": [
+    {
+      "name": "os",
+      "values": [
+        {
+          "id": "linux-x86_64",
+          "tier": "required"
+        }
+      ]
+    },
+    {
+      "name": "channel",
+      "values": [
+        {
+          "id": "wheel",
+          "tier": "required"
+        },
+        {
+          "id": "desktop",
+          "tier": "experimental"
+        }
+      ]
+    },
+    {
+      "name": "scenario",
+      "values": [
+        {
+          "id": "clean-install",
+          "tier": "required"
+        },
+        {
+          "id": "rollback",
+          "tier": "required"
+        }
+      ]
+    },
+    {
+      "name": "state",
+      "values": [
+        {
+          "id": "empty",
+          "tier": "required"
+        },
+        {
+          "id": "hermes-home",
+          "tier": "experimental"
+        }
+      ]
+    },
+    {
+      "name": "aliases",
+      "values": [
+        {
+          "id": "new-only",
+          "tier": "required"
+        },
+        {
+          "id": "old-only",
+          "tier": "experimental"
+        }
+      ]
+    },
+    {
+      "name": "runtime",
+      "values": [
+        {
+          "id": "healthy",
+          "tier": "required"
+        },
+        {
+          "id": "incompatible",
+          "tier": "experimental"
+        }
+      ]
+    },
+    {
+      "name": "fast_stack",
+      "values": [
+        {
+          "id": "fast",
+          "tier": "required"
+        },
+        {
+          "id": "lean",
+          "tier": "experimental"
+        }
+      ]
+    },
+    {
+      "name": "locale",
+      "values": [
+        {
+          "id": "en-US",
+          "tier": "required"
+        },
+        {
+          "id": "pt-BR",
+          "tier": "experimental"
+        }
+      ]
+    }
+  ],
+  "exclude": [],
+  "name": "rename-release-gate-bounded-slice",
+  "schema": "simplicio.release-matrix/v1",
+  "version": 1
+}

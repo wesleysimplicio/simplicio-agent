@@ -1,0 +1,99 @@
+{
+  "matrix_digest": "sha256:c4b8677522219c5cc54a232607b57f68e86772036cee9fb7832db798a7259b36",
+  "records": [
+    {
+      "artifact": {
+        "channel": "wheel",
+        "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "kind": "wheel",
+        "name": "simplicio-agent-0.25.0-py3-none-any.whl",
+        "source_uri": "https://artifacts.example.invalid/simplicio-agent-0.25.0.whl"
+      },
+      "case_id": "os=linux-x86_64__channel=wheel__scenario=clean-install__state=empty__aliases=new-only__runtime=healthy__fast_stack=fast__locale=en-US",
+      "environment": {
+        "cache_scope": "job",
+        "clean_room": true,
+        "manifest": {
+          "container_image": "ghcr.io/simplicio/release-gate@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "python": "3.13.5",
+          "runner_os": "ubuntu-24.04"
+        },
+        "manifest_digest": "sha256:4ea723e4f115450f305d7306905deae9680795851846e83e546eeb2e5daa1324",
+        "runner": "gha-ubuntu-24.04"
+      },
+      "receipts": [
+        "receipts/clean-install/doctor.json",
+        "receipts/clean-install/session-smoke.json"
+      ],
+      "status": "pass",
+      "tier": "required"
+    },
+    {
+      "artifact": {
+        "channel": "wheel",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "kind": "wheel",
+        "name": "simplicio-agent-0.25.0-py3-none-any.whl",
+        "source_uri": "https://artifacts.example.invalid/simplicio-agent-0.25.0.whl"
+      },
+      "case_id": "os=linux-x86_64__channel=wheel__scenario=rollback__state=empty__aliases=new-only__runtime=healthy__fast_stack=fast__locale=en-US",
+      "environment": {
+        "cache_scope": "job",
+        "clean_room": true,
+        "manifest": {
+          "container_image": "ghcr.io/simplicio/release-gate@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "python": "3.13.5",
+          "runner_os": "ubuntu-24.04"
+        },
+        "manifest_digest": "sha256:c32db92986fc908278ecd4c2af1f5b21de2afb08ea5335f558c2543346a8f382",
+        "runner": "gha-ubuntu-24.04"
+      },
+      "receipts": [
+        "receipts/rollback/update.json",
+        "receipts/rollback/rollback.json"
+      ],
+      "rollback": {
+        "from_release": "0.24.0",
+        "receipts": [
+          "receipts/rollback/update.json",
+          "receipts/rollback/rollback.json"
+        ],
+        "restored_artifact_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "restored_release": "0.24.0",
+        "schema": "simplicio.release-rollback-evidence/v1",
+        "state_preserved": true,
+        "to_release": "0.25.0"
+      },
+      "status": "pass",
+      "tier": "required"
+    },
+    {
+      "artifact": {
+        "channel": "desktop",
+        "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "kind": "desktop-bundle",
+        "name": "simplicio-agent-desktop-0.25.0.zip",
+        "source_uri": "https://artifacts.example.invalid/simplicio-agent-desktop-0.25.0.zip"
+      },
+      "case_id": "os=linux-x86_64__channel=desktop__scenario=clean-install__state=empty__aliases=new-only__runtime=healthy__fast_stack=fast__locale=en-US",
+      "environment": {
+        "cache_scope": "job",
+        "clean_room": true,
+        "manifest": {
+          "container_image": "ghcr.io/simplicio/release-gate@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "python": "3.13.5",
+          "runner_os": "ubuntu-24.04"
+        },
+        "manifest_digest": "sha256:7a5d261c3e0f3b33c0e23963963b9bf99c1c3fccd832f64947c63064ef032522",
+        "runner": "gha-ubuntu-24.04"
+      },
+      "receipts": [
+        "receipts/desktop/smoke.json"
+      ],
+      "status": "fail",
+      "tier": "experimental"
+    }
+  ],
+  "schema": "simplicio.release-evidence/v1",
+  "version": 1
+}
