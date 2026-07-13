@@ -17,6 +17,11 @@ ALIAS_DOCUMENT_SCHEMA = "simplicio-agent/alias-registry/v1"
 ALIAS_WARNING_SCHEMA = "simplicio-agent/alias-warning/v1"
 ALIAS_RECEIPT_SCHEMA = "simplicio-agent/alias-receipt/v1"
 ALIAS_DOCUMENT_VERSION = 1
+CLI_ALIAS_CANONICAL = "simplicio-agent"
+CLI_ALIAS_OWNER = "cli"
+CLI_ALIAS_SOURCE = "builtin:cli"
+CLI_ALIAS_WARNING_CODE = "deprecated_cli_alias"
+CLI_ALIAS_NAMES = ("hermes", "hermes-agent", "hermes-acp")
 
 
 class AliasRegistryError(ValueError):
@@ -121,6 +126,28 @@ class AliasLookup:
     entry: Optional[AliasEntry]
     warning: Optional[AliasWarning]
     receipt: AliasReceipt
+
+
+def default_cli_alias_entries() -> tuple[AliasEntry, ...]:
+    """Return the versioned built-in CLI compatibility aliases.
+
+    Keeping these entries in the alias registry gives public adapters one
+    source for legacy names while leaving the internal Hermes module names
+    untouched.
+    """
+
+    return tuple(
+        AliasEntry(
+            alias=alias,
+            canonical=CLI_ALIAS_CANONICAL,
+            source=CLI_ALIAS_SOURCE,
+            owner=CLI_ALIAS_OWNER,
+            deprecated=True,
+            warning_code=CLI_ALIAS_WARNING_CODE,
+            note="migration_only",
+        )
+        for alias in CLI_ALIAS_NAMES
+    )
 
 
 class AliasRegistry:
@@ -291,6 +318,11 @@ __all__ = [
     "ALIAS_DOCUMENT_VERSION",
     "ALIAS_RECEIPT_SCHEMA",
     "ALIAS_WARNING_SCHEMA",
+    "CLI_ALIAS_CANONICAL",
+    "CLI_ALIAS_NAMES",
+    "CLI_ALIAS_OWNER",
+    "CLI_ALIAS_SOURCE",
+    "CLI_ALIAS_WARNING_CODE",
     "AliasCollisionError",
     "AliasEntry",
     "AliasLookup",
@@ -299,6 +331,7 @@ __all__ = [
     "AliasRegistryError",
     "AliasSchemaError",
     "AliasWarning",
+    "default_cli_alias_entries",
     "load_alias_document",
     "load_alias_registry",
     "normalize_alias",

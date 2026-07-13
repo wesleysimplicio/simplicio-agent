@@ -17,16 +17,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from tools.alias_registry import CLI_ALIAS_CANONICAL, default_cli_alias_entries
+
 CLI_SURFACE_MANIFEST_SCHEMA = "simplicio-agent/cli-surface-manifest/v1"
 CLI_SURFACE_CHECK_SCHEMA = "simplicio-agent/cli-surface-check/v1"
 CLI_SURFACE_RECEIPT_SCHEMA = "simplicio-agent/cli-surface-receipt/v1"
 CLI_SURFACE_VERSION = 1
-CANONICAL_COMMAND = "simplicio-agent"
+CANONICAL_COMMAND = CLI_ALIAS_CANONICAL
 MIGRATION_ONLY = "migration_only"
 ALLOWED_MESSAGE_CLASSIFICATIONS = frozenset(
     {"canonical_hint", "migration_notice", "branding_event", "neutral_public_text"}
 )
-_LEGACY_ALIASES = ("hermes", "hermes-agent", "hermes-acp")
+_LEGACY_ALIASES = tuple(entry.alias for entry in default_cli_alias_entries())
 _SENSITIVE_KEY_TOKENS = (
     "token",
     "secret",
@@ -190,14 +192,14 @@ def default_manifest() -> CliSurfaceManifest:
         ),
         legacy_aliases=tuple(
             LegacyAlias(
-                alias=alias,
-                canonical=CANONICAL_COMMAND,
+                alias=entry.alias,
+                canonical=entry.canonical,
                 policy=MIGRATION_ONLY,
-                owner="cli",
-                warning_code="deprecated_cli_alias",
+                owner=entry.owner,
+                warning_code=entry.warning_code,
                 notice="same CLI, new name",
             )
-            for alias in _LEGACY_ALIASES
+            for entry in default_cli_alias_entries()
         ),
         public_messages=(
             PublicMessage(
