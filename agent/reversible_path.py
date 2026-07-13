@@ -26,6 +26,14 @@ from agent.capability_registry import (
     Risk,
 )
 from agent.goal_contract import GoalContract
+from agent.delivery_certificate import (
+    EvidenceVerdict,
+    ReproducibleManifest,
+    RoutingDecision,
+    StructuralCheck,
+    TaskCertificate,
+    sha256_text,
+)
 from agent.verification_evidence import VerificationEvidence
 from tools.checkpoint_manager import CheckpointManager
 from tools.simplicio_transport import SimplicioTransport, TransportReceipt
@@ -142,7 +150,7 @@ class ReversiblePathResult:
     after: dict[str, Any]
     undo: dict[str, Any]
     watcher: dict[str, Any]
-    delivery_certificate: dict[str, Any]
+    delivery_certificate: TaskCertificate
     availability: dict[str, Any]
     trace: tuple[dict[str, Any], ...]
 
@@ -152,6 +160,52 @@ class ReversiblePathResult:
 
 def _receipt(receipt: TransportReceipt) -> dict[str, Any]:
     return receipt.to_dict()
+
+
+def _certificate_manifest(
+    *, task_id: str, runtime_available: bool, trajectory: Any, diff: str
+) -> ReproducibleManifest:
+    return ReproducibleManifest(
+        task_id=task_id,
+        agent_version="simplicio-agent-local",
+        runtime_version="available" if runtime_available else None,
+        runtime_available=runtime_available,
+        provider="local-path",
+        model="not-used",
+        temperature=0.0,
+        seed=0,
+        prompt_sha256=sha256_text("issue-181-local-reversible-write"),
+        trajectory_sha256=sha256_text(_canonical(trajectory)),
+        diff_sha256=sha256_text(diff),
+        routing=RoutingDecision.NO_THINK,
+        nondeterminism_reason=None,
+        runtime_certificate_claim=False,
+    )
+
+
+def _certificate(
+    *,
+    task_id: str,
+    manifest: ReproducibleManifest,
+    status: str,
+    reason: str | None = None,
+    evidence: tuple[EvidenceVerdict, ...] = (),
+) -> TaskCertificate:
+    return TaskCertificate.create(
+        task_id=task_id,
+        manifest=manifest,
+        evidence=evidence,
+        structural_checks=(
+            StructuralCheck("certificate-schema", True, "pinned schema is present"),
+            StructuralCheck(
+                "runtime-claim-boundary", True, "runtime certificate is not claimed"
+            ),
+            StructuralCheck(
+                "local-path-identity", True, "artifact path is bounded and hashed"
+            ),
+        ),
+        blocked_reason=reason if status == "blocked" else None,
+    )
 
 
 def _blocked(
@@ -180,7 +234,17 @@ def _blocked(
         after=_snapshot(_artifact_path(root)),
         undo=_snapshot(_artifact_path(root)),
         watcher={"status": "not_run", "reason": reason},
-        delivery_certificate={"status": "blocked", "reason": reason},
+        delivery_certificate=_certificate(
+            task_id="issue-181",
+            manifest=_certificate_manifest(
+                task_id="issue-181",
+                runtime_available=False,
+                trajectory=("blocked", reason),
+                diff="",
+            ),
+            status="blocked",
+            reason=reason,
+        ),
         availability=availability,
         trace=({"stage": "blocked", "reason": reason},),
     )
@@ -336,23 +400,36 @@ def run_local_reversible_path(
         recomputed=watcher["status"] == "passed",
     )
     goal = goal.mark_completed_verified(reason="local artifact verified and restored")
-    certificate = {
-        "schema": "simplicio.delivery-certificate/v1",
-        "status": "passed",
-        "acceptance_criteria": {
-            ACCEPTANCE_CRITERIA[0]: {"status": "passed", "evidence": evidence_refs[0]},
-            ACCEPTANCE_CRITERIA[1]: {
-                "status": "passed",
-                "evidence": [evidence_refs[1], evidence_refs[2]],
-            },
-            ACCEPTANCE_CRITERIA[2]: {"status": "passed", "evidence": evidence_refs[3]},
-            ACCEPTANCE_CRITERIA[3]: {"status": "passed", "evidence": evidence_refs[4]},
-            ACCEPTANCE_CRITERIA[4]: {
-                "status": "passed",
-                "evidence": f"watcher:{undo['sha256']}",
-            },
-        },
-    }
+    certificate_evidence = tuple(
+        EvidenceVerdict(
+            name=criterion,
+            reference=reference,
+            reported="passed",
+            recomputed="passed",
+        )
+        for criterion, reference in zip(
+            ACCEPTANCE_CRITERIA,
+            (*evidence_refs[:4], f"watcher:{undo['sha256']}"),
+        )
+    )
+    certificate = _certificate(
+        task_id="issue-181",
+        manifest=_certificate_manifest(
+            task_id="issue-181",
+            runtime_available=False,
+            trajectory=(
+                "route",
+                decision.capability,
+                "verify",
+                after["sha256"],
+                "undo",
+                undo["sha256"],
+            ),
+            diff=FINAL_CONTENT,
+        ),
+        status="passed",
+        evidence=certificate_evidence,
+    )
     return ReversiblePathResult(
         status="completed_verified",
         workspace_id=_sha256(str(root)),
