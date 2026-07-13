@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agent.task_envelope import (
+    CloseGateError,
     InvalidTransitionError,
     TASK_ENVELOPE_SCHEMA_VERSION,
     TaskEnvelope,
@@ -213,3 +214,58 @@ def test_ledger_append_is_idempotent_for_duplicate_content():
     ledger.append(env)
     ledger.append(env)  # exact same content, appended twice
     assert len(ledger.history(env.task_id)) == 1
+
+
+def _delivered_with_evidence(*refs):
+    env = _make()
+    for state in (
+        TaskState.ORIENTED,
+        TaskState.PLANNED,
+        TaskState.CLAIMED,
+        TaskState.EXECUTING,
+        TaskState.VALIDATING,
+        TaskState.EVIDENCE_READY,
+    ):
+        env = env.transition(state)
+    return env.transition(TaskState.DELIVERED, evidence_refs=list(refs))
+
+
+def test_close_gate_quarantines_unverified_evidence_once():
+    ledger = TaskLedger()
+    env = _delivered_with_evidence("receipt://test")
+
+    decision = ledger.evaluate_close_gate(env)
+    assert decision.allowed is False
+    assert decision.quarantined is True
+    assert decision.missing_evidence_refs == ("receipt://test",)
+
+    for _ in range(2):
+        with pytest.raises(CloseGateError) as exc_info:
+            ledger.close_if_verified(env)
+        assert exc_info.value.decision == decision
+
+    quarantine = ledger.quarantine_history(env.task_id)
+    assert len(quarantine) == 1
+    assert quarantine[0]["task_id"] == env.task_id
+    assert quarantine[0]["envelope_hash"] == env.content_hash()
+    assert quarantine[0]["missing_evidence_refs"] == ["receipt://test"]
+
+
+def test_close_gate_closes_only_after_explicit_verification():
+    ledger = TaskLedger()
+    env = _delivered_with_evidence("receipt://one", "receipt://two")
+
+    closed = ledger.close_if_verified(
+        env, verified_evidence_refs=("receipt://two", "receipt://one")
+    )
+
+    assert closed.state is TaskState.CLOSED
+    assert ledger.quarantine_history(env.task_id) == ()
+    assert ledger.history(env.task_id)[-1]["state"] == "closed"
+
+
+def test_close_gate_preserves_legacy_transition_behavior():
+    env = _delivered_with_evidence("receipt://legacy")
+
+    # Existing callers may still use the low-level transition API unchanged.
+    assert env.transition(TaskState.CLOSED).state is TaskState.CLOSED

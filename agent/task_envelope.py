@@ -51,7 +51,7 @@ import time
 import uuid
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Any, Dict, FrozenSet, List, Optional
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional
 
 from agent._fastjson import dumps as _dumps, loads as _loads
 
@@ -155,6 +155,46 @@ class InvalidTransitionError(ValueError):
         )
         self.from_state = from_state
         self.to_state = to_state
+
+
+class CloseGateError(ValueError):
+    """Raised when the strict ledger close gate cannot verify a task."""
+
+    def __init__(self, decision: "CloseGateDecision") -> None:
+        super().__init__(decision.reason)
+        self.decision = decision
+
+
+@dataclass(frozen=True)
+class CloseGateDecision:
+    """Deterministic result of checking whether a task may be closed.
+
+    ``TaskEnvelope.transition`` remains the compatibility-level state
+    transition.  This stricter ledger boundary is opt-in for callers that
+    need to distinguish a referenced receipt from a receipt independently
+    verified by a watcher or test runner.
+    """
+
+    allowed: bool
+    status: str
+    reason: str
+    required_evidence_refs: tuple[str, ...] = ()
+    verified_evidence_refs: tuple[str, ...] = ()
+    missing_evidence_refs: tuple[str, ...] = ()
+
+    @property
+    def quarantined(self) -> bool:
+        return self.status == TaskState.QUARANTINED.value
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "allowed": self.allowed,
+            "status": self.status,
+            "reason": self.reason,
+            "required_evidence_refs": list(self.required_evidence_refs),
+            "verified_evidence_refs": list(self.verified_evidence_refs),
+            "missing_evidence_refs": list(self.missing_evidence_refs),
+        }
 
 
 def is_transition_allowed(from_state: TaskState, to_state: TaskState) -> bool:
@@ -459,6 +499,7 @@ class TaskLedger:
 
     def __init__(self) -> None:
         self._records: Dict[str, List[Dict[str, Any]]] = {}
+        self._quarantine_records: Dict[str, List[Dict[str, Any]]] = {}
 
     def append(self, envelope: TaskEnvelope) -> Dict[str, Any]:
         record = envelope.ledger_record()
@@ -472,6 +513,103 @@ class TaskLedger:
     def history(self, task_id: str) -> tuple[Dict[str, Any], ...]:
         return tuple(self._records.get(task_id, ()))
 
+    @staticmethod
+    def evaluate_close_gate(
+        envelope: TaskEnvelope,
+        *,
+        verified_evidence_refs: Iterable[str] = (),
+    ) -> CloseGateDecision:
+        """Check close eligibility without trusting receipt names alone.
+
+        The caller supplies references produced by an independent verifier.
+        Ordering of that input is intentionally ignored; the envelope's
+        evidence order is the canonical order used in the decision.
+        """
+        required = tuple(dict.fromkeys(envelope.evidence_refs))
+        verified = set(verified_evidence_refs)
+        observed = tuple(ref for ref in required if ref in verified)
+        missing = tuple(ref for ref in required if ref not in verified)
+
+        if envelope.state not in {TaskState.DELIVERED, TaskState.CLOSED}:
+            return CloseGateDecision(
+                allowed=False,
+                status=TaskState.QUARANTINED.value,
+                reason="close requires a delivered envelope",
+                required_evidence_refs=required,
+                verified_evidence_refs=observed,
+                missing_evidence_refs=missing,
+            )
+        if not required:
+            return CloseGateDecision(
+                allowed=False,
+                status=TaskState.QUARANTINED.value,
+                reason="close requires at least one evidence reference",
+                required_evidence_refs=required,
+                verified_evidence_refs=observed,
+                missing_evidence_refs=missing,
+            )
+        if missing:
+            return CloseGateDecision(
+                allowed=False,
+                status=TaskState.QUARANTINED.value,
+                reason="close requires every evidence reference to be verified",
+                required_evidence_refs=required,
+                verified_evidence_refs=observed,
+                missing_evidence_refs=missing,
+            )
+        return CloseGateDecision(
+            allowed=True,
+            status=TaskState.CLOSED.value,
+            reason="all required evidence references are verified",
+            required_evidence_refs=required,
+            verified_evidence_refs=observed,
+        )
+
+    def _record_quarantine(
+        self, envelope: TaskEnvelope, decision: CloseGateDecision
+    ) -> Dict[str, Any]:
+        record = {
+            "task_id": envelope.task_id,
+            "envelope_hash": envelope.content_hash(),
+            "state": TaskState.QUARANTINED.value,
+            "reason": decision.reason,
+            "missing_evidence_refs": list(decision.missing_evidence_refs),
+        }
+        history = self._quarantine_records.setdefault(envelope.task_id, [])
+        if record in history:
+            return record
+        history.append(record)
+        return record
+
+    def quarantine_history(self, task_id: str) -> tuple[Dict[str, Any], ...]:
+        """Return close-gate quarantine records for ``task_id``."""
+        return tuple(self._quarantine_records.get(task_id, ()))
+
+    def close_if_verified(
+        self,
+        envelope: TaskEnvelope,
+        *,
+        verified_evidence_refs: Iterable[str] = (),
+    ) -> TaskEnvelope:
+        """Close and ledger-record an envelope only after explicit proof.
+
+        A denied attempt is retained in the quarantine ledger, but the
+        immutable envelope is not mutated or silently promoted to closed.
+        """
+        decision = self.evaluate_close_gate(
+            envelope, verified_evidence_refs=verified_evidence_refs
+        )
+        if not decision.allowed:
+            self._record_quarantine(envelope, decision)
+            raise CloseGateError(decision)
+        closed = (
+            envelope
+            if envelope.state is TaskState.CLOSED
+            else envelope.transition(TaskState.CLOSED)
+        )
+        self.append(closed)
+        return closed
+
 
 __all__ = [
     "TASK_ENVELOPE_SCHEMA",
@@ -481,6 +619,8 @@ __all__ = [
     "TERMINAL_STATES",
     "ALLOWED_TRANSITIONS",
     "InvalidTransitionError",
+    "CloseGateError",
+    "CloseGateDecision",
     "is_transition_allowed",
     "TaskEnvelope",
     "TaskLedger",
