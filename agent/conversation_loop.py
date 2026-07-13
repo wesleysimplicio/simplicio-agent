@@ -637,6 +637,17 @@ def run_conversation(
             should_review_memory=_should_review_memory,
         )
 
+    # TaskEnvelope wiring (issue #209): construct the one canonical
+    # TaskEnvelope for this turn and drive it to EXECUTING before the
+    # tool-calling loop below runs. ``finalize_turn`` (agent/turn_finalizer.py)
+    # picks it back up via ``finish_turn_envelope`` and drives it to its
+    # terminal state using the same completed/failed/interrupted outcome it
+    # already computes. See agent/turn_envelope.py for the full rationale;
+    # this call must never be able to break a real turn, so it swallows its
+    # own errors.
+    from agent.turn_envelope import start_turn_envelope
+    start_turn_envelope(agent, turn_id=turn_id, user_message=user_message)
+
     while (api_call_count < agent.max_iterations and agent.iteration_budget.remaining > 0) or agent._budget_grace_call:
         # Reset per-turn checkpoint dedup so each iteration can take one snapshot
         agent._checkpoint_mgr.new_turn()
