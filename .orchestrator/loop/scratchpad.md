@@ -1,78 +1,113 @@
 ---
-iteration: 3
-max_iterations: 20
-completion_promise: null
+iteration: 2
+max_iterations: 40
+completion_promise: "ISSUE-209 TASKENVELOPE DONE"
 evidence_required: true
-mode: drain
-started_at: "2026-07-12T22:57:00Z"
+mode: converge
+started_at: "2026-07-12T00:00:00Z"
 ---
 
-## Backlog (survey done — 11 targets from inventory, iteration 1)
+Implement GitHub issue #209 (P0 Architecture): a single versioned `TaskEnvelope` and
+unified state machine shared by simplicio-agent and simplicio-runtime, so no component
+(conversation loop, kernel_binding, runtime run, workflow, simplicio-loop, leases,
+GitHub/PR, evidence) can declare success before the whole chain completes.
 
-- [x] 1. MCP server `hermes-tools` -> `simplicio-tools` (agent/transports/hermes_tools_mcp_server.py,
-      hermes_cli/codex_runtime_plugin_migration.py, codex_runtime_switch.py,
-      agent/transports/codex_app_server_session.py + legacy-name compat). Tests: 165/165 pass.
-- [x] 2. Health/process identity: gateway/platforms/api_server.py `/health`,`/health/detailed`,
-      `/v1/capabilities` "platform" field -> "simplicio-agent"; gateway/status.py `_GATEWAY_KIND`
-      -> "simplicio-gateway" (+ `_LEGACY_GATEWAY_KIND` compat, both accepted by
-      `_record_looks_like_gateway`); hermes_cli/main.py process title -> "simplicio-agent".
-      Deliberately NOT touched: `_resolve_model_name`/`/v1/models` "id"/"model" field (client-facing
-      routing key, needs its own alias-compat design) and systemd unit name
-      "hermes-gateway.service" (separate, much larger surface — real installed services on user
-      machines). Tests: 580/580 pass (2 pre-existing unrelated sandbox failures excluded,
-      confirmed via git stash on unmodified code).
-- [x] 3. Support bundle: hermes_cli/debug.py User-Agent -> "simplicio-agent/debug-share" (3x),
-      MIME boundary -> "----SimplicioDebugBoundary9f3c". Deliberately NOT touched:
-      `_NOUS_BUNDLE_FORMAT = "hermes-debug-share/1"` — cross-repo wire contract with the
-      discord-support viewer (separate repo), renaming it is a breaking schema-version bump
-      needing coordinated upcaster/dual-accept, not a same-repo string swap; left a comment
-      explaining the decision. Tests: 91/91 pass.
-- [x] 4. Telemetry/savings report titles + `prog=`: "Hermes Turbo" -> "Simplicio Turbo" in
-      savings_report.py/gain_analytics.py; `prog=` hermes-savings-report/hermes-token-savings ->
-      simplicio-*; dashboard.py description -> "Simplicio runtime telemetry dashboard". Tests:
-      49/50 pass (1 pre-existing unrelated failure, test_perf_integration_manifest.py serde/msgspec
-      env issue, confirmed via git stash).
-- [x] 5. ACP client: agent/copilot_acp_client.py `clientInfo.name/title` -> "simplicio-agent"/
-      "Simplicio Agent" (our own outbound identity to the Copilot ACP subprocess). Deliberately
-      NOT touched: acp_registry/agent.json — tests/acp/test_registry_manifest.py pins it to the
-      real external Nous Research ACP registry contract (id/name/repository/website asserted
-      verbatim as "official registry required fields"); renaming would desync from that live
-      external registry, not a same-repo cosmetic change. Tests: 31/31 pass.
-- [x] 6. User-Agent literal sweep (delegated to a sub-agent with explicit keep/rename rules):
-      36 production files renamed (HermesAgent/Hermes-Agent/hermes-agent/Hermes-Watcher outbound
-      identity strings -> Simplicio equivalents; internal names, PyPI package "hermes-agent",
-      GitHub URLs, `_NOUS_BUNDLE_FORMAT`, systemd unit name, `/v1/models` id all deliberately left
-      untouched, consistent with items 1-5); 10 test files updated to match. Verified via targeted
-      suites (~900 tests). One 3-test failure only reproduces when run in the same process as
-      unrelated suites (confirmed via git stash: identical on unmodified code — pre-existing
-      test-order pollution, not a regression).
-- [x] 7. cli.py exception-path branding fallbacks (6 occurrences, more than the 3 originally
-      spotted: lines 5537/5540/11888/12250/12254 "⚕ Hermes" -> "⚕ Simplicio", line 13569
-      "Hermes Agent" -> "Simplicio Agent"), now consistent with the existing default at
-      cli.py:3251. Deliberately NOT touched: the actual skin_engine default `agent_name` branding
-      (still legitimately "Hermes Agent" — tests/hermes_cli/test_skin_engine.py pins it, and
-      dozens of tests across the suite assert "Hermes Agent" appears in prompts/notifications;
-      that's the human-facing product rebrand, a separate much larger piece of work, not #191's
-      machine-identity scope — only the rare skin-load-failure fallback was in scope here).
-      Verified: cli.py compiles; skin_engine test failures (5) confirmed pre-existing via git
-      stash, none related to my 6-line edit.
-- [ ] (no code target found) Schema ID/event_source/product_id versioning policy — issue's
-      schema-versioning ACs have no existing schema_id/event_source field to version yet;
-      likely needs a new module, treat as a separate design task, not a rename.
+Canonical states: received → oriented → planned → claimed → executing → validating →
+evidence_ready → delivered → closed. Exception states: blocked, cancelled, quarantined,
+failed — explicit, idempotent transitions.
 
-Issue #191 — [P0][Rename] MCP, schemas, telemetry, receipts e machine identities públicas
-https://github.com/wesleysimplicio/simplicio-agent/issues/191
+Envelope must contain at minimum: schema + schema_version; task_id, parent_id,
+correlation_id; repo, branch, scope, write-set; structured acceptance criteria; risk
+policy, model, execution policy; current worker/lease; state, attempts, timestamps,
+block reason; artifacts, receipts, evidence refs; delivery target (commit/PR/issue/artifact).
 
-Nota de execução (esta run): os scripts do protocolo simplicio-loop
-(task_backlog.py, loop_journal.py, watcher_verify.py, task_anchor.py,
-impact_audit.py, flow_audit.py) NÃO existem nesta instalação — apenas a
-documentação em references/. Operadores reais confirmados: simplicio-mapper
-0.19.0 e simplicio-dev-cli (pip simplicio-cli). Loop conduzido manualmente
-(scratchpad + git/gh como fonte de verdade), seguindo o espírito do contrato:
-triagem -> decisão -> edição via simplicio-dev-cli -> teste como evidência.
+Steps:
+1. Inventory current state representations: conversation loop, kernel_binding, workflow,
+   loop journal, leases, delivery.
+2. Define schema `simplicio.task-envelope/v1` + transition contract.
+3. Implement types/serialization in the runtime side (this repo, simplicio-agent side;
+   coordinate/mirror with simplicio-runtime per the issue's cross-repo note).
+4. Implement the corresponding adapter in the agent.
+5. Migrate one vertical slice: chat request → run → validate → evidence.
+6. Reject invalid/duplicate transitions with a structured error.
+7. Persist every transition to a ledger with task_id + envelope hash.
+8. Add read-compat for old states without creating a second permanent model.
+9. Document ownership: control plane decides state; workers only report events.
 
-Escopo (verbatim do issue): MCP server metadata/tool descriptions; JSON-RPC
-product info; schemas/event source/product IDs; telemetry/savings/evidence
-fields; support bundle; logs públicos; user-agent; update/release manifests;
-process/health identities. Product identity = Simplicio Agent; Runtime
-identity permanece Simplicio Runtime.
+Acceptance criteria (all must hold with in-turn evidence before the promise):
+- [x] Versioned schema `simplicio.task-envelope/v1` exists and is validated by the runtime.
+      MEASURED: agent/task_envelope.py — TaskEnvelope.__post_init__ rejects any
+      schema_version != TASK_ENVELOPE_SCHEMA_VERSION; test_wrong_schema_version_is_rejected.
+- [ ] Chat, CLI, workflow, and worker all produce the same canonical envelope.
+      UNVERIFIED/PENDING: agent/task_envelope_bridge.py + its E2E test now prove ONE
+      caller can drive a TaskEnvelope transition and its matching protocol_v1 event
+      together (received..closed), but no real conversation_loop/kernel_binding/
+      workflow call site constructs a TaskEnvelope yet — still not wired into
+      production surfaces. See ADR-0008 "Still open".
+- [x] Invalid transitions are rejected deterministically.
+      MEASURED: InvalidTransitionError + ALLOWED_TRANSITIONS table;
+      test_invalid_transition_is_rejected_deterministically, test_terminal_states_have_no_outgoing_transitions.
+- [x] Repeating the same event does not duplicate state or evidence (idempotent).
+      MEASURED: same-state transition returns `self`; evidence_refs/receipts/artifacts
+      merged via a dedup helper; test_same_state_transition_is_idempotent_noop,
+      test_repeated_executing_event_does_not_duplicate_attempts,
+      test_repeated_evidence_ref_is_not_duplicated.
+- [x] An E2E test walks received → evidence_ready on a real case.
+      MEASURED: test_e2e_happy_path_to_closed_with_evidence (goes all the way to closed).
+      Still synthetic (no real chat/CLI/workflow driving it) — see the unchecked item above.
+- [x] The envelope carries ACs, write-set, lease, and receipts.
+      MEASURED: TaskEnvelope fields acceptance_criteria, write_set, lease, receipts + round-trip test.
+- [x] The system refuses `closed` without a valid evidence receipt.
+      MEASURED: __post_init__ raises ValueError when state is CLOSED and evidence_refs is empty;
+      test_closed_refuses_without_evidence_receipt.
+- [x] Documentation states explicitly who may change each state.
+      MEASURED: docs/architecture/ADR-0008-task-envelope-ownership.md — ownership table
+      (control plane / workers / evidence surfaces / delivery surfaces / read-only
+      consumers), each row's May-do vs May-NOT-do.
+- [ ] `simplicio contracts smoke --json` and focused tests pass.
+      MEASURED (focused tests): 35/35 passing —
+      `python3 -m pytest tests/agent/test_task_envelope.py tests/agent/test_task_envelope_bridge.py tests/agent/test_protocol_v1.py -q`.
+      PENDING: `simplicio contracts smoke` is the external simplicio-runtime CLI, not
+      present in this repo/venv — out of this repo's reach alone (documented in
+      ADR-0008 cross-repo note); cannot be run or wired from here.
+
+Evidence required: schema diff, transition matrix, E2E test, validation receipt, one real
+envelope example. Out of scope: new channels/models/shared-memory transport in this issue.
+
+Iteration 1 evidence (MEASURED): agent/task_envelope.py (new, 370 lines) +
+tests/agent/test_task_envelope.py (new, 14 tests, all passing) +
+tests/agent/test_protocol_v1.py re-run clean (16 passing, no regression).
+
+Iteration 2 plan: (a) wire the envelope into ONE real vertical slice per step 5
+(conversation_loop or the simplicio-loop skill's own task tracking, whichever has the
+smallest blast radius), (b) write the ownership doc (step 9), (c) reconcile with
+agent/protocol_v1.py per the issue-209 inventory finding — TaskEnvelope transitions
+should emit protocol_v1 lifecycle events, not duplicate them, (d) cross-repo mirror
+with simplicio-runtime is a separate coordination step, out of this repo's reach alone.
+
+Iteration 2 evidence (MEASURED): agent/task_envelope_bridge.py (new, deterministic
+TaskState -> protocol_v1 event_type map + emit_for_transition) + tests/agent/
+test_task_envelope_bridge.py (new, 5 tests incl. a received->closed E2E vertical
+slice) + docs/architecture/ADR-0008-task-envelope-ownership.md (ownership table +
+TaskEnvelope-vs-protocol_v1 reconciliation + cross-repo note). Full focused suite
+(test_task_envelope.py + test_task_envelope_bridge.py + test_protocol_v1.py):
+35/35 passing, no regressions.
+
+Remaining before the promise can honestly fire: wire a TaskEnvelope into one real
+production call site (conversation_loop turn or a `simplicio-loop` iteration's own
+tracking — the ORIGINAL Step 5 target, not yet done); this is materially larger
+scope (touches conversation_loop.py, thousands of lines) and is deferred to a
+follow-up iteration/PR rather than rushed. `simplicio contracts smoke` remains
+out of this repo's reach (separate CLI/repo). Given both gaps, this session does
+NOT emit the completion promise — the AC "chat/CLI/workflow/worker produce the
+same canonical envelope" is still open.
+
+KNOWN GAP (MEASURED, affects every iteration): the simplicio-loop skill's helper
+scripts (loop_journal.py, task_anchor.py, watcher_verify.py, task_backlog.py,
+impact_audit.py, flow_audit.py, hierarchical_planner.py, cross_agent_wiki.py) are
+referenced throughout SKILL.md but do not exist under
+~/.claude/skills/simplicio-loop/ (only references/ docs, no scripts/) or anywhere in
+this repo. The watcher-gate, stall-detector, and task-anchor mechanics described in
+the skill cannot run mechanically. This session substitutes: manual journal.jsonl
+appends, manual scratchpad AC checklist edits, and real pytest runs as the promise's
+evidence gate. No false "MEASURED" claim is made about a gate that didn't actually run.

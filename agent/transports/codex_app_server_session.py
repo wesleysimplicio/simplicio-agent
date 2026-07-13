@@ -38,6 +38,10 @@ from agent.transports.codex_app_server import (
     CodexAppServerError,
 )
 from agent.transports.codex_event_projector import CodexEventProjector
+from agent.transports.hermes_tools_mcp_server import (
+    LEGACY_MCP_SERVER_NAME,
+    MCP_SERVER_NAME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -669,16 +673,16 @@ class CodexAppServerSession:
         elif method == "mcpServer/elicitation/request":
             # Codex's MCP layer asks the user for structured input on
             # behalf of an MCP server (e.g. tool-call confirmation,
-            # OAuth, form data). For our own simplicio-tools callback we
-            # auto-accept — the user already approved Simplicio Agent's
-            # tools by enabling the runtime, and we never expose anything
-            # codex's built-in shell can't already do. "hermes-tools" is
-            # the pre-#191-rename wire name — still accepted so a
-            # ~/.codex/config.toml written before the rename (and not yet
-            # re-migrated) keeps working. For other MCP servers we decline
+            # OAuth, form data). For our own tool callback (client-facing
+            # name MCP_SERVER_NAME, "simplicio-agent-tools" — issue #204;
+            # LEGACY_MCP_SERVER_NAME "hermes-tools" recognized too for a
+            # config.toml written by an older install) we auto-accept —
+            # the user already approved Hermes' tools by enabling the
+            # runtime, and we never expose anything codex's built-in
+            # shell can't already do. For other MCP servers we decline
             # so the user explicitly opts in via codex's own auth flow.
             server_name = params.get("serverName") or ""
-            if server_name in ("simplicio-tools", "hermes-tools"):
+            if server_name in (MCP_SERVER_NAME, LEGACY_MCP_SERVER_NAME):
                 self._client.respond(
                     rid,
                     {"action": "accept", "content": None, "_meta": None},

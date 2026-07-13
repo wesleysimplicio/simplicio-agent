@@ -522,14 +522,15 @@ class TestServerRequestRouting:
         )
 
     def test_mcp_elicitation_for_hermes_tools_auto_accepts(self):
-        """When codex elicits on behalf of simplicio-tools (our own callback),
+        """When codex elicits on behalf of the legacy 'hermes-tools' server
+        name (a ~/.codex/config.toml written before issue #204's rename),
         accept automatically — the user already opted in by enabling the
         runtime."""
         client = FakeClient()
         client.queue_server_request(
             "mcpServer/elicitation/request", request_id="elic-1",
             threadId="t", turnId="tu1",
-            serverName="simplicio-tools",
+            serverName="hermes-tools",
             mode="form",
             message="confirm",
             requestedSchema={"type": "object", "properties": {}},
@@ -542,15 +543,15 @@ class TestServerRequestRouting:
         s.run_turn("hi", turn_timeout=1.0)
         assert ("elic-1", {"action": "accept", "content": None, "_meta": None}) in client.responses
 
-    def test_mcp_elicitation_for_legacy_hermes_tools_name_auto_accepts(self):
-        """A ~/.codex/config.toml written before the #191 rename still
-        registers the callback under the old "hermes-tools" server name
-        until it's re-migrated — must still auto-accept."""
+    def test_mcp_elicitation_for_simplicio_agent_tools_auto_accepts(self):
+        """Issue #204: the client-facing server name is now
+        'simplicio-agent-tools'; elicitation on its behalf must also
+        auto-accept, same as the legacy 'hermes-tools' alias above."""
         client = FakeClient()
         client.queue_server_request(
             "mcpServer/elicitation/request", request_id="elic-1b",
             threadId="t", turnId="tu1",
-            serverName="hermes-tools",
+            serverName="simplicio-agent-tools",
             mode="form",
             message="confirm",
             requestedSchema={"type": "object", "properties": {}},

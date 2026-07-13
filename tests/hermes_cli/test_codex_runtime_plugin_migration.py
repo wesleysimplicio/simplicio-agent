@@ -487,10 +487,10 @@ class TestMigrate:
 
     def test_expose_hermes_tools_writes_callback_mcp_entry(self, tmp_path):
         """When expose_hermes_tools=True (production default), an
-        [mcp_servers.simplicio-tools] entry is written so codex calls back
-        into Hermes for browser/web/delegate_task/vision/memory tools.
-        (Wire name renamed from "hermes-tools" to "simplicio-tools" for
-        issue #191; the module path stays hermes_tools_mcp_server.py.)
+        [mcp_servers.simplicio-agent-tools] entry is written so codex
+        calls back into Hermes for browser/web/delegate_task/vision/
+        memory tools. Client-facing name is Simplicio Agent branded
+        (issue #204) — no more bare "hermes-tools" shown to the user.
 
         This is the fix for 'all other tools that codex doesn't provide
         should be useable by hermes' — quirk #7."""
@@ -499,13 +499,15 @@ class TestMigrate:
                          default_permission_profile=None,
                          expose_hermes_tools=True)
         text = (tmp_path / "config.toml").read_text()
-        assert "[mcp_servers.simplicio-tools]" in text
+        assert "[mcp_servers.simplicio-agent-tools]" in text
+        assert "[mcp_servers.hermes-tools]" not in text
         assert "hermes_tools_mcp_server" in text
         # Must include startup + tool timeouts so codex doesn't give up
         assert "startup_timeout_sec" in text
         assert "tool_timeout_sec" in text
-        # And the entry is reported
-        assert "simplicio-tools" in report.migrated
+        # And the entry is reported under the new client-facing name
+        assert "simplicio-agent-tools" in report.migrated
+        assert "hermes-tools" not in report.migrated
 
     def test_expose_hermes_tools_disabled_skips_entry(self, tmp_path):
         """expose_hermes_tools=False suppresses the callback registration."""
@@ -514,8 +516,31 @@ class TestMigrate:
                 default_permission_profile=None,
                 expose_hermes_tools=False)
         text = (tmp_path / "config.toml").read_text()
-        assert "[mcp_servers.simplicio-tools]" not in text
+        assert "[mcp_servers.simplicio-agent-tools]" not in text
+        assert "[mcp_servers.hermes-tools]" not in text
         assert "hermes_tools_mcp_server" not in text
+
+    def test_re_migration_drops_stale_legacy_key(self, tmp_path):
+        """A config.toml whose managed block was written by a pre-rename
+        install (client-facing key [mcp_servers.hermes-tools]) must not
+        keep that entry once a fresh migration regenerates the managed
+        section under the new [mcp_servers.simplicio-agent-tools] key
+        (issue #204) — re-running migrate replaces the whole managed
+        block, so the stale key can't linger alongside the new one."""
+        (tmp_path / "config.toml").write_text(
+            MIGRATION_MARKER + "\n"
+            "[mcp_servers.hermes-tools]\n"
+            'command = "/usr/bin/python3"\n'
+            'args = ["-m", "agent.transports.hermes_tools_mcp_server"]\n'
+            + MIGRATION_END_MARKER + "\n"
+        )
+        migrate({}, codex_home=tmp_path,
+                discover_plugins=False,
+                default_permission_profile=None,
+                expose_hermes_tools=True)
+        text = (tmp_path / "config.toml").read_text()
+        assert "[mcp_servers.simplicio-agent-tools]" in text
+        assert "[mcp_servers.hermes-tools]" not in text
 
     def test_dry_run_doesnt_write(self, tmp_path):
         report = migrate({"mcp_servers": {"x": {"command": "y"}}},

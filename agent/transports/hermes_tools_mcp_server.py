@@ -8,11 +8,10 @@ cross-session search, image generation, TTS — is unreachable.
 
 This module exposes a curated subset of those Hermes tools to the
 spawned codex subprocess via stdio MCP. Codex registers it as a normal
-MCP server (per `~/.codex/config.toml [mcp_servers.simplicio-tools]`,
-formerly `[mcp_servers.hermes-tools]` — the wire-level MCP server name
-is `simplicio-tools`; `codex_app_server_session.py` still accepts the
-legacy `hermes-tools` name from configs written before the rename) and
-the user gets full Hermes capability inside a Codex turn.
+MCP server (per `~/.codex/config.toml [mcp_servers.simplicio-agent-tools]`,
+shown to the user as "Simplicio Agent" tooling — issue #204) and the
+user gets full Hermes capability inside a Codex turn. `hermes-tools` is
+recognized as a deprecated alias for configs written before this rename.
 
 Scope (what we expose):
   - web_search, web_extract              — Firecrawl, no codex equivalent
@@ -54,6 +53,16 @@ import sys
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+# Client-facing MCP server identifier — this is what Codex writes into
+# ``~/.codex/config.toml`` as ``[mcp_servers.<name>]`` and what shows up in
+# the codex/Claude/Cursor MCP server list. Renamed from "hermes-tools" to
+# the Simplicio Agent brand (issue #204, epic #186). "hermes-tools" is kept
+# as a recognized deprecated alias in ``codex_app_server_session.py`` and
+# ``codex_runtime_switch.py`` so a ``~/.codex/config.toml`` written by an
+# older install (before this rename) keeps working without a re-migration.
+MCP_SERVER_NAME = "simplicio-agent-tools"
+LEGACY_MCP_SERVER_NAME = "hermes-tools"
 
 
 # Tools we expose. Each name MUST match a registered Hermes tool that
@@ -116,7 +125,7 @@ def _build_server() -> Any:
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:  # pragma: no cover - install hint
         raise ImportError(
-            f"hermes-tools MCP server requires the 'mcp' package: {exc}"
+            f"{MCP_SERVER_NAME} MCP server requires the 'mcp' package: {exc}"
         ) from exc
 
     # Discover Hermes tools so dispatch works.
@@ -126,7 +135,7 @@ def _build_server() -> Any:
     )
 
     mcp = FastMCP(
-        "simplicio-tools",
+        MCP_SERVER_NAME,
         instructions=(
             "Simplicio Agent's tool surface, exposed for use inside a Codex "
             "session. Use these for capabilities Codex's built-in toolset "
@@ -190,7 +199,8 @@ def _build_server() -> Any:
         exposed_count += 1
 
     logger.info(
-        "simplicio-tools MCP server registered %d/%d tools",
+        "%s MCP server registered %d/%d tools",
+        MCP_SERVER_NAME,
         exposed_count,
         len(EXPOSED_TOOLS),
     )
@@ -216,7 +226,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         server = _build_server()
     except ImportError as exc:
-        sys.stderr.write(f"simplicio-tools MCP server cannot start: {exc}\n")
+        sys.stderr.write(f"{MCP_SERVER_NAME} MCP server cannot start: {exc}\n")
         return 2
 
     # FastMCP runs with stdio transport by default when launched as a
@@ -226,8 +236,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     except KeyboardInterrupt:
         return 0
     except Exception as exc:
-        logger.exception("simplicio-tools MCP server crashed")
-        sys.stderr.write(f"simplicio-tools MCP server error: {exc}\n")
+        logger.exception("%s MCP server crashed", MCP_SERVER_NAME)
+        sys.stderr.write(f"{MCP_SERVER_NAME} MCP server error: {exc}\n")
         return 1
     return 0
 

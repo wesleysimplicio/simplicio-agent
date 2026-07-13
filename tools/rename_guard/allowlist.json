@@ -1,0 +1,77 @@
+{
+  "schema": "simplicio.rename-guard.allowlist/v1",
+  "entries": [
+    {
+      "path_glob": "CHANGELOG.md",
+      "term": null,
+      "class": "credit",
+      "reason": "historical changelog entries document the prior project name; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "hermes_cli/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "module rename tracked separately under epic #186; internal-only, not a public artifact surface",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests/hermes_cli/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "test suite mirrors the hermes_cli module path pending #186 module rename",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "archive/*",
+      "term": null,
+      "class": "upstream",
+      "reason": "frozen archive of pre-fork upstream source, retained for reference — not shipped in any artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "*.dist-info/*",
+      "term": null,
+      "class": "credit",
+      "reason": "wheel build metadata (METADATA/RECORD/entry_points.txt/WHEEL/top_level.txt) is generated verbatim from the already-allowlisted pyproject.toml [project] table and the source file list, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "PKG-INFO",
+      "term": null,
+      "class": "credit",
+      "reason": "sdist build metadata is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "*.egg-info/*",
+      "term": null,
+      "class": "credit",
+      "reason": "setuptools egg-info is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "capability-contract skill catalog lists installed skill directories/descriptions (issue #186 epic) that legitimately quote legacy 'hermes-agent' skill names and product history; not a new branding regression",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docs/rename-inventory-status.md",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "rename-guard status report for issue #187 that quotes internal paths (hermes_cli/*, hermes_constants.py) verbatim for auditing purposes; not a branding regression",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    }
+  ]
+}

@@ -198,19 +198,21 @@ def apply(
         # browser/web/delegate_task/vision/memory tools (#7 fix).
         # Failures are non-fatal — the runtime change still proceeds.
         try:
-            from hermes_cli.codex_runtime_plugin_migration import (
-                migrate,
-                _LEGACY_HERMES_TOOLS_MCP_KEY,
-                _SIMPLICIO_TOOLS_MCP_KEY,
+            from hermes_cli.codex_runtime_plugin_migration import migrate
+            from agent.transports.hermes_tools_mcp_server import (
+                LEGACY_MCP_SERVER_NAME,
+                MCP_SERVER_NAME,
             )
             mig_report = migrate(config)
-            # Tools/MCP servers (excluding the simplicio-tools callback,
-            # which is internal plumbing — surface separately). Also
-            # exclude the legacy "hermes-tools" key in case a pre-rename
-            # report shape is ever replayed (e.g. cached report objects).
-            _internal_keys = {_SIMPLICIO_TOOLS_MCP_KEY, _LEGACY_HERMES_TOOLS_MCP_KEY}
+            # Tools/MCP servers (excluding our own tool callback, client-
+            # facing name MCP_SERVER_NAME ("simplicio-agent-tools", issue
+            # #204; LEGACY_MCP_SERVER_NAME "hermes-tools" kept for a
+            # pre-existing config.toml) — which is internal plumbing,
+            # surfaced separately below.
             user_servers = [
-                s for s in mig_report.migrated if s not in _internal_keys
+                s
+                for s in mig_report.migrated
+                if s not in (MCP_SERVER_NAME, LEGACY_MCP_SERVER_NAME)
             ]
             if user_servers:
                 msg_lines.append(
@@ -235,9 +237,9 @@ def apply(
                     f"Default sandbox: {mig_report.wrote_permissions_default} "
                     f"(no approval prompt on every write)"
                 )
-            if _SIMPLICIO_TOOLS_MCP_KEY in mig_report.migrated:
+            if MCP_SERVER_NAME in mig_report.migrated:
                 msg_lines.append(
-                    "Simplicio tool callback registered: codex can now use "
+                    "Hermes tool callback registered: codex can now use "
                     "web_search, web_extract, browser_*, vision_analyze, "
                     "image_generate, skill_view, skills_list, text_to_speech, "
                     "kanban_* (worker + orchestrator) via MCP."

@@ -42,6 +42,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from agent.transports.hermes_tools_mcp_server import (
+    LEGACY_MCP_SERVER_NAME,
+    MCP_SERVER_NAME,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -554,14 +559,6 @@ def _looks_like_test_tempdir(path: str) -> bool:
     return any(needle in normalized for needle in needles)
 
 
-# Wire-level MCP server key written to ~/.codex/config.toml as
-# [mcp_servers.simplicio-tools]. Renamed from "hermes-tools" (issue #191);
-# kept as a module constant so the config-writer, the switch-report
-# exclusion list, and the elicitation-callback matcher can't drift apart.
-_SIMPLICIO_TOOLS_MCP_KEY = "simplicio-tools"
-_LEGACY_HERMES_TOOLS_MCP_KEY = "hermes-tools"
-
-
 def _build_hermes_tools_mcp_entry() -> dict:
     """Build the codex stdio-transport entry that launches Hermes' own
     tool surface as an MCP server. Codex's subprocess will call back into
@@ -700,14 +697,15 @@ def migrate(
     # doesn't ship with — web_search, browser_*, delegate_task, vision,
     # memory, skills, session_search, image_generate, text_to_speech.
     # The server itself is agent/transports/hermes_tools_mcp_server.py
-    # and is launched on demand by codex (stdio MCP). Wire-level name is
-    # "simplicio-tools" (renamed from "hermes-tools" — issue #191); each
-    # re-render replaces the whole managed block, so a config.toml with
-    # the old key is self-healed to the new one on the next migrate().
+    # and is launched on demand by codex (stdio MCP). Client-facing name
+    # is MCP_SERVER_NAME ("simplicio-agent-tools", issue #204); drop any
+    # stale entry under the pre-rebrand "hermes-tools" key so a
+    # re-migration doesn't leave both registered side by side.
     if expose_hermes_tools:
-        translated[_SIMPLICIO_TOOLS_MCP_KEY] = _build_hermes_tools_mcp_entry()
-        if _SIMPLICIO_TOOLS_MCP_KEY not in report.migrated:
-            report.migrated.append(_SIMPLICIO_TOOLS_MCP_KEY)
+        translated.pop(LEGACY_MCP_SERVER_NAME, None)
+        translated[MCP_SERVER_NAME] = _build_hermes_tools_mcp_entry()
+        if MCP_SERVER_NAME not in report.migrated:
+            report.migrated.append(MCP_SERVER_NAME)
 
     # Build the new managed block
     managed_block = render_codex_toml_section(

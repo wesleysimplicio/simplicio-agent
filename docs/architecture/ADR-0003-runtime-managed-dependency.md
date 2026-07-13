@@ -7,11 +7,14 @@
 
 ## Context
 
-simplicio-agent is a modified Hermes agent whose execution doctrine is
-**Hermes-native tools first** (reading, searching, reasoning, coordination),
-**simplicio-runtime kernel second** as the actuator (action gate,
-deterministic/mechanical edits, validation, evidence ledger). The bindings
-for this exist in `tools/kernel_binding.py`, but until now the kernel was an
+simplicio-agent is a modified Hermes agent. The tool-routing hierarchy
+(Hermes-native tools first for reading/searching/reasoning/coordination, the
+Simplicio CLI second as the actuator for execution/deterministic edits/
+validation/evidence, MCP as fallback transport only) is canonical in
+`AGENTS.md` § Tool routing (issue #212) — this ADR does not restate or
+re-derive that order, it only covers how the kernel *dependency* is pinned
+and installed. The bindings for the actuator role exist in
+`tools/kernel_binding.py`, but until now the kernel was an
 *optional PATH discovery*: absent binary -> every binding silently degrades
 to "off". A machine can run the agent for weeks with the entire actuator
 layer disabled and nothing surfaces it. That contradicts the goal of the
