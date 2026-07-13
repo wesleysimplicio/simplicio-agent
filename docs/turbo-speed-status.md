@@ -22,7 +22,7 @@
 2. **Byte-identical ao hermes-turbo-agent**
    - Comprovado pela matriz de import (F1, #19): `rust_ext/`, `agent/_hermes_fast.py`,
      `agent/_fastjson.py`, `agent/jiter_preload.py`, `hermes_bootstrap.py` —
-     todos **byte-identical** ao upstream Turbo (fonte: `docs/hermes-import/turbo-import-matrix.md`).
+     todos **byte-identical** ao upstream Turbo (fonte: `docs/simplicio-import/turbo-import-matrix.md`).
 
 3. **Lazy imports já implementados**
    - `agent/agent_init.py:12` — documenta lazy imports no corpo da inicialização.
@@ -178,14 +178,14 @@ provado pelos PRs desta sessão (F1, F2, TOON, CLI-only, rebranding).
    - Cópia aditiva: só copia arquivos mais novos ou ausentes; nunca reverte.
 
 2. **Matriz de import F1 (#19) completa**
-   - `docs/hermes-import/turbo-import-matrix.md` — diff byte-a-byte entre
+   - `docs/simplicio-import/turbo-import-matrix.md` — diff byte-a-byte entre
      simplicio-agent e hermes-turbo-agent.
    - 3 candidatos de import identificados (#68, #69, #70) com benchmarks A/B.
 
 3. **Import log comprova o pipeline em ação**
-   - `docs/hermes-import/2026-07-03-turbo-import-log.md` — auditoria completa
+   - `docs/simplicio-import/2026-07-03-turbo-import-log.md` — auditoria completa
      com diff commands, triagem por categoria, decisões de import/rejeição.
-   - `docs/hermes-import/2026-07-02-ecosystem-integration-log.md` — log do
+   - `docs/simplicio-import/2026-07-02-ecosystem-integration-log.md` — log do
      pipeline ecosystem-sync.
 
 4. **PRs desta sessão comprovam o fluxo**

@@ -21,7 +21,7 @@ guaranteed agent in the world**, merging three lineages:
   `rust_ext/` (PyO3 bridge), `async_dag/`, conversation compression — all
   byte-identical to `hermes-turbo-agent` HEAD
 - ✅ F1 inventoried (#19): full diff matrix committed at
-  `docs/hermes-import/turbo-import-matrix.md`; 3 import candidates tracked as
+  `docs/simplicio-import/turbo-import-matrix.md`; 3 import candidates tracked as
   #68, #69, #70 with A/B benchmarks defined
 - ✅ F2 kernel binding (#20): `tools/kernel_binding.py` with 2/6 bindings
   wired (action gate + checkpoint mirror), ADR-0001 documenting the
@@ -91,7 +91,7 @@ guaranteed agent in the world**, merging three lineages:
 ## Rules of convergence (non-negotiable)
 
 1. **Import Hermes follows standing rule**: every new Hermes feature gets an
-   issue BEFORE implementation + log in `docs/hermes-import/`; no blind copy —
+   issue BEFORE implementation + log in `docs/simplicio-import/`; no blind copy —
    only Simplicio-native forms (contract, skill, capability, test, adapter,
    deterministic flow, governed memory).
 2. **Cache is sacred** (`system_and_3`): no convergence may break the
@@ -120,6 +120,6 @@ guaranteed agent in the world**, merging three lineages:
 - Issue #19 (F1: Hermes Turbo inventory)
 - Issue #20 (F2: kernel binding)
 - Issue #25 (this — unified roadmap)
-- `docs/hermes-import/turbo-import-matrix.md`
+- `docs/simplicio-import/turbo-import-matrix.md`
 - `docs/architecture/ADR-0001-kernel-checkpoint-binding.md`
 - `docs/architecture/ADR-0002-provider-mode-contract.md`

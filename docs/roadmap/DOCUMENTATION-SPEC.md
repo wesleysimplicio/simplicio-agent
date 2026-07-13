@@ -34,7 +34,7 @@ the agent-specific docs are scattered.
 | `docs/kanban/multi-gateway.md` | Multi-gateway kanban |
 | `docs/architecture/ADR-0001*.md` | ADR: kernel checkpoint binding |
 | `docs/architecture/ADR-0002*.md` | ADR: provider-mode contract |
-| `docs/hermes-import/` | Hermes Turbo import artifacts (matrix + log) |
+| `docs/simplicio-import/` | Hermes Turbo import artifacts (matrix + log) |
 | `docs/roadmap/` | Roadmap and planning |
 
 ## Deliverables

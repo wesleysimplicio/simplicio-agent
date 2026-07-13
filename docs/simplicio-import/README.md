@@ -1,4 +1,4 @@
-# docs/hermes-import/
+# docs/simplicio-import/
 
 Tracks every audited delta between `wesleysimplicio/hermes-turbo-agent` and
 this repo, per the fusion rule in epic #18: no blind copy — every novelty
