@@ -200,7 +200,7 @@ def _canonical_trace_prefix(trace: list[str] | tuple[str, ...]) -> tuple[StageNa
             prefix.append(stage)
         if stage == "execute":
             break
-    if "persist" in seen or "evidence" in seen:
+    if "persist" in seen or "evidence" in seen or "execute" in seen:
         return tuple(prefix)
     return tuple(prefix + ["execute"])
 

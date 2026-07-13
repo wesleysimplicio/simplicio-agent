@@ -289,7 +289,7 @@
         "hermes_cli/model_switch.py"
       ],
       "source_sha256": {
-        "agent/agent_init.py": "02aa7d6c6d43eb98f99cf0997f223c3a3c28425c72beb48d6bc99f82bee7f540",
+        "agent/agent_init.py": "ff61a02fbf4390a01874bcd51a32247095677e973a2cdb87ea672b9e0d67b4d3",
         "agent/skill_commands.py": "38c0b8cf18b90defd59a5b61ac22ca40656a3dc6dc4d2f7f5e3ba282f51e4071",
         "hermes_cli/model_switch.py": "db5322bf583fa51b65b1eeee6fd01951d9158c4005199e8272868d69b387ec88"
       },
