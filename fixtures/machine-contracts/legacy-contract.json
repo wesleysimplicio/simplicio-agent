@@ -1,0 +1,14 @@
+{
+  "schema": "machine_contract",
+  "version": "3.39.0",
+  "agent_version": "3.39.0",
+  "runtime_version": "3.39.4",
+  "features": [
+    "chat_ux",
+    "skills"
+  ],
+  "runtime_features": [
+    "action_gate",
+    "checkpoint"
+  ]
+}

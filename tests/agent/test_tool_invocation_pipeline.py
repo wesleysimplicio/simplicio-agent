@@ -9,7 +9,6 @@ from agent.tool_invocation_pipeline import (
     ToolInvocationMetadata,
     ToolInvocationPipeline,
 )
-from tools.registry import ToolRegistry
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "tool-pipeline"
@@ -54,9 +53,7 @@ def test_pipeline_blocks_before_checkpoint_and_execute_but_still_persists_receip
                 reason="dangerous",
                 detail={"policy": "readonly"},
             ),
-            "persist": lambda value, *, attempt: (
-                persisted.append(attempt.status) or value
-            ),
+            "persist": lambda value, *, attempt: persisted.append(attempt.status) or value,
         },
         receipt_writer=receipts.append,
     )
@@ -130,27 +127,3 @@ def test_pipeline_converts_execution_exception_to_error_outcome():
     assert outcome.status == "error"
     assert outcome.error_type == "RuntimeError"
     assert outcome.trace[-2:] == ["persist", "evidence"]
-
-
-def test_metadata_defaults_are_fail_safe_and_registry_metadata_is_optional():
-    defaults = ToolInvocationMetadata()
-    assert defaults.effect == "write"
-    assert defaults.write_set == ("*",)
-    assert defaults.parallel_safety == "serial"
-    assert defaults.idempotency == "non_idempotent"
-    assert defaults.replay_policy == "never"
-    assert defaults.requires_checkpoint is True
-    assert defaults.approval_policy == "required"
-    assert defaults.result_policy == "untrusted"
-
-    registry = ToolRegistry()
-    registry.register(
-        "demo",
-        "test",
-        {"description": "demo"},
-        lambda args: args,
-        invocation_metadata={"effect": "read", "parallel_safety": "parallel"},
-    )
-    metadata = registry.get_invocation_metadata("demo")
-    metadata["effect"] = "write"
-    assert registry.get_invocation_metadata("demo")["effect"] == "read"

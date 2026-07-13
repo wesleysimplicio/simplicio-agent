@@ -71,17 +71,3 @@ The module also owns:
 - Writing receipts outside the pipeline. Rejected for this slice because it
   would leave duplicate-attempt suppression unsolved where the attempt context
   actually exists.
-
-## Vertical-slice boundary
-
-The existing concurrent single-tool bridge now creates the pipeline at its
-`invoke_tool` boundary and records the safe trace/receipt on the agent. Registry
-entries may provide optional invocation metadata; absent fields retain the
-fail-safe defaults above. Receipt writing is keyed by `attempt_id`, so repeated
-`begin`/`complete` materialization cannot write the same attempt twice.
-
-This is intentionally not a full issue closure. The slice does not prove 100%
-productive call-site coverage, sequential/concurrent/DAG semantic parity,
-write-set property tests, the 3 ms overhead target, hard timeout/process
-isolation, crash reconciliation, or clean-machine rollback/kill-switch proof.
-Those remain explicit follow-up acceptance work for #228.

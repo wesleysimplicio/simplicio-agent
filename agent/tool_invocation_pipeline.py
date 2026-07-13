@@ -43,15 +43,17 @@ STAGES: tuple[StageName, ...] = (
 )
 
 _SAFE_STATUS = {"success", "error", "blocked", "cancelled"}
-_DEFAULT_REDACTED_KEYS = frozenset({
-    "api_key",
-    "authorization",
-    "password",
-    "secret",
-    "token",
-    "access_token",
-    "refresh_token",
-})
+_DEFAULT_REDACTED_KEYS = frozenset(
+    {
+        "api_key",
+        "authorization",
+        "password",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+    }
+)
 
 
 class ToolExecutor(Protocol):
@@ -85,19 +87,6 @@ class ToolInvocationMetadata:
     receipt_id: str = ""
     receipt_written: bool = False
     external_result: bool = False
-    # Fail-safe policy defaults for tools without declarative metadata.
-    effect: str = "write"
-    read_set: tuple[str, ...] = ()
-    write_set: tuple[str, ...] = ("*",)
-    parallel_safety: str = "serial"
-    idempotency: str = "non_idempotent"
-    replay_policy: str = "never"
-    interruptibility: str = "unknown"
-    deadline_policy: str = "cooperative"
-    approval_policy: str = "required"
-    requires_checkpoint: bool = True
-    secret_scopes: tuple[str, ...] = ()
-    result_policy: str = "untrusted"
     evidence_version: str = "tool-invocation/v1"
     extras: Mapping[str, Any] = field(default_factory=dict)
 
@@ -133,24 +122,6 @@ class ToolInvocationReceipt:
     error_type: str = ""
     blocked_by: str = ""
     meta: Mapping[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return receipt data without raw arguments or results."""
-        return {
-            "attempt_id": self.attempt_id,
-            "receipt_id": self.receipt_id,
-            "tool": self.tool,
-            "status": self.status,
-            "classification": self.classification,
-            "task_id": self.task_id,
-            "tool_call_id": self.tool_call_id,
-            "duration_ms": self.duration_ms,
-            "args_hash": self.args_hash,
-            "result_hash": self.result_hash,
-            "error_type": self.error_type,
-            "blocked_by": self.blocked_by,
-            "meta": dict(self.meta),
-        }
 
 
 @dataclass(frozen=True)
@@ -216,9 +187,7 @@ def _coerce_mapping(value: Any, *, stage: StageName) -> dict[str, Any]:
     return dict(value)
 
 
-def _coerce_decision(
-    value: Any, *, stage: Literal["guardrail", "action-gate"]
-) -> ToolDecision:
+def _coerce_decision(value: Any, *, stage: Literal["guardrail", "action-gate"]) -> ToolDecision:
     if isinstance(value, ToolDecision):
         return value
     if value is False:
@@ -297,18 +266,13 @@ class ToolInvocationPipeline:
         hooks: Mapping[StageName, StageHook] | None = None,
         receipt_writer: ReceiptWriter | None = None,
         redacted_result_keys: frozenset[str] | None = None,
-        invocation_metadata: ToolInvocationMetadata | None = None,
     ):
         self.hooks = dict(hooks or {})
         self.receipt_writer = receipt_writer
         self.redacted_result_keys = redacted_result_keys or _DEFAULT_REDACTED_KEYS
-        self.invocation_metadata = invocation_metadata or ToolInvocationMetadata()
         self._receipts_written: set[str] = set()
-        self._receipts_by_attempt: dict[str, ToolInvocationReceipt] = {}
 
-    def _call(
-        self, stage: StageName, value: Any, *, attempt: ToolInvocationAttempt
-    ) -> Any:
+    def _call(self, stage: StageName, value: Any, *, attempt: ToolInvocationAttempt) -> Any:
         fn = self.hooks.get(stage)
         if fn is None:
             return value
@@ -425,13 +389,6 @@ class ToolInvocationPipeline:
         )
 
     def _start_attempt(self, invocation: ToolInvocation) -> ToolInvocationAttempt:
-        incoming = invocation.metadata
-        if (
-            incoming == ToolInvocationMetadata()
-            and self.invocation_metadata != ToolInvocationMetadata()
-        ):
-            incoming = self.invocation_metadata
-            invocation = replace(invocation, metadata=incoming)
         args = invocation.args if isinstance(invocation.args, dict) else {}
         materialized = ToolInvocation(
             name=_safe_text(invocation.name),
@@ -454,28 +411,18 @@ class ToolInvocationPipeline:
         attempt = replace(attempt, resolved_name=_safe_text(resolved_name))
 
         attempt = attempt.with_trace("normalize")
-        normalized = self._call(
-            "normalize", dict(attempt.normalized_args), attempt=attempt
-        )
-        attempt = replace(
-            attempt, normalized_args=_coerce_mapping(normalized, stage="normalize")
-        )
+        normalized = self._call("normalize", dict(attempt.normalized_args), attempt=attempt)
+        attempt = replace(attempt, normalized_args=_coerce_mapping(normalized, stage="normalize"))
 
         attempt = attempt.with_trace("authorize")
-        authorized = self._call(
-            "authorize", dict(attempt.normalized_args), attempt=attempt
-        )
-        attempt = replace(
-            attempt, normalized_args=_coerce_mapping(authorized, stage="authorize")
-        )
+        authorized = self._call("authorize", dict(attempt.normalized_args), attempt=attempt)
+        attempt = replace(attempt, normalized_args=_coerce_mapping(authorized, stage="authorize"))
 
         attempt = attempt.with_trace("classify")
-        classification = self._call(
-            "classify", attempt.metadata.classification, attempt=attempt
+        classification = self._call("classify", attempt.metadata.classification, attempt=attempt)
+        attempt = replace(attempt, classification=_safe_text(classification, "unknown")).with_metadata(
+            classification=_safe_text(classification, "unknown")
         )
-        attempt = replace(
-            attempt, classification=_safe_text(classification, "unknown")
-        ).with_metadata(classification=_safe_text(classification, "unknown"))
 
         attempt = attempt.with_trace("guardrail")
         guardrail = _coerce_decision(
@@ -514,9 +461,7 @@ class ToolInvocationPipeline:
             ).with_metadata(blocked_by=blocked_by)
         )
 
-    def _persist_and_evidence(
-        self, attempt: ToolInvocationAttempt
-    ) -> ToolInvocationAttempt:
+    def _persist_and_evidence(self, attempt: ToolInvocationAttempt) -> ToolInvocationAttempt:
         if "persist" not in attempt.trace:
             attempt = attempt.with_trace("persist")
         duration_ms = max(0, int((time.monotonic() - attempt.started_monotonic) * 1000))
@@ -543,24 +488,20 @@ class ToolInvocationPipeline:
             attempt = attempt.with_trace("evidence")
         evidence = self._default_evidence(attempt)
         overridden = self._call("evidence", evidence, attempt=attempt)
-        evidence = (
-            evidence
-            if overridden is None
-            else _coerce_mapping(overridden, stage="evidence")
-        )
+        evidence = evidence if overridden is None else _coerce_mapping(overridden, stage="evidence")
         return replace(attempt, evidence=evidence)
 
-    def _write_receipt_once(
-        self, attempt: ToolInvocationAttempt
-    ) -> ToolInvocationReceipt:
+    def _write_receipt_once(self, attempt: ToolInvocationAttempt) -> ToolInvocationReceipt:
         args_hash = _sha(attempt.normalized_args)
         result_hash = _sha(attempt.result)
-        receipt_id = _sha({
-            "attempt_id": attempt.metadata.attempt_id,
-            "status": attempt.status,
-            "args_hash": args_hash,
-            "result_hash": result_hash,
-        })
+        receipt_id = _sha(
+            {
+                "attempt_id": attempt.metadata.attempt_id,
+                "status": attempt.status,
+                "args_hash": args_hash,
+                "result_hash": result_hash,
+            }
+        )
         receipt = ToolInvocationReceipt(
             attempt_id=attempt.metadata.attempt_id,
             receipt_id=receipt_id,
@@ -569,9 +510,7 @@ class ToolInvocationPipeline:
             classification=attempt.classification,
             task_id=attempt.metadata.task_id,
             tool_call_id=attempt.metadata.tool_call_id,
-            duration_ms=max(
-                0, int((time.monotonic() - attempt.started_monotonic) * 1000)
-            ),
+            duration_ms=max(0, int((time.monotonic() - attempt.started_monotonic) * 1000)),
             args_hash=args_hash,
             result_hash=result_hash,
             error_type=attempt.error_type,
@@ -584,23 +523,17 @@ class ToolInvocationPipeline:
                 "api_request_id": attempt.metadata.api_request_id,
             },
         )
-        existing = self._receipts_by_attempt.get(receipt.attempt_id)
-        if existing is not None:
-            return existing
         if receipt.receipt_id not in self._receipts_written:
             if self.receipt_writer is not None:
                 self.receipt_writer(receipt)
             self._receipts_written.add(receipt.receipt_id)
-        self._receipts_by_attempt[receipt.attempt_id] = receipt
         return receipt
 
     def _default_evidence(self, attempt: ToolInvocationAttempt) -> dict[str, Any]:
         external_result = bool(attempt.metadata.external_result)
         evidence_result = copy.deepcopy(attempt.result)
         if external_result:
-            evidence_result = _redact_external_result(
-                evidence_result, self.redacted_result_keys
-            )
+            evidence_result = _redact_external_result(evidence_result, self.redacted_result_keys)
         return {
             "version": attempt.metadata.evidence_version,
             "attempt_id": attempt.metadata.attempt_id,
@@ -621,37 +554,9 @@ class ToolInvocationPipeline:
         }
 
 
-def pipeline_for_agent(
-    agent: Any, tool_name: str | None = None
-) -> ToolInvocationPipeline:
+def pipeline_for_agent(agent: Any) -> ToolInvocationPipeline:
     """Return the shared pipeline with agent-owned hook overrides."""
 
     hooks = getattr(agent, "tool_invocation_pipeline_hooks", None)
     receipt_writer = getattr(agent, "tool_invocation_receipt_writer", None)
-    metadata = getattr(agent, "tool_invocation_metadata", None)
-    if tool_name:
-        try:
-            from tools.registry import registry
-
-            registered = registry.get_invocation_metadata(tool_name)
-            if registered:
-                allowed = ToolInvocationMetadata.__dataclass_fields__
-                metadata = replace(
-                    metadata
-                    if isinstance(metadata, ToolInvocationMetadata)
-                    else ToolInvocationMetadata(),
-                    **{
-                        key: value
-                        for key, value in registered.items()
-                        if key in allowed
-                    },
-                )
-        except Exception:
-            pass
-    return ToolInvocationPipeline(
-        hooks=hooks,
-        receipt_writer=receipt_writer,
-        invocation_metadata=metadata
-        if isinstance(metadata, ToolInvocationMetadata)
-        else None,
-    )
+    return ToolInvocationPipeline(hooks=hooks, receipt_writer=receipt_writer)
