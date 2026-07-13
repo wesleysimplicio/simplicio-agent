@@ -6,8 +6,10 @@ describe('parseSavingsReport', () => {
   it('returns empty, honest defaults for a non-object report', () => {
     expect(parseSavingsReport(null)).toEqual({
       dimensions: { byModel: [], byProof: [], timeSeries: [] },
+      dominantProofKind: null,
       events: [],
       hasSessionGranularity: false,
+      mixedProofKinds: false,
       totals: { baseline: null, pct: null, saved: null, spent: null }
     })
   })
@@ -79,16 +81,18 @@ describe('parseSavingsReport events', () => {
     expect(parsed.events[0].saved).toBe(2000)
   })
 
-  it('reads proof_kind and only accepts the two known values', () => {
+  it('reads proof_kind and only accepts the four known values', () => {
     const parsed = parseSavingsReport({
       events: [
         { proof_kind: 'measured', spent: 1 },
+        { proof_kind: 'replayed', spent: 1 },
+        { proof_kind: 'benchmark', spent: 1 },
         { proof_kind: 'estimated', spent: 1 },
         { proof_kind: 'guessed', spent: 1 }
       ]
     })
 
-    expect(parsed.events.map(e => e.proofKind)).toEqual(['measured', 'estimated', null])
+    expect(parsed.events.map(e => e.proofKind)).toEqual(['measured', 'replayed', 'benchmark', 'estimated', null])
   })
 
   it('detects session granularity from session/repo tags', () => {
@@ -114,6 +118,53 @@ describe('parseSavingsReport events', () => {
     const parsed = parseSavingsReport({ events: [{ baseline: '100', spent: '20' }] })
 
     expect(parsed.events[0]).toMatchObject({ baseline: 100, saved: 80, spent: 20 })
+  })
+})
+
+describe('parseSavingsReport dominant/mixed proof kind', () => {
+  it('is null/false when no event carries a recognizable proof kind', () => {
+    const parsed = parseSavingsReport({ events: [{ spent: 1 }] })
+
+    expect(parsed.dominantProofKind).toBeNull()
+    expect(parsed.mixedProofKinds).toBe(false)
+  })
+
+  it('is the single kind, not mixed, when every event agrees', () => {
+    const parsed = parseSavingsReport({
+      events: [
+        { proof_kind: 'estimated', spent: 1 },
+        { proof_kind: 'estimated', spent: 1 }
+      ]
+    })
+
+    expect(parsed.dominantProofKind).toBe('estimated')
+    expect(parsed.mixedProofKinds).toBe(false)
+  })
+
+  it('measured always wins the headline over weaker kinds present in the same report', () => {
+    const parsed = parseSavingsReport({
+      events: [
+        { proof_kind: 'estimated', spent: 1 },
+        { proof_kind: 'benchmark', spent: 1 },
+        { proof_kind: 'replayed', spent: 1 },
+        { proof_kind: 'measured', spent: 1 }
+      ]
+    })
+
+    expect(parsed.dominantProofKind).toBe('measured')
+    expect(parsed.mixedProofKinds).toBe(true)
+  })
+
+  it('picks the strongest of the remaining kinds when measured is absent', () => {
+    const parsed = parseSavingsReport({
+      events: [
+        { proof_kind: 'estimated', spent: 1 },
+        { proof_kind: 'benchmark', spent: 1 }
+      ]
+    })
+
+    expect(parsed.dominantProofKind).toBe('benchmark')
+    expect(parsed.mixedProofKinds).toBe(true)
   })
 })
 

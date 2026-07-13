@@ -223,7 +223,10 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
 // hermesDesktop) since it targets the simplicio kernel specifically, not the
 // Hermes backend.
 contextBridge.exposeInMainWorld('simplicioSavings', {
-  savingsReport: () => ipcRenderer.invoke('simplicio:savings-report'),
+  // `opts` may carry { repoPath } -- the active project's repo root -- so
+  // the report is scoped to that project's ledger (see issue #128) instead
+  // of unconditionally HOME.
+  savingsReport: opts => ipcRenderer.invoke('simplicio:savings-report', opts),
   doctorRun: () => ipcRenderer.invoke('simplicio:doctor'),
   editorsDetect: () => ipcRenderer.invoke('simplicio:editors-detect'),
   mcpRegister: () => ipcRenderer.invoke('simplicio:mcp-register'),

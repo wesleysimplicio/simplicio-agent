@@ -124,6 +124,95 @@ describe('parseSessions (audit timeline)', () => {
     expect(session.events[0].eventHash).toBe('abcdef0123456789')
   })
 
+  it('defaults the honesty-state fields when the ledger event carries none of them', () => {
+    const [session] = parseSessions([rawSession])
+    const [event] = session.events
+
+    expect(event.sessionId).toBeNull()
+    expect(event.cache).toBeNull()
+    expect(event.cost).toBeNull()
+    expect(event.latencyMs).toBeNull()
+    expect(event.tools).toEqual([])
+    expect(event.evidenceRefs).toEqual([])
+    // No hash-state carried -> honest "nothing was checked" default.
+    expect(event.hashState).toBe('unverified')
+    // No token figures on this raw fixture's tokens shape carries values ->
+    // priceState reflects whatever is actually present.
+    expect(event.priceState).toBe('not_applicable')
+  })
+
+  it('parses the extended cockpit event fields (issue #128) when the main process supplies them', () => {
+    const [session] = parseSessions([
+      {
+        ...rawSession,
+        events: [
+          {
+            ...rawSession.events[0],
+            cache: { hit: true, readTokens: 120, writeTokens: 0 },
+            cost: 0.0042,
+            evidenceRefs: ['transcript://abc123'],
+            hashState: 'invalid',
+            latencyMs: 842,
+            priceState: 'priced',
+            sessionId: 'sess-1',
+            tools: ['edit', 'bash']
+          }
+        ]
+      }
+    ])
+    const [event] = session.events
+
+    expect(event.sessionId).toBe('sess-1')
+    expect(event.cache).toEqual({ hit: true, readTokens: 120, writeTokens: 0 })
+    expect(event.cost).toBe(0.0042)
+    expect(event.latencyMs).toBe(842)
+    expect(event.tools).toEqual(['edit', 'bash'])
+    expect(event.evidenceRefs).toEqual(['transcript://abc123'])
+    expect(event.hashState).toBe('invalid')
+    expect(event.priceState).toBe('priced')
+  })
+
+  it('falls back to raw ledger snake_case field names for the extended fields', () => {
+    const [session] = parseSessions([
+      {
+        ...rawSession,
+        events: [
+          {
+            ...rawSession.events[0],
+            cost_usd: 1.5,
+            evidence_refs: ['ref-a'],
+            hash_state: 'valid',
+            latency_ms: 100,
+            price_state: 'missing_price',
+            session_id: 'raw-sess',
+            tools: ['grep']
+          }
+        ]
+      }
+    ])
+    const [event] = session.events
+
+    expect(event.sessionId).toBe('raw-sess')
+    expect(event.cost).toBe(1.5)
+    expect(event.latencyMs).toBe(100)
+    expect(event.evidenceRefs).toEqual(['ref-a'])
+    expect(event.hashState).toBe('valid')
+    expect(event.priceState).toBe('missing_price')
+  })
+
+  it('never invents a hashState/priceState value outside the known set', () => {
+    const [session] = parseSessions([
+      {
+        ...rawSession,
+        events: [{ ...rawSession.events[0], hashState: 'exploded', priceState: 'nonsense' }]
+      }
+    ])
+    const [event] = session.events
+
+    expect(event.hashState).toBe('unverified')
+    expect(event.priceState).toBe('not_applicable')
+  })
+
   it('also accepts raw ledger token field names (actual_total/baseline_total/saved_total)', () => {
     const [session] = parseSessions([
       {

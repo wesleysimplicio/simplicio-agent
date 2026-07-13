@@ -1,4 +1,4 @@
-import { atom } from 'nanostores'
+import { atom, computed } from 'nanostores'
 
 import { liveSessionProjectId, type SidebarProjectTree } from '@/app/chat/sidebar/projects/workspace-groups'
 import type { HermesGitBranch } from '@/global'
@@ -150,6 +150,41 @@ export function resolveNewSessionCwd(): string {
 
   return workspaceCwdForNewSession()
 }
+
+// The active project's repo root -- "active" meaning whichever project the
+// user is currently scoped into (entered via the sidebar), falling back to
+// the durable active-project pointer when the sidebar is at the overview.
+// Surfaces such as the Savings cockpit (issue #128) use this to scope
+// per-project data (ledger reads, runtime commands) to the repo the user is
+// actually looking at, instead of always reading HOME or leaking a
+// previously-viewed repo's data in after a project switch. Null when nothing
+// is active (overview with no durable pointer, or the active project has no
+// resolvable path yet) -- callers fall back to home-only data, never a guess.
+function resolveWorkspacePathFrom(scope: string, activeProjectId: null | string, tree: SidebarProjectTree[]): null | string {
+  const projectId = scope !== ALL_PROJECTS ? scope : activeProjectId
+
+  if (!projectId) {
+    return null
+  }
+
+  const project = tree.find(node => node.id === projectId)
+  const path = (project?.path || project?.repos.find(repo => repo.path)?.path || '').trim()
+
+  return path || null
+}
+
+export function resolveWorkspacePath(): null | string {
+  return resolveWorkspacePathFrom($projectScope.get(), $activeProjectId.get(), $projectTree.get())
+}
+
+// Reactive counterpart of resolveWorkspacePath() -- recomputes whenever the
+// scope, active pointer, or tree changes, so a subscriber (use-savings-data)
+// re-fetches the instant the user switches projects rather than only on its
+// own poll interval.
+export const $activeWorkspacePath = computed(
+  [$projectScope, $activeProjectId, $projectTree],
+  resolveWorkspacePathFrom
+)
 
 const underPath = (parent: string, child: string): boolean =>
   child === parent || child.startsWith(parent.endsWith('/') ? parent : `${parent}/`)

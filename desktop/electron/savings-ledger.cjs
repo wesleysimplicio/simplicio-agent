@@ -87,6 +87,17 @@ function dedupByEventId(events) {
   return out
 }
 
+/** Cache info or null -- surfaces whatever the event carries (hit + token
+ * counts), never fabricated when the event carries no cache block at all. */
+function cacheOrNull(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const hit = typeof raw.hit === 'boolean' ? raw.hit : null
+  const readTokens = numOrNull(raw.read_tokens)
+  const writeTokens = numOrNull(raw.write_tokens)
+  if (hit === null && readTokens === null && writeTokens === null) return null
+  return { hit, readTokens, writeTokens }
+}
+
 /** Normalize one raw ledger event into the cockpit's event shape. */
 function normalizeEvent(raw) {
   const tokens = raw.tokens && typeof raw.tokens === 'object' ? raw.tokens : {}
@@ -104,8 +115,55 @@ function normalizeEvent(raw) {
     eventHash: strOrNull(raw.event_hash),
     prevEventHash: strOrNull(raw.prev_event_hash),
     model: strOrNull(raw.llm && raw.llm.model),
-    provider: strOrNull(raw.llm && raw.llm.provider)
+    provider: strOrNull(raw.llm && raw.llm.provider),
+    sessionId: strOrNull(raw.simplicio && raw.simplicio.session_id),
+    cache: cacheOrNull(raw.cache),
+    cost: numOrNull(raw.cost_usd),
+    latencyMs: numOrNull(raw.latency_ms),
+    tools: stringArrayOrNull(raw.tools),
+    evidenceRefs: stringArrayOrNull(raw.evidence_refs) || stringArrayOrNull(raw.proof && raw.proof.refs),
+    // Filled in by groupSavingsSessions once the event's position inside its
+    // session's chain is known -- placeholder here so callers of
+    // normalizeEvent alone (tests) see the honest "not yet evaluated" value.
+    hashState: null,
+    priceState: priceStateOf(tokens, raw.cost_usd)
   }
+}
+
+/**
+ * `priced` when a real dollar figure is attached; `missing_price` when the
+ * event carries token figures (so a price COULD apply) but none was
+ * attached; `not_applicable` when the event carries no token figures at all
+ * (e.g. a pure status/heartbeat entry that was never going to be priced).
+ */
+function priceStateOf(tokens, costUsd) {
+  if (numOrNull(costUsd) !== null) return 'priced'
+  const hasTokens = numOrNull(tokens.actual_total) !== null || numOrNull(tokens.baseline_total) !== null
+  return hasTokens ? 'missing_price' : 'not_applicable'
+}
+
+/**
+ * Chain-link continuity check for one event against its immediate
+ * predecessor IN THE SAME SESSION (timestamp-ascending order) -- NOT a
+ * cryptographic re-derivation of the hash from its contents, just "does the
+ * declared prev_event_hash actually point at the event that came before it".
+ *
+ * - No hash on this event at all -> nothing to verify -> 'unverified'.
+ * - First event in the session: a null prevEventHash is the honest genesis
+ *   shape -> 'valid'; a non-null one can't be checked against anything this
+ *   session window has -> 'unverified'.
+ * - Later events: prevEventHash matching the predecessor's eventHash ->
+ *   'valid'; a declared link that doesn't match -> 'invalid' (broken chain --
+ *   reordered, tampered, or a missing event in between); no declared link at
+ *   all -> 'unverified'.
+ */
+function hashStateOf(event, predecessor) {
+  if (!event.eventHash) return 'unverified'
+  if (!predecessor) {
+    return event.prevEventHash === null ? 'valid' : 'unverified'
+  }
+  if (event.prevEventHash === null) return 'unverified'
+  return event.prevEventHash === predecessor.eventHash ? 'valid' : 'invalid'
 }
 
 /** The run a raw event belongs to: run_id, else task id, else 'unknown'. */
@@ -140,6 +198,11 @@ function groupSavingsSessions(rawEvents) {
   for (const [runId, group] of byRun) {
     const sorted = [...group].sort((a, b) => (timestampMs(a.timestamp) ?? -Infinity) - (timestampMs(b.timestamp) ?? -Infinity))
     const events = sorted.map(normalizeEvent)
+    // hashState depends on chain position within THIS session's ascending
+    // order, so it's resolved as a second pass once the events are normalized.
+    events.forEach((event, i) => {
+      event.hashState = hashStateOf(event, i > 0 ? events[i - 1] : null)
+    })
     const first = sorted[0]
 
     const timestamps = sorted.map(raw => strOrNull(raw.timestamp)).filter(Boolean)
@@ -202,16 +265,24 @@ function readSavingsSessions(opts = {}) {
       skipped += badLines
     }
   } catch (error) {
-    return { ok: false, sessions: [], skipped, sources, error: error.message }
+    return { ok: false, sessions: [], skipped, duplicates: 0, sources, error: error.message }
   }
 
-  const sessions = groupSavingsSessions(dedupByEventId(allEvents))
-  return { ok: true, sessions, skipped, sources }
+  const deduped = dedupByEventId(allEvents)
+  // `duplicates` (repeat event_id across merged files -- e.g. the same run
+  // logged to both the home and repo ledger) is a DISTINCT, explicit count
+  // from `skipped` (corrupted/unparseable lines): one is "the same real event
+  // seen twice", the other is "a line that was never a usable event at all".
+  const duplicates = allEvents.length - deduped.length
+  const sessions = groupSavingsSessions(deduped)
+  return { ok: true, sessions, skipped, duplicates, sources }
 }
 
 module.exports = {
   parseSavingsLedger,
   dedupByEventId,
   groupSavingsSessions,
-  readSavingsSessions
+  readSavingsSessions,
+  hashStateOf,
+  priceStateOf
 }

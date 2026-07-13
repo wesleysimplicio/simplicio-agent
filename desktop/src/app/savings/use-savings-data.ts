@@ -1,4 +1,7 @@
+import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { $activeWorkspacePath } from '@/store/projects'
 
 import {
   type CockpitOutcome,
@@ -133,6 +136,14 @@ export function useSavingsData(): UseSavingsDataResult {
   const [refreshing, setRefreshing] = useState(false)
   const requestIdRef = useRef(0)
 
+  // The active project's repo root (issue #128) -- reused so the report and
+  // ledger-session reads are scoped to whichever repo the user is actually
+  // looking at. Null (no active project) means home-only, exactly the
+  // previous behavior; it's never omitted silently in a way that would leak
+  // a PREVIOUS repo's data in after a project switch (see the reset effect
+  // below).
+  const repoPath = useStore($activeWorkspacePath)
+
   const load = useCallback(() => {
     const requestId = requestIdRef.current + 1
     requestIdRef.current = requestId
@@ -154,7 +165,7 @@ export function useSavingsData(): UseSavingsDataResult {
       ),
       fetchDoctorRun().then(outcome => settle(setDoctor, outcomeToState(outcome, parseDoctor))),
       fetchMemoryStatus().then(outcome => settle(setMemory, outcomeToState(outcome, parseMemoryStatus))),
-      fetchSavingsSessions().then(outcome =>
+      fetchSavingsSessions(repoPath ?? undefined).then(outcome =>
         settle<ParsedSessions>(
           setSessions,
           outcome.kind === 'ok'
@@ -171,7 +182,7 @@ export function useSavingsData(): UseSavingsDataResult {
               : { status: 'unavailable' }
         )
       ),
-      fetchSavingsReport().then(outcome => {
+      fetchSavingsReport(repoPath ?? undefined).then(outcome => {
         if (requestIdRef.current !== requestId) {
           return
         }
@@ -194,7 +205,25 @@ export function useSavingsData(): UseSavingsDataResult {
         setRefreshing(false)
       }
     })
-  }, [])
+  }, [repoPath])
+
+  // Workspace isolation (issue #128): the sessions/report surfaces are
+  // scoped by repoPath, so a project switch must clear the PREVIOUS repo's
+  // data immediately rather than leaving it on screen (courtesy of the
+  // stale-while-revalidate no-regress rule in `load`) until the fresh fetch
+  // for the new repo happens to settle. `prevRepoPathRef` starts as the
+  // sentinel `undefined` so the very first render (mount) never resets
+  // anything -- only an actual CHANGE after mount does.
+  const prevRepoPathRef = useRef<null | string | undefined>(undefined)
+
+  useEffect(() => {
+    if (prevRepoPathRef.current !== undefined && prevRepoPathRef.current !== repoPath) {
+      setSessions(initialSurfaceState(capabilities.savingsSessions))
+      setState(capabilities.savingsReport ? { status: 'loading' } : { status: 'unavailable' })
+    }
+
+    prevRepoPathRef.current = repoPath
+  }, [repoPath, capabilities.savingsSessions, capabilities.savingsReport])
 
   useEffect(() => {
     load()

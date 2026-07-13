@@ -4,8 +4,10 @@ import { $sidebarAgentsGrouped } from '@/store/layout'
 
 import {
   $activeProjectId,
+  $activeWorkspacePath,
   $projectScope,
   $projectsRpcAvailable,
+  $projectTree,
   $worktreeRefreshToken,
   ALL_PROJECTS,
   createProject,
@@ -14,7 +16,8 @@ import {
   openProjectCreate,
   pickProjectFolder,
   refreshProjects,
-  refreshWorktrees
+  refreshWorktrees,
+  resolveWorkspacePath
 } from './projects'
 
 vi.mock('@/i18n', () => ({
@@ -78,6 +81,77 @@ describe('project scope', () => {
   it('persists the scope to localStorage', () => {
     enterProject('p_abc')
     expect(window.localStorage.getItem('hermes.desktop.projectScope')).toBe('p_abc')
+  })
+})
+
+describe('resolveWorkspacePath / $activeWorkspacePath (issue #128)', () => {
+  beforeEach(() => {
+    $projectScope.set(ALL_PROJECTS)
+    $activeProjectId.set(null)
+    $projectTree.set([])
+  })
+
+  it('is null with no active project and no entered scope (home-only)', () => {
+    expect(resolveWorkspacePath()).toBeNull()
+    expect($activeWorkspacePath.get()).toBeNull()
+  })
+
+  it('resolves the entered project scope\'s path over the durable active pointer', () => {
+    $projectTree.set([
+      { id: 'p_a', label: 'A', path: '/repos/a', repos: [], sessionCount: 0 },
+      { id: 'p_b', label: 'B', path: '/repos/b', repos: [], sessionCount: 0 }
+    ])
+    $activeProjectId.set('p_b')
+    $projectScope.set('p_a')
+
+    expect(resolveWorkspacePath()).toBe('/repos/a')
+  })
+
+  it('falls back to the durable active project when the sidebar is at the overview', () => {
+    $projectTree.set([{ id: 'p_a', label: 'A', path: '/repos/a', repos: [], sessionCount: 0 }])
+    $activeProjectId.set('p_a')
+    $projectScope.set(ALL_PROJECTS)
+
+    expect(resolveWorkspacePath()).toBe('/repos/a')
+  })
+
+  it('falls back to the first repo path when the project node has no direct path', () => {
+    $projectTree.set([
+      {
+        id: 'p_a',
+        label: 'A',
+        path: null,
+        repos: [{ id: 'r1', label: 'r1', path: '/repos/a/sub', groups: [], sessionCount: 0 }],
+        sessionCount: 0
+      }
+    ])
+    $activeProjectId.set('p_a')
+
+    expect(resolveWorkspacePath()).toBe('/repos/a/sub')
+  })
+
+  it('is null when the active/entered project id has no matching tree node yet', () => {
+    $activeProjectId.set('p_missing')
+
+    expect(resolveWorkspacePath()).toBeNull()
+  })
+
+  it('$activeWorkspacePath is reactive to a project switch', () => {
+    $projectTree.set([
+      { id: 'p_a', label: 'A', path: '/repos/a', repos: [], sessionCount: 0 },
+      { id: 'p_b', label: 'B', path: '/repos/b', repos: [], sessionCount: 0 }
+    ])
+    enterProject('p_a')
+    expect($activeWorkspacePath.get()).toBe('/repos/a')
+
+    enterProject('p_b')
+    expect($activeWorkspacePath.get()).toBe('/repos/b')
+
+    exitProjectScope()
+    // No durable active pointer set by enterProject in this test env (no
+    // gateway), so back at the overview it's null again -- isolation means
+    // leaving a project's scope stops surfacing its path, not that a stale
+    // path lingers.
   })
 })
 
