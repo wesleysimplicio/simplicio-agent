@@ -56,7 +56,7 @@ TIPS = [
     # --- Keybindings ---
     "Alt+Enter inserts a newline for multi-line input. (Windows Terminal intercepts Alt+Enter — use Ctrl+Enter instead.)",
     "Ctrl+C interrupts the agent. Double-press within 2 seconds to force exit.",
-    "Ctrl+Z suspends Hermes to the background — run fg in your shell to resume.",
+    "Ctrl+Z suspends Simplicio Agent to the background — run fg in your shell to resume.",
     "Tab accepts auto-suggestion ghost text or autocompletes slash commands.",
     "Type a new message while the agent is working to interrupt and redirect it.",
     "Alt+V pastes an image from your clipboard into the conversation.",
@@ -77,7 +77,7 @@ TIPS = [
 
     # --- CLI Subcommands ---
     "simplicio-agent doctor --fix diagnoses and auto-repairs config and dependency issues.",
-    "hermes dump outputs a compact setup summary — great for bug reports.",
+    "simplicio-agent dump outputs a compact setup summary — great for bug reports.",
     "simplicio-agent config set KEY VALUE auto-routes secrets to .env and everything else to config.yaml.",
     "simplicio-agent config edit opens config.yaml in your default editor.",
     "simplicio-agent config check scans for missing or stale configuration options.",
@@ -91,18 +91,18 @@ TIPS = [
     "simplicio-agent mcp add github --command npx adds MCP servers from the command line.",
     "simplicio-agent mcp serve runs Simplicio Agent itself as an MCP server for other agents.",
     "simplicio-agent auth add lets you add multiple API keys for credential pool rotation.",
-    "hermes completion bash >> ~/.bashrc enables tab completion for all commands and profiles.",
+    "simplicio-agent completion bash >> ~/.bashrc enables tab completion for all commands and profiles.",
     "simplicio-agent logs -f follows agent.log in real time. --level WARNING --since 1h filters output.",
-    "hermes backup creates a zip backup of your entire Hermes home directory.",
+    "simplicio-agent backup creates a zip backup of your entire Simplicio Agent home directory.",
     "simplicio-agent profile create coder creates an isolated profile that becomes its own command.",
     "simplicio-agent profile create work --clone copies your current config and keys to a new profile.",
     "simplicio-agent update syncs new bundled skills to ALL profiles automatically.",
-    "simplicio-agent gateway install sets up Hermes as a system service (systemd/launchd).",
+    "simplicio-agent gateway install sets up Simplicio Agent as a system service (systemd/launchd).",
     "simplicio-agent memory setup lets you configure an external memory provider (Honcho, Mem0, etc.).",
-    "hermes webhook subscribe creates event-driven webhook routes with HMAC validation.",
+    "simplicio-agent webhook subscribe creates event-driven webhook routes with HMAC validation.",
     "Save money: simplicio-agent tools disables unused tools, simplicio-agent skills config trims skills down.",
     "/reasoning low or /reasoning minimal cuts thinking depth below the default (medium) — faster, cheaper responses.",
-    "hermes models routes vision, compression, and aux tasks to cheaper models — cuts background token cost 85%+ without downgrading your main chat model.",
+    "simplicio-agent models routes vision/compression/aux tasks to cheaper models — cuts background token cost 85%+ without downgrading your main model.",
 
     # --- Configuration ---
     "Set display.bell_on_complete: true in config.yaml to hear a bell when long tasks finish.",
@@ -128,7 +128,7 @@ TIPS = [
     "provider_routing controls OpenRouter provider sorting, whitelisting, and blacklisting.",
 
     # --- Tools & Capabilities ---
-    "execute_code runs Python scripts that call Hermes tools programmatically — results stay out of context.",
+    "execute_code runs Python scripts that call Simplicio Agent tools programmatically — results stay out of context.",
     "delegate_task spawns up to 3 concurrent sub-agents by default (delegation.max_concurrent_children) with isolated contexts for parallel work.",
     "web_extract works on PDF URLs — pass any PDF link and it converts to markdown.",
     "search_files is ripgrep-backed and faster than grep — use it instead of terminal grep.",
@@ -158,7 +158,7 @@ TIPS = [
     # --- Sessions ---
     "Sessions auto-generate descriptive titles after the first exchange — no manual naming needed.",
     "Session titles support lineage: \"my project\" → \"my project #2\" → \"my project #3\".",
-    "When exiting, Hermes prints a resume command with session ID and stats.",
+    "When exiting, Simplicio Agent prints a resume command with session ID and stats.",
     "simplicio-agent sessions export backup.jsonl exports all sessions for backup or analysis.",
     "simplicio-agent -r SESSION_ID resumes any specific past session by its ID.",
 
@@ -192,10 +192,10 @@ TIPS = [
     "Voice messages on Telegram, Discord, WhatsApp, and Slack are auto-transcribed.",
 
     # --- Gateway & Messaging ---
-    "Hermes runs on 21 messaging platforms: Telegram, Discord, Slack, WhatsApp, Signal, Matrix, IRC, Microsoft Teams, email, and more.",
+    "Simplicio Agent runs on 21 messaging platforms: Telegram, Discord, Slack, WhatsApp, Signal, Matrix, IRC, Microsoft Teams, email, and more.",
     "simplicio-agent gateway install sets it up as a system service that starts on boot.",
     "DingTalk uses Stream Mode — no webhooks or public URL needed.",
-    "BlueBubbles brings iMessage to Hermes via a local macOS server.",
+    "BlueBubbles brings iMessage to Simplicio Agent via a local macOS server.",
     "Webhook routes support HMAC validation, rate limiting, and event filtering.",
     "The API server exposes an OpenAI-compatible endpoint compatible with Open WebUI and LibreChat.",
     "Discord voice channel mode: the bot joins VC, transcribes speech, and talks back.",
@@ -216,7 +216,7 @@ TIPS = [
     "Context auto-compresses when it reaches the threshold — memories are flushed and history summarized.",
     "The status bar turns yellow, then orange, then red as context fills up.",
     "SOUL.md is the agent's primary identity file — customize it to shape behavior.",
-    "Hermes loads project context from .hermes.md, AGENTS.md, CLAUDE.md, or .cursorrules (first match).",
+    "Simplicio Agent loads project context from .hermes.md, AGENTS.md, CLAUDE.md, or .cursorrules (first match).",
     "Subdirectory AGENTS.md files are discovered progressively as the agent navigates into folders.",
     "Context files are capped at 20,000 characters with smart head/tail truncation.",
 
@@ -259,7 +259,7 @@ TIPS = [
     "Slash commands support prefix matching: /h resolves to /help, /mod to /model.",
     "Dragging a file path into the terminal auto-attaches images or sends as context.",
     ".worktreeinclude in your repo root lists gitignored files to copy into worktrees.",
-    "simplicio-agent acp runs Hermes as an ACP server for VS Code, Zed, and JetBrains integration.",
+    "simplicio-agent acp runs Simplicio Agent as an ACP server for VS Code, Zed, and JetBrains integration.",
     "Custom providers: save named endpoints in config.yaml under custom_providers.",
     "HERMES_EPHEMERAL_SYSTEM_PROMPT injects a system prompt that's never persisted to history.",
     "credential_pool_strategies supports fill_first, round_robin, least_used, and random rotation.",
@@ -272,11 +272,11 @@ TIPS = [
     "Cron jobs can attach a Python script (--script) whose stdout is injected into the prompt as context.",
     "Cron scripts live in ~/.hermes/scripts/ and run before the agent — perfect for data collection pipelines.",
     "prefill_messages_file in config.yaml injects few-shot examples into every API call, never saved to history.",
-    "SOUL.md completely replaces the agent's default identity — rewrite it to make Hermes your own.",
+    "SOUL.md completely replaces the agent's default identity — rewrite it to make Simplicio Agent your own.",
     "SOUL.md is auto-seeded with a default personality on first run. Edit it to customize.",
     "/compress <focus topic> allocates 60-70% of the summary budget to your topic and aggressively trims the rest.",
     "On second+ compression, the compressor updates the previous summary instead of starting from scratch.",
-    "Before a gateway session reset, Hermes auto-flushes important facts to memory in the background.",
+    "Before a gateway session reset, Simplicio Agent auto-flushes important facts to memory in the background.",
     "network.force_ipv4: true in config.yaml fixes hangs on servers with broken IPv6 — monkey-patches socket.",
     "The terminal tool annotates common exit codes: grep returning 1 = 'No matches found (not an error)'.",
     "Failed foreground terminal commands auto-retry up to 3 times with exponential backoff (2s, 4s, 8s).",
@@ -298,7 +298,7 @@ TIPS = [
     "Any website can expose skills via /.well-known/skills/index.json — the skills hub discovers them automatically.",
     "The skills audit log at ~/.hermes/skills/.hub/audit.log tracks every install and removal operation.",
     "Stale git worktrees are auto-cleaned: 24-72h old with no unpushed commits get pruned on startup.",
-    "Profiles scope Hermes state via HERMES_HOME; host tool subprocesses keep your real HOME unless terminal.home_mode is profile.",
+    "Profiles scope Simplicio Agent state via HERMES_HOME; host tool subprocesses keep your real HOME unless terminal.home_mode is profile.",
     "HERMES_HOME_MODE env var (octal, e.g. 0701) sets custom directory permissions for web server traversal.",
     "Container mode: place .container-mode in HERMES_HOME and the host CLI auto-execs into the container.",
     "Ctrl+C has 5 priority tiers: cancel recording → cancel prompts → cancel picker → interrupt agent → exit.",
@@ -340,13 +340,13 @@ TIPS = [
 
     # --- Advanced Slash Commands ---
     '/steer <prompt> injects a note after the next tool call — nudge direction mid-task without interrupting.',
-    '/goal <text> sets a standing Ralph-loop objective — Hermes auto-continues turn after turn until a judge says done.',
-    '/snapshot create [label] saves a full state snapshot of Hermes config; /snapshot restore <id> reverts later.',
+    '/goal <text> sets a standing Ralph-loop objective — Simplicio Agent auto-continues turn after turn until a judge says done.',
+    '/snapshot create [label] saves a full state snapshot of Simplicio Agent config; /snapshot restore <id> reverts later.',
     '/copy [N] copies the last assistant response to your clipboard, or the Nth-from-last with a number.',
     '/redraw forces a full UI repaint, fixing terminal drift after tmux resize or mouse selection artifacts.',
     '/agents (alias /tasks) shows active agents and running background tasks across the current session.',
     '/footer toggles the gateway footer on final replies showing model, context %, and cwd.',
-    '/busy queue|steer|interrupt controls what pressing Enter does while Hermes is working.',
+    '/busy queue|steer|interrupt controls what pressing Enter does while Simplicio Agent is working.',
     '/topic in Telegram DMs enables user-managed multi-session topic mode — /topic <id> restores past sessions inline.',
     '/approve session|always runs a pending dangerous command with your chosen trust scope; /deny rejects it.',
     '/restart gracefully restarts the gateway after draining active runs, then pings the requester when back up.',
@@ -381,7 +381,7 @@ TIPS = [
     'Ctrl+G or Ctrl+X Ctrl+E in the TUI opens the input buffer in $EDITOR for long multi-line prompts.',
     'The TUI renders LaTeX inline — $E=mc^2$ becomes Unicode math instead of raw TeX.',
     'simplicio-agent dashboard launches a local web UI at 127.0.0.1:9119 — zero data leaves localhost.',
-    'simplicio-agent dashboard embeds the full Hermes TUI in your browser via xterm.js and a WebSocket PTY.',
+    'simplicio-agent dashboard embeds the full Simplicio Agent TUI in your browser via xterm.js and a WebSocket PTY.',
     'Drop a YAML in ~/.hermes/dashboard-themes/ with two palette colors to reskin the entire dashboard.',
     'Dashboard plugins are drop-in: manifest.json + JS bundle in ~/.hermes/dashboard-plugins/ — no npm build required.',
     'layoutVariant: cockpit in a dashboard theme adds a 260px left rail that plugins can populate via the sidebar slot.',
@@ -431,11 +431,11 @@ TIPS = [
     'simplicio-agent chat --image path/to/pic.png attaches a local image to a single -q query without a separate upload step.',
     'simplicio-agent chat --ignore-user-config skips the active user config — reproducible bug reports and CI runs.',
     "simplicio-agent chat --source tool tags programmatic chats so they don't clutter simplicio-agent sessions list.",
-    'hermes dump --show-keys includes redacted API key fingerprints for deeper support debugging.',
+    'simplicio-agent dump --show-keys includes redacted API key fingerprints for deeper support debugging.',
     'simplicio-agent sessions rename <ID> "new title" renames any past session; simplicio-agent sessions delete <ID> removes one.',
-    'hermes import restores a session export or profile archive produced by sessions export or profile export.',
+    'simplicio-agent import restores a session export or profile archive produced by sessions export or profile export.',
     'simplicio-agent fallback manages the fallback_model chain interactively — no hand-editing config.yaml.',
-    'hermes pairing rotates the DM pairing token — the first messager after rotation claims access to the bot.',
+    'simplicio-agent pairing rotates the DM pairing token — the first messager after rotation claims access to the bot.',
     'simplicio-agent setup walks first-time users through provider, keys, and platform wiring in one interactive flow.',
     'simplicio-agent status --deep runs the full health sweep across every component; plain simplicio-agent status is the quick view.',
 
@@ -462,7 +462,7 @@ TIPS = [
     'AUXILIARY_VISION_BASE_URL + AUXILIARY_VISION_API_KEY point vision analysis at any OpenAI-compatible endpoint.',
 
     # --- Security ---
-    'security.tirith_fail_open: false makes Hermes block commands when the tirith scanner itself errors out.',
+    'security.tirith_fail_open: false makes Simplicio Agent block commands when the tirith scanner itself errors out.',
     'TIRITH_FAIL_OPEN env var overrides the tirith_fail_open config — a quick toggle without editing config.yaml.',
 
     # --- Sessions & Source Tags ---
