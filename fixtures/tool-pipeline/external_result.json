@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "secret": "keep-in-live-result",
+  "nested": {
+    "token": "nested-secret",
+    "value": 7
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "demo.tool",
+  "args": {
+    "path": "docs/plan.md",
+    "secret": "top-secret"
+  },
+  "tool_call_id": "call-1",
+  "task_id": "task-1"
+}
