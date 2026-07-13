@@ -1,7 +1,9 @@
 name: simplicio
-version: "0.2.0"
-description: "Force Simplicio-managed repos through the Simplicio runtime by blocking native Hermes file/search/edit tools inside simplicio-agent and simplicio-runtime, and independently re-verify every `simplicio edit`/`dev-cli` write with its own `simplicio validate` run (Asolaria N-Nest-Prime Watcher PID pattern, issue #17 P0)."
+version: "0.3.0"
+description: "Route managed-repo mutations through the Simplicio runtime, independently verify deterministic edits, and inject adaptive neural skill handles without loading the full catalog."
 author: "NousResearch / WesleySimplicio"
 hooks:
+  - pre_llm_call
   - pre_tool_call
+  - post_tool_call
   - transform_terminal_output

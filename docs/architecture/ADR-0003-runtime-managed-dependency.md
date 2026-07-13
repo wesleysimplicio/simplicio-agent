@@ -7,12 +7,9 @@
 
 ## Context
 
-simplicio-agent is a modified Hermes agent. The tool-routing hierarchy
-(Hermes-native tools first for reading/searching/reasoning/coordination, the
-Simplicio CLI second as the actuator for execution/deterministic edits/
-validation/evidence, MCP as fallback transport only) is canonical in
-`AGENTS.md` § Tool routing (issue #212) — this ADR does not restate or
-re-derive that order, it only covers how the kernel *dependency* is pinned
+simplicio-agent is a modified Hermes agent. The mandatory execution-channel hierarchy is defined by ADR-0010 and
+summarized in `AGENTS.md` § Tool routing. This ADR does not restate or
+re-derive that order; it only covers how the kernel *dependency* is pinned
 and installed. The bindings for the actuator role exist in
 `tools/kernel_binding.py`, but until now the kernel was an
 *optional PATH discovery*: absent binary -> every binding silently degrades
@@ -128,17 +125,15 @@ happens on the agent side, as a dependency contract.
   kernel still prints a loud startup warning (with the `hermes doctor
   --fix` instruction) so fail-closed blocks never surprise mid-turn, but
   the fix itself is a separate, explicit step.
-- The runtime's MCP server (`simplicio serve --mcp`) remains a separate,
-  user-launched surface — this ADR binds the agent to the kernel *binary*,
-  not to a persistent server process. **Update (#109, opt-in only):**
-  `tools/kernel_binding.py` can additionally spawn and reuse one
-  `simplicio serve --mcp --stdio` connection per process
-  (`SIMPLICIO_AGENT_KERNEL_WARM=1`) for calls the runtime serves in-process
-  (`simplicio_gate` today — simplicio-runtime#2983). This does not revise
-  the decision above: warm mode is a latency optimization behind the exact
-  same `_run_kernel` contract, with any failure at any layer falling
-  through to the classic per-call `subprocess.run` path unchanged. It is
-  off by default.
+- Per [ADR-0011](ADR-0011-agent-mcp-gateway.md), the Runtime MCP server
+  (`simplicio serve --mcp`) is internal compatibility transport, not a public
+  external-LLM surface. Cursor, VS Code, Gemini, Antigravity, Claude, Codex,
+  and other clients register `simplicio-agent mcp serve`. **Update (#109,
+  internal opt-in only):** `tools/kernel_binding.py` may spawn and reuse one
+  private `simplicio serve --mcp --stdio` connection per Agent process
+  (`SIMPLICIO_AGENT_KERNEL_WARM=1`) as a latency optimization behind the same
+  `_run_kernel` contract. It is off by default and MUST NOT be published as
+  the client integration endpoint.
 - ADR-0001 is untouched: checkpoints/rollback remain agent-owned
   (shadow-git); the kernel remains an evidence mirror there.
 

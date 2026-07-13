@@ -115,5 +115,5 @@ simplicio invoke --json
 simplicio compiled --json
 simplicio advise "<task>" --json
 simplicio install --global --dry-run --json
-simplicio serve --mcp --stdio
+simplicio-agent mcp serve   # sole public MCP gateway; Runtime MCP is internal only
 ```

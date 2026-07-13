@@ -68,32 +68,31 @@ growing the core.
 
 ## Tool routing
 
-> **Canonical source (issue #212, effective 2026-07-13).** This is the only
-> place the tool-routing hierarchy is declared. Every other doc — ADRs,
-> roadmap notes, skill docs, chat/cron/worker/desktop/dev-cli examples — must
-> link back here (`AGENTS.md#tool-routing`) instead of restating or
-> paraphrasing the order below. If you find a doc stating a different order,
-> that doc is wrong; fix it to link here.
+> **Normative decision:** [ADR-0010](docs/architecture/ADR-0010-runtime-first-execution.md).
+> This section is its operational summary. Conflicting routing guidance is
+> obsolete and must be replaced with a link to ADR-0010.
 
-Official hierarchy, in order:
+Mandatory hierarchy:
 
-1. **Hermes-native tools first** — reading, searching, reasoning, and
-   coordination. Hermes stays in the driver's seat.
-2. **Simplicio CLI second, as the actuator** — `simplicio <cmd>` is the
-   primary execution surface for deterministic edits, validation, evidence,
-   action-gate, checkpoints, and other repo mutations.
-3. **Simplicio MCP is fallback transport only** (`simplicio serve --mcp`) —
-   used only when the CLI process path isn't available or when an explicit
-   opt-in warm connection is active (`SIMPLICIO_AGENT_KERNEL_WARM=1`, see
-   ADR-0003). MCP never supersedes the CLI as the default execution channel.
+1. **Hermes reasons and coordinates.** It selects actions, interprets results,
+   converses, plans, and decides. It is not the preferred execution layer.
+2. **Simplicio CLI executes every action it can execute.** Reading, searching,
+   Git, diff inspection, tests, builds, shell commands, mutation, validation,
+   evidence, checkpoints, and delivery all attempt `simplicio <command>` first.
+   Supervised passthrough such as `simplicio shell compact -- <command>` counts
+   as Runtime execution while first-class compiled parity is being built.
+3. **Simplicio MCP is fallback Runtime transport only** when CLI is unavailable
+   or an explicit warm MCP path is configured.
+4. **A native Hermes execution tool is a temporary capability exception.** If
+   the Runtime cannot perform an action, native execution may unblock the task,
+   but the same body of work must implement Runtime parity with tests/evidence
+   or create/update a concrete Runtime issue when safely blocked. The fallback
+   must be reported as `UNVERIFIED| runtime capability gap`; silently repeating
+   the same native fallback is a policy violation.
 
-**Historical note — retired ambiguity.** An earlier revision of this file
-paired "Hermes-native tools first" with a follow-up line naming the
-Simplicio CLI and MCP together as one step, with no primary/fallback
-qualifier — read literally, it implied CLI and MCP were an interchangeable,
-equal-priority pair. That wording is retired as of 2026-07-13: CLI and MCP
-are not equal-priority — CLI is primary, MCP is fallback only. This section,
-not that old phrasing, is authoritative going forward.
+The permanent loop is: reason in Hermes → execute in Runtime → detect a gap →
+use native execution only if required → close or contract Runtime parity → use
+the Runtime on the next equivalent interaction.
 
 - The simplicio kernel is a **managed, pinned dependency**: `runtime.lock` pins
   the minimum version, `tools/runtime_manager.py` owns the handshake and the

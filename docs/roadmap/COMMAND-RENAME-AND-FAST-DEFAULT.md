@@ -100,7 +100,10 @@ decision; revisit only if Google OAuth login is wanted as a provider plugin.
   count images at a flat 1500 tokens; any replacement must preserve that
   or budget decisions shift. Bench first (`scripts/benchmark_e2e.py`).
 - ~~**kernel_binding warm mode**~~ **Landed 2026-07-09** (#109 +
-  simplicio-runtime#2983, opt-in via `SIMPLICIO_AGENT_KERNEL_WARM=1`):
+  simplicio-runtime#2983, opt-in via `SIMPLICIO_AGENT_KERNEL_WARM=1`).
+  **Topology update:** ADR-0011 makes this internal-only; external LLM clients
+  register `simplicio-agent mcp serve`, never the Runtime MCP endpoint.
+  Historical implementation detail:
   `tools/kernel_binding.py`'s `_WarmKernelClient` reuses one
   `simplicio serve --mcp --stdio` connection (raw NDJSON-over-stdio, no
   `mcp` package dependency) instead of a fresh `subprocess.run` per call.

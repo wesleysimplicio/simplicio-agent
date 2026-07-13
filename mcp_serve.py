@@ -1,9 +1,9 @@
 """
-Simplicio Agent MCP Server — expose messaging conversations as MCP tools.
+Simplicio Agent MCP Server — the public gateway for external LLM clients.
 
-Starts a stdio MCP server that lets any MCP client (Claude Code, Cursor, Codex,
-etc.) list conversations, read message history, send messages, poll for live
-events, and manage approval requests across all connected platforms.
+Starts a stdio MCP server that lets Cursor, VS Code, Gemini, Antigravity, Claude,
+Codex, and other MCP clients ask the autonomous Agent to act, recall Runtime
+capabilities lazily, and interact with connected messaging channels.
 
 Matches OpenClaw's 9-tool MCP channel bridge surface:
   conversations_list, conversation_get, messages_read, attachments_fetch,
@@ -34,6 +34,7 @@ import json
 # Hot-path JSON: every MCP tool result goes through dumps below. orjson-backed
 # with graceful stdlib fallback (agent/_fastjson.py).
 from agent._fastjson import dumps as _fast_dumps, loads as _fast_loads
+from agent.mcp_agent_gateway import invoke_agent, rank_capabilities
 import logging
 import os
 import re
@@ -766,13 +767,55 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
     mcp = FastMCP(
         "Simplicio Agent",
         instructions=(
-            "Simplicio Agent messaging bridge. Use these tools to interact with "
-            "conversations across Telegram, Discord, Slack, WhatsApp, Signal, "
-            "Matrix, and other connected platforms."
+            "Simplicio Agent is the sole public MCP gateway. Send natural-language "
+            "intent to simplicio_act; use simplicio_capabilities only when explicit "
+            "discovery is useful. The Agent reasons and coordinates, while its internal "
+            "Simplicio Runtime performs execution. Messaging tools remain available."
         ),
     )
 
     bridge = event_bridge or EventBridge()
+
+    # -- universal autonomous Agent gateway ---------------------------------
+
+    @mcp.tool()
+    def simplicio_capabilities(
+        query: str,
+        workdir: Optional[str] = None,
+        limit: int = 5,
+    ) -> str:
+        """Recall a compact set of Simplicio capabilities for an external intent.
+
+        This is metadata-only and does not invoke a remote LLM. Most clients should
+        call ``simplicio_act`` directly; the Agent performs this recall internally.
+        """
+        return _fast_dumps(
+            rank_capabilities(query, workdir=workdir, limit=limit), indent=2
+        )
+
+    @mcp.tool()
+    def simplicio_act(
+        request: str,
+        workdir: Optional[str] = None,
+        client: str = "mcp",
+        timeout_seconds: int = 900,
+    ) -> str:
+        """Ask the autonomous Simplicio Agent to complete any task.
+
+        The gateway always runs with ``--yolo`` and the ``fast:fast`` profile.
+        Hermes reasons and coordinates; all executable actions are delegated to the
+        internal Simplicio Runtime. The MCP client receives the final result and
+        evidence instead of managing Runtime commands itself.
+        """
+        return _fast_dumps(
+            invoke_agent(
+                request,
+                workdir=workdir,
+                client=client,
+                timeout_seconds=timeout_seconds,
+            ),
+            indent=2,
+        )
 
     # -- conversations_list ------------------------------------------------
 

@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+from .skill_recall import register_skill_recall
+
 _MANAGED_REPO_NAMES = {"simplicio-agent", "simplicio-runtime"}
 _PATH_ARG_KEYS = (
     "path",
@@ -240,3 +242,4 @@ def _on_transform_terminal_output(
 def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", _on_pre_tool_call)
     ctx.register_hook("transform_terminal_output", _on_transform_terminal_output)
+    register_skill_recall(ctx)

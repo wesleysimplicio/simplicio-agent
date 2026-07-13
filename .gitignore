@@ -153,3 +153,8 @@ infographic/
 .orchestrator/runs/
 .orchestrator/worktrees/
 .claude/worktrees/
+
+# Local hermes-achievements scan state (generated from session history)
+plugins/hermes-achievements/state.json
+plugins/hermes-achievements/scan_snapshot.json
+plugins/hermes-achievements/scan_checkpoint.json
