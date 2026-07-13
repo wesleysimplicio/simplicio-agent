@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from hermes_cli.runtime_mcp_matrix import (
+    CapabilityMatrix,
     build_runtime_mcp_matrix,
     coverage_summary,
+    load_capability_matrix,
+    missing_known_commands,
+    missing_known_tools,
     parse_mcp_tool_names,
     parse_runtime_help_commands,
     render_markdown,
@@ -94,3 +100,47 @@ Commands:
     rendered = render_markdown(rows)
     assert "| `map` | `simplicio_map` | mcp_tool | high |" in rendered
     assert "Overall status: **mcp_complete**" in rendered
+
+
+def test_versioned_authority_routes_mcp_then_cli_fallback():
+    matrix = load_capability_matrix()
+
+    status = matrix.status()
+    assert status.ready is True
+    assert status.commands_total == 12
+    assert status.mcp_routes == 3
+    assert status.cli_fallback_routes == 9
+    assert status.gaps == 0
+
+    assert matrix.route("map").route == "mcp"
+    assert matrix.route("map").target == "simplicio_map"
+    decision = matrix.route("map", mcp_tools={"simplicio_edit"})
+    assert decision.route == "cli_fallback"
+    assert decision.reason == "mcp_unavailable_cli_fallback"
+    assert matrix.route("plan").route == "cli_fallback"
+    assert matrix.route("unknown-command").reason == "unknown_command"
+
+
+def test_known_command_and_tool_regressions_are_detectable():
+    matrix = load_capability_matrix()
+
+    assert missing_known_commands(matrix.known_commands, matrix.known_commands[:-1]) == [
+        "savings"
+    ]
+    assert missing_known_tools(matrix.known_tools, matrix.known_tools[:-1]) == [
+        "simplicio_edit"
+    ]
+
+    payload = matrix.as_dict()
+    payload["rows"] = [row for row in payload["rows"] if row["command"] != "memory"]
+    with pytest.raises(ValueError, match="known commands"):
+        CapabilityMatrix.from_dict(payload)
+
+
+def test_matrix_marks_snapshot_evidence_without_claiming_live_probe():
+    matrix = load_capability_matrix()
+
+    assert {item.kind for item in matrix.evidence} == {"snapshot"}
+    assert {item.surface for item in matrix.evidence} == {"cli_help", "mcp_doctor"}
+    assert matrix.row_for("validate").route == "cli_fallback"
+    assert "local MCP snapshot" in matrix.row_for("validate").notes
