@@ -135,11 +135,14 @@ def get_hermes_home() -> Path:
     if override:
         return Path(override)
 
-    # SIMPLICIO_AGENT_HOME is canonical; HERMES_HOME remains a compatibility alias
-    for env_var in ("SIMPLICIO_AGENT_HOME", "HERMES_HOME"):
-        val = os.environ.get(env_var, "").strip()
-        if val:
-            return Path(val)
+    # Keep alias precedence in one place.  The lazy import preserves this
+    # module's import-safe startup contract while ensuring every HOME accessor
+    # uses the same SIMPLICIO_AGENT_HOME -> HERMES_HOME rule.
+    from agent.env_alias import env_get
+
+    val = env_get("HOME")
+    if val:
+        return Path(val)
 
     # Guard: if a non-default profile is sticky-active, warn once that
     # the fallback to the default profile is almost certainly wrong.
@@ -193,7 +196,9 @@ def get_default_hermes_root() -> Path:
     Import-safe — no dependencies beyond stdlib.
     """
     native_home = _get_platform_default_hermes_home()
-    env_home = os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME", "")
+    from agent.env_alias import env_get
+
+    env_home = env_get("HOME", "") or ""
     if not env_home:
         return native_home
     env_path = Path(env_home)
@@ -746,7 +751,9 @@ def _norm_home_path(path: str | None) -> str:
 
 def _profile_home_path(env: dict[str, str] | None = None) -> str | None:
     """Return ``{HERMES_HOME}/home`` when the profile-home directory exists."""
-    hermes_home = get_hermes_home_override() or (env or {}).get("HERMES_HOME") or os.getenv("HERMES_HOME")
+    from agent.env_alias import env_get
+
+    hermes_home = get_hermes_home_override() or env_get("HOME", environ=env)
     if not hermes_home:
         return None
     profile_home = os.path.join(hermes_home, "home")

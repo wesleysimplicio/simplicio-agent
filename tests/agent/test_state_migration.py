@@ -4,12 +4,12 @@ copy-then-mark migrator (issue #117)."""
 from __future__ import annotations
 
 import json
-import os
-
-import pytest
 
 from agent.state_migration import (
+    JOURNAL_NAME,
+    MANIFEST_NAME,
     MARKER_NAME,
+    MIGRATION_SCHEMA,
     canonical_new_home,
     migrate_default_state,
     migrate_state,
@@ -57,9 +57,12 @@ class TestMigrateState:
         marker = new / MARKER_NAME
         assert marker.exists()
         payload = json.loads(marker.read_text())
-        assert payload["schema"] == "simplicio.state-migration/v1"
+        assert payload["schema"] == MIGRATION_SCHEMA
         assert payload["source"] == str(legacy)
         assert set(payload["entries"]) == {"config.yaml", "profiles", "sessions"}
+        assert report.manifest_path and report.manifest_path.name == MANIFEST_NAME
+        assert report.journal_path and report.journal_path.name == JOURNAL_NAME
+        assert report.staging_path and report.staging_path.exists()
 
     def test_second_call_is_idempotent_noop(self, tmp_path):
         legacy = tmp_path / "hermes"
@@ -166,8 +169,58 @@ class TestMigrateState:
         assert report.migrated is False
         assert report.errors
         assert not (new / MARKER_NAME).exists()
-        # The directory entries (profiles/sessions) still succeeded.
-        assert (new / "profiles" / "coder" / "config.yaml").exists()
+        # The directory entries were staged, but the transactional commit did
+        # not start while one source entry was unavailable.
+        assert not (new / "profiles" / "coder" / "config.yaml").exists()
+        assert report.staging_path and (report.staging_path / "profiles" / "coder" / "config.yaml").exists()
+
+    def test_interrupted_staging_rerun_finishes_from_manifest(self, tmp_path, monkeypatch):
+        legacy = tmp_path / "hermes"
+        new = tmp_path / "simplicio" / "agent"
+        _populate_legacy(legacy)
+        real_copy2 = __import__("shutil").copy2
+        calls = {"count": 0}
+
+        def fail_once(src, dst, *args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise OSError("simulated interruption")
+            return real_copy2(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr("agent.state_migration.shutil.copy2", fail_once)
+        interrupted = migrate_state(legacy, new)
+
+        assert interrupted.errors
+        assert not (new / MARKER_NAME).exists()
+        assert interrupted.manifest_path and interrupted.manifest_path.exists()
+        assert interrupted.journal_path and interrupted.journal_path.exists()
+
+        monkeypatch.setattr("agent.state_migration.shutil.copy2", real_copy2)
+        resumed = migrate_state(legacy, new)
+
+        assert resumed.migrated is True
+        assert (new / MARKER_NAME).exists()
+        assert (legacy / "config.yaml").read_text() == "model: deepseek-chat\n"
+
+    def test_destination_conflict_is_reported_without_overwrite(self, tmp_path):
+        legacy = tmp_path / "hermes"
+        new = tmp_path / "simplicio" / "agent"
+        _populate_legacy(legacy)
+        new.mkdir(parents=True)
+        (new / "config.yaml").write_text("model: user-owned\n")
+
+        report = migrate_state(legacy, new)
+
+        assert report.migrated is False
+        assert "config.yaml" in report.conflicts
+        assert (new / "config.yaml").read_text() == "model: user-owned\n"
+        assert not (new / MARKER_NAME).exists()
+        assert report.manifest_path and json.loads(report.manifest_path.read_text())["status"] == "conflict"
+
+        # Resolving the conflict permits the staged transaction to resume.
+        (new / "config.yaml").write_text((legacy / "config.yaml").read_text())
+        resumed = migrate_state(legacy, new)
+        assert resumed.migrated is True
 
 
 class TestCanonicalNewHome:
