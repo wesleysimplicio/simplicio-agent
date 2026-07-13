@@ -162,6 +162,24 @@ def _receipt(receipt: TransportReceipt) -> dict[str, Any]:
     return receipt.to_dict()
 
 
+def _gate_allows(receipt: TransportReceipt) -> bool:
+    """Interpret a successful Runtime response without treating ``confirm`` as allow."""
+
+    if not receipt.ok or not isinstance(receipt.value, dict):
+        return False
+    decision = str(receipt.value.get("decision", "")).strip().lower()
+    if decision:
+        return decision in {
+            "allow",
+            "allowed",
+            "approve",
+            "approved",
+            "permit",
+            "permitted",
+        }
+    return bool(receipt.value.get("allowed", False))
+
+
 def _certificate_manifest(
     *, task_id: str, runtime_available: bool, trajectory: Any, diff: str
 ) -> ReproducibleManifest:
@@ -298,7 +316,7 @@ def run_local_reversible_path(
             "reason": "not configured in bounded slice",
         },
         "runtime": {
-            "available": gate.ok,
+            "available": _gate_allows(gate),
             "transport": gate.transport,
             "fallback_reason": gate.fallback_reason,
             "health": runtime.health(),
@@ -319,7 +337,7 @@ def run_local_reversible_path(
             reason="local file capability was not selected",
             availability=availability,
         )
-    if not gate.ok:
+    if not _gate_allows(gate):
         return _blocked(
             root=root,
             goal=goal,
