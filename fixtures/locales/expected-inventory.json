@@ -1,0 +1,52 @@
+{
+  "schema": "locale-contracts/inventory/v1",
+  "contract_version": 1,
+  "catalogs": [
+    {
+      "locale": "en",
+      "catalog_file": "en.yaml",
+      "key_count": 2,
+      "key_digest": "2b052e8a0e2f107d9a90cb9ac56265414d44c2e0c0be1cff07036d0aaedc8f21",
+      "branding_classification": "simplicio_only"
+    },
+    {
+      "locale": "fr",
+      "catalog_file": "fr.yaml",
+      "key_count": 2,
+      "key_digest": "f20f485e603417b2657becde8ad42de7c3d2cbd68838c493422cbdb13bb3ce42",
+      "branding_classification": "unbranded"
+    },
+    {
+      "locale": "pt",
+      "catalog_file": "pt.yaml",
+      "key_count": 2,
+      "key_digest": "9647bb3c60ae85801822148d8e7d57a2e5d48a6a666a79d8bd319cf5442d470e",
+      "branding_classification": "mixed"
+    }
+  ],
+  "required_product_locales": [
+    {
+      "requested_locale": "en-US",
+      "canonical_locale": "en",
+      "catalog_file": "en.yaml",
+      "fallback_classification": "alias_fallback",
+      "branding_classification": "simplicio_only",
+      "key_count": 2,
+      "key_digest": "2b052e8a0e2f107d9a90cb9ac56265414d44c2e0c0be1cff07036d0aaedc8f21"
+    },
+    {
+      "requested_locale": "pt-BR",
+      "canonical_locale": "pt",
+      "catalog_file": "pt.yaml",
+      "fallback_classification": "alias_fallback",
+      "branding_classification": "mixed",
+      "key_count": 2,
+      "key_digest": "9647bb3c60ae85801822148d8e7d57a2e5d48a6a666a79d8bd319cf5442d470e"
+    }
+  ],
+  "deterministic_order": [
+    "en",
+    "fr",
+    "pt"
+  ]
+}

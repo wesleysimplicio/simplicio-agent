@@ -1,0 +1,5 @@
+approval:
+  denied: "Commande refusée."
+gateway:
+  reset:
+    header_default: "Session réinitialisée."

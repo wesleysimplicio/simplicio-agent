@@ -1,0 +1,5 @@
+approval:
+  denied: "Simplicio Agent denied."
+gateway:
+  reset:
+    header_default: "Simplicio Agent reset."

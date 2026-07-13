@@ -1,0 +1,47 @@
+{
+  "budget": 5.0,
+  "prior_mode": "nominal",
+  "resources": [
+    {
+      "name": "cpu",
+      "value": 0.84,
+      "unit": "ratio",
+      "evidence": {
+        "sampler": "perf-probe",
+        "api_key": "keep-out-of-receipts",
+        "nested": {
+          "token": "also-secret"
+        }
+      }
+    },
+    {
+      "name": "memory",
+      "value": 0.42,
+      "unit": "ratio",
+      "evidence": {
+        "sampler": "perf-probe"
+      }
+    }
+  ],
+  "quality": [
+    {
+      "name": "response_quality",
+      "value": 0.88,
+      "unit": "ratio",
+      "evidence": {
+        "window": "5m"
+      }
+    }
+  ],
+  "safety": [
+    {
+      "name": "secret_exposure",
+      "safe": true,
+      "detail": "",
+      "evidence": {
+        "Authorization": "Bearer hidden",
+        "source": "redactor-check"
+      }
+    }
+  ]
+}

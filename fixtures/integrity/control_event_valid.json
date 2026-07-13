@@ -1,0 +1,18 @@
+{
+  "schema": "simplicio.cognitive-integrity/v1",
+  "event_id": "evt-185-allow",
+  "event_type": "approval.grant",
+  "actor": "operator.console",
+  "issued_at": "2026-07-13T13:15:00Z",
+  "nonce": "nonce-185-a",
+  "payload": {
+    "action": "continue",
+    "scope": "issue-185",
+    "target": "agent/trust_boundary.py"
+  },
+  "auth": {
+    "algorithm": "hmac-sha256",
+    "key_id": "ops-main",
+    "digest": "135fba6962b8de2a16cc1b0a997d612d32f8a4c5b333730a403809366e902401"
+  }
+}

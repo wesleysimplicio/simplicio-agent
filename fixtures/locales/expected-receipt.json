@@ -1,0 +1,29 @@
+{
+  "schema": "locale-contracts/receipt/v1",
+  "contract_version": 1,
+  "inventory_sha256": "4a0788d749f72825efcc8d1e03c3af5168cb0e5c20d07fccecbb7f11c15b699d",
+  "required_locales_ready": true,
+  "required_product_locales": [
+    "en-US",
+    "pt-BR"
+  ],
+  "fallback_classification": {
+    "en-US": "alias_fallback",
+    "pt-BR": "alias_fallback"
+  },
+  "branding_classification": {
+    "en-US": "simplicio_only",
+    "pt-BR": "mixed"
+  },
+  "parity": {
+    "schema": "locale-contracts/key-parity/v1",
+    "contract_version": 1,
+    "baseline_locale": "en-US",
+    "baseline_canonical_locale": "en",
+    "target_locale": "pt-BR",
+    "target_canonical_locale": "pt",
+    "key_parity": true,
+    "missing_keys": [],
+    "extra_keys": []
+  }
+}
