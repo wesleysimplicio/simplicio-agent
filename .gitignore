@@ -147,3 +147,9 @@ infographic/
 # Serena / Simplicio local agent tooling caches (machine-specific runtime state)
 .serena/
 .simplicio/
+
+# Simplicio task-loop state
+.orchestrator/loop/
+.orchestrator/runs/
+.orchestrator/worktrees/
+.claude/worktrees/
