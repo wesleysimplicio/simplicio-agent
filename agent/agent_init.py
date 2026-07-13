@@ -1335,6 +1335,16 @@ def init_agent(
     # are noisy.
     agent._environment_probe = bool(_agent_section.get("environment_probe", True))
 
+    # Prompt economy (issue #196): progressive disclosure of the compactable,
+    # low-stakes guidance sections cataloged in agent/prompt_economy.py
+    # (agent.system_prompt.build_system_prompt_parts consumes this flag).
+    # Default False — opt-in rollout pending the quality/safety A/B corpus
+    # (issue #196 step 11); flipping it on cuts the fixed stable-tier prompt
+    # tax with no tool/schema availability change (every tool is always
+    # listed; see agent/prompt_economy.py COMPACTABLE_HANDLES docstring for
+    # which sections stay full-text regardless of this flag).
+    agent._prompt_economy_enabled = bool(_agent_section.get("prompt_economy", False))
+
     # Per-platform prompt-hint overrides (config.yaml → platform_hints).
     # Lets an enterprise admin append to or replace Hermes' built-in
     # platform hint for a single messaging platform (e.g. WhatsApp) without

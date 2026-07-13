@@ -192,8 +192,25 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
         # Fallback to hardcoded identity
         stable_parts.append(DEFAULT_AGENT_IDENTITY)
 
+    # Prompt economy (issue #196): progressive disclosure of the low-stakes
+    # guidance sections cataloged in agent/prompt_economy.py. Gated by
+    # config.yaml ``agent.prompt_economy`` (default False — opt-in until the
+    # quality/safety A/B corpus in issue #196 step 11 lands). When enabled,
+    # the handles in prompt_economy.COMPACTABLE_HANDLES are folded into one
+    # compact index block (handle + one-line summary) instead of shipping
+    # their full text every turn; every other section (identity, no-
+    # fabrication/tool-use-enforcement/parallel-tool guidance, model-family
+    # execution discipline, steering, environment/platform/profile/nous)
+    # always ships in full — see prompt_economy.COMPACTABLE_HANDLES docstring
+    # for why those are excluded from compaction.
+    _economy_enabled = bool(getattr(agent, "_prompt_economy_enabled", False))
+    _economy_active_handles: List[str] = []
+
     # Pointer to the hermes-agent skill + docs for user questions about Hermes itself.
-    stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
+    if _economy_enabled:
+        _economy_active_handles.append("sec:hermes-help")
+    else:
+        stable_parts.append(HERMES_AGENT_HELP_GUIDANCE)
 
     # Universal task-completion / no-fabrication guidance.  Applied to ALL
     # models regardless of tool_use_enforcement gating — the failure modes
@@ -218,23 +235,46 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # Tool-aware behavioral guidance: only inject when the tools are loaded
     tool_guidance = []
     if "memory" in agent.valid_tool_names:
-        tool_guidance.append(MEMORY_GUIDANCE)
+        if _economy_enabled:
+            _economy_active_handles.append("sec:memory")
+        else:
+            tool_guidance.append(MEMORY_GUIDANCE)
     if "session_search" in agent.valid_tool_names:
-        tool_guidance.append(SESSION_SEARCH_GUIDANCE)
+        if _economy_enabled:
+            _economy_active_handles.append("sec:session-search")
+        else:
+            tool_guidance.append(SESSION_SEARCH_GUIDANCE)
     if "skill_manage" in agent.valid_tool_names:
-        tool_guidance.append(SKILLS_GUIDANCE)
+        if _economy_enabled:
+            _economy_active_handles.append("sec:skills")
+        else:
+            tool_guidance.append(SKILLS_GUIDANCE)
     # Kanban worker/orchestrator lifecycle — only present when the
     # dispatcher spawned this process (kanban_show check_fn gates on
     # HERMES_KANBAN_TASK env var). Normal chat sessions never see
     # this block. Resolved once at __init__ (see _kanban_worker_guidance).
+    # NOTE: only the static fallback (KANBAN_GUIDANCE) is compactable — the
+    # dynamic ``_kanban_worker_guidance`` carries live task/session state, not
+    # generic guidance, so it always ships in full regardless of the economy
+    # flag.
     _kanban_guidance = getattr(agent, "_kanban_worker_guidance", None)
     if _kanban_guidance:
         tool_guidance.append(_kanban_guidance)
     elif _kanban_guidance is None and "kanban_show" in agent.valid_tool_names:
         # Fallback for code paths that bypass agent_init (rare).
-        tool_guidance.append(KANBAN_GUIDANCE)
+        if _economy_enabled:
+            _economy_active_handles.append("sec:kanban")
+        else:
+            tool_guidance.append(KANBAN_GUIDANCE)
     if tool_guidance:
         stable_parts.append(" ".join(tool_guidance))
+
+    if _economy_enabled and _economy_active_handles:
+        from agent.prompt_economy import render_compact_block
+
+        _compact_block = render_compact_block(_economy_active_handles)
+        if _compact_block:
+            stable_parts.append(_compact_block)
 
     # Steering only lands inside tool results, so it's only reachable when the
     # agent has tools. Static text → byte-stable prompt (no cache hit).

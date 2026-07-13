@@ -54,6 +54,8 @@ __all__ = [
     "pin_capability_bundle",
     "instruction_index_summary_size",
     "instruction_index_full_size",
+    "COMPACTABLE_HANDLES",
+    "render_compact_block",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -278,6 +280,69 @@ def instruction_index_full_size() -> int:
         full = _catalog_symbol_value(e["symbol"])
         total += len(full) if isinstance(full, str) else len(e["summary"])
     return total
+
+
+# Handles safe to fold into the compact block instead of shipping full text
+# every turn. Deliberately conservative (issue #196 design principle 3,
+# "safety is eager"): restricted to handles whose ``symbol`` is a real,
+# non-underscore ``agent.prompt_builder`` attribute (so :func:`expand_instruction`
+# can genuinely recover the full body on demand — this excludes the dynamic/
+# aggregate markers such as environment/platform/profile/nous, whose ``symbol``
+# is prefixed with ``_`` and has no real expansion path), AND whose category is
+# NOT ``identity``/``behavior`` (no-fabrication / tool-use-enforcement / parallel
+# -tool guidance, and the model-family-specific OpenAI/Google execution
+# discipline, always ship in full — they target concrete hallucination/
+# incomplete-tool-use failure modes and are not safe to summarize away).
+COMPACTABLE_HANDLES = frozenset(
+    {
+        "sec:hermes-help",
+        "sec:memory",
+        "sec:session-search",
+        "sec:skills",
+        "sec:kanban",
+    }
+)
+
+
+def render_compact_block(active_handles: Sequence[str]) -> str:
+    """Render one compact block for the subset of *active_handles* that are
+    safe to compact (see :data:`COMPACTABLE_HANDLES`).
+
+    ``active_handles`` is the set of handles whose full-text guidance would
+    otherwise have been injected this turn (i.e. gated the same way the caller
+    already gates the full text — by tool availability). Handles not in
+    :data:`COMPACTABLE_HANDLES` are ignored here (the caller keeps shipping
+    their full text unconditionally; this function never removes anything
+    from view — I4 below).
+
+    Returns ``""`` when no compactable handle is active this turn (nothing to
+    summarize), so callers can skip appending an empty block.
+
+    INVARIANT (I4, "no invisible capability"): every rendered line names its
+    handle and one-line summary — nothing is hidden, only shortened. The
+    one-line summary is written to be operationally sufficient on its own
+    (models already carry the matching tool schemas); genuine full-text
+    recovery remains available via :func:`expand_instruction` for any caller
+    (CLI diagnostics, a future interactive expansion path) that wants it.
+    """
+    seen = set()
+    entries = []
+    for h in active_handles:
+        if h in COMPACTABLE_HANDLES and h in _HANDLE_INDEX and h not in seen:
+            seen.add(h)
+            entries.append(_HANDLE_INDEX[h])
+    if not entries:
+        return ""
+    lines = [
+        "Compact capability index (progressive disclosure, issue #196): the "
+        "sections below are summarized rather than shown in full to cut the "
+        "fixed per-turn prompt tax. Nothing is hidden — every active section "
+        "is listed by handle; the one-line summary is normally sufficient "
+        "given the matching tool schemas you already have."
+    ]
+    for e in entries:
+        lines.append(f"- {e['handle']} ({e['title']}): {e['summary']}")
+    return "\n".join(lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────
