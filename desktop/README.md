@@ -56,12 +56,27 @@ The installer handles everything for you (Python 3.11+, a portable Git, ripgrep)
 
 ## Development
 
-Want to hack on the app itself? Install workspace deps from the repo root once, then run the dev server from this directory:
+Want to hack on the app itself? Install deps from this directory, then run the dev server here:
 
 ```bash
-npm install          # from repo root — links apps/desktop, web, apps/shared
-cd apps/desktop
+npm install          # from the desktop/ directory
 npm run dev          # Vite renderer + Electron, which boots the Python backend
+```
+
+### Layout contract scope
+
+`desktop-layout.json` and `tools/desktop_layout_contract.py` define and validate
+the canonical source paths (`desktop/`, `desktop/src/`, and `desktop/electron/`)
+and reject stale `apps/desktop` references in the listed consumers. This
+replacement-worker contract is deterministic and stdlib-only. npm renderer
+builds, packaged installers, signing, and clean-machine installation proof are
+explicitly out of scope for this slice.
+
+The repository layout contract lives in [`desktop-layout.json`](../desktop-layout.json).
+Validate it before scripts or tooling consume desktop paths:
+
+```bash
+npm run check:desktop-layout
 ```
 
 Point the app at a specific source checkout, or sandbox it away from your real config:

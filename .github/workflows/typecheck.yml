@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         package:
-          [ui-tui, web, apps/bootstrap-installer, apps/desktop, apps/shared]
+          [ui-tui, web, apps/bootstrap-installer, desktop, apps/shared]
       fail-fast: false # report all failures, not just the first one
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -32,7 +32,7 @@ jobs:
   # which does NOT exercise Vite/Rolldown module resolution — so an
   # unresolvable package export (e.g. a transitive @assistant-ui/tap that no
   # longer exports "./react-shim") slips past typecheck and only explodes when
-  # users build apps/desktop from source on install/update. Run the real
+  # users build desktop from source on install/update. Run the real
   # `vite build` here so that class of break fails in CI instead.
   desktop-build:
     name: Build desktop app
@@ -48,4 +48,4 @@ jobs:
       - uses: ./.github/actions/retry
         with:
           command: npm ci
-      - run: npm run --prefix apps/desktop build
+      - run: npm run --prefix desktop build
