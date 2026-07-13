@@ -19,6 +19,19 @@ class TestModuleSurface:
         assert isinstance(m.EXPOSED_TOOLS, tuple)
         assert len(m.EXPOSED_TOOLS) > 0
 
+    def test_client_facing_server_name_is_simplicio_agent_branded(self):
+        """Issue #204: the MCP server identifier shown to Claude/Codex/
+        Cursor/etc. must be Simplicio Agent branded, not 'hermes-tools'.
+        The old name is kept only as a recognized deprecated alias so a
+        ~/.codex/config.toml written before this rename keeps working."""
+        from agent.transports.hermes_tools_mcp_server import (
+            LEGACY_MCP_SERVER_NAME,
+            MCP_SERVER_NAME,
+        )
+        assert MCP_SERVER_NAME == "simplicio-agent-tools"
+        assert "hermes" not in MCP_SERVER_NAME
+        assert LEGACY_MCP_SERVER_NAME == "hermes-tools"
+
     def test_exposed_tools_are_safe_subset(self):
         """We MUST NOT expose tools codex already has, because codex'
         own builtins are better-integrated with its sandbox + approvals.
