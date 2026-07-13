@@ -56,7 +56,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Iterable, Optional
+from hashlib import sha256
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from agent._fastjson import dumps as _dumps, loads as _loads
 
@@ -72,6 +73,23 @@ PAYLOAD_VERSION = "1.0"
 
 # Default redaction bucket for payloads that need no masking.
 REDACTION_NONE = "none"
+REDACTION_SECRET = "secret"
+
+EXECUTION_CONTEXT_SCHEMA = "simplicio.execution-context/v1"
+RUN_EVENT_SCHEMA = "simplicio.run-event/v1"
+
+_SECRET_REDACTION_TOKEN = "[redacted]"
+_RUN_CONTEXT_MUTABLE_FIELDS = frozenset(
+    {
+        "phase",
+        "step",
+        "budgets",
+        "checkpoint_ref",
+        "effect_journal_ref",
+        "ledger_ref",
+        "evidence_coverage",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +346,538 @@ class EventDeduplicator:
         return len(self._events)
 
 
+def _freeze_json(value: Any) -> Any:
+    """Recursively normalize values into deterministic JSON-compatible shapes."""
+    if isinstance(value, tuple):
+        return [_freeze_json(item) for item in value]
+    if isinstance(value, list):
+        return [_freeze_json(item) for item in value]
+    if isinstance(value, set):
+        frozen = [_freeze_json(item) for item in value]
+        return sorted(frozen, key=lambda item: _dumps(item, ensure_ascii=False))
+    if isinstance(value, Mapping):
+        return {key: _freeze_json(value[key]) for key in sorted(value)}
+    return value
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return _dumps(_freeze_json(value), ensure_ascii=False).encode("utf-8")
+
+
+def _canonical_hash(value: Any) -> str:
+    return sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def _canonical_tuple(values: Iterable[str]) -> tuple[str, ...]:
+    items = tuple(value for value in values if value)
+    return tuple(sorted(items))
+
+
+def _canonical_budgets(value: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        key: _freeze_json(value[key]) for key in sorted(value)
+    }
+
+
+def _redact_payload(
+    payload: Any,
+    *,
+    redaction_class: str,
+    secret_paths: frozenset[str],
+    path: str = "",
+) -> Any:
+    if redaction_class == REDACTION_SECRET and path:
+        return _SECRET_REDACTION_TOKEN
+    if path in secret_paths:
+        return _SECRET_REDACTION_TOKEN
+    if isinstance(payload, Mapping):
+        return {
+            key: _redact_payload(
+                payload[key],
+                redaction_class=redaction_class,
+                secret_paths=secret_paths,
+                path=f"{path}.{key}" if path else str(key),
+            )
+            for key in sorted(payload)
+        }
+    if isinstance(payload, list):
+        return [
+            _redact_payload(
+                item,
+                redaction_class=redaction_class,
+                secret_paths=secret_paths,
+                path=f"{path}[{index}]",
+            )
+            for index, item in enumerate(payload)
+        ]
+    if isinstance(payload, tuple):
+        return [
+            _redact_payload(
+                item,
+                redaction_class=redaction_class,
+                secret_paths=secret_paths,
+                path=f"{path}[{index}]",
+            )
+            for index, item in enumerate(payload)
+        ]
+    return payload
+
+
+class EventClassification(str, Enum):
+    """Confidence class attached to a run event payload/effect."""
+
+    MEASURED = "MEASURED"
+    CANON = "CANON"
+    INFERRED = "INFERRED"
+    PLANNED = "PLANNED"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class SecretSafePayload:
+    """Serializable payload record that never emits raw secret material."""
+
+    payload_ref: str
+    redaction_class: str = REDACTION_NONE
+    payload: Any = None
+    secret_paths: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.payload_ref:
+            raise ValueError("payload_ref must be non-empty")
+
+    @classmethod
+    def inline(
+        cls,
+        payload: Any,
+        *,
+        redaction_class: str = REDACTION_NONE,
+        payload_ref: Optional[str] = None,
+        secret_paths: Iterable[str] = (),
+    ) -> "SecretSafePayload":
+        frozen_paths = frozenset(secret_paths)
+        redacted = _redact_payload(
+            payload,
+            redaction_class=redaction_class,
+            secret_paths=frozen_paths,
+        )
+        canonical = _freeze_json(redacted)
+        return cls(
+            payload_ref=payload_ref or f"inline:{_canonical_hash(canonical)}",
+            redaction_class=redaction_class,
+            payload=canonical,
+            secret_paths=tuple(sorted(frozen_paths)),
+        )
+
+    @classmethod
+    def handle(
+        cls,
+        payload_ref: str,
+        *,
+        preview: Any = None,
+        redaction_class: str = REDACTION_SECRET,
+    ) -> "SecretSafePayload":
+        preview_payload = None
+        if preview is not None:
+            preview_payload = _redact_payload(
+                preview,
+                redaction_class=redaction_class,
+                secret_paths=frozenset(),
+            )
+        return cls(
+            payload_ref=payload_ref,
+            redaction_class=redaction_class,
+            payload=_freeze_json(preview_payload),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "payload_ref": self.payload_ref,
+            "redaction_class": self.redaction_class,
+            "payload": _freeze_json(self.payload),
+            "secret_paths": list(self.secret_paths),
+        }
+
+    def canonical_hash(self) -> str:
+        return _canonical_hash(self.to_dict())
+
+
+@dataclass(frozen=True)
+class ExecutionContext:
+    """Canonical execution authority shared across producers and replayers."""
+
+    profile_id: str
+    tenant_id: str
+    session_id: str
+    run_id: str
+    parent_run_id: str = ""
+    goal_hash: str = ""
+    anchor_hash: str = ""
+    phase: str = ""
+    step: str = ""
+    budgets: Dict[str, Any] = field(default_factory=dict)
+    policy_ref: str = ""
+    capability_refs: tuple[str, ...] = field(default_factory=tuple)
+    checkpoint_ref: str = ""
+    effect_journal_ref: str = ""
+    ledger_ref: str = ""
+    evidence_coverage: tuple[str, ...] = field(default_factory=tuple)
+    schema_version: str = EXECUTION_CONTEXT_SCHEMA
+
+    def __post_init__(self) -> None:
+        for field_name in ("profile_id", "tenant_id", "session_id", "run_id"):
+            if not getattr(self, field_name):
+                raise ValueError(f"{field_name} must be non-empty")
+        object.__setattr__(self, "budgets", _canonical_budgets(self.budgets))
+        object.__setattr__(
+            self, "capability_refs", _canonical_tuple(self.capability_refs)
+        )
+        object.__setattr__(
+            self, "evidence_coverage", _canonical_tuple(self.evidence_coverage)
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "profile_id": self.profile_id,
+            "tenant_id": self.tenant_id,
+            "session_id": self.session_id,
+            "run_id": self.run_id,
+            "parent_run_id": self.parent_run_id,
+            "goal_hash": self.goal_hash,
+            "anchor_hash": self.anchor_hash,
+            "phase": self.phase,
+            "step": self.step,
+            "budgets": _freeze_json(self.budgets),
+            "policy_ref": self.policy_ref,
+            "capability_refs": list(self.capability_refs),
+            "checkpoint_ref": self.checkpoint_ref,
+            "effect_journal_ref": self.effect_journal_ref,
+            "ledger_ref": self.ledger_ref,
+            "evidence_coverage": list(self.evidence_coverage),
+        }
+
+    def canonical_hash(self) -> str:
+        return _canonical_hash(self.to_dict())
+
+    def stable_projection(self) -> Dict[str, Any]:
+        data = self.to_dict()
+        for field_name in _RUN_CONTEXT_MUTABLE_FIELDS:
+            data.pop(field_name, None)
+        return data
+
+
+@dataclass(frozen=True)
+class ReplayCursor:
+    """Stable reconnect cursor for a confirmed point in one run stream."""
+
+    run_id: str
+    sequence: int
+    event_id: str
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("run_id must be non-empty")
+        if self.sequence < 0:
+            raise ValueError(f"sequence must be >= 0, got {self.sequence!r}")
+        if self.sequence and not self.event_id:
+            raise ValueError("event_id must be non-empty when sequence > 0")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "sequence": self.sequence,
+            "event_id": self.event_id,
+        }
+
+
+@dataclass(frozen=True)
+class RunEvent:
+    """Execution-context-aware event record layered over :class:`Envelope`."""
+
+    envelope: Envelope
+    context: ExecutionContext
+    actor: str
+    source: str
+    classification: str = EventClassification.UNKNOWN.value
+    causal_parent: str = ""
+    idempotency_key: str = ""
+    payload: SecretSafePayload = field(
+        default_factory=lambda: SecretSafePayload.handle("payload:none", preview={})
+    )
+    receipt_hash: str = ""
+    observed_at_ns: int = 0
+    valid_at_ns: int = 0
+    schema_version: str = RUN_EVENT_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.envelope.session_id != self.context.session_id:
+            raise ValueError("envelope.session_id must match context.session_id")
+        if self.context.run_id == "":
+            raise ValueError("context.run_id must be non-empty")
+        if not self.actor:
+            raise ValueError("actor must be non-empty")
+        if not self.source:
+            raise ValueError("source must be non-empty")
+        if self.classification not in {member.value for member in EventClassification}:
+            raise ValueError(f"invalid classification {self.classification!r}")
+        observed = self.observed_at_ns or self.envelope.ts_monotonic_ns
+        valid = self.valid_at_ns or self.envelope.ts_wall_ns
+        object.__setattr__(self, "observed_at_ns", observed)
+        object.__setattr__(self, "valid_at_ns", valid)
+        if not self.idempotency_key:
+            object.__setattr__(self, "idempotency_key", self._default_idempotency_key())
+
+    @property
+    def event_id(self) -> str:
+        return self.envelope.event_id
+
+    @property
+    def run_id(self) -> str:
+        return self.context.run_id
+
+    @property
+    def sequence(self) -> int:
+        return self.envelope.seq
+
+    @property
+    def event_type(self) -> str:
+        return self.envelope.event_type
+
+    def _default_idempotency_key(self) -> str:
+        return _canonical_hash(
+            {
+                "run_id": self.context.run_id,
+                "causal_parent": self.causal_parent,
+                "event_type": self.envelope.event_type,
+                "actor": self.actor,
+                "source": self.source,
+                "payload_ref": self.payload.payload_ref,
+                "receipt_hash": self.receipt_hash,
+            }
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "event_id": self.event_id,
+            "run_id": self.run_id,
+            "causal_parent": self.causal_parent,
+            "sequence": self.sequence,
+            "idempotency_key": self.idempotency_key,
+            "type": self.event_type,
+            "actor": self.actor,
+            "source": self.source,
+            "observed_at_ns": self.observed_at_ns,
+            "valid_at_ns": self.valid_at_ns,
+            "payload": self.payload.to_dict(),
+            "classification": self.classification,
+            "receipt_hash": self.receipt_hash,
+            "envelope": self.envelope.to_dict(),
+            "context": self.context.to_dict(),
+        }
+
+    def canonical_hash(self) -> str:
+        return _canonical_hash(self.to_dict())
+
+
+class SequenceGapError(ValueError):
+    """Raised when replay/append skips a required run-local sequence number."""
+
+    def __init__(self, run_id: str, expected: int, got: int) -> None:
+        super().__init__(
+            f"run_id {run_id!r} expected sequence {expected}, got {got}"
+        )
+        self.run_id = run_id
+        self.expected = expected
+        self.got = got
+
+
+class IdempotencyConflictError(ValueError):
+    """Raised when one idempotency key is reused for different events."""
+
+    def __init__(self, key: str) -> None:
+        super().__init__(
+            f"idempotency_key {key!r} was reused for different event content"
+        )
+        self.key = key
+
+
+class ImmutableContextError(ValueError):
+    """Raised when a producer mutates immutable run authority state."""
+
+    def __init__(self, field_name: str, source: str) -> None:
+        super().__init__(
+            f"{source!r} event attempted to mutate immutable context field {field_name!r}"
+        )
+        self.field_name = field_name
+        self.source = source
+
+
+@dataclass(frozen=True)
+class ReplayProjection:
+    """Deterministic state snapshot materialized from a run-event replay."""
+
+    run_id: str
+    phase: str
+    step: str
+    status: str
+    last_sequence: int
+    last_event_id: str
+    event_count: int
+    cursor: ReplayCursor
+    classification_counts: Dict[str, int]
+    event_type_counts: Dict[str, int]
+    effect_receipts: tuple[str, ...]
+    context: ExecutionContext
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "phase": self.phase,
+            "step": self.step,
+            "status": self.status,
+            "last_sequence": self.last_sequence,
+            "last_event_id": self.last_event_id,
+            "event_count": self.event_count,
+            "cursor": self.cursor.to_dict(),
+            "classification_counts": _freeze_json(self.classification_counts),
+            "event_type_counts": _freeze_json(self.event_type_counts),
+            "effect_receipts": list(self.effect_receipts),
+            "context": self.context.to_dict(),
+        }
+
+    def canonical_hash(self) -> str:
+        return _canonical_hash(self.to_dict())
+
+
+class RunEventStream:
+    """Append-only, bounded run stream with replay projection and dedupe."""
+
+    def __init__(self, *, context: ExecutionContext) -> None:
+        self._context = context
+        self._events: list[RunEvent] = []
+        self._events_by_id: Dict[str, RunEvent] = {}
+        self._events_by_idempotency: Dict[str, RunEvent] = {}
+
+    @property
+    def context(self) -> ExecutionContext:
+        return self._context
+
+    def append(self, event: RunEvent) -> bool:
+        self._validate_event(event)
+        previous = self._events_by_id.get(event.event_id)
+        if previous is not None:
+            if previous != event:
+                raise DuplicateEventError(event.event_id)
+            return False
+        previous_by_key = self._events_by_idempotency.get(event.idempotency_key)
+        if previous_by_key is not None:
+            if previous_by_key != event:
+                raise IdempotencyConflictError(event.idempotency_key)
+            return False
+        expected = len(self._events) + 1
+        if event.sequence != expected:
+            raise SequenceGapError(event.run_id, expected, event.sequence)
+        self._events.append(event)
+        self._events_by_id[event.event_id] = event
+        self._events_by_idempotency[event.idempotency_key] = event
+        return True
+
+    def replay(self, events: Iterable[RunEvent]) -> tuple[RunEvent, ...]:
+        accepted: list[RunEvent] = []
+        snapshot = RunEventStream(context=self._context)
+        for event in self._events:
+            snapshot.append(event)
+        for event in events:
+            if snapshot.append(event):
+                accepted.append(event)
+        self._events = snapshot._events
+        self._events_by_id = snapshot._events_by_id
+        self._events_by_idempotency = snapshot._events_by_idempotency
+        return tuple(accepted)
+
+    def project(self) -> ReplayProjection:
+        last = self._events[-1] if self._events else None
+        phase = last.context.phase if last is not None else self._context.phase
+        step = last.context.step if last is not None else self._context.step
+        status = "idle"
+        classification_counts: Dict[str, int] = {}
+        event_type_counts: Dict[str, int] = {}
+        effect_receipts: list[str] = []
+        lifecycle_to_status = {
+            LifecycleEvent.ACCEPTED.value: "accepted",
+            LifecycleEvent.STARTED.value: "running",
+            LifecycleEvent.PAUSED.value: "paused",
+            LifecycleEvent.RESUMED.value: "running",
+            LifecycleEvent.CANCELLED.value: "cancelled",
+            LifecycleEvent.COMPLETED.value: "completed",
+            LifecycleEvent.FAILED.value: "failed",
+        }
+        for event in self._events:
+            classification_counts[event.classification] = (
+                classification_counts.get(event.classification, 0) + 1
+            )
+            event_type_counts[event.event_type] = (
+                event_type_counts.get(event.event_type, 0) + 1
+            )
+            if event.receipt_hash and event.receipt_hash not in effect_receipts:
+                effect_receipts.append(event.receipt_hash)
+            status = lifecycle_to_status.get(event.event_type, status)
+        last_sequence = last.sequence if last is not None else 0
+        last_event_id = last.event_id if last is not None else ""
+        return ReplayProjection(
+            run_id=self._context.run_id,
+            phase=phase,
+            step=step,
+            status=status,
+            last_sequence=last_sequence,
+            last_event_id=last_event_id,
+            event_count=len(self._events),
+            cursor=ReplayCursor(
+                run_id=self._context.run_id,
+                sequence=last_sequence,
+                event_id=last_event_id,
+            ),
+            classification_counts=classification_counts,
+            event_type_counts=event_type_counts,
+            effect_receipts=tuple(effect_receipts),
+            context=last.context if last is not None else self._context,
+        )
+
+    def events_after(self, cursor: ReplayCursor) -> tuple[RunEvent, ...]:
+        if cursor.run_id != self._context.run_id:
+            raise ValueError("cursor.run_id must match stream run_id")
+        if cursor.sequence == 0:
+            return tuple(self._events)
+        if cursor.sequence > len(self._events):
+            raise SequenceGapError(cursor.run_id, len(self._events), cursor.sequence)
+        current = self._events[cursor.sequence - 1]
+        if current.event_id != cursor.event_id:
+            raise DuplicateEventError(cursor.event_id)
+        return tuple(self._events[cursor.sequence :])
+
+    def _validate_event(self, event: RunEvent) -> None:
+        if event.run_id != self._context.run_id:
+            raise ValueError("event.run_id must match stream context.run_id")
+        if event.context.session_id != self._context.session_id:
+            raise ValueError("event.session_id must match stream context.session_id")
+        for field_name, expected in self._context.stable_projection().items():
+            got = event.context.stable_projection().get(field_name)
+            if got != expected:
+                raise ImmutableContextError(field_name, event.source)
+        if event.source in {"tool", "provider"}:
+            for field_name in ("goal_hash", "anchor_hash"):
+                if getattr(event.context, field_name) != getattr(self._context, field_name):
+                    raise ImmutableContextError(field_name, event.source)
+
+    def __len__(self) -> int:
+        return len(self._events)
+
+    def __iter__(self) -> Iterable[RunEvent]:
+        return iter(self._events)
+
+
 # ---------------------------------------------------------------------------
 # Emitter helper
 # ---------------------------------------------------------------------------
@@ -433,6 +983,9 @@ __all__ = [
     "PROTOCOL_VERSION",
     "PAYLOAD_VERSION",
     "REDACTION_NONE",
+    "REDACTION_SECRET",
+    "EXECUTION_CONTEXT_SCHEMA",
+    "RUN_EVENT_SCHEMA",
     "LifecycleEvent",
     "PresentationEvent",
     "ExecutionEvent",
@@ -442,5 +995,15 @@ __all__ = [
     "Envelope",
     "DuplicateEventError",
     "EventDeduplicator",
+    "EventClassification",
+    "SecretSafePayload",
+    "ExecutionContext",
+    "ReplayCursor",
+    "RunEvent",
+    "SequenceGapError",
+    "IdempotencyConflictError",
+    "ImmutableContextError",
+    "ReplayProjection",
+    "RunEventStream",
     "Emitter",
 ]

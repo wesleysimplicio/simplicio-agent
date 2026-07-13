@@ -10,8 +10,18 @@ from agent.protocol_v1 import (
     ControlCommand,
     DuplicateEventError,
     Envelope,
+    EventClassification,
     EventDeduplicator,
     Emitter,
+    ExecutionContext,
+    IdempotencyConflictError,
+    ImmutableContextError,
+    REDACTION_SECRET,
+    ReplayCursor,
+    RunEvent,
+    RunEventStream,
+    SecretSafePayload,
+    SequenceGapError,
     ExecutionEvent,
     LifecycleEvent,
     PresentationEvent,
@@ -259,3 +269,175 @@ def test_event_deduplicator_replay_is_transactional_on_collision():
     with pytest.raises(DuplicateEventError):
         deduplicator.replay([first, conflicting])
     assert len(deduplicator) == 0
+
+
+def _context(**overrides) -> ExecutionContext:
+    data = {
+        "profile_id": "profile-1",
+        "tenant_id": "tenant-1",
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "parent_run_id": "parent-0",
+        "goal_hash": "goal-abc",
+        "anchor_hash": "anchor-xyz",
+        "phase": "plan",
+        "step": "collect",
+        "budgets": {"tokens": 10, "seconds": 5},
+        "policy_ref": "policy/default",
+        "capability_refs": ("cli", "mcp"),
+        "checkpoint_ref": "checkpoint/1",
+        "effect_journal_ref": "effects/1",
+        "ledger_ref": "ledger/1",
+        "evidence_coverage": ("tests",),
+    }
+    data.update(overrides)
+    return ExecutionContext(**data)
+
+
+def _run_event(
+    seq: int,
+    *,
+    context: ExecutionContext | None = None,
+    event_id: str | None = None,
+    event_type: str = LifecycleEvent.STARTED.value,
+    actor: str = "agent",
+    source: str = "agent",
+    payload: SecretSafePayload | None = None,
+    causal_parent: str = "",
+    idempotency_key: str = "",
+    receipt_hash: str = "",
+) -> RunEvent:
+    ctx = context or _context()
+    env = Envelope.create(
+        event_type=event_type,
+        event_id=event_id or f"event-{seq}",
+        session_id=ctx.session_id,
+        turn_id="turn-1",
+        attempt_id="attempt-1",
+        seq=seq,
+        ts_monotonic_ns=10 + seq,
+        ts_wall_ns=20 + seq,
+    )
+    return RunEvent(
+        envelope=env,
+        context=ctx,
+        actor=actor,
+        source=source,
+        classification=EventClassification.MEASURED.value,
+        causal_parent=causal_parent,
+        idempotency_key=idempotency_key,
+        payload=payload
+        or SecretSafePayload.inline({"seq": seq, "kind": event_type}),
+        receipt_hash=receipt_hash,
+    )
+
+
+def test_execution_context_canonical_hash_ignores_ordering_noise():
+    a = _context(
+        budgets={"seconds": 5, "tokens": 10},
+        capability_refs=("mcp", "cli"),
+        evidence_coverage=("tests", "bench"),
+    )
+    b = _context(
+        budgets={"tokens": 10, "seconds": 5},
+        capability_refs=("cli", "mcp"),
+        evidence_coverage=("bench", "tests"),
+    )
+
+    assert a.to_dict() == b.to_dict()
+    assert a.canonical_hash() == b.canonical_hash()
+
+
+def test_secret_safe_payload_redacts_inline_secret_paths():
+    payload = SecretSafePayload.inline(
+        {
+            "tool": "provider",
+            "secret": {"api_key": "super-secret"},
+            "nested": [{"token": "abc"}],
+        },
+        redaction_class=REDACTION_SECRET,
+        secret_paths=("secret.api_key", "nested[0].token"),
+    )
+
+    encoded = json.dumps(payload.to_dict())
+    assert "super-secret" not in encoded
+    assert '"[redacted]"' in encoded
+
+
+def test_run_event_stream_enforces_monotonic_sequences():
+    stream = RunEventStream(context=_context())
+    stream.append(_run_event(1))
+
+    with pytest.raises(SequenceGapError, match="expected sequence 2, got 3"):
+        stream.append(_run_event(3))
+
+
+def test_run_event_stream_deduplicates_exact_replays():
+    stream = RunEventStream(context=_context())
+    event = _run_event(1, event_id="event-1")
+
+    assert stream.append(event) is True
+    assert stream.append(event) is False
+    assert len(stream) == 1
+
+
+def test_run_event_stream_rejects_idempotency_collision():
+    stream = RunEventStream(context=_context())
+    stream.append(_run_event(1, idempotency_key="idem-1"))
+
+    with pytest.raises(IdempotencyConflictError, match="idem-1"):
+        stream.append(
+            _run_event(
+                2,
+                idempotency_key="idem-1",
+                payload=SecretSafePayload.inline({"seq": 2, "kind": "changed"}),
+            )
+        )
+
+
+def test_run_event_stream_projection_is_stable_across_replay_duplicates():
+    stream_a = RunEventStream(context=_context())
+    stream_b = RunEventStream(context=_context())
+    first = _run_event(
+        1,
+        event_type=LifecycleEvent.STARTED.value,
+        receipt_hash="receipt-a",
+    )
+    second = _run_event(
+        2,
+        event_type=LifecycleEvent.COMPLETED.value,
+        receipt_hash="receipt-b",
+        causal_parent=first.event_id,
+    )
+
+    stream_a.replay([first, first, second])
+    stream_b.replay([first, second])
+
+    projection_a = stream_a.project()
+    projection_b = stream_b.project()
+    assert projection_a.to_dict() == projection_b.to_dict()
+    assert projection_a.canonical_hash() == projection_b.canonical_hash()
+    assert projection_a.status == "completed"
+
+
+def test_run_event_stream_cursor_returns_only_unconfirmed_tail():
+    stream = RunEventStream(context=_context())
+    first = _run_event(1)
+    second = _run_event(2, causal_parent=first.event_id)
+    stream.replay([first, second])
+
+    assert stream.events_after(ReplayCursor("run-1", 1, first.event_id)) == (second,)
+
+
+def test_run_event_stream_rejects_tool_goal_hash_mutation():
+    stream = RunEventStream(context=_context())
+
+    with pytest.raises(ImmutableContextError, match="goal_hash"):
+        stream.append(
+            _run_event(
+                1,
+                source="tool",
+                event_type=ExecutionEvent.TOOL.value,
+                context=_context(goal_hash="goal-other"),
+            )
+        )
