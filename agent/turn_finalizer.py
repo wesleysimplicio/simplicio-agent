@@ -158,6 +158,7 @@ def finalize_turn(
     # above. A no-op if no envelope was started for this turn_id (e.g. the
     # codex_app_server transport bypasses run_conversation's normal path).
     from agent.turn_envelope import finish_turn_envelope
+
     finish_turn_envelope(
         agent,
         turn_id=turn_id,
