@@ -268,7 +268,9 @@ class GoldenPathHarness:
                 workdir=str(self.scenario.workspace_root),
                 extra={
                     "lease": self.scenario.lease,
-                    "write_set": [str(path) for path in self.scenario.absolute_write_set],
+                    "write_set": [
+                        str(path) for path in self.scenario.absolute_write_set
+                    ],
                 },
             ),
         )
@@ -312,10 +314,11 @@ class GoldenPathHarness:
 
         requery = self._requery_final_state()
         requery_ref = self._record_step("requery", requery)
-        if validation.value.get("decision") != "allow" or not requery["matches_expected"]:
-            raise GoldenPathError(
-                "golden path did not produce a verified final state"
-            )
+        if (
+            validation.value.get("decision") != "allow"
+            or not requery["matches_expected"]
+        ):
+            raise GoldenPathError("golden path did not produce a verified final state")
         evidence_payload = {
             "validation_receipt": self._receipt_refs["validation"],
             "requery_receipt": requery_ref,
@@ -334,14 +337,17 @@ class GoldenPathHarness:
 
         delivery = self._require_ok(
             "delivery",
-            self.transport.ledger(
-                {
-                    "task_id": task_id,
-                    "delivery_target": self.scenario.delivery_target,
-                    "evidence_refs": list(envelope.evidence_refs),
-                }
-            ),
+            self.transport.ledger({
+                "task_id": task_id,
+                "delivery_target": self.scenario.delivery_target,
+                "evidence_refs": list(envelope.evidence_refs),
+            }),
         )
+        if (
+            not isinstance(delivery.value, dict)
+            or delivery.value.get("accepted") is not True
+        ):
+            raise GoldenPathError("delivery acknowledgment was not accepted")
         delivery_ref = self._record_step("delivery", delivery.to_dict())
         envelope = envelope.transition(
             TaskState.DELIVERED,

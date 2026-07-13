@@ -53,7 +53,9 @@ def test_pipeline_blocks_before_checkpoint_and_execute_but_still_persists_receip
                 reason="dangerous",
                 detail={"policy": "readonly"},
             ),
-            "persist": lambda value, *, attempt: persisted.append(attempt.status) or value,
+            "persist": lambda value, *, attempt: (
+                persisted.append(attempt.status) or value
+            ),
         },
         receipt_writer=receipts.append,
     )
@@ -87,6 +89,26 @@ def test_pipeline_writes_once_per_attempt_receipt_across_begin_complete_cycle():
     assert outcome.receipt is not None
     assert duplicate.receipt.receipt_id == outcome.receipt.receipt_id
     assert len(receipts) == 1
+
+
+def test_pipeline_begin_complete_matches_run_stage_and_evidence_contract():
+    invocation = ToolInvocation(**_fixture("invocation.json"))
+    result = {"ok": True, "value": "same"}
+
+    direct = ToolInvocationPipeline().run(
+        invocation,
+        lambda name, args: result,
+    )
+
+    split_pipeline = ToolInvocationPipeline()
+    materialized, trace = split_pipeline.begin(invocation)
+    split = split_pipeline.complete(materialized, result, trace)
+
+    assert direct.trace == split.trace == list(STAGES)
+    assert split.evidence["receipt_id"] == direct.evidence["receipt_id"]
+    assert split.evidence["tool_call_id"] == direct.evidence["tool_call_id"]
+    assert split.receipt is not None
+    assert split.receipt.receipt_id == direct.receipt.receipt_id
 
 
 def test_pipeline_applies_fail_safe_metadata_defaults_and_redacts_external_results():

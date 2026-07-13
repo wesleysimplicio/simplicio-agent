@@ -59,6 +59,7 @@ def _kernel_bin_name() -> str:
     literal ``simplicio`` if the lock can't be read."""
     try:
         from tools.runtime_manager import load_runtime_lock
+
         return str(load_runtime_lock().get("kernel") or _DEFAULT_KERNEL_BIN)
     except Exception as exc:
         logger.debug("failed to read kernel bin name from runtime.lock: %s", exc)
@@ -82,6 +83,7 @@ def resolve_kernel_bin() -> Optional[str]:
     if resolved is None and not override:
         try:
             from tools.runtime_manager import managed_bin_dir
+
             candidate = managed_bin_dir() / (
                 f"{bin_name}.exe" if os.name == "nt" else bin_name
             )
@@ -99,6 +101,23 @@ def is_kernel_available() -> bool:
 
 
 _kernel_verified_cache: Optional[tuple[bool, str]] = None
+_simplicio_bridge: Any = None
+_simplicio_bridge_lock = threading.Lock()
+
+
+def _get_simplicio_bridge() -> Any:
+    """Return the process-scoped bridge used by migrated binding call sites.
+
+    The import stays lazy so the legacy binding module remains importable in
+    minimal installations and tests that do not exercise the bridge.
+    """
+    global _simplicio_bridge
+    with _simplicio_bridge_lock:
+        if _simplicio_bridge is None:
+            from tools.simplicio_bridge import SimplicioBridge
+
+            _simplicio_bridge = SimplicioBridge()
+        return _simplicio_bridge
 
 
 def _kernel_verified() -> tuple[bool, str]:
@@ -123,6 +142,7 @@ def _kernel_verified() -> tuple[bool, str]:
         return _kernel_verified_cache
     try:
         from tools.runtime_manager import runtime_status
+
         st = runtime_status()
         _kernel_verified_cache = (st.satisfied, st.detail or "")
     except Exception as exc:
@@ -198,6 +218,7 @@ class _WarmKernelClient:
         extra_kwargs: dict = {}
         try:
             from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+
             if IS_WINDOWS:
                 extra_kwargs["creationflags"] = windows_hide_flags()
         except Exception:
@@ -274,7 +295,9 @@ class _WarmKernelClient:
         reader.start()
         reader.join(timeout)
         if reader.is_alive():
-            raise KernelBindingError(f"warm kernel call timed out after {timeout}s: {method}")
+            raise KernelBindingError(
+                f"warm kernel call timed out after {timeout}s: {method}"
+            )
         if "error" in outcome:
             raise KernelBindingError(f"warm kernel read failed: {outcome['error']}")
         line = outcome.get("line") or ""
@@ -283,7 +306,9 @@ class _WarmKernelClient:
         try:
             parsed = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise KernelBindingError(f"warm kernel returned non-JSON: {line[:200]!r}") from exc
+            raise KernelBindingError(
+                f"warm kernel returned non-JSON: {line[:200]!r}"
+            ) from exc
         if not isinstance(parsed, dict):
             raise KernelBindingError("warm kernel returned a non-object JSON-RPC frame")
         if "error" in parsed:
@@ -307,18 +332,26 @@ class _WarmKernelClient:
                 raise KernelBindingError("warm kernel unavailable")
             try:
                 result = self._request_locked(
-                    "tools/call", {"name": name, "arguments": arguments}, timeout=timeout
+                    "tools/call",
+                    {"name": name, "arguments": arguments},
+                    timeout=timeout,
                 )
             except KernelBindingError:
                 self._kill_locked()
                 if not self._spawn_and_handshake_locked():
                     raise
                 result = self._request_locked(
-                    "tools/call", {"name": name, "arguments": arguments}, timeout=timeout
+                    "tools/call",
+                    {"name": name, "arguments": arguments},
+                    timeout=timeout,
                 )
 
         content = result.get("content")
-        if not isinstance(content, list) or not content or not isinstance(content[0], dict):
+        if (
+            not isinstance(content, list)
+            or not content
+            or not isinstance(content[0], dict)
+        ):
             raise KernelBindingError("warm kernel tool response missing content")
         text = content[0].get("text")
         if not isinstance(text, str):
@@ -345,7 +378,12 @@ _warm_client_lock = threading.Lock()
 
 
 def _warm_mode_enabled() -> bool:
-    return os.environ.get(_WARM_MODE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    return os.environ.get(_WARM_MODE_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def _get_warm_client() -> Optional["_WarmKernelClient"]:
@@ -410,7 +448,9 @@ def _try_warm_kernel(
         return client.call_tool(name, arguments, timeout=timeout)
     except KernelBindingError as exc:
         logger.debug(
-            "kernel_binding warm mode: falling back to subprocess for %s: %s", args[:2], exc
+            "kernel_binding warm mode: falling back to subprocess for %s: %s",
+            args[:2],
+            exc,
         )
         return None
 
@@ -434,10 +474,13 @@ def _run_kernel(
 
     kernel_bin = resolve_kernel_bin()
     if not kernel_bin:
-        raise KernelBindingError(f"kernel binary '{_DEFAULT_KERNEL_BIN}' not found on PATH")
+        raise KernelBindingError(
+            f"kernel binary '{_DEFAULT_KERNEL_BIN}' not found on PATH"
+        )
 
     try:
         from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+
         extra_kwargs = {"creationflags": windows_hide_flags()} if IS_WINDOWS else {}
     except Exception:
         extra_kwargs = {}
@@ -452,7 +495,9 @@ def _run_kernel(
             **extra_kwargs,
         )
     except subprocess.TimeoutExpired as exc:
-        raise KernelBindingError(f"kernel call timed out after {timeout}s: {args[:2]}") from exc
+        raise KernelBindingError(
+            f"kernel call timed out after {timeout}s: {args[:2]}"
+        ) from exc
     except OSError as exc:
         raise KernelBindingError(f"kernel call failed to start: {exc}") from exc
 
@@ -520,7 +565,9 @@ def _normalize_mode(mode: Any, default: str = _FALLBACK_DEFAULT_MODE) -> str:
         if normalized:
             logger.warning(
                 "Unknown kernel_binding mode %r -- defaulting to %r. Valid values: %s",
-                mode, default, ", ".join(_VALID_MODES),
+                mode,
+                default,
+                ", ".join(_VALID_MODES),
             )
     return default
 
@@ -536,6 +583,7 @@ def get_binding_config(binding: str) -> dict:
     default = _default_mode(binding)
     try:
         from hermes_cli.config import cfg_get, load_config
+
         config = load_config()
         raw = cfg_get(config, "kernel_binding", binding, default={}) or {}
     except Exception as exc:
@@ -601,6 +649,7 @@ def emit_savings_event(source: str, outcome: str, detail: str = "") -> None:
 # Binding 1 -- Action Gate
 # ---------------------------------------------------------------------------
 
+
 def evaluate_action_gate(
     command: str,
     *,
@@ -632,7 +681,8 @@ def evaluate_action_gate(
         why = kernel_detail or "kernel binary not found"
         if mode == "required":
             emit_savings_event(
-                "gate", "blocked_kernel_absent",
+                "gate",
+                "blocked_kernel_absent",
                 f"pattern={pattern_key} description={description} why={why}",
             )
             return {
@@ -651,19 +701,20 @@ def evaluate_action_gate(
         logger.warning(
             "kernel_binding.action_gate: no healthy simplicio kernel (%s) -- "
             "gate is OFF for this call, falling back to the built-in approval flow "
-            "(honest degradation, not a silent bypass).", why,
+            "(honest degradation, not a silent bypass).",
+            why,
         )
         return None
 
     try:
-        result = _run_kernel(
-            [
-                "gate", "classify",
-                "--action", command,
-                "--json",
-            ],
-            timeout=8.0,
+        result = _get_simplicio_bridge().gate(
+            command,
+            pattern_key=pattern_key,
+            description=description,
+            session_key=session_key,
         )
+        if result is None:
+            raise KernelBindingError("simplicio bridge gate returned no result")
         decision = str(result.get("decision", "")).strip().lower()
         if decision not in {"allow", "ask", "deny", "block", "blocked"}:
             raise KernelBindingError(
@@ -704,7 +755,10 @@ def evaluate_action_gate(
 # docs/architecture/ADR-0001-kernel-checkpoint-binding.md)
 # ---------------------------------------------------------------------------
 
-def mirror_checkpoint(label: str, *, workdir: str = "", extra: Optional[dict] = None) -> bool:
+
+def mirror_checkpoint(
+    label: str, *, workdir: str = "", extra: Optional[dict] = None
+) -> bool:
     """Best-effort mirror of a ``tools/checkpoint_manager`` snapshot into the
     kernel's evidence ledger.
 
@@ -755,15 +809,15 @@ def _checkpoint_record_acknowledged(result: dict) -> bool:
     """
     if result.get("recorded") is True:
         return True
-    return (
-        result.get("op") == "record"
-        and bool(result.get("checkpoint_id") or result.get("id"))
+    return result.get("op") == "record" and bool(
+        result.get("checkpoint_id") or result.get("id")
     )
 
 
 # ---------------------------------------------------------------------------
 # Binding 3 -- Mechanical edit plan
 # ---------------------------------------------------------------------------
+
 
 def edit_mechanical(plan: dict) -> Optional[dict]:
     """Submit a deterministic edit plan to ``simplicio edit --json``.
@@ -797,7 +851,9 @@ def edit_mechanical(plan: dict) -> Optional[dict]:
         emit_savings_event("mechanical_edit", "kernel_error", str(exc)[:300])
         if cfg["mode"] == "required":
             raise
-        logger.warning("kernel_binding.mechanical_edit: edit call failed, falling back: %s", exc)
+        logger.warning(
+            "kernel_binding.mechanical_edit: edit call failed, falling back: %s", exc
+        )
         return None
     if not _mechanical_edit_acknowledged(result):
         exc = KernelBindingError(
@@ -826,6 +882,7 @@ def _mechanical_edit_acknowledged(result: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Binding 4 -- Orient + recall
 # ---------------------------------------------------------------------------
+
 
 def orient_map(repo: str, *, fmt: str = "markdown") -> Optional[str]:
     """``simplicio runtime map --repo <repo> --for-llm <fmt>`` -- a
@@ -867,6 +924,7 @@ def memory_recall(query: str, *, repo: str = "") -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Binding 6 -- Evidence ledger
 # ---------------------------------------------------------------------------
+
 
 def ledger_append(event: dict) -> bool:
     """Append an event to the kernel's HBP evidence ledger. Returns whether

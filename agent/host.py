@@ -14,6 +14,8 @@ from threading import Lock
 import time
 from typing import Any, Callable, Optional
 
+from .protocol import AgentProtocol
+
 
 class HostBackpressure(RuntimeError):
     """The host cannot admit another leased session or queued turn."""
@@ -36,7 +38,7 @@ class SessionIdentity:
 @dataclass
 class _SessionEntry:
     identity: SessionIdentity
-    agent: Any
+    agent: AgentProtocol
     turn_lock: Lock = field(default_factory=Lock)
     active_leases: int = 0
     last_used: float = field(default_factory=time.monotonic)
@@ -65,7 +67,7 @@ class SessionLease:
         self._released = False
 
     @property
-    def agent(self) -> Any:
+    def agent(self) -> AgentProtocol:
         return self.entry.agent
 
     def release(self) -> None:
@@ -85,7 +87,7 @@ class SessionPool:
 
     def __init__(
         self,
-        agent_factory: Callable[[SessionIdentity], Any],
+        agent_factory: Callable[[SessionIdentity], AgentProtocol],
         *,
         max_sessions: int = 32,
         idle_ttl: Optional[float] = None,
@@ -122,8 +124,12 @@ class SessionPool:
     def _evict_locked(self) -> None:
         now = time.monotonic()
         for identity, entry in list(self._entries.items()):
-            expired = self.idle_ttl is not None and now - entry.last_used >= self.idle_ttl
-            if entry.active_leases == 0 and (expired or len(self._entries) >= self.max_sessions):
+            expired = (
+                self.idle_ttl is not None and now - entry.last_used >= self.idle_ttl
+            )
+            if entry.active_leases == 0 and (
+                expired or len(self._entries) >= self.max_sessions
+            ):
                 self._entries.pop(identity)
                 if len(self._entries) < self.max_sessions:
                     break
@@ -161,9 +167,13 @@ class SessionPool:
     def snapshot(self) -> list[dict[str, Any]]:
         with self._lock:
             return [
-                {"profile": e.identity.profile, "session_id": e.identity.session_id,
-                 "incarnation": e.identity.incarnation, "revision": e.identity.revision,
-                 "active_leases": e.active_leases}
+                {
+                    "profile": e.identity.profile,
+                    "session_id": e.identity.session_id,
+                    "incarnation": e.identity.incarnation,
+                    "revision": e.identity.revision,
+                    "active_leases": e.active_leases,
+                }
                 for e in self._entries.values()
             ]
 
@@ -172,7 +182,9 @@ class TurnScheduler:
     """Global bounded executor plus one writer lock per session."""
 
     def __init__(self, max_workers: int = 4, max_pending: int = 64) -> None:
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="agent-turn")
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="agent-turn"
+        )
         self.max_pending = max_pending
         self._lock = Lock()
         self._pending = 0
@@ -207,7 +219,7 @@ class AgentHost:
 
     def __init__(
         self,
-        agent_factory: Callable[[SessionIdentity], Any],
+        agent_factory: Callable[[SessionIdentity], AgentProtocol],
         *,
         max_sessions: int = 32,
         max_workers: int = 4,
@@ -232,7 +244,9 @@ class AgentHost:
         revision: int = 0,
         **conversation_kwargs: Any,
     ) -> Future[Any]:
-        identity = self.directory.resolve(profile, session_id, incarnation=incarnation, revision=revision)
+        identity = self.directory.resolve(
+            profile, session_id, incarnation=incarnation, revision=revision
+        )
         key = (identity, idempotency_key) if idempotency_key else None
         with self._lock:
             if self._stopping:
@@ -244,7 +258,9 @@ class AgentHost:
         try:
             future = self.scheduler.submit(
                 lease.entry,
-                lambda: lease.agent.run_conversation(user_message, **conversation_kwargs),
+                lambda: lease.agent.run_conversation(
+                    user_message, **conversation_kwargs
+                ),
             )
         except BaseException:
             lease.release()
@@ -259,18 +275,33 @@ class AgentHost:
                 self._idempotent[key] = future
         return future
 
-    def run_turn(self, profile: str, session_id: str, user_message: str, **kwargs: Any) -> Any:
+    def run_turn(
+        self, profile: str, session_id: str, user_message: str, **kwargs: Any
+    ) -> Any:
         """Synchronous adapter for legacy CLI/TUI call sites."""
         return self.submit(profile, session_id, user_message, **kwargs).result()
 
-    def recover(self, profile: str, session_id: str, *, incarnation: str = "default", revision: int = 0) -> bool:
-        identity = self.directory.resolve(profile, session_id, incarnation=incarnation, revision=revision)
+    def recover(
+        self,
+        profile: str,
+        session_id: str,
+        *,
+        incarnation: str = "default",
+        revision: int = 0,
+    ) -> bool:
+        identity = self.directory.resolve(
+            profile, session_id, incarnation=incarnation, revision=revision
+        )
         return self.pool.recover(identity)
 
     def status(self) -> dict[str, Any]:
         with self._lock:
             stopping = self._stopping
-        return {"ready": not stopping, "stopping": stopping, "sessions": self.pool.snapshot()}
+        return {
+            "ready": not stopping,
+            "stopping": stopping,
+            "sessions": self.pool.snapshot(),
+        }
 
     def shutdown(self, *, wait: bool = True) -> None:
         with self._lock:
@@ -279,6 +310,11 @@ class AgentHost:
 
 
 __all__ = [
-    "AgentHost", "HostBackpressure", "HostShutdown", "SessionDirectory",
-    "SessionIdentity", "SessionPool", "TurnScheduler",
+    "AgentHost",
+    "HostBackpressure",
+    "HostShutdown",
+    "SessionDirectory",
+    "SessionIdentity",
+    "SessionPool",
+    "TurnScheduler",
 ]

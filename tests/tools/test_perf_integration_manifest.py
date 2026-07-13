@@ -13,6 +13,7 @@ from tools.perf_integration_manifest import (
     REPO_ROOT,
     SCHEMA,
     STAGES,
+    _exercise_fast_json,
     generate_manifest,
     main,
     validate_manifest,
@@ -57,6 +58,15 @@ def test_validator_rejects_bad_schema_and_source_hash() -> None:
     errors = validate_manifest(document, REPO_ROOT)
     assert any("schema" in error for error in errors)
     assert any("source_sha256 mismatch" in error for error in errors)
+
+
+def test_fast_json_invocation_receipt_exercises_selected_backend() -> None:
+    ok, reason = _exercise_fast_json(REPO_ROOT)
+    assert ok is True
+    assert "backend=" in reason
+    assert "encode=called" in reason
+    assert "decode=called" in reason
+    assert "round_trip=pass" in reason
 
 
 def test_fixture_is_a_valid_committed_v1_document() -> None:
