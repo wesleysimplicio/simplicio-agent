@@ -1,0 +1,30 @@
+{
+  "schema": "simplicio-agent/cli-surface-manifest/v1",
+  "version": 1,
+  "canonical_command": "simplicio-agent",
+  "canonical_help_commands": [
+    "simplicio-agent doctor"
+  ],
+  "legacy_aliases": [],
+  "public_messages": [
+    {
+      "message_id": "cli.help.bad",
+      "surface": "cli",
+      "text": "Run `hermes doctor` for diagnostics.",
+      "classification": "neutral_public_text"
+    }
+  ],
+  "receipts": [
+    {
+      "receipt_id": "ok",
+      "payload": {
+        "schema": "simplicio-agent/cli-surface-receipt/v1",
+        "canonical": "simplicio-agent",
+        "warning_code": "deprecated_cli_alias",
+        "argv_count": 1,
+        "args_redacted": true,
+        "raw_argv": null
+      }
+    }
+  ]
+}
