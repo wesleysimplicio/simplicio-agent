@@ -275,6 +275,59 @@ class Envelope:
         return _event_family_of(self.event_type)
 
 
+class DuplicateEventError(ValueError):
+    """Raised when one event id is reused for different envelope content."""
+
+    def __init__(self, event_id: str) -> None:
+        super().__init__(
+            f"event_id {event_id!r} was replayed with different envelope content"
+        )
+        self.event_id = event_id
+
+
+class EventDeduplicator:
+    """Accept each ``Envelope.event_id`` once during an event-log replay.
+
+    Exact repeats are ignored. Reusing an id for different content is rejected
+    rather than silently dropping a potentially corrupted or ambiguous event.
+    ``replay`` validates the complete batch before committing new ids, so a
+    collision cannot leave a partially accepted batch behind.
+    """
+
+    def __init__(self) -> None:
+        self._events: Dict[str, Envelope] = {}
+
+    def accept(self, event: Envelope) -> bool:
+        """Record one event and return whether it is new."""
+        previous = self._events.get(event.event_id)
+        if previous is None:
+            self._events[event.event_id] = event
+            return True
+        if previous != event:
+            raise DuplicateEventError(event.event_id)
+        return False
+
+    def replay(self, events: Iterable[Envelope]) -> tuple[Envelope, ...]:
+        """Return first-seen events in input order, suppressing exact repeats."""
+        pending: Dict[str, Envelope] = {}
+        accepted: list[Envelope] = []
+        for event in events:
+            previous = pending.get(event.event_id)
+            if previous is None:
+                previous = self._events.get(event.event_id)
+            if previous is None:
+                pending[event.event_id] = event
+                accepted.append(event)
+            elif previous != event:
+                raise DuplicateEventError(event.event_id)
+        self._events.update(pending)
+        return tuple(accepted)
+
+    def __len__(self) -> int:
+        """Return the number of distinct event ids accepted so far."""
+        return len(self._events)
+
+
 # ---------------------------------------------------------------------------
 # Emitter helper
 # ---------------------------------------------------------------------------
@@ -387,5 +440,7 @@ __all__ = [
     "EVENT_FAMILIES",
     "VALID_EVENT_TYPES",
     "Envelope",
+    "DuplicateEventError",
+    "EventDeduplicator",
     "Emitter",
 ]
