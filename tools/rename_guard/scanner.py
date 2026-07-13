@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic branding-regression guard (issue #194).
+"""Deterministic branding-regression guard (issue #194, inventory/allowlist per #187).
 
 Scans git-tracked text files for old-brand tokens and reports every
 occurrence as either:
@@ -25,6 +25,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -124,11 +125,23 @@ def scan(root: Path, config: dict, allowlist: list[dict], baseline: dict[str, in
     return occurrences
 
 
+def top_level_surface(path: str) -> str:
+    """First path segment (or the whole path for a root-level file) — a
+    coarse 'surface' grouping (tests/, desktop/, docs/, tools/, ...) used for
+    the by-surface summary counts, distinct from the per-occurrence line-text
+    ``surface`` field on ``Occurrence``."""
+    return path.split("/", 1)[0] if "/" in path else path
+
+
 def to_report(occurrences: list[Occurrence]) -> dict:
+    by_class = Counter(o.klass for o in occurrences)
+    by_surface = Counter(top_level_surface(o.path) for o in occurrences)
     return {
         "schema": "simplicio.rename-guard/v1",
         "total": len(occurrences),
         "new_count": sum(1 for o in occurrences if o.klass == "new"),
+        "by_class": dict(sorted(by_class.items())),
+        "by_surface": dict(sorted(by_surface.items())),
         "occurrences": [
             {
                 "path": o.path,

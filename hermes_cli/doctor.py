@@ -1464,7 +1464,11 @@ def run_doctor(args):
     # the agent's execution bindings (gate, mechanical edit, ledger) shell
     # out to it, so an absent or stale kernel means those run degraded.
     try:
-        from tools.runtime_manager import ensure_runtime
+        from tools.runtime_manager import (
+            canonical_symlink_path,
+            ensure_runtime,
+            sync_canonical_symlink,
+        )
 
         _rt = ensure_runtime(install=should_fix)
         _rt_where = f"{_rt.bin_path} [{_rt.source}]" if _rt.bin_path else ""
@@ -1495,6 +1499,31 @@ def run_doctor(args):
             )
             if _rt.detail:
                 check_info(_rt.detail)
+
+        # Canonical PATH shim (issue #96): the fixed, documented location
+        # (~/.local/bin/simplicio) that shell scripts and humans use is a
+        # separate concern from *this process's* resolution above -- show
+        # its state, and idempotently repair it under --fix so
+        # `command -v simplicio` in a fresh shell matches what doctor just
+        # verified instead of pointing at a stale/missing target.
+        _canon = canonical_symlink_path()
+        if should_fix:
+            _sync_err = sync_canonical_symlink(_rt)
+            if _sync_err:
+                check_warn(f"canonical shim {_canon} not synced", f"({_sync_err})")
+            elif _rt.present:
+                check_ok(f"canonical shim {_canon}", f"-> {_rt.bin_path}")
+        elif _rt.present:
+            if _canon.is_symlink() and not _canon.exists():
+                _fail_and_issue(
+                    f"canonical shim {_canon} is broken (target missing)",
+                    "",
+                    "Run 'simplicio-agent doctor --fix' to re-point it at the "
+                    "resolved kernel",
+                    issues,
+                )
+            else:
+                check_info(f"canonical shim: {_canon} (run --fix to sync)")
     except Exception as _rt_exc:  # doctor must never crash on one section
         check_warn("kernel handshake errored", f"({_rt_exc})")
 

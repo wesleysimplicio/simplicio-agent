@@ -203,3 +203,7 @@ simplicio shell -- <command>
 - Não fabricar números, savings, testes ou resultados.
 - Não fechar issue/PR sem mudança, teste/evidência e reconsulta.
 - Preservar trabalho local; não resetar branches sujas.
+
+
+## Complete command surface
+Read `docs/SIMPLICIO_COMMAND_SURFACE.md` for the generated full command signatures. The live binary remains authoritative: run `simplicio --help` and the command-specific `--help` before execution.

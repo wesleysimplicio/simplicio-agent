@@ -199,11 +199,20 @@ def apply(
         # Failures are non-fatal — the runtime change still proceeds.
         try:
             from hermes_cli.codex_runtime_plugin_migration import migrate
+            from agent.transports.hermes_tools_mcp_server import (
+                LEGACY_MCP_SERVER_NAME,
+                MCP_SERVER_NAME,
+            )
             mig_report = migrate(config)
-            # Tools/MCP servers (excluding the hermes-tools callback,
-            # which is internal plumbing — surface separately).
+            # Tools/MCP servers (excluding our own tool callback, client-
+            # facing name MCP_SERVER_NAME ("simplicio-agent-tools", issue
+            # #204; LEGACY_MCP_SERVER_NAME "hermes-tools" kept for a
+            # pre-existing config.toml) — which is internal plumbing,
+            # surfaced separately below.
             user_servers = [
-                s for s in mig_report.migrated if s != "hermes-tools"
+                s
+                for s in mig_report.migrated
+                if s not in (MCP_SERVER_NAME, LEGACY_MCP_SERVER_NAME)
             ]
             if user_servers:
                 msg_lines.append(
@@ -228,7 +237,7 @@ def apply(
                     f"Default sandbox: {mig_report.wrote_permissions_default} "
                     f"(no approval prompt on every write)"
                 )
-            if "hermes-tools" in mig_report.migrated:
+            if MCP_SERVER_NAME in mig_report.migrated:
                 msg_lines.append(
                     "Hermes tool callback registered: codex can now use "
                     "web_search, web_extract, browser_*, vision_analyze, "
