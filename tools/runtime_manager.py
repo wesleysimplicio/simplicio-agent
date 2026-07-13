@@ -200,6 +200,99 @@ def resolve_kernel(lock: Optional[dict] = None) -> tuple[Optional[str], str]:
 
 
 # ---------------------------------------------------------------------------
+# Canonical PATH shim (issue #96)
+# ---------------------------------------------------------------------------
+#
+# ``resolve_kernel``/``runtime_status`` above are what *this process* uses --
+# they check PATH then fall straight through to ``managed_bin_dir()`` without
+# needing anything at a fixed location. But humans and shell scripts
+# (setup-hermes.sh, scripts/check-mcp-setup.sh, this repo's docs) all point
+# at one fixed, documented path: ``~/.local/bin/simplicio``. When that shim
+# is missing, or -- the actual bug reported in #96 -- is a symlink whose
+# target no longer exists (a moved/rebuilt/cleaned managed install, a stale
+# dev checkout), ``command -v simplicio`` in a fresh shell either finds
+# nothing or finds a dangling link, even though this module would happily
+# resolve the kernel from the managed dir. ``sync_canonical_symlink`` closes
+# that gap idempotently.
+
+_CANONICAL_DIR_ENV = "HERMES_CANONICAL_BIN_DIR"
+
+
+def canonical_bin_dir() -> Path:
+    """The documented, fixed PATH entry for the kernel shim.
+
+    ``~/.local/bin`` on POSIX (honors ``HERMES_CANONICAL_BIN_DIR`` for
+    tests/relocation). There is no equivalent fixed convention on Windows;
+    callers should treat ``sys.platform == "win32"`` as a deliberate no-op.
+    """
+    override = os.environ.get(_CANONICAL_DIR_ENV, "").strip()
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".local" / "bin"
+
+
+def canonical_symlink_path(lock: Optional[dict] = None) -> Path:
+    """Full path of the canonical kernel shim, e.g. ``~/.local/bin/simplicio``."""
+    lock = lock or load_runtime_lock()
+    kernel = str(lock.get("kernel") or "simplicio")
+    return canonical_bin_dir() / _bin_name(kernel)
+
+
+def sync_canonical_symlink(
+    status: Optional[RuntimeStatus] = None, lock: Optional[dict] = None,
+) -> Optional[str]:
+    """Idempotently point the canonical shim at the resolved kernel binary.
+
+    Returns an error string describing what went wrong, or ``None`` on
+    success *or* a legitimate no-op:
+
+    * ``sys.platform == "win32"`` -- no fixed-path convention there, no-op.
+    * no kernel currently resolves (``status.present`` is False) -- nothing
+      to link to yet; not an error, just "install the kernel first".
+    * the shim already points at the resolved binary -- already in sync.
+
+    Never overwrites a real file at the canonical path that merely happens
+    not to already point at the resolved kernel (only ever replaces a
+    symlink, or creates the path fresh) -- mirrors the "never clobber a
+    user-managed install" rule ``ensure_runtime`` applies to the managed dir.
+    """
+    if sys.platform == "win32":
+        return None
+    lock = lock or load_runtime_lock()
+    status = status or runtime_status(lock)
+    if not status.present or not status.bin_path:
+        return None
+
+    link = canonical_symlink_path(lock)
+    resolved_target = str(Path(status.bin_path).resolve())
+
+    if link.exists() and not link.is_symlink():
+        if str(link.resolve()) == resolved_target:
+            return None
+        return (
+            f"{link} exists and is a real file (not the managed symlink) -- "
+            "refusing to overwrite it"
+        )
+
+    if link.is_symlink():
+        try:
+            current_target = str(link.resolve())
+        except OSError:
+            current_target = None
+        if current_target == resolved_target:
+            return None
+
+    try:
+        link.parent.mkdir(parents=True, exist_ok=True)
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(status.bin_path)
+    except OSError as exc:
+        return f"failed to create canonical symlink {link}: {exc}"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Status + ensure
 # ---------------------------------------------------------------------------
 

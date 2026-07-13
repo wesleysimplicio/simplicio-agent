@@ -468,3 +468,130 @@ class TestBootstrapSession:
         with mock_patch.object(rm, "runtime_status", side_effect=RuntimeError("boom")):
             assert rm.bootstrap_session() is None
 
+
+
+class TestCanonicalSymlink:
+    """Tests for the canonical PATH shim (issue #96): ``~/.local/bin/simplicio``
+    (or ``$HERMES_CANONICAL_BIN_DIR`` override) must resolve and execute
+    deterministically, mirroring what ``command -v simplicio`` and
+    ``simplicio version`` show a human in a fresh shell -- and the repair
+    must be idempotent (safe to run any number of times).
+    """
+
+    def _canonical_dir(self, tmp_path, monkeypatch):
+        canon_dir = tmp_path / "canonical-bin"
+        monkeypatch.setenv("HERMES_CANONICAL_BIN_DIR", str(canon_dir))
+        return canon_dir
+
+    def test_canonical_bin_dir_honors_override(self, tmp_path, monkeypatch):
+        canon_dir = self._canonical_dir(tmp_path, monkeypatch)
+        assert rm.canonical_bin_dir() == canon_dir
+
+    def test_canonical_bin_dir_defaults_to_home_local_bin(self, monkeypatch):
+        monkeypatch.delenv("HERMES_CANONICAL_BIN_DIR", raising=False)
+        assert rm.canonical_bin_dir() == Path.home() / ".local" / "bin"
+
+    def test_sync_creates_symlink_to_resolved_kernel(self, tmp_path, monkeypatch):
+        self._canonical_dir(tmp_path, monkeypatch)
+        stub = _fake_managed_kernel(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+
+        # Isolate from whatever `simplicio` may genuinely be on this
+        # machine's PATH -- resolution must fall through to the managed
+        # dir stub, not a real PATH hit, for this test to be meaningful.
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+        assert status.present
+        assert status.source == "managed"
+
+        err = rm.sync_canonical_symlink(status, lock)
+        assert err is None
+
+        link = rm.canonical_symlink_path(lock)
+        assert link.is_symlink()
+        assert link.resolve() == stub.resolve()
+        # The shim actually executes -- the #96 failure mode was a shim
+        # whose target no longer existed.
+        assert subprocess.run([str(link), "version"], capture_output=True).returncode in (0, 1)
+
+    def test_sync_is_idempotent(self, tmp_path, monkeypatch):
+        """Re-running sync against an already-correct shim is a no-op, and
+        never raises or duplicates work -- required by issue #96's
+        "reparo do binário é idempotente" acceptance criterion."""
+        self._canonical_dir(tmp_path, monkeypatch)
+        _fake_managed_kernel(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+
+        assert rm.sync_canonical_symlink(status, lock) is None
+        link = rm.canonical_symlink_path(lock)
+        first_target = os.readlink(link)
+
+        # Second run: still None (no-op), same target, no exception.
+        assert rm.sync_canonical_symlink(status, lock) is None
+        assert os.readlink(link) == first_target
+
+    def test_sync_repairs_dangling_symlink(self, tmp_path, monkeypatch):
+        """The literal bug reported in #96: the shim is a symlink pointing
+        at a target that no longer exists. sync_canonical_symlink must
+        re-point it at a currently-resolvable kernel rather than leaving
+        the dangling link in place."""
+        canon_dir = self._canonical_dir(tmp_path, monkeypatch)
+        stub = _fake_managed_kernel(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+
+        canon_dir.mkdir(parents=True, exist_ok=True)
+        link = canon_dir / "simplicio"
+        link.symlink_to(tmp_path / "does-not-exist" / "simplicio")
+        assert link.is_symlink() and not link.exists()  # dangling, by construction
+
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+        err = rm.sync_canonical_symlink(status, lock)
+        assert err is None
+        assert link.exists()
+        assert link.resolve() == stub.resolve()
+
+    def test_sync_is_noop_without_resolved_kernel(self, tmp_path, monkeypatch):
+        self._canonical_dir(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+        monkeypatch.setenv("SIMPLICIO_HOME", str(tmp_path / "nowhere"))
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+        assert not status.present
+        assert rm.sync_canonical_symlink(status, lock) is None
+
+    def test_sync_refuses_to_clobber_real_file(self, tmp_path, monkeypatch):
+        """A real (non-symlink) file at the canonical path is never
+        overwritten -- only a missing path or an existing symlink is safe
+        to touch, mirroring the "never overwrite a user-managed install"
+        rule ``ensure_runtime`` already applies to the managed dir."""
+        canon_dir = self._canonical_dir(tmp_path, monkeypatch)
+        _fake_managed_kernel(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+
+        canon_dir.mkdir(parents=True, exist_ok=True)
+        real_file = canon_dir / "simplicio"
+        real_file.write_text("#!/bin/sh\necho not-a-symlink\n", encoding="utf-8")
+        real_file.chmod(0o755)
+
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+        err = rm.sync_canonical_symlink(status, lock)
+        assert err is not None
+        assert "refusing" in err
+        # Untouched.
+        assert real_file.read_text(encoding="utf-8") == "#!/bin/sh\necho not-a-symlink\n"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="win32 no-op path tested separately")
+    def test_sync_is_noop_on_windows(self, tmp_path, monkeypatch):
+        self._canonical_dir(tmp_path, monkeypatch)
+        _fake_managed_kernel(tmp_path, monkeypatch)
+        lock = _write_lock(tmp_path, monkeypatch)
+        with mock_patch("shutil.which", return_value=None):
+            status = rm.runtime_status(lock)
+        with mock_patch.object(rm.sys, "platform", "win32"):
+            assert rm.sync_canonical_symlink(status, lock) is None
+        # Confirms the win32 guard short-circuits before touching disk.
+        assert not rm.canonical_symlink_path(lock).exists()
