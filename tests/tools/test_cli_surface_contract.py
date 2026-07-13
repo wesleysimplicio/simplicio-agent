@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,18 @@ def test_default_manifest_derives_legacy_aliases_from_alias_registry():
     assert [entry.warning_code for entry in manifest.legacy_aliases] == [
         entry.warning_code for entry in registry_entries
     ]
+
+
+def test_packaged_cli_aliases_delegate_to_the_canonical_cli_entrypoint():
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    scripts = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"][
+        "scripts"
+    ]
+
+    assert scripts["simplicio-agent"] == "hermes_cli.main:main"
+    assert scripts["hermes"] == scripts["simplicio-agent"]
+    assert scripts["hermes-agent"] == scripts["simplicio-agent"]
+    assert scripts["hermes-acp"] == "acp_adapter.entry:main"
 
 
 def test_fixture_manifest_loads_and_validates():

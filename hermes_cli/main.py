@@ -36,7 +36,7 @@ Usage:
     simplicio-agent honcho migrate                  # Step-by-step migration guide: OpenClaw native → Hermes + Honcho
     simplicio-agent version             Show version
     simplicio-agent update              Update to latest version
-    simplicio-agent uninstall           Uninstall Hermes Agent
+    simplicio-agent uninstall           Uninstall Simplicio Agent
     simplicio-agent acp                 Run as an ACP server for editor integration
     simplicio-agent sessions browse     Interactive session picker with search
 

@@ -33,6 +33,8 @@ The audit is intentionally explicit, not heuristic-heavy:
   patterns
 - migration and credit exceptions use path-aware reviewed allowlist entries,
   never a global suppression
+- an allowlisted line suppresses only its legacy branding/command finding; the
+  unsupported-claim rules still run on that same line
 
 The report schema is `simplicio.public-docs-audit/v1` and includes:
 

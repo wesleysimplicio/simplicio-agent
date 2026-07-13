@@ -330,7 +330,7 @@ all = [
 simplicio-agent = "hermes_cli.main:main"
 simplicio-agent-acp = "acp_adapter.entry:main"
 hermes = "hermes_cli.main:main"
-hermes-agent = "run_agent:main"
+hermes-agent = "hermes_cli.main:main"
 hermes-acp = "acp_adapter.entry:main"
 
 [tool.setuptools]

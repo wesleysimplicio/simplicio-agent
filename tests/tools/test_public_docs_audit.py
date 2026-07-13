@@ -33,6 +33,19 @@ def test_allowlisted_migration_and_credit_lines_are_reported_but_not_failed():
     ]
 
 
+def test_allowlisted_legacy_line_still_reports_unsupported_claim():
+    findings, allowlisted, audited_files = scan(FIXTURES / "allowlisted-with-claim")
+    report = to_report(findings, allowlisted, audited_files)
+
+    assert audited_files == 1
+    assert report["allowlisted_count"] == 1
+    assert report["allowlisted_by_class"] == {"migration": 1}
+    assert report["finding_count"] == 1
+    assert report["by_rule"] == {"unsupported-claim-every-mcp": 1}
+    assert report["findings"][0]["path"] == "claim.md"
+    assert report["findings"][0]["rule_id"] == "unsupported-claim-every-mcp"
+
+
 def test_findings_cover_legacy_brand_command_and_unsupported_claims_with_evidence():
     findings, allowlisted, audited_files = scan(FIXTURES / "findings")
     report = to_report(findings, allowlisted, audited_files)

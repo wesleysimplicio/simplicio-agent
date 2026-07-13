@@ -15,6 +15,7 @@ import os
 import sqlite3
 import time
 import threading
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -1157,6 +1158,26 @@ class TestToolRegistration:
 # ---------------------------------------------------------------------------
 
 class TestServerCreation:
+    def test_server_info_uses_canonical_product_name_and_version(self, monkeypatch):
+        import hermes_cli
+        import mcp_serve
+
+        captured = {}
+
+        class _CaptureFastMCP(_FakeFastMCP):
+            def __init__(self, *args, **kwargs):
+                captured["name"] = args[0]
+                super().__init__(*args, **kwargs)
+                self._mcp_server = SimpleNamespace(version=None)
+
+        monkeypatch.setattr(mcp_serve, "_MCP_SERVER_AVAILABLE", True)
+        monkeypatch.setattr(mcp_serve, "FastMCP", _CaptureFastMCP)
+
+        server = mcp_serve.create_mcp_server()
+
+        assert captured["name"] == "Simplicio Agent"
+        assert server._mcp_server.version == hermes_cli.__version__
+
     def test_create_server(self, populated_sessions_dir, monkeypatch):
         pytest.importorskip("mcp", reason="MCP SDK not installed")
         import mcp_serve

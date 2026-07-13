@@ -756,6 +756,23 @@ def _dispatch_savings_action(
 # MCP Server
 # ---------------------------------------------------------------------------
 
+MCP_SERVER_NAME = "Simplicio Agent"
+
+
+def _set_mcp_server_version(mcp: Any) -> None:
+    """Expose the installed product version through MCP ``serverInfo``.
+
+    FastMCP 1.26.0 does not accept a version in its public constructor, but
+    its low-level server uses ``version`` when building initialize metadata.
+    Keep the compatibility touchpoint isolated and harmless for test doubles
+    or older SDKs that do not expose the private server object.
+    """
+    from hermes_cli import __version__
+
+    low_level_server = getattr(mcp, "_mcp_server", None)
+    if low_level_server is not None:
+        low_level_server.version = __version__
+
 def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
     """Create and return the Simplicio Agent MCP server with all tools registered."""
     if not _MCP_SERVER_AVAILABLE:
@@ -765,7 +782,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
         )
 
     mcp = FastMCP(
-        "Simplicio Agent",
+        MCP_SERVER_NAME,
         instructions=(
             "Simplicio Agent is the sole public MCP gateway. Send natural-language "
             "intent to simplicio_act; use simplicio_capabilities only when explicit "
@@ -773,6 +790,7 @@ def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "FastMCP":
             "Simplicio Runtime performs execution. Messaging tools remain available."
         ),
     )
+    _set_mcp_server_version(mcp)
 
     bridge = event_bridge or EventBridge()
 
