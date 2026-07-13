@@ -1,0 +1,14 @@
+{
+  "schema": "simplicio-agent/alias-registry/v1",
+  "version": 1,
+  "aliases": [
+    {
+      "alias": "hermes",
+      "canonical": "simplicio-agent",
+      "deprecated": true,
+      "owner": "cli",
+      "warning_code": "deprecated_command_alias",
+      "remove_after": "2027-01-01"
+    }
+  ]
+}
