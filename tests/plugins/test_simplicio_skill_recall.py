@@ -116,3 +116,23 @@ def test_register_exposes_both_hooks():
         "pre_llm_call": skill_recall._pre_llm_call,
         "post_tool_call": skill_recall._post_tool_call,
     }
+
+
+def test_catalog_handle_uses_relative_skill_path_to_avoid_bare_name_collisions():
+    assert skill_recall._canonical_skill_handle(
+        "simplicio-tasks",
+        "/Users/test/.simplicio_agent/skills/simplicio-loop/simplicio-tasks/SKILL.md",
+    ) == "simplicio-loop/simplicio-tasks"
+
+
+def test_standalone_html_css_js_request_uses_no_planner_fast_path(catalog):
+    result = skill_recall._pre_llm_call(
+        user_message="write a snake game using html, css and js"
+    )
+
+    assert result is not None
+    context = result["context"]
+    assert "Fast-path" in context
+    assert "Do not load skills" in context
+    assert "`simplicio plan`" in context
+    assert "`simplicio run`" in context

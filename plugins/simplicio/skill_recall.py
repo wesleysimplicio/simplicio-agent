@@ -19,6 +19,17 @@ DB_PATH = Path.home() / ".simplicio" / "memory" / "simplicio-memory.sqlite"
 TOP_K = max(1, min(5, int(os.getenv("SIMPLICIO_SKILL_RECALL_TOP_K", "3"))))
 MIN_SCORE = float(os.getenv("SIMPLICIO_SKILL_RECALL_MIN_SCORE", "1.2"))
 
+# A bounded direct path for a single browser artifact. It deliberately avoids
+# planner/orchestrator overhead: the implementation is already fully scoped.
+_STANDALONE_WEB_RE = re.compile(
+    r"\b(?:html|css)\b.*\b(?:javascript|js)\b|\b(?:javascript|js)\b.*\b(?:html|css)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_STANDALONE_ACTION_RE = re.compile(
+    r"\b(?:build|create|write|make|crie|criar|escreva|faca|faça)\b",
+    re.IGNORECASE,
+)
+
 _STOP = {
     "a", "as", "ao", "aos", "com", "como", "da", "das", "de", "do", "dos",
     "e", "em", "essa", "esse", "esta", "este", "eu", "isso", "na", "nas",
@@ -85,6 +96,30 @@ def _expanded_query(text: str) -> set[str]:
     return expanded
 
 
+def _canonical_skill_handle(name: str, artifact_path: str) -> str:
+    """Return a stable loadable handle instead of an ambiguous bare name."""
+    normalized = artifact_path.replace("\\", "/").rstrip("/")
+    marker = "/skills/"
+    if marker not in normalized:
+        return name
+    relative = normalized.rsplit(marker, 1)[1]
+    if relative.endswith("/SKILL.md"):
+        relative = relative[: -len("/SKILL.md")]
+    return relative or name
+
+
+def _standalone_web_fast_path(message: str) -> str | None:
+    """Classify fully-scoped vanilla web artifacts without invoking a planner."""
+    if not (_STANDALONE_ACTION_RE.search(message) and _STANDALONE_WEB_RE.search(message)):
+        return None
+    return (
+        "Fast-path: this is a single standalone HTML/CSS/JS artifact. "
+        "Do not load skills and do not call `simplicio plan` or `simplicio run`. "
+        "Use one `simplicio edit --plan` for the decided file, then run focused "
+        "syntax/browser checks and `simplicio validate`; return compact receipts."
+    )
+
+
 @lru_cache(maxsize=1)
 def _catalog() -> tuple[tuple[str, frozenset[str], frozenset[str], str], ...]:
     if not DB_PATH.exists():
@@ -104,7 +139,12 @@ def _catalog() -> tuple[tuple[str, frozenset[str], frozenset[str], str], ...]:
     finally:
         connection.close()
     return tuple(
-        (name, frozenset(_tokens(name)), frozenset(_tokens(searchable)), path)
+        (
+            _canonical_skill_handle(name, path),
+            frozenset(_tokens(name)),
+            frozenset(_tokens(searchable)),
+            path,
+        )
         for name, searchable, path in rows
     )
 
@@ -164,6 +204,9 @@ def _pre_llm_call(**kwargs: Any) -> dict[str, str] | None:
     if _disabled():
         return None
     message = str(kwargs.get("user_message") or "").strip()
+    fast_path = _standalone_web_fast_path(message)
+    if fast_path:
+        return {"context": fast_path}
     hits = _adaptive_hits(recall(message))
     if not hits:
         return None

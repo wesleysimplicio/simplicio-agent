@@ -127,3 +127,13 @@ def test_pipeline_converts_execution_exception_to_error_outcome():
     assert outcome.status == "error"
     assert outcome.error_type == "RuntimeError"
     assert outcome.trace[-2:] == ["persist", "evidence"]
+
+
+def test_pipeline_for_agent_accepts_tool_name_from_tool_dispatch():
+    from types import SimpleNamespace
+
+    from agent.tool_invocation_pipeline import pipeline_for_agent
+
+    pipeline = pipeline_for_agent(SimpleNamespace(), "read_file")
+
+    assert isinstance(pipeline, ToolInvocationPipeline)

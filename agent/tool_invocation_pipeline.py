@@ -554,9 +554,16 @@ class ToolInvocationPipeline:
         }
 
 
-def pipeline_for_agent(agent: Any) -> ToolInvocationPipeline:
-    """Return the shared pipeline with agent-owned hook overrides."""
+def pipeline_for_agent(
+    agent: Any, tool_name: str | None = None
+) -> ToolInvocationPipeline:
+    """Return the shared pipeline with agent-owned hook overrides.
 
+    tool_name is accepted for call-site compatibility and future
+    per-tool hooks; the shared pipeline is intentionally agent-scoped today.
+    """
+
+    del tool_name
     hooks = getattr(agent, "tool_invocation_pipeline_hooks", None)
     receipt_writer = getattr(agent, "tool_invocation_receipt_writer", None)
     return ToolInvocationPipeline(hooks=hooks, receipt_writer=receipt_writer)
