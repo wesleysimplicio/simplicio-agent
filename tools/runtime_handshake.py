@@ -43,6 +43,47 @@ class ProtocolRange:
         return {"min": self.min, "max": self.max}
 
 
+@dataclass(slots=True, frozen=True)
+class CompatibilityMatrix:
+    """Machine-readable preflight contract for an Agent/Runtime update."""
+
+    agent_protocol: ProtocolRange
+    runtime_protocol: ProtocolRange
+    required_schemas: tuple[str, ...] = ()
+    available_schemas: tuple[str, ...] = ()
+    migration_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.agent_protocol, ProtocolRange):
+            raise TypeError("agent_protocol must be a ProtocolRange")
+        if not isinstance(self.runtime_protocol, ProtocolRange):
+            raise TypeError("runtime_protocol must be a ProtocolRange")
+        for name in ("required_schemas", "available_schemas", "migration_ids"):
+            values = tuple(sorted({str(item).strip() for item in getattr(self, name)}))
+            if any(not item for item in values):
+                raise ValueError(f"{name} must contain non-empty strings")
+            object.__setattr__(self, name, values)
+
+    @property
+    def missing_schemas(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.required_schemas) - set(self.available_schemas)))
+
+    @property
+    def compatible(self) -> bool:
+        return self.agent_protocol.overlaps(self.runtime_protocol) and not self.missing_schemas
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "agent_protocol": self.agent_protocol.to_dict(),
+            "runtime_protocol": self.runtime_protocol.to_dict(),
+            "required_schemas": list(self.required_schemas),
+            "available_schemas": list(self.available_schemas),
+            "missing_schemas": list(self.missing_schemas),
+            "migration_ids": list(self.migration_ids),
+            "compatible": self.compatible,
+        }
+
+
 def protocol_range_from_lock(lock: Mapping[str, Any] | None) -> ProtocolRange:
     """Read the agent-supported handshake protocol range from ``runtime.lock``."""
 
@@ -134,3 +175,15 @@ def build_runtime_handshake(
         runtime_protocol=runtime_protocol,
         capabilities=capabilities,
     )
+
+
+__all__ = [
+    "CompatibilityMatrix",
+    "DEFAULT_PROTOCOL_RANGE",
+    "HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME",
+    "HANDSHAKE_SCHEMA",
+    "ProtocolRange",
+    "RuntimeHandshake",
+    "build_runtime_handshake",
+    "protocol_range_from_lock",
+]
