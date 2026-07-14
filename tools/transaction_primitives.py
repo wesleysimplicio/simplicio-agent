@@ -18,7 +18,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import Callable, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
+
+
+SNAPSHOT_SCHEMA = "simplicio.snapshot/v1"
+JOURNAL_SCHEMA = "simplicio.journal/v1"
+RECEIPT_SCHEMA = "simplicio.hbp-receipt/v1"
 
 
 class TransactionError(RuntimeError):
@@ -49,6 +54,22 @@ def _validate_entry_path(path: str) -> None:
 def _validate_digest(digest: str) -> None:
     if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
         raise SnapshotError("snapshot entry has an invalid digest")
+
+
+def _validate_snapshot_id(snapshot_id: str) -> None:
+    if len(snapshot_id) != 64 or any(
+        char not in "0123456789abcdef" for char in snapshot_id
+    ):
+        raise SnapshotError("invalid snapshot id")
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        raise SnapshotError("snapshot metadata must be non-empty when present")
+    return text
 
 
 def _canonical(value: object) -> bytes:
@@ -112,18 +133,81 @@ class SnapshotEntry:
             "mode": self.mode,
         }
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> "SnapshotEntry":
+        try:
+            entry = cls(
+                str(value["path"]),
+                str(value["digest"]),
+                int(value["size_bytes"]),
+                int(value["mode"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SnapshotError("snapshot entry is malformed") from exc
+        _validate_entry_path(entry.path)
+        _validate_digest(entry.digest)
+        if entry.size_bytes < 0 or entry.mode < 0:
+            raise SnapshotError("snapshot entry has invalid size or mode")
+        return entry
+
 
 @dataclass(frozen=True)
 class SnapshotManifest:
     snapshot_id: str
     entries: tuple[SnapshotEntry, ...]
+    commit: str | None = None
+    timestamp: str | None = None
+    signature: str | None = None
+
+    @property
+    def root_digest(self) -> str:
+        """The Merkle-style root for this manifest's sorted file entries."""
+        return self.snapshot_id
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema": "simplicio.snapshot/v1",
+            "schema": SNAPSHOT_SCHEMA,
             "snapshot_id": self.snapshot_id,
+            "root_digest": self.root_digest,
             "entries": [entry.to_dict() for entry in self.entries],
+            "commit": self.commit,
+            "timestamp": self.timestamp,
+            "signature": self.signature,
         }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> "SnapshotManifest":
+        if value.get("schema") != SNAPSHOT_SCHEMA:
+            raise SnapshotError("unsupported snapshot schema")
+        raw_entries = value.get("entries", [])
+        if not isinstance(raw_entries, list):
+            raise SnapshotError("snapshot entries must be a list")
+        try:
+            entries = tuple(
+                SnapshotEntry.from_dict(item)
+                for item in raw_entries
+                if isinstance(item, Mapping)
+            )
+        except SnapshotError:
+            raise
+        if len(entries) != len(raw_entries):
+            raise SnapshotError("snapshot entry is malformed")
+        if len({entry.path for entry in entries}) != len(entries):
+            raise SnapshotError("snapshot contains duplicate paths")
+        snapshot_id = str(value.get("snapshot_id", ""))
+        _validate_snapshot_id(snapshot_id)
+        if value.get("root_digest", snapshot_id) != snapshot_id:
+            raise SnapshotError("snapshot root digest mismatch")
+        manifest = cls(
+            snapshot_id,
+            entries,
+            _optional_text(value.get("commit")),
+            _optional_text(value.get("timestamp")),
+            _optional_text(value.get("signature")),
+        )
+        if snapshot_tree_from_entries(entries) != snapshot_id:
+            raise SnapshotError("snapshot manifest digest mismatch")
+        return manifest
 
 
 @dataclass(frozen=True)
@@ -132,6 +216,42 @@ class Equivalence:
     added: tuple[str, ...] = ()
     removed: tuple[str, ...] = ()
     changed: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SnapshotReceipt:
+    """Stable, content-addressed evidence for a snapshot operation."""
+
+    operation: str
+    before_digest: str | None
+    after_digest: str | None
+    verified: bool
+    added: tuple[str, ...] = ()
+    removed: tuple[str, ...] = ()
+    changed: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.operation or "\n" in self.operation:
+            raise ValueError("receipt operation must be a single non-empty line")
+        for field_name in ("added", "removed", "changed"):
+            object.__setattr__(
+                self, field_name, tuple(sorted(getattr(self, field_name)))
+            )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": RECEIPT_SCHEMA,
+            "operation": self.operation,
+            "before_digest": self.before_digest,
+            "after_digest": self.after_digest,
+            "verified": self.verified,
+            "added": list(self.added),
+            "removed": list(self.removed),
+            "changed": list(self.changed),
+        }
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.to_dict())).hexdigest()
 
 
 def _file_digest(path: Path) -> tuple[str, int, int]:
@@ -180,19 +300,37 @@ class SnapshotStore:
         self.blobs = self.root / "blobs"
         self.manifests = self.root / "snapshots"
 
-    def create(self, source: Path) -> SnapshotManifest:
-        manifest = snapshot_tree(source)
+    def create(
+        self,
+        source: Path,
+        *,
+        commit: str | None = None,
+        timestamp: str | None = None,
+        signature: str | None = None,
+    ) -> SnapshotManifest:
+        base_manifest = snapshot_tree(source)
+        manifest = SnapshotManifest(
+            base_manifest.snapshot_id,
+            base_manifest.entries,
+            _optional_text(commit),
+            _optional_text(timestamp),
+            _optional_text(signature),
+        )
         self.blobs.mkdir(parents=True, exist_ok=True)
         self.manifests.mkdir(parents=True, exist_ok=True)
         for entry in manifest.entries:
             blob = self.blobs / entry.digest
-            if not blob.exists():
-                temporary = self.blobs / f".{entry.digest}.tmp"
-                shutil.copyfile(Path(source).resolve() / entry.path, temporary)
-                if _file_digest(temporary)[0] != entry.digest:
-                    temporary.unlink(missing_ok=True)
-                    raise SnapshotError("source changed while snapshotting")
-                os.replace(temporary, blob)
+            if blob.exists() and blob.is_file():
+                if _file_digest(blob)[0] == entry.digest:
+                    continue
+                blob.unlink()
+            temporary = self.blobs / f".{entry.digest}.tmp"
+            temporary.unlink(missing_ok=True)
+            shutil.copyfile(Path(source).resolve() / entry.path, temporary)
+            if _file_digest(temporary)[0] != entry.digest:
+                temporary.unlink(missing_ok=True)
+                raise SnapshotError("source changed while snapshotting")
+            os.replace(temporary, blob)
         if snapshot_tree(source).snapshot_id != manifest.snapshot_id:
             raise SnapshotError("source changed while snapshotting")
         _atomic_json(
@@ -201,52 +339,61 @@ class SnapshotStore:
         return manifest
 
     def load(self, snapshot_id: str) -> SnapshotManifest:
-        if not snapshot_id or any(
-            char not in "0123456789abcdef" for char in snapshot_id
-        ):
-            raise SnapshotError("invalid snapshot id")
+        _validate_snapshot_id(snapshot_id)
         path = self.manifests / f"{snapshot_id}.json"
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(value, dict):
                 raise ValueError
-            raw_entries = value.get("entries", [])
-            if not isinstance(raw_entries, list):
-                raise ValueError
-            entries = tuple(
-                SnapshotEntry(
-                    str(item["path"]),
-                    str(item["digest"]),
-                    int(item["size_bytes"]),
-                    int(item["mode"]),
-                )
-                for item in raw_entries
-                if isinstance(item, dict)
-            )
-            if len(entries) != len(raw_entries):
-                raise ValueError
-            for entry in entries:
-                _validate_entry_path(entry.path)
-                _validate_digest(entry.digest)
-                if entry.size_bytes < 0 or entry.mode < 0:
-                    raise ValueError
+            manifest = SnapshotManifest.from_dict(value)
         except (OSError, KeyError, TypeError, ValueError) as exc:
             raise SnapshotError("snapshot manifest is unavailable") from exc
-        if value.get("schema") != "simplicio.snapshot/v1":
-            raise SnapshotError("unsupported snapshot schema")
-        manifest = SnapshotManifest(str(value.get("snapshot_id")), entries)
-        if (
-            manifest.snapshot_id != snapshot_id
-            or snapshot_tree_from_entries(entries) != snapshot_id
-        ):
+        if manifest.snapshot_id != snapshot_id:
             raise SnapshotError("snapshot manifest digest mismatch")
         return manifest
 
-    def restore(self, manifest: SnapshotManifest, target: Path) -> None:
-        """Materialize a verified snapshot into a new or empty target directory."""
+    def verify(
+        self, manifest: SnapshotManifest | str, target: Path
+    ) -> "SnapshotReceipt":
+        """Verify ``target`` against a snapshot without writing to either side."""
+        if isinstance(manifest, str):
+            manifest = self.load(manifest)
+        _validate_manifest(manifest)
+        actual = snapshot_tree(Path(target))
+        comparison = shadow_equivalence(manifest, actual)
+        return SnapshotReceipt(
+            operation="verify",
+            before_digest=manifest.root_digest,
+            after_digest=actual.root_digest,
+            verified=comparison.equivalent,
+            added=comparison.added,
+            removed=comparison.removed,
+            changed=comparison.changed,
+        )
+
+    def restore(
+        self,
+        manifest: SnapshotManifest | str,
+        target: Path,
+        *,
+        verify_only: bool = False,
+    ) -> "SnapshotReceipt":
+        """Materialize a verified snapshot, or only verify it when requested."""
+        if isinstance(manifest, str):
+            manifest = self.load(manifest)
+        _validate_manifest(manifest)
+        if verify_only:
+            return self.verify(manifest, target)
         for entry in manifest.entries:
             _validate_entry_path(entry.path)
             _validate_digest(entry.digest)
+            blob = self.blobs / entry.digest
+            if (
+                not blob.is_file()
+                or _file_digest(blob)[0] != entry.digest
+                or _file_digest(blob)[1] != entry.size_bytes
+            ):
+                raise SnapshotError(f"missing or corrupt snapshot blob: {entry.path}")
         target = Path(target).expanduser()
         if target.is_symlink():
             raise SnapshotError("restore target must not be a symlink")
@@ -258,19 +405,37 @@ class SnapshotStore:
         target.mkdir(parents=True, exist_ok=True)
         for entry in manifest.entries:
             blob = self.blobs / entry.digest
-            if not blob.is_file() or _file_digest(blob)[0] != entry.digest:
-                raise SnapshotError(f"missing or corrupt snapshot blob: {entry.path}")
             destination = target / entry.path
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(blob, destination)
             os.chmod(destination, entry.mode)
+        receipt = self.verify(manifest, target)
+        if not receipt.verified:
+            raise SnapshotError("restored snapshot failed integrity verification")
+        return SnapshotReceipt(
+            operation="restore",
+            before_digest=manifest.root_digest,
+            after_digest=receipt.after_digest,
+            verified=True,
+            added=receipt.added,
+            removed=receipt.removed,
+            changed=receipt.changed,
+        )
 
 
 def snapshot_tree_from_entries(entries: Iterable[SnapshotEntry]) -> str:
     ordered = sorted(entries, key=lambda entry: entry.path)
+    if len({entry.path for entry in ordered}) != len(ordered):
+        raise SnapshotError("snapshot contains duplicate paths")
     return hashlib.sha256(
         _canonical([entry.to_dict() for entry in ordered])
     ).hexdigest()
+
+
+def _validate_manifest(manifest: SnapshotManifest) -> None:
+    _validate_snapshot_id(manifest.snapshot_id)
+    if snapshot_tree_from_entries(manifest.entries) != manifest.snapshot_id:
+        raise SnapshotError("snapshot manifest digest mismatch")
 
 
 @dataclass(frozen=True)
@@ -280,6 +445,67 @@ class JournalRecord:
     payload: Mapping[str, object]
     previous_hash: str
     record_hash: str
+
+    @property
+    def mutation(self) -> "MutationReceipt | None":
+        if self.event != "mutation":
+            return None
+        try:
+            return MutationReceipt.from_dict(self.payload)
+        except (TypeError, ValueError, KeyError):
+            return None
+
+
+@dataclass(frozen=True)
+class MutationReceipt:
+    """Intent and before/after evidence carried by one mutation record."""
+
+    intent: str
+    actor: str
+    snapshot_before: str | None
+    snapshot_after: str | None
+    fencing_token: str
+    result: Mapping[str, Any] | str
+
+    def __post_init__(self) -> None:
+        for field_name in ("intent", "actor", "fencing_token"):
+            value = str(getattr(self, field_name)).strip()
+            if not value or "\n" in value:
+                raise ValueError(f"{field_name} must be a single non-empty line")
+            object.__setattr__(self, field_name, value)
+        if isinstance(self.result, Mapping):
+            object.__setattr__(
+                self, "result", json.loads(json.dumps(self.result, sort_keys=True))
+            )
+        elif not str(self.result).strip():
+            raise ValueError("result must be non-empty")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": JOURNAL_SCHEMA,
+            "intent": self.intent,
+            "actor": self.actor,
+            "snapshot_before": self.snapshot_before,
+            "snapshot_after": self.snapshot_after,
+            "fencing_token": self.fencing_token,
+            "result": self.result,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> "MutationReceipt":
+        if value.get("schema") not in (None, JOURNAL_SCHEMA):
+            raise ValueError("unsupported journal schema")
+        return cls(
+            intent=str(value["intent"]),
+            actor=str(value["actor"]),
+            snapshot_before=value.get("snapshot_before"),
+            snapshot_after=value.get("snapshot_after"),
+            fencing_token=str(value["fencing_token"]),
+            result=value["result"],
+        )
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.to_dict())).hexdigest()
 
 
 class TransactionJournal:
@@ -293,11 +519,23 @@ class TransactionJournal:
             return ()
         records: list[JournalRecord] = []
         previous = "0" * 64
-        for expected_sequence, line in enumerate(
-            self.path.read_text(encoding="utf-8").splitlines(), 1
-        ):
+        raw = self.path.read_bytes()
+        chunks = raw.splitlines(keepends=True)
+        for index, chunk in enumerate(chunks):
+            if not chunk.strip():
+                continue
+            is_trailing_partial = index == len(chunks) - 1 and not chunk.endswith((
+                b"\n",
+                b"\r",
+            ))
             try:
+                line = chunk.decode("utf-8")
                 value = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError("journal record must be an object")
+                value_schema = value.get("schema")
+                if value_schema not in (None, JOURNAL_SCHEMA):
+                    raise ValueError("unsupported journal schema")
                 payload = value["payload"]
                 body = {
                     "sequence": value["sequence"],
@@ -305,18 +543,28 @@ class TransactionJournal:
                     "payload": payload,
                     "previous_hash": value["previous_hash"],
                 }
+                if value_schema is not None:
+                    body["schema"] = value_schema
                 record_hash = hashlib.sha256(_canonical(body)).hexdigest()
                 if (
-                    value["sequence"] != expected_sequence
+                    value["sequence"] != len(records) + 1
                     or value["previous_hash"] != previous
                     or value["record_hash"] != record_hash
                     or not isinstance(payload, dict)
                 ):
                     raise ValueError
-            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            except (
+                KeyError,
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+                UnicodeDecodeError,
+            ) as exc:
+                if is_trailing_partial:
+                    break
                 raise JournalError("journal hash chain is invalid") from exc
             record = JournalRecord(
-                expected_sequence, str(value["event"]), payload, previous, record_hash
+                len(records) + 1, str(value["event"]), payload, previous, record_hash
             )
             records.append(record)
             previous = record_hash
@@ -326,7 +574,9 @@ class TransactionJournal:
         if not event or "\n" in event:
             raise JournalError("journal event must be a single non-empty line")
         existing = self.records()
+        self._discard_partial_tail()
         body = {
+            "schema": JOURNAL_SCHEMA,
             "sequence": len(existing) + 1,
             "event": event,
             "payload": dict(payload),
@@ -343,6 +593,46 @@ class TransactionJournal:
         return JournalRecord(
             body["sequence"], event, dict(payload), body["previous_hash"], record_hash
         )
+
+    def _discard_partial_tail(self) -> None:
+        """Recover space occupied by a crash-truncated final JSON line."""
+        if not self.path.exists():
+            return
+        raw = self.path.read_bytes()
+        if not raw or raw.endswith((b"\n", b"\r")):
+            return
+        tail = raw.rsplit(b"\n", 1)[-1]
+        try:
+            json.loads(tail.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            with self.path.open("r+b") as handle:
+                handle.truncate(len(raw) - len(tail))
+        else:
+            with self.path.open("ab") as handle:
+                handle.write(b"\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+
+    def append_mutation(
+        self,
+        *,
+        intent: str,
+        actor: str,
+        snapshot_before: str | None,
+        snapshot_after: str | None,
+        fencing_token: str,
+        result: Mapping[str, Any] | str,
+    ) -> JournalRecord:
+        """Append the canonical #338 mutation receipt as one journal record."""
+        receipt = MutationReceipt(
+            intent,
+            actor,
+            snapshot_before,
+            snapshot_after,
+            fencing_token,
+            result,
+        )
+        return self.append("mutation", receipt.to_dict())
 
 
 @dataclass(frozen=True)
@@ -457,12 +747,17 @@ class UpdateTransaction:
 
 __all__ = [
     "Equivalence",
+    "JOURNAL_SCHEMA",
     "JournalError",
     "JournalRecord",
+    "MutationReceipt",
     "PointerRecord",
+    "RECEIPT_SCHEMA",
     "SnapshotEntry",
     "SnapshotError",
     "SnapshotManifest",
+    "SnapshotReceipt",
+    "SNAPSHOT_SCHEMA",
     "SnapshotStore",
     "TransactionError",
     "TransactionJournal",
