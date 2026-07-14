@@ -201,6 +201,34 @@ class OperationalNowSnapshot:
                 return belief
         return None
 
+    def delta(self, previous: "OperationalNowSnapshot") -> dict[str, Any]:
+        """Return a compact, deterministic field delta for incremental consumers."""
+
+        if not isinstance(previous, OperationalNowSnapshot):
+            raise TypeError("previous must be an OperationalNowSnapshot")
+        changed = {
+            path: field.to_dict()
+            for path, field in self.fields.items()
+            if previous.fields.get(path) != field
+        }
+        removed = sorted(set(previous.fields) - set(self.fields))
+        changed_beliefs = {
+            subject: belief.to_dict()
+            for subject, belief in self.beliefs.items()
+            if previous.beliefs.get(subject) != belief
+        }
+        removed_beliefs = sorted(set(previous.beliefs) - set(self.beliefs))
+        return {
+            "schema": OPERATIONAL_NOW_SCHEMA,
+            "schema_version": OPERATIONAL_NOW_SCHEMA_VERSION,
+            "from_hash": previous.snapshot_hash,
+            "to_hash": self.snapshot_hash,
+            "changed": changed,
+            "removed": removed,
+            "changed_beliefs": changed_beliefs,
+            "removed_beliefs": removed_beliefs,
+        }
+
     def _payload_dict(self, *, include_hash: bool) -> dict[str, Any]:
         return {
             "schema": OPERATIONAL_NOW_SCHEMA,

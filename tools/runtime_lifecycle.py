@@ -8,6 +8,8 @@ enough to report ``ready``.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
@@ -356,6 +358,18 @@ class RuntimeReadiness:
             "ready": self.ready,
             "detail": self.detail,
         }
+
+    def content_hash(self) -> str:
+        """Return a stable identity for readiness receipts and replay."""
+
+        return hashlib.sha256(
+            json.dumps(
+                self.as_dict(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
 
 
 class RuntimeLifecycleManager:

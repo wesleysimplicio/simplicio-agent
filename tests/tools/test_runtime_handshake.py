@@ -3,6 +3,7 @@
 import pytest
 
 from tools.runtime_handshake import (
+    CompatibilityMatrix,
     DEFAULT_PROTOCOL_RANGE,
     HANDSHAKE_PROTOCOL_STATUS_UNREPORTED,
     HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME,
@@ -11,6 +12,21 @@ from tools.runtime_handshake import (
     build_runtime_handshake,
     protocol_range_from_lock,
 )
+
+
+def test_compatibility_matrix_is_machine_readable_and_fail_closed():
+    matrix = CompatibilityMatrix(
+        agent_protocol=ProtocolRange(1, 2),
+        runtime_protocol=ProtocolRange(2, 3),
+        required_schemas=("simplicio.run-event/v1", "simplicio.execution-context/v1"),
+        available_schemas=("simplicio.run-event/v1",),
+        migration_ids=("migration-7",),
+    )
+
+    assert matrix.compatible is False
+    assert matrix.missing_schemas == ("simplicio.execution-context/v1",)
+    assert matrix.to_dict()["migration_ids"] == ["migration-7"]
+    assert matrix.to_dict()["compatible"] is False
 
 
 def test_protocol_range_from_lock_defaults_to_v1_when_lock_omits_handshake_range():

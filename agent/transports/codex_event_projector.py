@@ -66,6 +66,23 @@ class ProjectionResult:
     final_text: Optional[str] = None  # Set when an agentMessage completes
 
 
+def projection_digest(result: ProjectionResult) -> str:
+    """Return a stable identity for cross-surface projection comparison."""
+
+    if not isinstance(result, ProjectionResult):
+        raise TypeError("result must be a ProjectionResult")
+    payload = {
+        "messages": result.messages,
+        "is_tool_iteration": result.is_tool_iteration,
+        "final_text": result.final_text,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
 class CodexEventProjector:
     """Stateful projector consuming Codex notifications in arrival order.
 
@@ -113,6 +130,7 @@ class CodexEventProjector:
         # — record as opaque assistant note so memory review can still see
         # *something* happened, but don't fabricate tool_call structure.
         return self._project_opaque(item, item_type)
+
 
     # ---------- per-type projections ----------
 
@@ -310,3 +328,6 @@ class CodexEventProjector:
                 }
             ]
         )
+
+
+__all__ = ["CodexEventProjector", "ProjectionResult", "projection_digest"]

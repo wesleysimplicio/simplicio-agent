@@ -297,3 +297,13 @@ def test_lifecycle_decision_wire_shape_is_stable_and_json_safe():
         "reason": "startup_requested",
         "protocol_status": "unreported",
     }
+
+
+def test_readiness_receipt_has_stable_content_hash():
+    manager = RuntimeLifecycleManager(lambda: _status())
+    first = manager.readiness(_ready_probes())
+    replay = manager.readiness(_ready_probes())
+
+    assert first.ready
+    assert first.content_hash() == replay.content_hash()
+    assert len(first.content_hash()) == 64

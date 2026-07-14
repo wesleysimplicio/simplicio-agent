@@ -101,6 +101,8 @@ def test_nominal_choice_is_typed_cost_ordered_and_replayable():
         and receipt.status is ConstraintStatus.PASSED
         for receipt in first.constraint_receipts
     )
+    assert first.evidence_digest() == replay.evidence_digest()
+    assert len(first.evidence_digest()) == 64
 
 
 def test_uncertainty_above_policy_threshold_observes_instead_of_acting():

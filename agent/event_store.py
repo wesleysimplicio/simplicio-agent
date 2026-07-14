@@ -20,6 +20,8 @@ from agent.belief_state import BeliefType, Freshness
 
 EVENT_STORE_SCHEMA = "simplicio.operational-event-store"
 EVENT_STORE_SCHEMA_VERSION = "simplicio.operational-event-store/v1"
+EXECUTION_CONTEXT_SCHEMA = "simplicio.execution-context/v1"
+RUN_EVENT_SCHEMA = "simplicio.run-event/v1"
 
 
 class OperationalValueStatus(str, Enum):
@@ -50,6 +52,97 @@ def _stable_json(value: Any) -> str:
 
 def _fingerprint(value: Any) -> str:
     return hashlib.sha256(_stable_json(value).encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionContext:
+    """Canonical identity shared by Agent, Runtime, tools and providers."""
+
+    profile_id: str
+    tenant_id: str
+    session_id: str
+    run_id: str
+    goal_hash: str
+    anchor_hash: str
+    phase: str
+    step: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "profile_id", "tenant_id", "session_id", "run_id",
+            "goal_hash", "anchor_hash", "phase",
+        ):
+            object.__setattr__(self, name, _text(getattr(self, name), name))
+        if not isinstance(self.step, int) or isinstance(self.step, bool) or self.step < 0:
+            raise ValueError("step must be a non-negative integer")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": EXECUTION_CONTEXT_SCHEMA,
+            "profile_id": self.profile_id,
+            "tenant_id": self.tenant_id,
+            "session_id": self.session_id,
+            "run_id": self.run_id,
+            "goal_hash": self.goal_hash,
+            "anchor_hash": self.anchor_hash,
+            "phase": self.phase,
+            "step": self.step,
+        }
+
+    def content_hash(self) -> str:
+        return _fingerprint(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
+class RunEvent:
+    """Append-only, idempotent event envelope for one execution context."""
+
+    event_id: str
+    run_id: str
+    causal_parent: str | None
+    sequence: int
+    idempotency_key: str
+    event_type: str
+    actor: str
+    source: str
+    payload_ref: str
+    classification: str
+    receipt_hash: str | None = None
+    schema_version: str = RUN_EVENT_SCHEMA
+
+    def __post_init__(self) -> None:
+        for name in (
+            "event_id", "run_id", "idempotency_key", "event_type",
+            "actor", "source", "payload_ref", "classification",
+        ):
+            object.__setattr__(self, name, _text(getattr(self, name), name))
+        if self.causal_parent is not None:
+            object.__setattr__(self, "causal_parent", _text(self.causal_parent, "causal_parent"))
+        if self.receipt_hash is not None:
+            object.__setattr__(self, "receipt_hash", _text(self.receipt_hash, "receipt_hash"))
+        if not isinstance(self.sequence, int) or isinstance(self.sequence, bool) or self.sequence < 1:
+            raise ValueError("sequence must be a positive integer")
+        if self.schema_version != RUN_EVENT_SCHEMA:
+            raise ValueError("unsupported run event schema")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema_version,
+            "event_id": self.event_id,
+            "run_id": self.run_id,
+            "causal_parent": self.causal_parent,
+            "sequence": self.sequence,
+            "idempotency_key": self.idempotency_key,
+            "event_type": self.event_type,
+            "actor": self.actor,
+            "source": self.source,
+            "payload_ref": self.payload_ref,
+            "classification": self.classification,
+            "receipt_hash": self.receipt_hash,
+        }
+
+    def content_hash(self) -> str:
+        return _fingerprint(self.to_dict())
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,9 +348,13 @@ class OperationalEventStore:
 
 __all__ = [
     "AwarenessReceipt",
+    "EXECUTION_CONTEXT_SCHEMA",
     "EVENT_STORE_SCHEMA",
     "EVENT_STORE_SCHEMA_VERSION",
+    "ExecutionContext",
     "OperationalEventStore",
     "OperationalEventStoreCorruptError",
     "OperationalValueStatus",
+    "RUN_EVENT_SCHEMA",
+    "RunEvent",
 ]
