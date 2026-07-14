@@ -430,6 +430,63 @@ class BlockedCognitiveIntegrity:
         }
 
 
+@dataclass(frozen=True)
+class PoisoningQuarantineValidation:
+    """Deterministic proof that detected poisoning stayed quarantined."""
+
+    evidence_sha256: str
+    poisoning_detected: bool
+    quarantined: bool
+
+    def __post_init__(self) -> None:
+        if not _HEX_DIGEST_RE.fullmatch(self.evidence_sha256):
+            raise FailClosedTrustBoundaryError(
+                "poisoning evidence digest must be 64 hex chars"
+            )
+        if (
+            type(self.poisoning_detected) is not bool
+            or type(self.quarantined) is not bool
+        ):
+            raise FailClosedTrustBoundaryError(
+                "poisoning and quarantine decisions must be boolean"
+            )
+        if self.poisoning_detected and not self.quarantined:
+            raise FailClosedTrustBoundaryError(
+                "detected poisoning must remain quarantined"
+            )
+
+    @property
+    def safe_to_promote(self) -> bool:
+        """Only evidence cleared by both checks may cross the boundary."""
+
+        return not self.poisoning_detected and not self.quarantined
+
+
+def validate_poisoning_quarantine(
+    evidence: Mapping[str, Any],
+    *,
+    poisoning_detected: bool,
+    quarantined: bool,
+) -> PoisoningQuarantineValidation:
+    """Validate a trusted poisoning decision without retaining raw evidence."""
+
+    if not isinstance(evidence, Mapping) or not evidence:
+        raise FailClosedTrustBoundaryError(
+            "poisoning validation requires non-empty evidence"
+        )
+    try:
+        evidence_sha256 = _sha256_hex(evidence)
+    except (TypeError, ValueError) as exc:
+        raise FailClosedTrustBoundaryError(
+            "poisoning evidence must be JSON-canonical"
+        ) from exc
+    return PoisoningQuarantineValidation(
+        evidence_sha256=evidence_sha256,
+        poisoning_detected=poisoning_detected,
+        quarantined=quarantined,
+    )
+
+
 def issue_control_event(
     *,
     event_id: str,
