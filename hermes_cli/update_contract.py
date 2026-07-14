@@ -584,6 +584,8 @@ class UpdateContract:
         self.active_path = self.root / _ACTIVE_FILE
         self.state_path = self.root / _STATE_FILE
         self.slots.mkdir(parents=True, exist_ok=True)
+        if self.state_path.exists():
+            self.recover_interrupted()
 
     def current(self) -> ActivationRecord | None:
         if not self.active_path.exists():
