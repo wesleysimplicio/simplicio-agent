@@ -8,6 +8,7 @@ from agent.tool_invocation_pipeline import (
     ToolInvocation,
     ToolInvocationMetadata,
     ToolInvocationPipeline,
+    default_tool_invocation_receipt_writer,
     pipeline_for_agent,
 )
 
@@ -74,6 +75,41 @@ def test_pipeline_blocks_before_checkpoint_and_execute_but_still_persists_receip
     assert persisted == ["blocked"]
     assert len(receipts) == 1
     assert receipts[0].blocked_by == "guardrail"
+
+
+def test_pipeline_checkpoint_gate_fails_closed_before_execution():
+    executed = []
+    outcome = ToolInvocationPipeline(
+        hooks={"checkpoint": lambda value, *, attempt: False}
+    ).run(
+        ToolInvocation(
+            "write_file",
+            {"path": "README.md"},
+            metadata=ToolInvocationMetadata(requires_checkpoint=True),
+        ),
+        lambda name, args: executed.append((name, args)),
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.invocation.metadata.blocked_by == "checkpoint"
+    assert outcome.evidence["error_message"] == "checkpoint"
+    assert executed == []
+
+
+def test_pipeline_required_checkpoint_without_hook_is_unverified_and_blocked():
+    outcome = ToolInvocationPipeline().run(
+        ToolInvocation(
+            "write_file",
+            {"path": "README.md"},
+            metadata=ToolInvocationMetadata(requires_checkpoint=True),
+        ),
+        lambda name, args: {"should": "not execute"},
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.receipt is not None
+    assert outcome.evidence["blocked_by"] == "checkpoint"
+    assert "unavailable" in outcome.evidence["error_message"]
 
 
 def test_pipeline_writes_once_per_attempt_receipt_across_begin_complete_cycle():
@@ -284,6 +320,30 @@ def test_pipeline_applies_fail_safe_metadata_defaults_and_redacts_external_resul
     assert outcome.evidence["result"]["nested"]["token"] == "[REDACTED]"
     assert outcome.result["secret"] == "keep-in-live-result"
     assert len(receipts) == 1
+
+
+def test_default_receipt_writer_uses_hashes_and_existing_receipt_ledger(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("HERMES_RECEIPTS_DIR", str(tmp_path))
+    receipt = (
+        ToolInvocationPipeline()
+        .run(
+            ToolInvocation("demo.tool", {"token": "live-secret"}),
+            lambda name, args: {"password": "live-secret"},
+        )
+        .receipt
+    )
+
+    assert receipt is not None
+    stored = default_tool_invocation_receipt_writer(receipt)
+    assert stored.sha
+    files = list(tmp_path.glob("*.json"))
+    assert len(files) == 1
+    payload = files[0].read_text(encoding="utf-8")
+    assert "live-secret" not in payload
+    assert receipt.args_hash in payload
+    assert receipt.result_hash in payload
 
 
 def test_pipeline_normalizes_invalid_metadata_and_completion_status_fail_safe():

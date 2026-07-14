@@ -15,6 +15,8 @@ small hook runner with partial stage coverage and weak metadata defaults:
 - blocked/error paths could miss receipt-level deduplication
 - there was no first-class serial executor adapter for callers that already
   run tools synchronously
+- the sequential executor did not close its invocation with the shared
+  receipt/evidence pipeline
 - external results could be copied verbatim into evidence payloads
 - split traces could lose the persist/evidence tail when execute was omitted
 - finalization hook failures could leave a terminal attempt without evidence
@@ -61,6 +63,12 @@ The module also owns:
   fall back to the `serial` executor label when callers provide an empty label
 - unknown metadata/status values resolve to conservative defaults (`pending`
   before execution and `error` for an invalid terminal status)
+- sequential and special-tool dispatches begin and complete the same pipeline
+  used by the concurrent adapter; scheduler selection remains unchanged
+- a required checkpoint with no checkpoint hook, or an explicit checkpoint
+  denial, blocks before execution and still emits a receipt/evidence record
+- `default_tool_invocation_receipt_writer` stores only serialized provenance
+  and args/result hashes through the existing content-addressed receipt ledger
 
 ## Consequences
 
@@ -71,8 +79,11 @@ The module also owns:
 - Duplicate receipt emission for the same attempt/result tuple is suppressed in
   the pipeline itself, which keeps this bounded slice safe even before wider
   receipt integration lands elsewhere.
-- Existing executors stay unchanged; they can adopt the serial adapter or the
-  `begin`/`complete` split later.
+- Tool-specific implementations and scheduler selection stay unchanged; the
+  sequential executor adopts the `begin`/`complete` split at its dispatch
+  boundary.
+- Its display, middleware, and tool-specific branches remain in place, while
+  concurrent and DAG routing remain behaviorally unchanged.
 - Evidence is safer for remote/provider-backed tools because redacted payloads
   are persisted while the live result remains intact for the conversation loop.
 - A receipt writer failure is fail-safe: the local receipt remains attached for

@@ -1982,6 +1982,17 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
         agent._last_tool_invocation_receipt = outcome.receipt.to_dict() if outcome.receipt else {}
         return result
 
+    if _invocation.metadata.status == "blocked":
+        blocked_message = (
+            _invocation.metadata.error_message
+            or _invocation.metadata.blocked_by
+            or "tool invocation blocked by pipeline"
+        )
+        return _complete_pipeline(
+            json.dumps({"error": blocked_message}, ensure_ascii=False),
+            status="blocked",
+        )
+
     _tool_middleware_trace = list(tool_request_middleware_trace or [])
     try:
         from hermes_cli.middleware import apply_tool_request_middleware

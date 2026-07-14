@@ -961,6 +961,41 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
         except Exception:
             pass
 
+        # Every sequential/special invocation uses the same lifecycle as the
+        # concurrent adapter. Keep the existing display and tool-specific
+        # execution branches, but make their safety/evidence boundary typed
+        # and receipt-producing through one pipeline instance.
+        from agent.tool_invocation_pipeline import (
+            ToolInvocation,
+            pipeline_for_agent,
+        )
+
+        _invocation_pipeline = pipeline_for_agent(agent, function_name)
+        _invocation, _invocation_trace = _invocation_pipeline.begin(
+            ToolInvocation(
+                function_name,
+                function_args,
+                getattr(tool_call, "id", "") or "",
+                effective_task_id or "",
+            )
+        )
+        function_name = _invocation.name
+        function_args = _invocation.args
+        agent._last_tool_invocation_trace = list(_invocation_trace)
+
+        def _complete_invocation_pipeline(result: Any, *, status: str) -> Any:
+            outcome = _invocation_pipeline.complete(
+                _invocation,
+                result,
+                _invocation_trace,
+                status=status,
+            )
+            agent._last_tool_invocation_trace = list(outcome.trace)
+            agent._last_tool_invocation_receipt = (
+                outcome.receipt.to_dict() if outcome.receipt else {}
+            )
+            return outcome.result
+
         function_args, middleware_trace = _apply_tool_request_middleware_for_agent(
             agent,
             function_name=function_name,
@@ -996,6 +1031,14 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
             guardrail_decision = agent._tool_guardrails.before_call(function_name, function_args)
             if not guardrail_decision.allows_execution:
                 _guardrail_block_decision = guardrail_decision
+
+        if _invocation.metadata.status == "blocked" and _block_msg is None:
+            _block_msg = (
+                _invocation.metadata.error_message
+                or _invocation.metadata.blocked_by
+                or "tool invocation blocked by pipeline"
+            )
+            _block_error_type = "pipeline_gate"
 
         _execution_blocked = _block_msg is not None or _guardrail_block_decision is not None
 
@@ -1371,6 +1414,10 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                     middleware_trace=list(middleware_trace),
                 )
                 _spinner_result = function_result
+                function_result = _complete_invocation_pipeline(
+                    function_result,
+                    status="cancelled",
+                )
                 try:
                     agent.interrupt("keyboard interrupt")
                 except Exception:
@@ -1402,7 +1449,7 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                     tool_request_middleware_trace=list(middleware_trace),
                 )
             except KeyboardInterrupt:
-                _emit_cancelled_terminal_post_tool_call(
+                function_result = _emit_cancelled_terminal_post_tool_call(
                     agent,
                     function_name=function_name,
                     function_args=function_args,
@@ -1410,6 +1457,10 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                     tool_call_id=getattr(tool_call, "id", "") or "",
                     start_time=tool_start_time,
                     middleware_trace=list(middleware_trace),
+                )
+                function_result = _complete_invocation_pipeline(
+                    function_result,
+                    status="cancelled",
                 )
                 try:
                     agent.interrupt("keyboard interrupt")
@@ -1456,6 +1507,17 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 duration_ms=int(tool_duration * 1000),
                 middleware_trace=list(middleware_trace),
             )
+
+        # Finalize the same pipeline started before middleware/dispatch.  The
+        # receipt is content-addressed and the evidence carries only hashes;
+        # the live result remains the value sent to the conversation.
+        _pipeline_status = (
+            "blocked" if _execution_blocked else "error" if _is_error_result else "success"
+        )
+        function_result = _complete_invocation_pipeline(
+            function_result,
+            status=_pipeline_status,
+        )
         if not _execution_blocked:
             function_result = agent._append_guardrail_observation(
                 function_name,
@@ -1518,9 +1580,10 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
 
         # TOON boundary (issue #16) — see the sequential path above for the
         # full rationale. Same placement: after persistence, before hints.
-        function_result = _maybe_toon_encode_tool_result(
-            agent, function_name, function_result, session_id=getattr(agent, "session_id", "unknown"),
-        )
+        if not _execution_blocked:
+            function_result = _maybe_toon_encode_tool_result(
+                agent, function_name, function_result, session_id=getattr(agent, "session_id", "unknown"),
+            )
 
         # Discover subdirectory context files from tool arguments
         subdir_hints = agent._subdirectory_hints.check_tool_call(function_name, function_args)

@@ -85,6 +85,7 @@ class ToolInvocationMetadata:
     receipt_id: str = ""
     receipt_written: bool = False
     external_result: bool = False
+    requires_checkpoint: bool = False
     evidence_version: str = "tool-invocation/v1"
     extras: Mapping[str, Any] = field(default_factory=dict)
 
@@ -120,6 +121,25 @@ class ToolInvocationReceipt:
     error_type: str = ""
     blocked_by: str = ""
     meta: Mapping[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the redaction-safe, serializable receipt contract."""
+
+        return {
+            "attempt_id": self.attempt_id,
+            "receipt_id": self.receipt_id,
+            "tool": self.tool,
+            "status": self.status,
+            "classification": self.classification,
+            "task_id": self.task_id,
+            "tool_call_id": self.tool_call_id,
+            "duration_ms": self.duration_ms,
+            "args_hash": self.args_hash,
+            "result_hash": self.result_hash,
+            "error_type": self.error_type,
+            "blocked_by": self.blocked_by,
+            "meta": dict(self.meta),
+        }
 
 
 @dataclass(frozen=True)
@@ -228,6 +248,31 @@ def _coerce_decision(
             detail={k: v for k, v in data.items() if k not in {"allow", "reason"}},
         )
     raise TypeError(f"{stage} must return a decision-like value")
+
+
+def _coerce_checkpoint_decision(value: Any) -> ToolDecision | None:
+    """Interpret an explicit checkpoint denial without constraining IDs.
+
+    Checkpoint hooks commonly return an opaque checkpoint handle.  Only the
+    decision-like forms are gates; arbitrary handles and ``None`` mean that
+    the checkpoint hook completed successfully.
+    """
+
+    if value is None or isinstance(value, str):
+        return None
+    if isinstance(value, ToolDecision):
+        return value
+    if value is False:
+        return ToolDecision(allow=False, reason="checkpoint")
+    if value is True:
+        return ToolDecision()
+    if isinstance(value, Mapping) and ("allow" in value or "reason" in value):
+        return ToolDecision(
+            allow=bool(value.get("allow", True)),
+            reason=str(value.get("reason", "")),
+            detail={k: v for k, v in value.items() if k not in {"allow", "reason"}},
+        )
+    return None
 
 
 def _coerce_status(value: Any) -> str:
@@ -511,7 +556,17 @@ class ToolInvocationPipeline:
             return self._blocked_attempt(attempt, "action-gate", action_gate)
 
         attempt = attempt.with_trace("checkpoint")
-        self._call("checkpoint", None, attempt=attempt)
+        checkpoint_hook = self.hooks.get("checkpoint")
+        if attempt.metadata.requires_checkpoint and checkpoint_hook is None:
+            return self._blocked_attempt(
+                attempt,
+                "checkpoint",
+                ToolDecision(allow=False, reason="checkpoint required but unavailable"),
+            )
+        checkpoint = self._call("checkpoint", None, attempt=attempt)
+        checkpoint_decision = _coerce_checkpoint_decision(checkpoint)
+        if checkpoint_decision is not None and not checkpoint_decision.allow:
+            return self._blocked_attempt(attempt, "checkpoint", checkpoint_decision)
         return attempt
 
     def _blocked_attempt(
@@ -526,7 +581,12 @@ class ToolInvocationPipeline:
                 status="blocked",
                 error_type="policy",
                 error_message=decision.reason or blocked_by,
-            ).with_metadata(blocked_by=blocked_by)
+            ).with_metadata(
+                blocked_by=blocked_by,
+                status="blocked",
+                error_type="policy",
+                error_message=decision.reason or blocked_by,
+            )
         )
 
     def _persist_and_evidence(
@@ -647,6 +707,7 @@ class ToolInvocationPipeline:
                 "session_id": attempt.metadata.session_id,
                 "turn_id": attempt.metadata.turn_id,
                 "api_request_id": attempt.metadata.api_request_id,
+                "requires_checkpoint": attempt.metadata.requires_checkpoint,
             },
         )
         self._receipts_by_attempt[attempt_id] = receipt
@@ -681,6 +742,7 @@ class ToolInvocationPipeline:
             "error_message": attempt.error_message,
             "receipt_id": attempt.receipt.receipt_id if attempt.receipt else "",
             "external_result": external_result,
+            "requires_checkpoint": attempt.metadata.requires_checkpoint,
             "result": evidence_result,
             "meta": dict(attempt.metadata.extras or {}),
         }
@@ -698,4 +760,34 @@ def pipeline_for_agent(
     del tool_name
     hooks = getattr(agent, "tool_invocation_pipeline_hooks", None)
     receipt_writer = getattr(agent, "tool_invocation_receipt_writer", None)
+    if receipt_writer is None and hasattr(agent, "session_id"):
+        receipt_writer = default_tool_invocation_receipt_writer
     return ToolInvocationPipeline(hooks=hooks, receipt_writer=receipt_writer)
+
+
+def default_tool_invocation_receipt_writer(receipt: ToolInvocationReceipt) -> Any:
+    """Persist a hashed invocation receipt through the existing ledger.
+
+    The ledger stores the serialized receipt as content-addressed data.  The
+    receipt itself contains only hashes and provenance metadata, never live
+    arguments or results.  Ledger failures remain fail-safe in the pipeline
+    and are surfaced in evidence rather than breaking tool execution.
+    """
+
+    from agent.telemetry.receipts import record_receipt
+
+    payload = _stable_json(receipt.to_dict())
+    return record_receipt(
+        payload=payload,
+        yool_id=f"tool-invocation:{receipt.tool}",
+        lane="tool",
+        status=receipt.status,
+        meta={
+            "attempt_id": receipt.attempt_id,
+            "receipt_id": receipt.receipt_id,
+            "tool_call_id": receipt.tool_call_id,
+            "args_hash": receipt.args_hash,
+            "result_hash": receipt.result_hash,
+            "requires_checkpoint": receipt.meta.get("requires_checkpoint", False),
+        },
+    )
