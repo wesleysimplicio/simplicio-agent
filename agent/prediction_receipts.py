@@ -9,6 +9,7 @@ failed verifier cannot be learned as a false negative.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import dataclass, field, replace
@@ -607,13 +608,9 @@ class PredictionReceipt:
                 raise ValueError("match outcome cannot change strategy fingerprint")
         else:
             if not self.failure_fingerprint:
-                raise ValueError(
-                    "non-match outcomes require a failure fingerprint"
-                )
+                raise ValueError("non-match outcomes require a failure fingerprint")
             if self.next_strategy_fingerprint == self.strategy_fingerprint:
-                raise ValueError(
-                    "non-match outcomes must change strategy fingerprint"
-                )
+                raise ValueError("non-match outcomes must change strategy fingerprint")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -693,9 +690,7 @@ class PredictionReceipt:
             reconciliation=ReconciliationDecision(value["reconciliation"]),
             update_decision=str(value["update_decision"]),
             failure_fingerprint=str(value.get("failure_fingerprint", "")),
-            next_strategy_fingerprint=str(
-                value.get("next_strategy_fingerprint", "")
-            ),
+            next_strategy_fingerprint=str(value.get("next_strategy_fingerprint", "")),
         )
 
     @classmethod
@@ -828,6 +823,13 @@ def _matches(expected: Any, observed: Any, variance: float) -> bool:
             float(expected), float(observed), abs_tol=variance, rel_tol=0.0
         )
     return expected == observed
+
+
+def prediction_evidence_digest(receipt: PredictionReceipt) -> str:
+    """Return a stable, non-disclosing reference for causal memory links."""
+    if not isinstance(receipt, PredictionReceipt):
+        raise TypeError("prediction evidence requires a PredictionReceipt")
+    return hashlib.sha256(receipt.to_json().encode("utf-8")).hexdigest()
 
 
 __all__ = [

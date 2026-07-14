@@ -1,0 +1,5 @@
+[
+  {"item_id": "normal", "source": "worker", "reason": "normal_progress", "run_id": "run-a", "relevance": 100},
+  {"item_id": "approval", "source": "human-gate", "reason": "approval", "run_id": "run-b", "relevance": 0},
+  {"item_id": "safety", "source": "runtime-policy", "reason": "safety", "run_id": "run-c", "relevance": 0}
+]
