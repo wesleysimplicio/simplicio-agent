@@ -1,5 +1,11 @@
 [run]
+branch = true
 source =
     tests/ci
 omit =
     tests/ci/test_classify_changes.py
+
+[report]
+show_missing = true
+precision = 2
+fail_under = 85
