@@ -7,12 +7,19 @@
       "canonical": "simplicio-agent"
     },
     {
+      "alias": "simplicio-agent-acp",
+      "canonical": "simplicio-agent-acp"
+    },
+    {
       "alias": "hermes",
       "canonical": "simplicio-agent",
       "deprecated": true,
       "owner": "cli",
+      "deprecated_since": "2026-07-13",
       "warning_code": "deprecated_command_alias",
+      "warning_cadence": "once_per_process",
       "remove_after": "2027-01-01",
+      "minimum_release_window": 2,
       "note": "legacy CLI alias"
     },
     {
@@ -20,17 +27,23 @@
       "canonical": "simplicio-agent",
       "deprecated": true,
       "owner": "cli",
+      "deprecated_since": "2026-07-13",
       "warning_code": "deprecated_command_alias",
+      "warning_cadence": "once_per_process",
       "remove_after": "2027-01-01",
+      "minimum_release_window": 2,
       "note": "legacy packaged alias"
     },
     {
       "alias": "hermes-acp",
-      "canonical": "simplicio-agent",
+      "canonical": "simplicio-agent-acp",
       "deprecated": true,
       "owner": "cli",
+      "deprecated_since": "2026-07-13",
       "warning_code": "deprecated_command_alias",
+      "warning_cadence": "once_per_process",
       "remove_after": "2027-01-01",
+      "minimum_release_window": 2,
       "note": "legacy ACP alias"
     }
   ]

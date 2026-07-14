@@ -68,7 +68,7 @@ def test_packaged_cli_aliases_delegate_to_the_canonical_cli_entrypoint():
     assert scripts["simplicio-agent"] == "hermes_cli.main:main"
     assert scripts["hermes"] == scripts["simplicio-agent"]
     assert scripts["hermes-agent"] == scripts["simplicio-agent"]
-    assert scripts["hermes-acp"] == "acp_adapter.entry:main"
+    assert scripts["hermes-acp"] == scripts["simplicio-agent-acp"]
 
 
 def test_fixture_manifest_loads_and_validates():

@@ -7,8 +7,11 @@
       "canonical": "simplicio-runtime",
       "deprecated": true,
       "owner": "runtime",
+      "deprecated_since": "2026-07-13",
       "warning_code": "deprecated_command_alias",
-      "remove_after": "2027-01-01"
+      "warning_cadence": "once_per_process",
+      "remove_after": "2027-01-01",
+      "minimum_release_window": 2
     }
   ]
 }

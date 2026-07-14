@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import tomllib
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -13,6 +15,8 @@ from tools.alias_registry import (
     ALIAS_RECEIPT_SCHEMA,
     ALIAS_WARNING_SCHEMA,
     AliasCollisionError,
+    AliasContractError,
+    AliasRegistry,
     AliasSchemaError,
     CLI_ALIAS_CANONICAL,
     CLI_ALIAS_NAMES,
@@ -22,19 +26,33 @@ from tools.alias_registry import (
     load_alias_document,
     load_alias_registry,
     normalize_alias,
+    validate_alias_contract,
 )
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "aliases"
+PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
+
+
+def _project_entrypoints() -> dict[str, str]:
+    return tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]["scripts"]
 
 
 def test_default_cli_alias_entries_are_versioned_compatibility_metadata():
     entries = default_cli_alias_entries()
 
     assert tuple(entry.alias for entry in entries) == CLI_ALIAS_NAMES
-    assert {entry.canonical for entry in entries} == {CLI_ALIAS_CANONICAL}
+    assert {entry.alias: entry.canonical for entry in entries} == {
+        "hermes": CLI_ALIAS_CANONICAL,
+        "hermes-agent": CLI_ALIAS_CANONICAL,
+        "hermes-acp": "simplicio-agent-acp",
+    }
     assert {entry.owner for entry in entries} == {CLI_ALIAS_OWNER}
     assert {entry.warning_code for entry in entries} == {CLI_ALIAS_WARNING_CODE}
+    assert {entry.deprecated_since for entry in entries} == {"2026-07-13"}
+    assert {entry.warning_cadence for entry in entries} == {"once_per_process"}
+    assert {entry.remove_after for entry in entries} == {"2027-01-01"}
+    assert {entry.minimum_release_window for entry in entries} == {2}
     assert all(entry.deprecated and entry.note == "migration_only" for entry in entries)
 
 
@@ -48,8 +66,60 @@ def test_load_valid_registry_exposes_canonical_legacy_mapping():
     assert registry.legacy_map == {
         "hermes": "simplicio-agent",
         "hermes-agent": "simplicio-agent",
-        "hermes-acp": "simplicio-agent",
+        "hermes-acp": "simplicio-agent-acp",
     }
+
+
+def test_repository_alias_contract_has_window_and_no_alias_specific_logic():
+    registry = load_alias_registry(FIXTURES / "valid")
+
+    validated = validate_alias_contract(registry, _project_entrypoints())
+
+    assert validated is registry
+    assert registry.lookup(["hermes-acp"]).canonical == "simplicio-agent-acp"
+
+
+def test_builtin_alias_contract_matches_real_entrypoints():
+    registry = AliasRegistry(default_cli_alias_entries())
+
+    assert validate_alias_contract(registry, _project_entrypoints()) is registry
+
+
+def test_alias_contract_rejects_window_shorter_than_two_releases():
+    entries = list(default_cli_alias_entries())
+    entries[0] = replace(entries[0], minimum_release_window=1)
+
+    with pytest.raises(AliasContractError, match="must be between 2 and 3"):
+        validate_alias_contract(AliasRegistry(entries), _project_entrypoints())
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"deprecated_since": ""}, "requires deprecated_since"),
+        ({"warning_cadence": "daily"}, "warning_cadence must be one of"),
+        (
+            {"remove_after": "2026-07-13"},
+            "remove_after must follow deprecated_since",
+        ),
+    ],
+)
+def test_alias_contract_rejects_incomplete_deprecation_policy(changes, message):
+    entries = list(default_cli_alias_entries())
+    entries[0] = replace(entries[0], **changes)
+
+    with pytest.raises(AliasContractError, match=message):
+        validate_alias_contract(AliasRegistry(entries), _project_entrypoints())
+
+
+def test_alias_contract_rejects_alias_specific_entrypoint_logic():
+    entrypoints = _project_entrypoints()
+    entrypoints["hermes"] = "compatibility.hermes:main"
+
+    with pytest.raises(AliasContractError, match="alias-specific logic is forbidden"):
+        validate_alias_contract(
+            AliasRegistry(default_cli_alias_entries()), entrypoints
+        )
 
 
 def test_lookup_is_deterministic_and_warns_without_args_or_secrets():
@@ -105,6 +175,7 @@ def test_entries_are_sorted_by_normalized_alias_for_deterministic_iteration():
         "hermes-acp",
         "hermes-agent",
         "simplicio-agent",
+        "simplicio-agent-acp",
     )
 
 
@@ -177,7 +248,14 @@ def test_invalid_fixture_is_rejected_instead_of_skipped():
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("alias", 123), ("canonical", False), ("deprecated", "true")],
+    [
+        ("alias", 123),
+        ("canonical", False),
+        ("deprecated", "true"),
+        ("deprecated_since", 20260713),
+        ("warning_cadence", 1),
+        ("minimum_release_window", "2"),
+    ],
 )
 def test_invalid_entry_types_are_rejected(tmp_path, field, value):
     root = tmp_path / "aliases"
