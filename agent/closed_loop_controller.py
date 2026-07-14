@@ -16,6 +16,8 @@ after a match, and emits a caller-owned rollback intent after divergence.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import dataclass
 from enum import Enum
@@ -731,6 +733,18 @@ class DecisionBase:
 
     def to_dict(self) -> dict[str, object]:
         return self._base_dict()
+
+    def evidence_digest(self) -> str:
+        """Return a stable identity for a decision receipt across replays."""
+
+        return hashlib.sha256(
+            json.dumps(
+                self.to_dict(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
