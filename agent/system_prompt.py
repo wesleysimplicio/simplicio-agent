@@ -194,8 +194,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
 
     # Prompt economy (issue #196): progressive disclosure of the low-stakes
     # guidance sections cataloged in agent/prompt_economy.py. Gated by
-    # config.yaml ``agent.prompt_economy`` (default False — opt-in until the
-    # quality/safety A/B corpus in issue #196 step 11 lands). When enabled,
+    # config.yaml ``agent.prompt_economy`` (default True). When enabled,
     # the handles in prompt_economy.COMPACTABLE_HANDLES are folded into one
     # compact index block (handle + one-line summary) instead of shipping
     # their full text every turn; every other section (identity, no-
@@ -203,7 +202,9 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # execution discipline, steering, environment/platform/profile/nous)
     # always ships in full — see prompt_economy.COMPACTABLE_HANDLES docstring
     # for why those are excluded from compaction.
-    _economy_enabled = bool(getattr(agent, "_prompt_economy_enabled", False))
+    # Keep bypass paths aligned with agent_init's missing-config default while
+    # preserving an explicit ``agent.prompt_economy: false`` opt-out.
+    _economy_enabled = bool(getattr(agent, "_prompt_economy_enabled", True))
     _economy_active_handles: List[str] = []
 
     # Pointer to the hermes-agent skill + docs for user questions about Hermes itself.

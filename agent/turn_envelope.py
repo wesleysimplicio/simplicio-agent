@@ -187,7 +187,7 @@ def finish_turn_envelope(
     emitter = _get_emitter(agent)
     try:
         if failed:
-            plan = ((TaskState.FAILED, {"block_reason": "turn failed"}),)
+            plan = ((TaskState.FAILED, {}),)
         elif interrupted:
             plan = ((TaskState.BLOCKED, {"block_reason": "turn interrupted by user"}),)
         elif completed:

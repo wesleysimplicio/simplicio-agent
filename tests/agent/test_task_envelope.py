@@ -42,6 +42,29 @@ def test_dict_and_json_round_trip_every_field():
     assert again == env
 
 
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("attempts", "1"),
+        ("attempts", True),
+        ("created_at_ns", 1.5),
+        ("write_set", "agent/task_envelope.py"),
+        ("acceptance_criteria", {"schema exists"}),
+    ],
+)
+def test_from_dict_rejects_wire_type_coercion(field_name, invalid_value):
+    data = _make().to_dict()
+    data[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        TaskEnvelope.from_dict(data)
+
+
+def test_from_json_requires_an_object_envelope():
+    with pytest.raises(ValueError, match="JSON object"):
+        TaskEnvelope.from_json("[]")
+
+
 def test_unknown_state_in_from_dict_is_rejected():
     data = _make().to_dict()
     data["state"] = "teleported"
@@ -89,6 +112,27 @@ def test_transition_accepts_wire_state_value_and_rejects_unknown_state():
     assert env.state is TaskState.ORIENTED
     with pytest.raises(ValueError, match="invalid state"):
         env.transition("teleported")
+
+
+def test_transition_rejects_metadata_that_would_be_silently_discarded():
+    env = _make().transition(TaskState.ORIENTED)
+
+    with pytest.raises(ValueError, match="block_reason is only valid"):
+        env.transition(TaskState.PLANNED, block_reason="not blocked")
+    with pytest.raises(ValueError, match="delivery_target is only valid"):
+        env.transition(TaskState.PLANNED, delivery_target="pr://too-early")
+    with pytest.raises(ValueError, match="lists or tuples"):
+        env.transition(TaskState.PLANNED, receipts={"receipt://unordered"})
+    with pytest.raises(ValueError, match="lists or tuples"):
+        env.transition(TaskState.PLANNED, receipts="")
+
+
+def test_same_state_replay_rejects_conflicting_metadata_but_accepts_duplicates():
+    env = _make().transition(TaskState.ORIENTED, receipts=["receipt://orientation"])
+
+    assert env.transition(TaskState.ORIENTED, receipts=["receipt://orientation"]) is env
+    with pytest.raises(ValueError, match="same-state replay"):
+        env.transition(TaskState.ORIENTED, receipts=["receipt://different"])
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +194,12 @@ def test_invalid_transition_is_rejected_deterministically():
         env.transition(TaskState.DELIVERED)
     assert "received" in str(exc_info.value)
     assert "delivered" in str(exc_info.value)
+    assert exc_info.value.to_dict() == {
+        "code": "invalid_task_transition",
+        "from_state": "received",
+        "to_state": "delivered",
+        "allowed_states": ["blocked", "cancelled", "failed", "oriented", "quarantined"],
+    }
 
 
 def test_terminal_states_have_no_outgoing_transitions():
@@ -169,6 +219,19 @@ def test_blocked_can_resume_into_canonical_chain():
     resumed = env.transition(TaskState.PLANNED)
     assert resumed.state is TaskState.PLANNED
     assert resumed.block_reason is None
+
+
+def test_exception_transitions_cover_quarantine_and_failure_escalation():
+    assert _make().transition(TaskState.QUARANTINED).is_terminal
+
+    blocked = _make().transition(TaskState.BLOCKED, block_reason="dependency")
+    failed = blocked.transition(TaskState.FAILED)
+    assert failed.state is TaskState.FAILED
+
+    retried_but_waiting = failed.transition(
+        TaskState.BLOCKED, block_reason="retry dependency"
+    )
+    assert retried_but_waiting.state is TaskState.BLOCKED
 
 
 # ---------------------------------------------------------------------------

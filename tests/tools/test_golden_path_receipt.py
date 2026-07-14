@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,12 +25,16 @@ from tools.golden_path import (
 
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "golden-path"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _copy_fixture(tmp_path: Path) -> Path:
     fixture_root = tmp_path / "golden-path"
     shutil.copytree(FIXTURE_ROOT, fixture_root)
-    monkeypatch.setenv("GOLDEN_PATH_SCENARIO", str(fixture_root / "scenario.json"))
+    return fixture_root
+
+
+def _write_cli_wrapper(fixture_root: Path) -> Path:
     driver = (fixture_root / "fake_simplicio.py").resolve()
     if os.name == "nt":
         cli = fixture_root / "fake-simplicio.cmd"
@@ -37,13 +42,20 @@ def _fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             f'@echo off\r\n"{sys.executable}" "{driver}" %*\r\n',
             encoding="utf-8",
         )
-    else:
-        cli = fixture_root / "fake-simplicio"
-        cli.write_text(
-            f'#!/bin/sh\nexec "{sys.executable}" "{driver}" "$@"\n',
-            encoding="utf-8",
-        )
-        cli.chmod(cli.stat().st_mode | stat.S_IEXEC)
+        return cli
+    cli = fixture_root / "fake-simplicio"
+    cli.write_text(
+        f'#!/bin/sh\nexec "{sys.executable}" "{driver}" "$@"\n',
+        encoding="utf-8",
+    )
+    cli.chmod(cli.stat().st_mode | stat.S_IEXEC)
+    return cli
+
+
+def _fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    fixture_root = _copy_fixture(tmp_path)
+    monkeypatch.setenv("GOLDEN_PATH_SCENARIO", str(fixture_root / "scenario.json"))
+    cli = _write_cli_wrapper(fixture_root)
     scenario = GoldenPathScenario.from_path(fixture_root)
     return GoldenPathHarness.from_fixture(
         fixture_root,
@@ -83,3 +95,57 @@ def test_receipt_writer_round_trips_and_tampering_is_rejected(tmp_path, monkeypa
     tampered["delivery"]["accepted"] = False
     with pytest.raises(GoldenPathReceiptError, match="receipt_sha256"):
         verify_request_delivery_receipt(tampered)
+
+
+def test_receipt_build_fails_closed_when_evidence_artifact_is_missing(
+    tmp_path, monkeypatch
+):
+    result = _fixture_run(tmp_path, monkeypatch)
+    Path(result.receipt_files["evidence"]).unlink()
+
+    with pytest.raises(
+        GoldenPathReceiptError,
+        match="evidence receipt artifact is missing",
+    ):
+        build_request_delivery_receipt(result)
+
+
+def test_module_executes_request_to_delivery_and_writes_verified_receipt(tmp_path):
+    fixture_root = _copy_fixture(tmp_path)
+    cli = _write_cli_wrapper(fixture_root)
+    output = tmp_path / "artifacts" / "request-delivery.json"
+    stdout_path = tmp_path / "stdout.json"
+    stderr_path = tmp_path / "stderr.log"
+    with (
+        stdout_path.open("w", encoding="utf-8") as stdout,
+        stderr_path.open("w", encoding="utf-8") as stderr,
+    ):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "tools.golden_path",
+                "--fixture",
+                str(fixture_root),
+                "--cli-bin",
+                str(cli),
+                "--output",
+                str(output),
+            ],
+            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=stderr,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+    stderr_text = stderr_path.read_text(encoding="utf-8")
+    assert completed.returncode == 0, stderr_text
+    report = json.loads(stdout_path.read_text(encoding="utf-8"))
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert report["status"] == "MEASURED"
+    assert report["lifecycle_state"] == "closed"
+    assert report["receipt_sha256"] == receipt["receipt_sha256"]
+    assert verify_request_delivery_receipt(receipt) is True

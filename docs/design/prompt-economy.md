@@ -5,7 +5,9 @@ the system prompt. The compact index keeps short handles and summaries in the
 stable prompt tier; the full text is resolved only when a caller explicitly
 expands a handle. The `agent.prompt_economy` setting defaults to `true`, so
 new installations receive the measured compact path; set it to `false` to
-retain eager, full-text guidance.
+retain eager, full-text guidance. Prompt builders that bypass normal agent
+initialization use the same compact default; an explicit `false` remains the
+only full-guidance opt-out.
 
 Safety guidance remains eager. Only the conservative handles listed by
 `agent.prompt_economy.COMPACTABLE_HANDLES` may be summarized; identity,
