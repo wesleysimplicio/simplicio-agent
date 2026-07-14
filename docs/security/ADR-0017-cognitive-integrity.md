@@ -16,7 +16,7 @@ implementations.
 ## Decision
 
 We add `agent/trust_boundary.py` as a narrow cognitive-integrity contract with
-five behaviors:
+six behaviors:
 
 1. Typed provenance via `TrustClass` and `ProvenanceKind`.
 2. Canonical HMAC-SHA256 verification for authenticated control events.
@@ -26,6 +26,9 @@ five behaviors:
    signatures, digests, and token-like values before higher layers see them.
 5. Explicit fail-closed behavior on unknown keys, unsupported algorithms,
    malformed objects, mismatched digests, and broken receipt chains.
+6. Strict schema, digest, provenance-kind, and JSON-canonical-value validation;
+   claimed trusted provenance cannot be created for user/tool input, and
+   malformed boundary objects are converted to sanitized blocked outcomes.
 
 ## Consequences
 
@@ -51,6 +54,8 @@ Negative:
 - Forged control event with unknown key id: denied.
 - Forged control event with modified payload after signing: denied.
 - Control event with unsupported digest algorithm: denied.
+- Control event with an unknown schema or non-hex digest: denied.
+- User/tool provenance claiming a trusted control or receipt class: denied.
 - Receipt body tampering after issuance: denied.
 - Broken receipt-chain predecessor digest: denied.
 - Secret-bearing blocked outcomes leaking payload/signature/digest values:

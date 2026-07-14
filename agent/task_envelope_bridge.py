@@ -22,7 +22,12 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 from agent.protocol_v1 import Emitter, Envelope, ExecutionEvent, LifecycleEvent
-from agent.task_envelope import TaskEnvelope, TaskState
+from agent.task_envelope import (
+    InvalidTransitionError,
+    TaskEnvelope,
+    TaskState,
+    is_transition_allowed,
+)
 
 #: Deterministic map from a ``TaskEnvelope`` state to the ``protocol_v1``
 #: event_type that represents "the task just entered this state". States not
@@ -48,6 +53,28 @@ assert set(STATE_TO_EVENT_TYPE) == set(TaskState), (
     "every TaskState must have a protocol_v1 event mapping"
 )
 
+# These fields identify the task itself, rather than the mutable state carried
+# by a transition.  The bridge is a trust boundary: callers may only emit an
+# event for a successor produced from the same task lineage.  In particular,
+# accepting a ``dataclasses.replace``d envelope here would let a worker forge a
+# protocol event without going through ``TaskEnvelope.transition``.
+_LINEAGE_FIELDS = (
+    "schema",
+    "schema_version",
+    "task_id",
+    "parent_id",
+    "correlation_id",
+    "repo",
+    "branch",
+    "scope",
+    "write_set",
+    "acceptance_criteria",
+    "risk_policy",
+    "model",
+    "execution_policy",
+    "created_at_ns",
+)
+
 
 def emit_for_transition(
     before: TaskEnvelope,
@@ -69,7 +96,34 @@ def emit_for_transition(
             f"before/after task_id mismatch: {before.task_id!r} != {after.task_id!r}"
         )
     if before.state is after.state:
+        if before != after:
+            raise ValueError(
+                "same-state transition changed envelope content; "
+                "replay must be an exact no-op"
+            )
         return None
+
+    if not is_transition_allowed(before.state, after.state):
+        raise InvalidTransitionError(before.state, after.state)
+
+    for field_name in _LINEAGE_FIELDS:
+        if getattr(before, field_name) != getattr(after, field_name):
+            raise ValueError(f"before/after lineage mismatch for {field_name!r}")
+
+    if after.updated_at_ns < before.updated_at_ns:
+        raise ValueError("transition timestamp moved backwards")
+    expected_attempts = before.attempts + (after.state is TaskState.EXECUTING)
+    if after.attempts != expected_attempts:
+        raise ValueError(
+            f"invalid attempt count for transition: {before.attempts} -> "
+            f"{after.attempts}"
+        )
+    for field_name in ("artifacts", "receipts", "evidence_refs"):
+        before_values = set(getattr(before, field_name))
+        after_values = set(getattr(after, field_name))
+        if not before_values.issubset(after_values):
+            raise ValueError(f"{field_name} cannot be removed by a transition")
+
     event_type = STATE_TO_EVENT_TYPE[after.state]
     return emitter.emit(event_type, turn_id=turn_id, attempt_id=attempt_id)
 

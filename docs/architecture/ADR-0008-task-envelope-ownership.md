@@ -57,6 +57,18 @@ mirrors this and emits nothing for a same-state transition. A worker retrying
 a request it already made (e.g. a re-delivered webhook) can never duplicate
 state, an evidence ref, or a lifecycle event.
 
+The bridge also fails closed for forged snapshots: an event is emitted only
+for a state pair present in `ALLOWED_TRANSITIONS`, with the same task lineage
+(`task_id`, correlation, repository/scope, acceptance criteria, and creation
+timestamp). A same-state replay whose metadata differs from the prior
+envelope is rejected rather than treated as an idempotent no-op. This keeps
+the protocol event stream owned by the control plane instead of allowing a
+worker to manufacture a later state by constructing a replacement dataclass.
+Transition receipts, evidence references, and artifacts are append-only;
+attempt counts and update timestamps are monotonic as well. Empty or duplicate
+receipt/evidence/artifact references, blocked envelopes without a reason, and
+backdated transitions are rejected at the envelope boundary.
+
 ## Cross-repo note
 
 `simplicio-runtime#3028` owns the runtime-side mirror of this schema. This

@@ -21,6 +21,8 @@ import pytest
 from agent.prompt_economy import (
     ExpansionReceipt,
     INSTRUCTION_CATALOG,
+    PromptEconomyReceipt,
+    compact_block_receipt,
     expand_instruction_with_receipt,
     instruction_index_full_size,
     instruction_index_summary_size,
@@ -28,6 +30,7 @@ from agent.prompt_economy import (
     pin_capability_bundle,
     pin_capability_bundle_names,
     resolve_instruction_index,
+    render_compact_block,
 )
 
 
@@ -219,6 +222,34 @@ class TestBundlePinningIsStable:
         b = pin_capability_bundle_names(tools, "build a feature")
         assert a == b
 
+    def test_openai_wrapped_schemas_are_ranked_without_mutation(self):
+        tools = [
+            {
+                "type": "function",
+                "function": {"name": "write_file", "description": "Write a file."},
+            },
+            {
+                "type": "function",
+                "function": {"name": "web_search", "description": "Search the web."},
+            },
+        ]
+        before = [dict(tool["function"]) for tool in tools]
+        assert pin_capability_bundle_names(tools, task="search the web") == [
+            "web_search",
+            "write_file",
+        ]
+        assert [dict(tool["function"]) for tool in tools] == before
+
+    def test_duplicate_names_have_order_independent_schema_tiebreak(self):
+        first = [
+            {"name": "tool", "description": "alpha"},
+            {"name": "tool", "description": "beta"},
+        ]
+        second = list(reversed(first))
+        assert pin_capability_bundle(first, task="unrelated") == pin_capability_bundle(
+            second, task="unrelated"
+        )
+
 
 # ───────────────────────────────────────────────────────────────────────
 # (c) Total tool availability preserved (all 29 tools listed, order only)
@@ -285,6 +316,35 @@ def test_index_plus_bundle_compose():
     bundle = pin_capability_bundle(_canonical_tools(), task="send a message")
     assert idx and bundle
     assert len(bundle) == 29
+
+
+def test_compact_block_receipt_is_exact_and_cache_safe():
+    receipt = compact_block_receipt({"sec:skills", "sec:memory", "sec:session-search"})
+    assert isinstance(receipt, PromptEconomyReceipt)
+    assert receipt.active_handles == (
+        "sec:memory",
+        "sec:session-search",
+        "sec:skills",
+    )
+    assert receipt.raw_chars > receipt.compact_chars
+    assert receipt.chars_saved == receipt.raw_chars - receipt.compact_chars
+    assert receipt.tokens_saved == receipt.raw_tokens - receipt.compact_tokens
+    assert receipt.raw_bytes >= receipt.raw_chars
+    assert receipt.compact_bytes == len(
+        render_compact_block(receipt.active_handles).encode("utf-8")
+    )
+    assert receipt.to_dict() == receipt.as_dict()
+    assert receipt.cache_stable is True
+
+
+def test_compact_render_is_catalog_ordered_and_bounded():
+    handles = ["sec:skills", "sec:memory", "sec:skills", "sec:session-search"]
+    block = render_compact_block(handles, max_chars=650)
+    assert len(block) <= 650
+    assert block.index("sec:memory") < block.index("sec:session-search")
+    assert block.index("sec:session-search") < block.index("sec:skills")
+    with pytest.raises(ValueError):
+        render_compact_block(handles, max_chars=0)
 
 
 # ───────────────────────────────────────────────────────────────────────

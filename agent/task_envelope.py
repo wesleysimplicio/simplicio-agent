@@ -288,8 +288,42 @@ class TaskEnvelope:
             raise ValueError("task_id must be non-empty")
         if not isinstance(self.state, TaskState):
             raise ValueError(f"state must be a TaskState, got {self.state!r}")
-        if self.attempts < 0:
-            raise ValueError(f"attempts must be >= 0, got {self.attempts!r}")
+        if not isinstance(self.created_at_ns, int) or self.created_at_ns < 0:
+            raise ValueError(
+                f"created_at_ns must be a non-negative integer, got {self.created_at_ns!r}"
+            )
+        if not isinstance(self.updated_at_ns, int) or self.updated_at_ns < 0:
+            raise ValueError(
+                f"updated_at_ns must be a non-negative integer, got {self.updated_at_ns!r}"
+            )
+        if self.updated_at_ns < self.created_at_ns:
+            raise ValueError(
+                "updated_at_ns must be greater than or equal to created_at_ns"
+            )
+        if not isinstance(self.attempts, int) or self.attempts < 0:
+            raise ValueError(
+                f"attempts must be a non-negative integer, got {self.attempts!r}"
+            )
+        for field_name in (
+            "write_set",
+            "acceptance_criteria",
+            "artifacts",
+            "receipts",
+            "evidence_refs",
+        ):
+            values = getattr(self, field_name)
+            if not isinstance(values, tuple):
+                raise ValueError(f"{field_name} must be an immutable tuple")
+            if any(not isinstance(value, str) or not value.strip() for value in values):
+                raise ValueError(f"{field_name} must contain non-empty strings")
+            if len(values) != len(set(values)):
+                raise ValueError(f"{field_name} must not contain duplicates")
+        if self.state is TaskState.BLOCKED and not (
+            isinstance(self.block_reason, str) and self.block_reason.strip()
+        ):
+            raise ValueError("blocked envelopes require a non-empty block_reason")
+        if self.state is not TaskState.BLOCKED and self.block_reason is not None:
+            raise ValueError("block_reason is only valid for blocked envelopes")
         if self.state in (TaskState.CLOSED,) and not self.evidence_refs:
             raise ValueError(
                 "cannot construct a CLOSED envelope with no evidence_refs "
@@ -378,6 +412,10 @@ class TaskEnvelope:
             raise InvalidTransitionError(self.state, to_state)
 
         ts = now_ns if now_ns is not None else time.time_ns()
+        if ts < self.updated_at_ns:
+            raise ValueError(
+                "updated_at_ns must be greater than or equal to the prior value"
+            )
         attempts = self.attempts
         if to_state is TaskState.EXECUTING:
             attempts = attempts + 1
@@ -387,8 +425,12 @@ class TaskEnvelope:
         ) -> tuple[str, ...]:
             if not new:
                 return existing
+            if isinstance(new, str):
+                raise ValueError("transition collections must be lists or tuples")
             merged = list(existing)
             for item in new:
+                if not isinstance(item, str) or not item.strip():
+                    raise ValueError("transition references must be non-empty strings")
                 if item not in merged:
                     merged.append(item)
             return tuple(merged)

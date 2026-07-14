@@ -14,6 +14,8 @@ import pytest
 
 import tools.kernel_binding as kb
 import tools.runtime_manager as rm
+from tools.simplicio_bridge import SimplicioBridge
+from tools.simplicio_transport import SimplicioTransport
 
 
 @pytest.fixture(autouse=True)
@@ -363,6 +365,31 @@ class TestEvaluateActionGate:
             # block. "allow" just means "no additional block from me".
             assert kb.evaluate_action_gate("git status") is None
 
+    def test_required_mode_accepts_explicit_mcp_receipt_when_cli_is_unverified(
+        self, monkeypatch
+    ):
+        """The binding must not preflight-block a configured MCP fallback."""
+        monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        transport = SimplicioTransport(
+            cli_bin="missing-simplicio-for-kernel-binding-test",
+            mcp_call=lambda operation, args: {"decision": "allow"},
+        )
+        bridge = SimplicioBridge(transport)
+        with (
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(
+                kb, "_kernel_verified", return_value=(False, "CLI absent")
+            ),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
+        ):
+            assert kb.evaluate_action_gate("rm -rf /tmp/x") is None
+        health = transport.health()
+        assert health["cli_calls"] == 0
+        assert health["mcp_calls"] == 1
+        assert health["fallbacks"] == 1
+
     def test_kernel_error_required_mode_fails_closed(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         with (
@@ -407,7 +434,9 @@ class TestEvaluateActionGate:
         assert result["approved"] is False
         assert "recognized decision" in result["message"]
 
-    def test_bridge_none_result_surfaces_health_diagnostics_in_required_mode(self, monkeypatch):
+    def test_bridge_none_result_surfaces_health_diagnostics_in_required_mode(
+        self, monkeypatch
+    ):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         bridge = Mock()
         bridge.gate.return_value = None
@@ -417,9 +446,13 @@ class TestEvaluateActionGate:
             "last_fallback_reason": "cli_unavailable",
             "last_error": "mcp unavailable",
         }
-        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
-             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
-             mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge):
+        with (
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
+        ):
             result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
         assert result["approved"] is False
         assert "circuit_open" in result["message"]
@@ -427,12 +460,17 @@ class TestEvaluateActionGate:
 
     def test_bridge_runtime_error_still_honors_no_raise_contract(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
-        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
-             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
-             mock_patch.object(
-                 kb, "_get_simplicio_bridge",
-                 return_value=Mock(gate=Mock(side_effect=RuntimeError("boom"))),
-             ):
+        with (
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
+            mock_patch.object(
+                kb,
+                "_get_simplicio_bridge",
+                return_value=Mock(gate=Mock(side_effect=RuntimeError("boom"))),
+            ),
+        ):
             result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
         assert result["approved"] is False
         assert "boom" in result["message"]
@@ -474,26 +512,26 @@ class TestMirrorCheckpoint:
 
     def test_calls_kernel_when_present(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        bridge = Mock()
+        bridge.checkpoint.return_value = {"recorded": True}
         with (
             mock_patch("hermes_cli.config.load_config", return_value={}),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(
-                kb, "_run_kernel", return_value={"recorded": True}
-            ) as run,
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is True
-            run.assert_called_once()
-            args = run.call_args[0][0]
-            assert args[:2] == ["checkpoint", "record"]
+            bridge.checkpoint.assert_called_once_with(
+                "auto", workdir="/tmp/proj", extra=None
+            )
 
     def test_kernel_error_is_swallowed(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        bridge = Mock()
+        bridge.checkpoint.side_effect = kb.KernelBindingError("boom")
         with (
             mock_patch("hermes_cli.config.load_config", return_value={}),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(
-                kb, "_run_kernel", side_effect=kb.KernelBindingError("boom")
-            ),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is False
 
@@ -508,10 +546,12 @@ class TestMirrorCheckpoint:
                 kb.mirror_checkpoint("auto", workdir="/tmp/proj")
 
     def test_unacknowledged_response_is_not_reported_as_mirrored(self, monkeypatch):
+        bridge = Mock()
+        bridge.checkpoint.return_value = {"op": "list"}
         with (
             mock_patch("hermes_cli.config.load_config", return_value={}),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(kb, "_run_kernel", return_value={"op": "list"}),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.mirror_checkpoint("auto", workdir="/tmp/proj") is False
 
@@ -552,24 +592,26 @@ class TestEditMechanical:
     def test_success_returns_kernel_result(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         plan = {"file": "x.py", "operations": [{"op": "append", "text": "\n"}]}
+        bridge = Mock()
+        bridge.mechanical_edit.return_value = {"status": "ok"}
         with (
             mock_patch("hermes_cli.config.load_config", return_value=self._cfg("auto")),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(kb, "_run_kernel", return_value={"status": "ok"}) as run,
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             result = kb.edit_mechanical(plan)
             assert result == {"status": "ok"}
-            call_args = run.call_args[0][0]
-            assert call_args[0] == "edit"
-            assert json.loads(call_args[1]) == plan
+            bridge.mechanical_edit.assert_called_once_with(plan)
 
     def test_unacknowledged_result_does_not_claim_success(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         plan = {"file": "x.py", "operations": []}
+        bridge = Mock()
+        bridge.mechanical_edit.return_value = {"status": "error"}
         with (
             mock_patch("hermes_cli.config.load_config", return_value=self._cfg("auto")),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(kb, "_run_kernel", return_value={"status": "error"}),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.edit_mechanical(plan) is None
 
@@ -582,19 +624,23 @@ class TestEditMechanical:
 class TestLedgerAppend:
     def test_unacknowledged_json_is_not_success(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        bridge = Mock()
+        bridge.ledger.return_value = {"op": "list"}
         with (
             mock_patch("hermes_cli.config.load_config", return_value={}),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(kb, "_run_kernel", return_value={"op": "list"}),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.ledger_append({"kind": "test"}) is False
 
     def test_explicit_append_acknowledgement_is_success(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
+        bridge = Mock()
+        bridge.ledger.return_value = {"appended": True}
         with (
             mock_patch("hermes_cli.config.load_config", return_value={}),
             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
-            mock_patch.object(kb, "_run_kernel", return_value={"appended": True}),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.ledger_append({"kind": "test"}) is True
 
@@ -621,6 +667,17 @@ class TestSavingsEvent:
             "HERMES_KERNEL_BINDING_LOG", "/nonexistent-root-owned-dir-xyz/log.jsonl"
         )
         kb.emit_savings_event("gate", "kernel_denied")  # must not raise
+
+    def test_emit_forces_redaction_for_kernel_diagnostics(self, tmp_path, monkeypatch):
+        log_path = tmp_path / "kernel_binding.jsonl"
+        monkeypatch.setenv("HERMES_KERNEL_BINDING_LOG", str(log_path))
+        secret = "sk-test-secret-value-1234567890"
+        kb.emit_savings_event(
+            "gate", "kernel_denied", f"command=OPENAI_API_KEY={secret}"
+        )
+        record = json.loads(log_path.read_text().strip())
+        assert secret not in record["detail"]
+        assert "***" in record["detail"] or "redacted" in record["detail"]
 
 
 # =========================================================================

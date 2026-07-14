@@ -39,3 +39,22 @@ fallback.
 These local sizes and hashes are evidence about the assembled payload only.
 Provider-side token savings require a provider usage/cache receipt and must
 not be inferred from this API.
+
+## Bounded-slice audit (origin/main, 2026-07-14)
+
+The focused catalog measurement is deterministic: the compact index is 1,705
+characters versus 15,505 characters for the resolvable full bodies. For the
+five conservative compactable sections, the default compact block is 750
+characters versus 7,784 characters of full guidance (90.4% fewer characters,
+using the local four-characters-per-rough-token estimate). The block has an
+800-character cap; callers can use `compact_block_receipt(...)` to capture
+the active handles, exact character/UTF-8 byte counts, rough token counts,
+content hash, and local savings without changing the cached prefix.
+
+`pin_capability_bundle(...)` remains an ordering-only helper. It preserves
+every input schema, including OpenAI `{"type": "function", "function": ...}`
+wrappers, and must be computed once at session freeze if used. It is not a
+schema reducer and is not currently wired into request construction;
+provider-side tool-schema tax reduction is therefore **UNVERIFIED** by this
+slice and requires a separate integration change plus provider usage/cache
+evidence. No claim of billed-token savings follows from the local receipts.

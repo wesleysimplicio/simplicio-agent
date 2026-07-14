@@ -104,6 +104,118 @@ _kernel_verified_cache: Optional[tuple[bool, str]] = None
 _simplicio_bridge: Any = None
 _simplicio_bridge_lock = threading.Lock()
 
+_BRIDGE_RECEIPT_SCHEMAS = {
+    "simplicio-bridge/receipt/v1",
+    "simplicio-transport/receipt/v1",
+}
+
+
+def _redact_binding_text(value: Any) -> str:
+    """Redact binding diagnostics before they reach logs or receipts.
+
+    Kernel arguments remain live and are never redacted before dispatch.  Any
+    copy that leaves this module is forced through the shared redactor so a
+    user's opt-out for ordinary logs cannot leak a credential from a kernel
+    error, denial reason, or telemetry event.
+    """
+    try:
+        from agent.redact import redact_sensitive_text
+
+        return redact_sensitive_text(str(value), force=True)
+    except Exception:
+        # Redaction failure must never turn a safety boundary into a secret
+        # sink.  Preserve only a stable marker for the diagnostic.
+        return "<redaction-unavailable>"
+
+
+def _bridge_last_receipt(bridge: Any) -> Any:
+    """Read the #222 typed receipt without requiring it from test doubles."""
+    getter = getattr(bridge, "last_receipt", None)
+    if not callable(getter):
+        return None
+    try:
+        receipt = getter()
+    except Exception:
+        return None
+    schema = getattr(receipt, "schema", None)
+    if schema not in _BRIDGE_RECEIPT_SCHEMAS:
+        return None
+    return receipt
+
+
+def _bridge_receipt_value(value: Any, receipt: Any) -> Any:
+    """Use the typed receipt value when a legacy facade returns ``None``."""
+    if value is not None:
+        return value
+    return getattr(receipt, "value", None) if receipt is not None else None
+
+
+def _bridge_receipt_transport(receipt: Any) -> Optional[str]:
+    if receipt is None:
+        return None
+    transport = getattr(receipt, "transport", None)
+    return transport if isinstance(transport, str) else None
+
+
+def _bridge_receipt_detail(receipt: Any) -> str:
+    """Return stable, redacted receipt metadata for a failure message."""
+    if receipt is None:
+        return "no typed bridge receipt"
+    parts = []
+    transport = _bridge_receipt_transport(receipt)
+    if transport:
+        parts.append(f"transport={transport}")
+    fallback = getattr(receipt, "fallback_reason", None)
+    if isinstance(fallback, str) and fallback:
+        parts.append(f"fallback={fallback}")
+    error = getattr(receipt, "error", None)
+    if error:
+        message = getattr(error, "message", error)
+        parts.append(f"error={_redact_binding_text(message)}")
+    request_id = getattr(receipt, "request_id", None)
+    if isinstance(request_id, str) and request_id:
+        parts.append(f"request_id={request_id}")
+    return ", ".join(parts) or "typed bridge receipt contained no detail"
+
+
+def _bridge_call(
+    bridge: Any,
+    operation: str,
+    call: Any,
+    *,
+    kernel_ok: bool,
+    kernel_detail: str,
+) -> tuple[Any, Any]:
+    """Call the #222 facade and enforce capability provenance.
+
+    ``SimplicioTransport`` owns CLI-primary/MCP-fallback selection.  When the
+    pinned CLI is unavailable, a successful typed MCP receipt is still valid;
+    an untyped or CLI receipt is not.  This prevents a stale PATH binary or a
+    legacy test double from bypassing the runtime handshake.
+    """
+    value = call()
+    receipt = _bridge_last_receipt(bridge)
+    if receipt is not None:
+        if getattr(receipt, "ok", None) is not True:
+            prefix = "no healthy kernel; " if not kernel_ok else ""
+            raise KernelBindingError(
+                f"kernel {operation} {prefix}transport failed "
+                f"({_bridge_receipt_detail(receipt)}; "
+                f"{kernel_detail or 'runtime unavailable'})"
+            )
+        if not kernel_ok and _bridge_receipt_transport(receipt) != "mcp":
+            raise KernelBindingError(
+                f"kernel {operation} has no healthy kernel (verified CLI unavailable) "
+                f"and did not use MCP fallback "
+                f"({_bridge_receipt_detail(receipt)}; {kernel_detail or 'runtime unavailable'})"
+            )
+    elif not kernel_ok:
+        raise KernelBindingError(
+            f"kernel {operation} has no verified runtime and no typed MCP receipt "
+            f"({kernel_detail or 'runtime unavailable'})"
+        )
+    return value, receipt
+
 
 def _get_simplicio_bridge() -> Any:
     """Return the process-scoped bridge used by migrated binding call sites.
@@ -681,7 +793,11 @@ def emit_savings_event(source: str, outcome: str, detail: str = "") -> None:
     try:
         path = _telemetry_log_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        record = SavingsEvent(source=source, outcome=outcome, detail=detail[:300])
+        record = SavingsEvent(
+            source=source,
+            outcome=outcome,
+            detail=_redact_binding_text(detail)[:300],
+        )
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(record.to_json() + "\n")
     except Exception as exc:
@@ -720,45 +836,28 @@ def evaluate_action_gate(
         return None
 
     kernel_ok, kernel_detail = _kernel_verified()
-    if not kernel_ok:
-        why = kernel_detail or "kernel binary not found"
-        if mode == "required":
-            emit_savings_event(
-                "gate",
-                "blocked_kernel_absent",
-                f"pattern={pattern_key} description={description} why={why}",
-            )
-            return {
-                "approved": False,
-                "pattern_key": pattern_key,
-                "description": description,
-                "message": (
-                    "BLOCKED: kernel_binding.action_gate.mode is 'required' but no "
-                    f"healthy simplicio kernel is available ({why}). Refusing to fall "
-                    "back to an ungated approval for a flagged-dangerous command "
-                    f"({description or pattern_key}). Run 'simplicio-agent doctor --fix' to "
-                    "install/update the kernel, or set "
-                    "kernel_binding.action_gate.mode to 'auto'/'off' to change this."
-                ),
-            }
-        logger.warning(
-            "kernel_binding.action_gate: no healthy simplicio kernel (%s) -- "
-            "gate is OFF for this call, falling back to the built-in approval flow "
-            "(honest degradation, not a silent bypass).",
-            why,
-        )
-        return None
 
     try:
         bridge = _get_simplicio_bridge()
-        result = bridge.gate(
-            command,
-            pattern_key=pattern_key,
-            description=description,
-            session_key=session_key,
+        result, receipt = _bridge_call(
+            bridge,
+            "gate",
+            lambda: bridge.gate(
+                command,
+                pattern_key=pattern_key,
+                description=description,
+                session_key=session_key,
+            ),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
         )
+        result = _bridge_receipt_value(result, receipt)
         if result is None:
-            raise KernelBindingError(_bridge_gate_failure_detail(bridge))
+            raise KernelBindingError(
+                f"{_bridge_gate_failure_detail(bridge)} ({_bridge_receipt_detail(receipt)})"
+            )
+        if not isinstance(result, dict):
+            raise KernelBindingError("kernel gate response was not an object")
         decision = str(result.get("decision", "")).strip().lower()
         if decision not in {"allow", "ask", "deny", "block", "blocked"}:
             raise KernelBindingError(
@@ -767,32 +866,45 @@ def evaluate_action_gate(
     except Exception as exc:
         if not isinstance(exc, KernelBindingError):
             exc = KernelBindingError(str(exc))
-        logger.warning("kernel_binding.action_gate: gate classify failed: %s", exc)
+        safe_exc = _redact_binding_text(exc)
+        if not kernel_ok and kernel_detail:
+            safe_exc = (
+                f"{safe_exc}; no healthy simplicio kernel "
+                f"({_redact_binding_text(kernel_detail)})"
+            )
+        logger.warning("kernel_binding.action_gate: gate classify failed: %s", safe_exc)
         if mode == "required":
-            emit_savings_event("gate", "blocked_kernel_error", str(exc)[:300])
+            emit_savings_event("gate", "blocked_kernel_error", safe_exc)
             return {
                 "approved": False,
                 "pattern_key": pattern_key,
-                "description": description,
+                "description": _redact_binding_text(description),
                 "message": (
                     "BLOCKED: kernel_binding.action_gate.mode is 'required' and the "
-                    f"kernel gate call failed ({exc}). Refusing to approve a "
-                    f"flagged-dangerous command ({description or pattern_key}) without it."
+                    f"simplicio kernel gate call failed ({safe_exc}). Refusing to approve a "
+                    f"flagged-dangerous command "
+                    f"({_redact_binding_text(description or pattern_key)}) without it."
                 ),
             }
         return None
 
     if decision in {"deny", "block", "blocked"}:
-        reason = str(result.get("reason") or result.get("message") or "kernel denied")
+        reason = _redact_binding_text(
+            result.get("reason") or result.get("message") or "kernel denied"
+        )
         emit_savings_event("gate", "kernel_denied", reason[:300])
         return {
             "approved": False,
             "pattern_key": pattern_key,
-            "description": description,
+            "description": _redact_binding_text(description),
             "message": f"BLOCKED by simplicio kernel action gate: {reason}",
         }
 
-    emit_savings_event("gate", f"kernel_{decision or 'observed'}", command[:200])
+    emit_savings_event(
+        "gate",
+        f"kernel_{decision or 'observed'}",
+        _redact_binding_text(command[:200]),
+    )
     return None
 
 
@@ -817,22 +929,20 @@ def mirror_checkpoint(
     if cfg["mode"] == "off":
         return False
     kernel_ok, kernel_detail = _kernel_verified()
-    if not kernel_ok:
-        message = (
-            "kernel_binding.checkpoint: no healthy kernel "
-            f"({kernel_detail or 'not found'})"
-        )
-        if cfg["mode"] == "required":
-            raise KernelBindingError(message)
-        logger.debug("%s -- skipping optional mirror", message)
-        return False
     try:
-        payload = {"label": label, "workdir": workdir, **(extra or {})}
-        result = _run_kernel(
-            ["checkpoint", "record", "--json"],
-            timeout=5.0,
-            input_data=json.dumps(payload),
+        bridge = _get_simplicio_bridge()
+        value, receipt = _bridge_call(
+            bridge,
+            "checkpoint",
+            lambda: bridge.checkpoint(label, workdir=workdir, extra=extra),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
         )
+        result = _bridge_receipt_value(value, receipt)
+        if not isinstance(result, dict):
+            raise KernelBindingError(
+                f"checkpoint response was not an acknowledgement ({_bridge_receipt_detail(receipt)})"
+            )
         if not _checkpoint_record_acknowledged(result):
             raise KernelBindingError(
                 "kernel checkpoint response did not acknowledge a record"
@@ -879,26 +989,24 @@ def edit_mechanical(plan: dict) -> Optional[dict]:
     if cfg["mode"] == "off":
         return None
     kernel_ok, kernel_detail = _kernel_verified()
-    if not kernel_ok:
-        msg = (
-            "kernel_binding.mechanical_edit: no healthy kernel "
-            f"({kernel_detail or 'not found'})"
-        )
-        if cfg["mode"] == "required":
-            raise KernelBindingError(msg)
-        logger.warning("%s -- falling back to LLM-authored edit", msg)
-        return None
     try:
-        result = _run_kernel(
-            ["edit", json.dumps(plan), "--json"],
-            timeout=15.0,
+        bridge = _get_simplicio_bridge()
+        value, receipt = _bridge_call(
+            bridge,
+            "mechanical_edit",
+            lambda: bridge.mechanical_edit(plan),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
         )
+        result = _bridge_receipt_value(value, receipt)
     except KernelBindingError as exc:
-        emit_savings_event("mechanical_edit", "kernel_error", str(exc)[:300])
+        safe_exc = _redact_binding_text(exc)
+        emit_savings_event("mechanical_edit", "kernel_error", safe_exc)
         if cfg["mode"] == "required":
-            raise
+            raise KernelBindingError(safe_exc) from exc
         logger.warning(
-            "kernel_binding.mechanical_edit: edit call failed, falling back: %s", exc
+            "kernel_binding.mechanical_edit: edit call failed, falling back: %s",
+            safe_exc,
         )
         return None
     if not _mechanical_edit_acknowledged(result):
@@ -935,15 +1043,24 @@ def orient_map(repo: str, *, fmt: str = "markdown") -> Optional[str]:
     compressed repo view for context_engine/coding_context instead of raw
     tree reads. Returns ``None`` on any degradation (off/absent/error)."""
     cfg = get_binding_config("orient")
-    if cfg["mode"] == "off" or not is_kernel_available():
+    if cfg["mode"] == "off":
         return None
+    kernel_ok, kernel_detail = _kernel_verified()
     try:
-        result = _run_kernel(
-            ["runtime", "map", "--repo", repo, "--for-llm", fmt, "--json"],
-            timeout=20.0,
+        bridge = _get_simplicio_bridge()
+        value, receipt = _bridge_call(
+            bridge,
+            "orient",
+            lambda: bridge.orient(repo, fmt=fmt),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
         )
+        result = _bridge_receipt_value(value, receipt)
     except KernelBindingError as exc:
-        logger.debug("kernel_binding.orient: map failed (non-fatal): %s", exc)
+        logger.debug(
+            "kernel_binding.orient: map failed (non-fatal): %s",
+            _redact_binding_text(exc),
+        )
         return None
     emit_savings_event("recall", "orient_map", repo[:300])
     return result.get("map") or result.get("output") or None
@@ -953,18 +1070,29 @@ def memory_recall(query: str, *, repo: str = "") -> Optional[str]:
     """``simplicio memory <query> --json`` -- prior decisions/context from
     the kernel's neural memory instead of re-deriving known facts."""
     cfg = get_binding_config("recall")
-    if cfg["mode"] == "off" or not is_kernel_available():
+    if cfg["mode"] == "off":
         return None
-    args = ["memory", query, "--json"]
-    if repo:
-        args += ["--repo", repo]
+    kernel_ok, kernel_detail = _kernel_verified()
     try:
-        result = _run_kernel(args, timeout=10.0)
+        bridge = _get_simplicio_bridge()
+        value, receipt = _bridge_call(
+            bridge,
+            "recall",
+            lambda: bridge.recall(query, repo=repo),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
+        )
+        result = _bridge_receipt_value(value, receipt)
     except KernelBindingError as exc:
-        logger.debug("kernel_binding.recall: memory query failed (non-fatal): %s", exc)
+        logger.debug(
+            "kernel_binding.recall: memory query failed (non-fatal): %s",
+            _redact_binding_text(exc),
+        )
         return None
     emit_savings_event("recall", "memory_hit", query[:300])
-    return result.get("result") or result.get("output") or None
+    if isinstance(result, dict):
+        return result.get("result") or result.get("output") or None
+    return result if isinstance(result, str) else None
 
 
 # ---------------------------------------------------------------------------
@@ -980,16 +1108,30 @@ def ledger_append(event: dict) -> bool:
     if cfg["mode"] == "off" or not kernel_ok:
         if cfg["mode"] != "off" and kernel_detail:
             logger.debug("kernel_binding.ledger: kernel unavailable: %s", kernel_detail)
-        return False
     try:
-        result = _run_kernel(
-            ["ledger", "append", "--json"],
-            timeout=8.0,
-            input_data=json.dumps(event),
+        if cfg["mode"] == "off":
+            return False
+        bridge = _get_simplicio_bridge()
+        value, receipt = _bridge_call(
+            bridge,
+            "ledger",
+            lambda: bridge.ledger(event),
+            kernel_ok=kernel_ok,
+            kernel_detail=kernel_detail,
         )
+        result = _bridge_receipt_value(value, receipt)
+        if isinstance(result, bool):
+            # Bridge.ledger() returns bool for compatibility, but only a
+            # typed receipt value can prove the runtime append acknowledgement.
+            result = getattr(receipt, "value", None) if receipt is not None else None
+        if not isinstance(result, dict):
+            return False
         return _ledger_append_acknowledged(result)
     except KernelBindingError as exc:
-        logger.debug("kernel_binding.ledger: append failed (non-fatal): %s", exc)
+        logger.debug(
+            "kernel_binding.ledger: append failed (non-fatal): %s",
+            _redact_binding_text(exc),
+        )
         return False
 
 

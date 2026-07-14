@@ -11,6 +11,8 @@ from agent.trust_boundary import (
     FailClosedTrustBoundaryError,
     IntegrityReceipt,
     TrustClass,
+    TrustProvenance,
+    ProvenanceKind,
     blocked_cognitive_integrity,
     enforce_control_event,
     enforce_receipt,
@@ -80,6 +82,63 @@ def test_unsupported_control_event_algorithm_is_denied():
         verify_control_event(event, keyring=keyring)
 
 
+def test_non_hex_digest_and_unknown_schema_are_denied():
+    event = _load("control_event_valid.json")
+    event["auth"]["digest"] = "z" * 64
+    with pytest.raises(FailClosedTrustBoundaryError):
+        verify_control_event(event, keyring=_load("control_event_keyring.json"))
+
+    event = _load("control_event_valid.json")
+    event["schema"] = "attacker.schema/v1"
+    with pytest.raises(FailClosedTrustBoundaryError):
+        verify_control_event(event, keyring=_load("control_event_keyring.json"))
+
+
+def test_provenance_cannot_claim_trusted_class_for_untrusted_kind():
+    with pytest.raises(FailClosedTrustBoundaryError):
+        TrustProvenance(
+            kind=ProvenanceKind.USER_CONTENT,
+            trust_class=TrustClass.TRUSTED_CONTROL_PLANE,
+            source="user",
+            authenticated=True,
+            key_id="ops-main",
+            event_id="evt-forged",
+            digest="0" * 64,
+        )
+
+    with pytest.raises(FailClosedTrustBoundaryError):
+        TrustProvenance(
+            kind=ProvenanceKind.RECEIPT,
+            trust_class=TrustClass.TRUSTED_RECEIPT,
+            source="receipt",
+            authenticated=True,
+            digest="not-a-digest",
+        )
+
+
+def test_malformed_receipt_is_converted_to_sanitized_block():
+    blocked = enforce_receipt({"provenance": {"kind": "not-a-kind"}})
+    assert isinstance(blocked, BlockedCognitiveIntegrity)
+    assert blocked.reason is BlockedReason.TAMPERED_RECEIPT
+
+
+def test_public_block_redacts_direct_message_source_and_common_tokens():
+    blocked = BlockedCognitiveIntegrity(
+        reason=BlockedReason.MALFORMED_INPUT,
+        message="xoxb-12345678-secret ghp_12345678-secret",
+        provenance=TrustProvenance(
+            kind=ProvenanceKind.UNKNOWN,
+            trust_class=TrustClass.BLOCKED_COGNITIVE_INTEGRITY,
+            source="bearer leaked-source-token",
+        ),
+    )
+    public = blocked.to_public_dict()
+    rendered = json.dumps(public)
+    assert "xoxb-12345678-secret" not in rendered
+    assert "ghp_12345678-secret" not in rendered
+    assert "leaked-source-token" not in rendered
+
+
 def test_receipt_fixture_chain_verifies_and_round_trips():
     receipts = _load("receipt_chain_valid.json")
 
@@ -141,7 +200,9 @@ def test_issue_helpers_create_verifiable_objects():
         key_id="ops-main",
         secret="fixture-secret-main",
     )
-    provenance = verify_control_event(event, keyring={"ops-main": "fixture-secret-main"})
+    provenance = verify_control_event(
+        event, keyring={"ops-main": "fixture-secret-main"}
+    )
     receipt = issue_receipt(
         receipt_id="rcpt-inline",
         subject="issue-185",
