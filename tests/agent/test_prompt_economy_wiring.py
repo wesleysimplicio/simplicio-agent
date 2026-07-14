@@ -67,16 +67,19 @@ def _stable_prompt(agent):
         return build_system_prompt_parts(agent)["stable"]
 
 
-class TestPromptEconomyDefaultOff:
-    def test_flag_missing_entirely_behaves_as_off(self, monkeypatch, tmp_path):
+class TestPromptEconomyModes:
+    def test_flag_missing_entirely_uses_compact_default(self, monkeypatch):
         """A code path that bypasses agent_init (no ``_prompt_economy_enabled``
-        attribute at all) must fall back to full-text guidance, never raise
-        and never silently compact."""
+        attribute at all) must match the missing-config compact default."""
         monkeypatch.delenv("TERMINAL_CWD", raising=False)
         agent = _make_agent()
         del agent._prompt_economy_enabled
         stable = _stable_prompt(agent)
-        assert "Compact capability index" not in stable
+        from agent.prompt_builder import MEMORY_GUIDANCE
+
+        assert "Compact capability index" in stable
+        assert "sec:memory" in stable
+        assert MEMORY_GUIDANCE.strip() not in stable
 
     def test_off_ships_full_guidance_text(self, monkeypatch):
         monkeypatch.delenv("TERMINAL_CWD", raising=False)
