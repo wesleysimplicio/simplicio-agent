@@ -257,6 +257,39 @@ def test_successful_finalize_uses_strict_close_gate():
     assert agent._task_envelope.state is TaskState.CLOSED
 
 
+def test_real_finalize_turn_calls_finish_turn_envelope_once(monkeypatch):
+    agent = _StubAgent()
+    turn_id = "turn-once"
+    start_turn_envelope(agent, turn_id=turn_id, user_message="hi")
+
+    import agent.turn_envelope as turn_envelope_module
+
+    original_finish = turn_envelope_module.finish_turn_envelope
+    calls = []
+
+    def _spy_finish_turn_envelope(*args, **kwargs):
+        calls.append((args, kwargs))
+        return original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(
+        turn_envelope_module, "finish_turn_envelope", _spy_finish_turn_envelope
+    )
+
+    _finalize(
+        agent,
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}],
+        turn_id=turn_id,
+        interrupted=False,
+        failed=False,
+        final_response="ok",
+    )
+
+    assert len(calls) == 1
+    assert calls[0][1]["turn_id"] == turn_id
+    assert calls[0][1]["completed"] is True
+    assert agent._task_envelope.state is TaskState.CLOSED
+
+
 def test_failed_turn_drives_envelope_to_failed_via_real_finalize_turn():
     agent = _StubAgent()
     turn_id = "turn-failed"
