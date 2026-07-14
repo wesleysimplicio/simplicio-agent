@@ -52,13 +52,19 @@ def _validate_entry_path(path: str) -> None:
 
 
 def _validate_digest(digest: str) -> None:
-    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(char not in "0123456789abcdef" for char in digest)
+    ):
         raise SnapshotError("snapshot entry has an invalid digest")
 
 
 def _validate_snapshot_id(snapshot_id: str) -> None:
-    if len(snapshot_id) != 64 or any(
-        char not in "0123456789abcdef" for char in snapshot_id
+    if (
+        not isinstance(snapshot_id, str)
+        or len(snapshot_id) != 64
+        or any(char not in "0123456789abcdef" for char in snapshot_id)
     ):
         raise SnapshotError("invalid snapshot id")
 
@@ -88,11 +94,32 @@ def _atomic_json(path: Path, value: Mapping[str, object]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        _fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temporary)
         except FileNotFoundError:
             pass
+
+
+def _fsync_directory(path: Path) -> None:
+    """Best-effort durability for a rename in a directory.
+
+    Windows does not generally allow opening a directory as a file, while
+    POSIX filesystems need the directory entry flushed separately from the
+    renamed file.  The primitive remains usable on both platforms and makes
+    the stronger durability step where the platform supports it.
+    """
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(descriptor)
 
 
 def _safe_files(root: Path) -> list[tuple[str, Path]]:
@@ -111,6 +138,11 @@ def _safe_files(root: Path) -> list[tuple[str, Path]]:
                 raise SnapshotError(f"snapshot contains symlink: {path}")
         for name in files:
             path = current_path / name
+            try:
+                if not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
+                    raise SnapshotError(f"snapshot contains non-regular file: {path}")
+            except FileNotFoundError as exc:
+                raise SnapshotError(f"snapshot file disappeared: {path}") from exc
             relative = path.relative_to(root).as_posix()
             if not relative or relative.startswith("../") or "/../" in relative:
                 raise SnapshotError("snapshot path escapes its root")
@@ -136,17 +168,23 @@ class SnapshotEntry:
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> "SnapshotEntry":
         try:
+            if not isinstance(value["size_bytes"], int) or isinstance(
+                value["size_bytes"], bool
+            ):
+                raise TypeError
+            if not isinstance(value["mode"], int) or isinstance(value["mode"], bool):
+                raise TypeError
             entry = cls(
                 str(value["path"]),
                 str(value["digest"]),
-                int(value["size_bytes"]),
-                int(value["mode"]),
+                value["size_bytes"],
+                value["mode"],
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise SnapshotError("snapshot entry is malformed") from exc
         _validate_entry_path(entry.path)
         _validate_digest(entry.digest)
-        if entry.size_bytes < 0 or entry.mode < 0:
+        if entry.size_bytes < 0 or entry.mode < 0 or entry.mode > 0o7777:
             raise SnapshotError("snapshot entry has invalid size or mode")
         return entry
 
@@ -254,6 +292,15 @@ class SnapshotReceipt:
         return hashlib.sha256(_canonical(self.to_dict())).hexdigest()
 
 
+@dataclass(frozen=True)
+class GarbageCollectionResult:
+    """Deterministic report from one bounded snapshot GC pass."""
+
+    removed_snapshots: tuple[str, ...] = ()
+    removed_blobs: tuple[str, ...] = ()
+    retained_snapshots: tuple[str, ...] = ()
+
+
 def _file_digest(path: Path) -> tuple[str, int, int]:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -261,6 +308,24 @@ def _file_digest(path: Path) -> tuple[str, int, int]:
             digest.update(chunk)
     info = path.stat()
     return digest.hexdigest(), info.st_size, stat.S_IMODE(info.st_mode)
+
+
+def _snapshot_ids_in_value(value: object) -> set[str]:
+    """Conservatively retain every valid snapshot ID named by journal data."""
+    found: set[str] = set()
+    if isinstance(value, str):
+        try:
+            _validate_snapshot_id(value)
+        except SnapshotError:
+            return found
+        found.add(value)
+    elif isinstance(value, Mapping):
+        for item in value.values():
+            found.update(_snapshot_ids_in_value(item))
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            found.update(_snapshot_ids_in_value(item))
+    return found
 
 
 def snapshot_tree(root: Path) -> SnapshotManifest:
@@ -300,6 +365,18 @@ class SnapshotStore:
         self.blobs = self.root / "blobs"
         self.manifests = self.root / "snapshots"
 
+    def _blob(self, entry: SnapshotEntry) -> Path:
+        """Return a verified regular blob path, rejecting symlink escapes."""
+        _validate_digest(entry.digest)
+        blob = self.blobs / entry.digest
+        try:
+            mode = blob.stat(follow_symlinks=False).st_mode
+        except FileNotFoundError:
+            raise SnapshotError(f"missing or corrupt snapshot blob: {entry.path}")
+        if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+            raise SnapshotError(f"missing or corrupt snapshot blob: {entry.path}")
+        return blob
+
     def create(
         self,
         source: Path,
@@ -320,27 +397,41 @@ class SnapshotStore:
         self.manifests.mkdir(parents=True, exist_ok=True)
         for entry in manifest.entries:
             blob = self.blobs / entry.digest
+            if blob.is_symlink():
+                blob.unlink()
             if blob.exists() and blob.is_file():
                 if _file_digest(blob)[0] == entry.digest:
                     continue
                 blob.unlink()
-            temporary = self.blobs / f".{entry.digest}.tmp"
-            temporary.unlink(missing_ok=True)
-            shutil.copyfile(Path(source).resolve() / entry.path, temporary)
-            if _file_digest(temporary)[0] != entry.digest:
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{entry.digest}.", suffix=".tmp", dir=self.blobs
+            )
+            os.close(descriptor)
+            temporary = Path(temporary_name)
+            try:
+                shutil.copyfile(Path(source).resolve() / entry.path, temporary)
+                digest, size, _ = _file_digest(temporary)
+                if digest != entry.digest or size != entry.size_bytes:
+                    raise SnapshotError("source changed while snapshotting")
+                with temporary.open("r+b") as handle:
+                    os.fsync(handle.fileno())
+                os.replace(temporary, blob)
+                _fsync_directory(self.blobs)
+            finally:
                 temporary.unlink(missing_ok=True)
-                raise SnapshotError("source changed while snapshotting")
-            os.replace(temporary, blob)
         if snapshot_tree(source).snapshot_id != manifest.snapshot_id:
             raise SnapshotError("source changed while snapshotting")
         _atomic_json(
             self.manifests / f"{manifest.snapshot_id}.json", manifest.to_dict()
         )
+        _fsync_directory(self.manifests)
         return manifest
 
     def load(self, snapshot_id: str) -> SnapshotManifest:
         _validate_snapshot_id(snapshot_id)
         path = self.manifests / f"{snapshot_id}.json"
+        if path.is_symlink():
+            raise SnapshotError("snapshot manifest is unavailable")
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(value, dict):
@@ -387,12 +478,9 @@ class SnapshotStore:
         for entry in manifest.entries:
             _validate_entry_path(entry.path)
             _validate_digest(entry.digest)
-            blob = self.blobs / entry.digest
-            if (
-                not blob.is_file()
-                or _file_digest(blob)[0] != entry.digest
-                or _file_digest(blob)[1] != entry.size_bytes
-            ):
+            blob = self._blob(entry)
+            digest, size, _ = _file_digest(blob)
+            if digest != entry.digest or size != entry.size_bytes:
                 raise SnapshotError(f"missing or corrupt snapshot blob: {entry.path}")
         target = Path(target).expanduser()
         if target.is_symlink():
@@ -402,16 +490,28 @@ class SnapshotStore:
             raise SnapshotError("restore target must be a directory")
         if target.exists() and any(target.iterdir()):
             raise SnapshotError("restore target must be empty")
-        target.mkdir(parents=True, exist_ok=True)
-        for entry in manifest.entries:
-            blob = self.blobs / entry.digest
-            destination = target / entry.path
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(blob, destination)
-            os.chmod(destination, entry.mode)
-        receipt = self.verify(manifest, target)
-        if not receipt.verified:
-            raise SnapshotError("restored snapshot failed integrity verification")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary_target = Path(
+            tempfile.mkdtemp(prefix=f".{target.name}.restore-", dir=target.parent)
+        )
+        promoted = False
+        try:
+            for entry in manifest.entries:
+                blob = self._blob(entry)
+                destination = temporary_target / entry.path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(blob, destination)
+                os.chmod(destination, entry.mode)
+            receipt = self.verify(manifest, temporary_target)
+            if not receipt.verified:
+                raise SnapshotError("restored snapshot failed integrity verification")
+            if target.exists():
+                target.rmdir()
+            os.replace(temporary_target, target)
+            promoted = True
+        finally:
+            if not promoted:
+                shutil.rmtree(temporary_target, ignore_errors=True)
         return SnapshotReceipt(
             operation="restore",
             before_digest=manifest.root_digest,
@@ -421,6 +521,175 @@ class SnapshotStore:
             removed=receipt.removed,
             changed=receipt.changed,
         )
+
+    def collect_garbage(
+        self,
+        keep_latest: int = 2,
+        *,
+        reachable_snapshot_ids: Iterable[str] = (),
+        journal: "TransactionJournal | Path | None" = None,
+        max_deletes: int | None = None,
+    ) -> GarbageCollectionResult:
+        """Remove only unreachable snapshots and their orphaned blobs.
+
+        The retention floor is the newest ``keep_latest`` manifests, plus
+        snapshots named by the current pointer, pending staging manifests,
+        explicit reachability roots, and every record in an open journal.
+        ``max_deletes`` bounds one pass so a maintenance tick cannot turn into
+        an unbounded destructive sweep.  A malformed manifest, pointer, or
+        journal fails closed before anything is deleted.
+        """
+        if not isinstance(keep_latest, int) or isinstance(keep_latest, bool):
+            raise ValueError("keep_latest must be a non-negative integer")
+        if keep_latest < 0:
+            raise ValueError("keep_latest must be a non-negative integer")
+        if max_deletes is not None and (
+            not isinstance(max_deletes, int)
+            or isinstance(max_deletes, bool)
+            or max_deletes < 0
+        ):
+            raise ValueError("max_deletes must be a non-negative integer")
+        manifests: dict[str, SnapshotManifest] = {}
+        manifest_mtimes: dict[str, tuple[int, str]] = {}
+        if self.manifests.exists():
+            if self.manifests.is_symlink() or not self.manifests.is_dir():
+                raise SnapshotError("snapshot manifest store is invalid")
+            for path in self.manifests.iterdir():
+                if path.name.startswith(".") or path.suffix != ".json":
+                    continue
+                if path.is_symlink() or not path.is_file():
+                    raise SnapshotError(
+                        "snapshot manifest store contains invalid entry"
+                    )
+                snapshot_id = path.stem
+                _validate_snapshot_id(snapshot_id)
+                manifests[snapshot_id] = self.load(snapshot_id)
+                manifest_mtimes[snapshot_id] = (path.stat().st_mtime_ns, snapshot_id)
+
+        protected: set[str] = set()
+        for snapshot_id in reachable_snapshot_ids:
+            _validate_snapshot_id(snapshot_id)
+            protected.add(snapshot_id)
+        protected.update(self._pointer_snapshot_ids())
+        protected.update(self._staged_snapshot_ids())
+        if journal is not None:
+            source = (
+                journal
+                if isinstance(journal, TransactionJournal)
+                else TransactionJournal(Path(journal))
+            )
+            for record in source.records():
+                protected.update(_snapshot_ids_in_value(record.payload))
+
+        newest = sorted(
+            manifests,
+            key=lambda snapshot_id: manifest_mtimes[snapshot_id],
+            reverse=True,
+        )[:keep_latest]
+        retained = protected | set(newest)
+        candidates = sorted(
+            (snapshot_id for snapshot_id in manifests if snapshot_id not in retained),
+            key=lambda snapshot_id: manifest_mtimes[snapshot_id],
+        )
+        if max_deletes is not None:
+            candidates = candidates[:max_deletes]
+        # Validate the complete blob directory before deleting any manifest;
+        # GC must fail closed rather than leave a partially collected store.
+        if self.blobs.exists():
+            if self.blobs.is_symlink() or not self.blobs.is_dir():
+                raise SnapshotError("snapshot blob store is invalid")
+            for path in self.blobs.iterdir():
+                if path.name.startswith(".") or len(path.name) != 64:
+                    continue
+                _validate_digest(path.name)
+                if path.is_symlink() or not path.is_file():
+                    raise SnapshotError("snapshot blob store contains invalid entry")
+        for snapshot_id in candidates:
+            (self.manifests / f"{snapshot_id}.json").unlink()
+        if candidates:
+            _fsync_directory(self.manifests)
+
+        remaining = {
+            snapshot_id: manifest
+            for snapshot_id, manifest in manifests.items()
+            if snapshot_id not in candidates
+        }
+        reachable_blobs = {
+            entry.digest
+            for manifest in remaining.values()
+            for entry in manifest.entries
+        }
+        removed_blobs: list[str] = []
+        if self.blobs.exists():
+            if self.blobs.is_symlink() or not self.blobs.is_dir():
+                raise SnapshotError("snapshot blob store is invalid")
+            blob_candidates = []
+            for path in self.blobs.iterdir():
+                if path.name.startswith(".") or len(path.name) != 64:
+                    continue
+                _validate_digest(path.name)
+                if path.is_symlink() or not path.is_file():
+                    raise SnapshotError("snapshot blob store contains invalid entry")
+                if path.name not in reachable_blobs:
+                    blob_candidates.append(path.name)
+            blob_candidates.sort()
+            blob_budget = (
+                None if max_deletes is None else max(0, max_deletes - len(candidates))
+            )
+            if blob_budget is not None:
+                blob_candidates = blob_candidates[:blob_budget]
+            for digest in blob_candidates:
+                (self.blobs / digest).unlink()
+                removed_blobs.append(digest)
+            if removed_blobs:
+                _fsync_directory(self.blobs)
+        return GarbageCollectionResult(
+            tuple(sorted(candidates)),
+            tuple(removed_blobs),
+            tuple(sorted(remaining)),
+        )
+
+    # Both spellings are useful to callers while the CLI boundary is kept out
+    # of this deliberately local primitive.
+    garbage_collect = collect_garbage
+    gc = collect_garbage
+
+    def _pointer_snapshot_ids(self) -> set[str]:
+        path = self.root.parent / "current.json"
+        if not path.exists():
+            return set()
+        if path.is_symlink():
+            raise TransactionError("current pointer is invalid")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError
+            result = set()
+            for key in ("current", "previous"):
+                snapshot_id = value.get(key)
+                if snapshot_id is not None:
+                    _validate_snapshot_id(snapshot_id)
+                    result.add(snapshot_id)
+            return result
+        except (OSError, TypeError, ValueError, SnapshotError) as exc:
+            raise TransactionError("current pointer is invalid") from exc
+
+    def _staged_snapshot_ids(self) -> set[str]:
+        staging = self.root.parent / "staging"
+        if not staging.exists():
+            return set()
+        if staging.is_symlink() or not staging.is_dir():
+            raise TransactionError("staging store is invalid")
+        result = set()
+        for path in staging.iterdir():
+            if path.name.startswith(".") or path.suffix != ".json":
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise TransactionError("staging store contains invalid entry")
+            snapshot_id = path.stem
+            _validate_snapshot_id(snapshot_id)
+            result.add(snapshot_id)
+        return result
 
 
 def snapshot_tree_from_entries(entries: Iterable[SnapshotEntry]) -> str:
@@ -433,7 +702,26 @@ def snapshot_tree_from_entries(entries: Iterable[SnapshotEntry]) -> str:
 
 
 def _validate_manifest(manifest: SnapshotManifest) -> None:
+    if not isinstance(manifest, SnapshotManifest):
+        raise SnapshotError("snapshot manifest is malformed")
     _validate_snapshot_id(manifest.snapshot_id)
+    if not isinstance(manifest.entries, tuple):
+        raise SnapshotError("snapshot entries must be a tuple")
+    for entry in manifest.entries:
+        if not isinstance(entry, SnapshotEntry):
+            raise SnapshotError("snapshot entry is malformed")
+        _validate_entry_path(entry.path)
+        _validate_digest(entry.digest)
+        if (
+            not isinstance(entry.size_bytes, int)
+            or isinstance(entry.size_bytes, bool)
+            or entry.size_bytes < 0
+            or not isinstance(entry.mode, int)
+            or isinstance(entry.mode, bool)
+            or entry.mode < 0
+            or entry.mode > 0o7777
+        ):
+            raise SnapshotError("snapshot entry has invalid size or mode")
     if snapshot_tree_from_entries(manifest.entries) != manifest.snapshot_id:
         raise SnapshotError("snapshot manifest digest mismatch")
 
@@ -473,6 +761,15 @@ class MutationReceipt:
             if not value or "\n" in value:
                 raise ValueError(f"{field_name} must be a single non-empty line")
             object.__setattr__(self, field_name, value)
+        for field_name in ("snapshot_before", "snapshot_after"):
+            snapshot_id = getattr(self, field_name)
+            if snapshot_id is not None:
+                try:
+                    _validate_snapshot_id(snapshot_id)
+                except SnapshotError as exc:
+                    raise ValueError(
+                        f"{field_name} must be a valid snapshot id"
+                    ) from exc
         if isinstance(self.result, Mapping):
             object.__setattr__(
                 self, "result", json.loads(json.dumps(self.result, sort_keys=True))
@@ -522,12 +819,14 @@ class TransactionJournal:
         raw = self.path.read_bytes()
         chunks = raw.splitlines(keepends=True)
         for index, chunk in enumerate(chunks):
-            if not chunk.strip():
-                continue
             is_trailing_partial = index == len(chunks) - 1 and not chunk.endswith((
                 b"\n",
                 b"\r",
             ))
+            if not chunk.strip():
+                if is_trailing_partial:
+                    break
+                raise JournalError("journal hash chain is invalid")
             try:
                 line = chunk.decode("utf-8")
                 value = json.loads(line)
@@ -553,16 +852,22 @@ class TransactionJournal:
                     or not isinstance(payload, dict)
                 ):
                     raise ValueError
-            except (
-                KeyError,
-                TypeError,
-                ValueError,
-                json.JSONDecodeError,
-                UnicodeDecodeError,
-            ) as exc:
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 if is_trailing_partial:
                     break
                 raise JournalError("journal hash chain is invalid") from exc
+            except (KeyError, TypeError, ValueError) as exc:
+                raise JournalError("journal hash chain is invalid") from exc
+            if (
+                not isinstance(value["sequence"], int)
+                or isinstance(value["sequence"], bool)
+                or not isinstance(value["event"], str)
+                or not value["event"]
+                or "\n" in value["event"]
+                or not isinstance(value["previous_hash"], str)
+                or not isinstance(value["record_hash"], str)
+            ):
+                raise JournalError("journal hash chain is invalid")
             record = JournalRecord(
                 len(records) + 1, str(value["event"]), payload, previous, record_hash
             )
@@ -585,11 +890,22 @@ class TransactionJournal:
         record_hash = hashlib.sha256(_canonical(body)).hexdigest()
         value = {**body, "record_hash": record_hash}
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(value, sort_keys=True, separators=(",", ":")))
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        encoded = (
+            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        descriptor = os.open(
+            self.path,
+            os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+            0o600,
+        )
+        try:
+            offset = 0
+            while offset < len(encoded):
+                offset += os.write(descriptor, encoded[offset:])
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        _fsync_directory(self.path.parent)
         return JournalRecord(
             body["sequence"], event, dict(payload), body["previous_hash"], record_hash
         )
@@ -612,6 +928,7 @@ class TransactionJournal:
                 handle.write(b"\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+            _fsync_directory(self.path.parent)
 
     def append_mutation(
         self,
@@ -747,6 +1064,7 @@ class UpdateTransaction:
 
 __all__ = [
     "Equivalence",
+    "GarbageCollectionResult",
     "JOURNAL_SCHEMA",
     "JournalError",
     "JournalRecord",

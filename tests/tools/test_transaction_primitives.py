@@ -1,11 +1,15 @@
+import os
 from pathlib import Path
 
 import pytest
 
 from tools.transaction_primitives import (
+    GarbageCollectionResult,
     JournalError,
     MutationReceipt,
     SnapshotError,
+    SnapshotEntry,
+    SnapshotManifest,
     SnapshotStore,
     TransactionError,
     TransactionJournal,
@@ -109,6 +113,78 @@ def test_restore_rejects_corrupt_blob_before_writing_target(tmp_path: Path):
     with pytest.raises(SnapshotError, match="corrupt"):
         store.restore(manifest, tmp_path / "restored")
     assert not (tmp_path / "restored").exists()
+
+
+def test_restore_rejects_invalid_in_memory_manifest(tmp_path: Path):
+    store = SnapshotStore(tmp_path / "store")
+    manifest = SnapshotManifest(
+        "a" * 64,
+        (SnapshotEntry("../escape", "b" * 64, 1, 0o644),),
+    )
+    with pytest.raises(SnapshotError, match="path"):
+        store.restore(manifest, tmp_path / "restored")
+
+
+def test_snapshot_gc_keeps_recent_journal_and_pointer_reachable_state(
+    tmp_path: Path,
+):
+    store = SnapshotStore(tmp_path / "store")
+    manifests = []
+    for index in range(3):
+        source = tmp_path / f"source-{index}"
+        source.mkdir()
+        _tree(source, str(index))
+        manifests.append(store.create(source))
+    for index, manifest in enumerate(manifests, 1):
+        os.utime(
+            store.manifests / f"{manifest.snapshot_id}.json",
+            ns=(index * 1_000_000_000, index * 1_000_000_000),
+        )
+
+    journal = TransactionJournal(tmp_path / "journal.jsonl")
+    journal.append("stage", {"snapshot": manifests[0].snapshot_id})
+    result = store.collect_garbage(keep_latest=1, journal=journal)
+
+    assert isinstance(result, GarbageCollectionResult)
+    assert result.removed_snapshots == (manifests[1].snapshot_id,)
+    assert set(result.retained_snapshots) == {
+        manifests[0].snapshot_id,
+        manifests[2].snapshot_id,
+    }
+    assert not (store.manifests / f"{manifests[1].snapshot_id}.json").exists()
+    assert (store.manifests / f"{manifests[0].snapshot_id}.json").exists()
+
+
+def test_snapshot_gc_is_bounded_and_never_removes_pointer_or_staged_snapshot(
+    tmp_path: Path,
+):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    _tree(first, "one")
+    _tree(second, "two")
+    transaction = UpdateTransaction(tmp_path / "state")
+    first_manifest = transaction.stage(first)
+    transaction.activate(first_manifest)
+    second_manifest = transaction.stage(second)
+
+    result = transaction.snapshots.collect_garbage(keep_latest=0, max_deletes=0)
+    assert result.removed_snapshots == ()
+    assert transaction.snapshots.load(first_manifest.snapshot_id)
+    assert transaction.snapshots.load(second_manifest.snapshot_id)
+
+
+def test_journal_rejects_complete_invalid_unterminated_record(tmp_path: Path):
+    path = tmp_path / "journal.jsonl"
+    journal = TransactionJournal(path)
+    journal.append("stage", {"snapshot": "a" * 64})
+    with path.open("ab") as handle:
+        handle.write(
+            b'{"sequence":2,"event":"commit","payload":{},"previous_hash":"bad","record_hash":"bad"}'
+        )
+    with pytest.raises(JournalError):
+        journal.records()
 
 
 def test_journal_hash_chain_detects_tampering(tmp_path: Path):
