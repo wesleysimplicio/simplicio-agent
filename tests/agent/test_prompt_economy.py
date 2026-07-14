@@ -335,7 +335,7 @@ def test_compact_render_is_catalog_ordered_and_bounded():
     block = render_compact_block(handles, max_chars=650)
     assert len(block) <= 650
     assert block.index("sec:memory") < block.index("sec:session-search")
-    assert "sec:skills" not in block or block.index("sec:session-search") < block.index("sec:skills")
+    assert block.index("sec:session-search") < block.index("sec:skills")
     with pytest.raises(ValueError):
         render_compact_block(handles, max_chars=0)
 
