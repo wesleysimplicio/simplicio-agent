@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from importlib import import_module
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 __all__ = ["AIAgent", "HermesCLI"]
 
@@ -12,6 +12,10 @@ _EXPORTS = {
     "AIAgent": "Agent",
     "HermesCLI": "CLI",
 }
+
+if TYPE_CHECKING:
+    from . import Agent as AIAgent
+    from . import CLI as HermesCLI
 
 
 def __getattr__(name: str) -> Any:
