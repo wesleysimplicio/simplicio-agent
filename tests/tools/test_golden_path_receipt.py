@@ -114,27 +114,36 @@ def test_module_executes_request_to_delivery_and_writes_verified_receipt(tmp_pat
     fixture_root = _copy_fixture(tmp_path)
     cli = _write_cli_wrapper(fixture_root)
     output = tmp_path / "artifacts" / "request-delivery.json"
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "tools.golden_path",
-            "--fixture",
-            str(fixture_root),
-            "--cli-bin",
-            str(cli),
-            "--output",
-            str(output),
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    stdout_path = tmp_path / "stdout.json"
+    stderr_path = tmp_path / "stderr.log"
+    with (
+        stdout_path.open("w", encoding="utf-8") as stdout,
+        stderr_path.open("w", encoding="utf-8") as stderr,
+    ):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "tools.golden_path",
+                "--fixture",
+                str(fixture_root),
+                "--cli-bin",
+                str(cli),
+                "--output",
+                str(output),
+            ],
+            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=stderr,
+            text=True,
+            timeout=30,
+            check=False,
+        )
 
-    assert completed.returncode == 0, completed.stderr
-    report = json.loads(completed.stdout)
+    stderr_text = stderr_path.read_text(encoding="utf-8")
+    assert completed.returncode == 0, stderr_text
+    report = json.loads(stdout_path.read_text(encoding="utf-8"))
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert report["status"] == "MEASURED"
     assert report["lifecycle_state"] == "closed"

@@ -2,19 +2,34 @@
 
 The existing ``agent.golden_path`` harness proves the fixture operation path.
 This module owns the smaller audit boundary: it turns one completed harness
-result into a portable receipt and refuses claims that the fixture run was a
-clean-machine end-to-end test.
+result into a portable receipt, verifies every required receipt artifact, and
+provides a fixture-scoped executable gate. It refuses claims that the fixture
+run was a clean-machine end-to-end test.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
 
 GOLDEN_PATH_RECEIPT_SCHEMA = "simplicio-agent/issue-211-golden-path-receipt/v1"
+_REQUIRED_RECEIPT_STEPS = (
+    "orient",
+    "plan",
+    "lease",
+    "mutation",
+    "validation",
+    "requery",
+    "evidence",
+    "delivery",
+)
+_EVIDENCE_RECEIPT_STEPS = ("validation", "requery", "evidence")
 
 
 class GoldenPathReceiptError(ValueError):
@@ -51,6 +66,52 @@ def _transport_operations(result: Any) -> dict[str, dict[str, Any]]:
     return operations
 
 
+def _verified_receipt_artifacts(
+    result: Any, evidence_refs: list[str]
+) -> dict[str, dict[str, str]]:
+    refs = _field(result, "receipt_refs", {}) or {}
+    files = _field(result, "receipt_files", {}) or {}
+    if not isinstance(refs, Mapping) or not isinstance(files, Mapping):
+        raise GoldenPathReceiptError("result receipt artifacts must be mappings")
+
+    artifacts: dict[str, dict[str, str]] = {}
+    for step in _REQUIRED_RECEIPT_STEPS:
+        ref = refs.get(step)
+        if not isinstance(ref, str) or not ref.startswith("receipt://"):
+            raise GoldenPathReceiptError(f"{step} receipt reference is missing")
+        digest = ref.removeprefix("receipt://")
+        path_value = files.get(step)
+        if not isinstance(path_value, str) or not path_value:
+            raise GoldenPathReceiptError(f"{step} receipt artifact path is missing")
+        path = Path(path_value)
+        if not path.is_file():
+            raise GoldenPathReceiptError(f"{step} receipt artifact is missing: {path}")
+        try:
+            persisted = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise GoldenPathReceiptError(
+                f"{step} receipt artifact is unreadable: {path}"
+            ) from exc
+        meta = persisted.get("meta") if isinstance(persisted, Mapping) else None
+        if (
+            not isinstance(persisted, Mapping)
+            or path.stem != digest
+            or persisted.get("sha") != digest
+            or persisted.get("status") != "ok"
+            or not isinstance(meta, Mapping)
+            or meta.get("step") != step
+        ):
+            raise GoldenPathReceiptError(
+                f"{step} receipt artifact does not match its reference"
+            )
+        if step in _EVIDENCE_RECEIPT_STEPS and ref not in evidence_refs:
+            raise GoldenPathReceiptError(
+                f"{step} receipt is not linked from envelope evidence_refs"
+            )
+        artifacts[step] = {"receipt_ref": ref, "status": "ok"}
+    return artifacts
+
+
 def build_request_delivery_receipt(result: Any) -> dict[str, Any]:
     """Return a canonical, fixture-scoped receipt for a completed run.
 
@@ -71,6 +132,7 @@ def build_request_delivery_receipt(result: Any) -> dict[str, Any]:
     evidence_refs = list(_field(envelope, "evidence_refs", ()) or ())
     if not evidence_refs:
         raise GoldenPathReceiptError("closed request has no evidence_refs")
+    receipt_artifacts = _verified_receipt_artifacts(result, evidence_refs)
 
     requery = _field(result, "requery", {}) or {}
     if not bool(_field(requery, "matches_expected", False)):
@@ -114,6 +176,7 @@ def build_request_delivery_receipt(result: Any) -> dict[str, Any]:
             "state": "closed",
             "evidence_refs": evidence_refs,
         },
+        "evidence": {"artifacts": receipt_artifacts},
         "mutation": {
             "write_set": list(_field(requery, "write_set", ()) or ()),
             "final_state": dict(_field(result, "final_state", {}) or {}),
@@ -123,7 +186,7 @@ def build_request_delivery_receipt(result: Any) -> dict[str, Any]:
         "delivery": {
             "accepted": True,
             "target": target,
-            "receipt_ref": _field(_field(result, "receipt_refs", {}) or {}, "delivery"),
+            "receipt_ref": receipt_artifacts["delivery"]["receipt_ref"],
         },
     }
     payload["receipt_sha256"] = hashlib.sha256(_canonical_bytes(payload)).hexdigest()
@@ -155,6 +218,26 @@ def verify_request_delivery_receipt(receipt: Mapping[str, Any]) -> bool:
         raise GoldenPathReceiptError("receipt lifecycle is not closed")
     if not lifecycle.get("evidence_refs"):
         raise GoldenPathReceiptError("receipt has no evidence_refs")
+    evidence = receipt.get("evidence")
+    artifacts = evidence.get("artifacts") if isinstance(evidence, Mapping) else None
+    if not isinstance(artifacts, Mapping):
+        raise GoldenPathReceiptError("receipt has no evidence artifacts")
+    for step in _REQUIRED_RECEIPT_STEPS:
+        artifact = artifacts.get(step)
+        if (
+            not isinstance(artifact, Mapping)
+            or artifact.get("status") != "ok"
+            or not isinstance(artifact.get("receipt_ref"), str)
+            or not artifact["receipt_ref"].startswith("receipt://")
+        ):
+            raise GoldenPathReceiptError(
+                f"receipt evidence artifact is incomplete: {step}"
+            )
+    for step in _EVIDENCE_RECEIPT_STEPS:
+        if artifacts[step]["receipt_ref"] not in lifecycle["evidence_refs"]:
+            raise GoldenPathReceiptError(
+                f"receipt evidence_refs do not link artifact: {step}"
+            )
     mutation = receipt.get("mutation")
     if (
         not isinstance(mutation, Mapping)
@@ -164,6 +247,10 @@ def verify_request_delivery_receipt(receipt: Mapping[str, Any]) -> bool:
     delivery = receipt.get("delivery")
     if not isinstance(delivery, Mapping) or delivery.get("accepted") is not True:
         raise GoldenPathReceiptError("delivery was not accepted")
+    if delivery.get("receipt_ref") != artifacts["delivery"]["receipt_ref"]:
+        raise GoldenPathReceiptError(
+            "delivery receipt reference does not match evidence"
+        )
     transport = receipt.get("transport")
     operations = transport.get("operations") if isinstance(transport, Mapping) else None
     if not isinstance(operations, Mapping) or "delivery" not in operations:
@@ -190,10 +277,95 @@ def write_request_delivery_receipt(result: Any, path: str | Path) -> dict[str, A
     return receipt
 
 
+def execute_fixture_golden_path(
+    fixture_root: str | Path,
+    output: str | Path,
+    *,
+    cli_bin: str | None = None,
+    allow_fixture_mcp_fallback: bool = False,
+) -> dict[str, Any]:
+    """Execute the bounded fixture path and persist its verified receipt."""
+
+    from agent.golden_path import (
+        GoldenPathHarness,
+        GoldenPathScenario,
+        build_fixture_mcp_call,
+    )
+
+    root = Path(fixture_root).resolve()
+    scenario_path = root / "scenario.json"
+    scenario = GoldenPathScenario.from_path(root)
+    mcp_call = build_fixture_mcp_call(scenario) if allow_fixture_mcp_fallback else None
+    previous_scenario = os.environ.get("GOLDEN_PATH_SCENARIO")
+    os.environ["GOLDEN_PATH_SCENARIO"] = str(scenario_path)
+    try:
+        result = GoldenPathHarness.from_fixture(
+            root,
+            cli_bin=cli_bin,
+            mcp_call=mcp_call,
+        ).run()
+        receipt = write_request_delivery_receipt(result, output)
+    finally:
+        if previous_scenario is None:
+            os.environ.pop("GOLDEN_PATH_SCENARIO", None)
+        else:
+            os.environ["GOLDEN_PATH_SCENARIO"] = previous_scenario
+    return {
+        "status": "MEASURED",
+        "proof_scope": receipt["proof"]["scope"],
+        "lifecycle_state": receipt["lifecycle"]["state"],
+        "receipt_sha256": receipt["receipt_sha256"],
+        "output": str(Path(output).resolve()),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the fixture golden path as a fail-closed executable gate."""
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixture", required=True, help="Mutable fixture root")
+    parser.add_argument("--output", required=True, help="Verified receipt output path")
+    parser.add_argument("--cli-bin", help="Simplicio-compatible CLI executable")
+    parser.add_argument(
+        "--allow-fixture-mcp-fallback",
+        action="store_true",
+        help="Allow the fixture MCP adapter only when the CLI is unavailable",
+    )
+    args = parser.parse_args(argv)
+    try:
+        report = execute_fixture_golden_path(
+            args.fixture,
+            args.output,
+            cli_bin=args.cli_bin,
+            allow_fixture_mcp_fallback=args.allow_fixture_mcp_fallback,
+        )
+    except (
+        GoldenPathReceiptError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        print(
+            json.dumps({"status": "UNVERIFIED", "error": str(exc)}, sort_keys=True),
+            file=sys.stderr,
+        )
+        return 1
+    print(json.dumps(report, sort_keys=True))
+    return 0
+
+
 __all__ = [
     "GOLDEN_PATH_RECEIPT_SCHEMA",
     "GoldenPathReceiptError",
     "build_request_delivery_receipt",
+    "execute_fixture_golden_path",
+    "main",
     "verify_request_delivery_receipt",
     "write_request_delivery_receipt",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
