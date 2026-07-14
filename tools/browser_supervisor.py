@@ -568,6 +568,22 @@ class CDPSupervisor:
 
     # ── Supervisor loop internals ────────────────────────────────────────────
 
+    def _reset_connection_state_for_reconnect(self) -> None:
+        """Discard modal state that belongs to a dead CDP connection.
+
+        Pending dialogs carry connection-scoped CDP session/request ids. Once
+        the socket drops they cannot be handled by the replacement connection,
+        and their watchdogs are no longer useful. Frame state is intentionally
+        left alone until fresh frame events reconcile it.
+        """
+        self._page_session_id = None
+        self._child_sessions.clear()
+        for handle in list(self._dialog_watchdogs.values()):
+            handle.cancel()
+        self._dialog_watchdogs.clear()
+        with self._state_lock:
+            self._pending_dialogs.clear()
+
     def _thread_main(self) -> None:
         """Entry point for the supervisor's dedicated thread."""
         loop = asyncio.new_event_loop()
@@ -634,16 +650,6 @@ class CDPSupervisor:
 
             reader_task = asyncio.create_task(self._read_loop(), name="cdp-reader")
             try:
-                # Reset per-connection session state so stale ids don't hang
-                # around after a reconnect.
-                self._page_session_id = None
-                self._child_sessions.clear()
-                # We deliberately keep `_pending_dialogs` and `_frames` —
-                # they're reconciled as the supervisor resubscribes and
-                # receives fresh events.  Worst case: an agent sees a stale
-                # dialog entry that the new session's handleJavaScriptDialog
-                # call rejects with "no dialog is showing" (logged, not
-                # surfaced).
                 await self._attach_initial_page()
                 with self._state_lock:
                     self._active = True
@@ -674,9 +680,7 @@ class CDPSupervisor:
                         await reader_task
                     except (asyncio.CancelledError, Exception):
                         pass
-                for handle in list(self._dialog_watchdogs.values()):
-                    handle.cancel()
-                self._dialog_watchdogs.clear()
+                self._reset_connection_state_for_reconnect()
                 ws = self._ws
                 self._ws = None
                 if ws is not None:
