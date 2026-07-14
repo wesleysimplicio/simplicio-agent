@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agent.restart_recovery import (
+    CommitmentContinuityReceipt,
     EFFECT_RECOVERY_SCHEMA_VERSION,
     EffectJournal,
     EffectState,
@@ -233,3 +234,55 @@ def test_hash_mismatch_is_explicit_unknown(tmp_path):
 
     assert recovered.decision is RecoveryDecision.RECONCILE_UNKNOWN
     assert "envelope hash" in recovered.reason
+
+
+def test_handoff_receipt_preserves_committed_decision_across_envelope_change(tmp_path):
+    envelope = _envelope()
+    resumed = TaskEnvelope.from_dict(
+        {
+            **envelope.to_dict(),
+            "worker": "replacement-worker",
+            "lease": "handoff-lease",
+            "updated_at_ns": 4,
+        }
+    )
+    path = tmp_path / "effects.jsonl"
+    receipt = record_receipt(payload="committed", directory=tmp_path / "receipts")
+    journal = EffectJournal(path)
+    journal.begin(envelope, effect_id="effect-1", idempotency_key="idem-1", now_ns=2)
+    journal.resolve(
+        envelope,
+        effect_id="effect-1",
+        idempotency_key="idem-1",
+        state=EffectState.COMMITTED,
+        receipt=receipt,
+        now_ns=3,
+    )
+    continuity = CommitmentContinuityReceipt.issue(envelope, resumed, now_ns=5)
+
+    recovered = EffectJournal(path).recover(
+        resumed,
+        effect_id="effect-1",
+        idempotency_key="idem-1",
+        continuity_receipt=continuity,
+    )
+
+    assert recovered.decision is RecoveryDecision.SKIP_COMMITTED
+    assert recovered.should_execute is False
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("task_id", "different-task"),
+        ("acceptance_criteria", ["silently replace the original commitment"]),
+    ],
+)
+def test_handoff_receipt_rejects_identity_or_commitment_drift(field, value):
+    envelope = _envelope()
+    resumed_data = envelope.to_dict()
+    resumed_data[field] = value
+    resumed = TaskEnvelope.from_dict(resumed_data)
+
+    with pytest.raises(ValueError, match="identity|commitments"):
+        CommitmentContinuityReceipt.issue(envelope, resumed, now_ns=5)

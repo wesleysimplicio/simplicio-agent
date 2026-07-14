@@ -22,6 +22,8 @@ from agent.task_envelope import TaskEnvelope
 
 EFFECT_RECOVERY_SCHEMA = "simplicio.effect-recovery"
 EFFECT_RECOVERY_SCHEMA_VERSION = "simplicio.effect-recovery/v1"
+COMMITMENT_CONTINUITY_SCHEMA = "simplicio.commitment-continuity"
+COMMITMENT_CONTINUITY_SCHEMA_VERSION = "simplicio.commitment-continuity/v1"
 
 
 class EffectState(str, Enum):
@@ -58,6 +60,131 @@ def _receipt_sha(receipt: Any) -> Optional[str]:
     if not isinstance(value, str) or not value:
         raise ValueError("receipt must provide a non-empty sha")
     return value
+
+
+def _commitment_hash(envelope: TaskEnvelope) -> str:
+    """Hash the task fields a restart or handoff must not silently change."""
+
+    projection = {
+        "parent_id": envelope.parent_id,
+        "repo": envelope.repo,
+        "branch": envelope.branch,
+        "scope": envelope.scope,
+        "write_set": list(envelope.write_set),
+        "acceptance_criteria": list(envelope.acceptance_criteria),
+        "risk_policy": envelope.risk_policy,
+        "model": envelope.model,
+        "execution_policy": envelope.execution_policy,
+        "delivery_target": envelope.delivery_target,
+    }
+    payload = _dumps(projection, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class CommitmentContinuityReceipt:
+    """Proof that a resumed envelope kept the same identity and commitments."""
+
+    task_id: str
+    correlation_id: str
+    previous_envelope_hash: str
+    resumed_envelope_hash: str
+    commitment_hash: str
+    recorded_at_ns: int
+    schema: str = COMMITMENT_CONTINUITY_SCHEMA
+    schema_version: str = COMMITMENT_CONTINUITY_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema != COMMITMENT_CONTINUITY_SCHEMA:
+            raise ValueError(f"unsupported continuity schema {self.schema!r}")
+        if self.schema_version != COMMITMENT_CONTINUITY_SCHEMA_VERSION:
+            raise ValueError(
+                f"unsupported continuity schema version {self.schema_version!r}"
+            )
+        for name in (
+            "task_id",
+            "correlation_id",
+            "previous_envelope_hash",
+            "resumed_envelope_hash",
+            "commitment_hash",
+        ):
+            if not getattr(self, name):
+                raise ValueError(f"{name} must be non-empty")
+        if self.recorded_at_ns <= 0:
+            raise ValueError("recorded_at_ns must be positive")
+
+    @classmethod
+    def issue(
+        cls,
+        previous: TaskEnvelope,
+        resumed: TaskEnvelope,
+        *,
+        now_ns: Optional[int] = None,
+    ) -> "CommitmentContinuityReceipt":
+        if (
+            previous.task_id != resumed.task_id
+            or previous.correlation_id != resumed.correlation_id
+        ):
+            raise ValueError("handoff identity changed")
+        commitment_hash = _commitment_hash(previous)
+        if commitment_hash != _commitment_hash(resumed):
+            raise ValueError("handoff commitments changed")
+        return cls(
+            task_id=previous.task_id,
+            correlation_id=previous.correlation_id,
+            previous_envelope_hash=previous.content_hash(),
+            resumed_envelope_hash=resumed.content_hash(),
+            commitment_hash=commitment_hash,
+            recorded_at_ns=now_ns or time.time_ns(),
+        )
+
+    def matches(self, previous: "EffectRecord", resumed: TaskEnvelope) -> bool:
+        """Return whether this receipt bridges the journal record to ``resumed``."""
+
+        return (
+            self.task_id == previous.task_id == resumed.task_id
+            and self.correlation_id
+            == previous.correlation_id
+            == resumed.correlation_id
+            and self.previous_envelope_hash == previous.envelope_hash
+            and self.resumed_envelope_hash == resumed.content_hash()
+            and self.commitment_hash == _commitment_hash(resumed)
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "schema_version": self.schema_version,
+            "task_id": self.task_id,
+            "correlation_id": self.correlation_id,
+            "previous_envelope_hash": self.previous_envelope_hash,
+            "resumed_envelope_hash": self.resumed_envelope_hash,
+            "commitment_hash": self.commitment_hash,
+            "recorded_at_ns": self.recorded_at_ns,
+        }
+
+    def to_json(self) -> str:
+        return _dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CommitmentContinuityReceipt":
+        try:
+            return cls(
+                schema=data["schema"],
+                schema_version=data["schema_version"],
+                task_id=data["task_id"],
+                correlation_id=data["correlation_id"],
+                previous_envelope_hash=data["previous_envelope_hash"],
+                resumed_envelope_hash=data["resumed_envelope_hash"],
+                commitment_hash=data["commitment_hash"],
+                recorded_at_ns=int(data["recorded_at_ns"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid commitment continuity receipt: {exc}") from exc
+
+    @classmethod
+    def from_json(cls, text: str) -> "CommitmentContinuityReceipt":
+        return cls.from_dict(_loads(text))
 
 
 @dataclass(frozen=True)
@@ -373,6 +500,7 @@ class EffectJournal:
         *,
         effect_id: str,
         idempotency_key: str,
+        continuity_receipt: Optional[CommitmentContinuityReceipt] = None,
     ) -> RecoveryResult:
         record = self._latest_for_key(idempotency_key)
         if record is None:
@@ -396,11 +524,19 @@ class EffectJournal:
                 ),
                 record=record,
             )
-        if record.envelope_hash != envelope.content_hash():
+        envelope_matches = record.envelope_hash == envelope.content_hash()
+        continuity_matches = (
+            isinstance(continuity_receipt, CommitmentContinuityReceipt)
+            and continuity_receipt.matches(record, envelope)
+        )
+        if not envelope_matches and not continuity_matches:
             return RecoveryResult(
                 decision=RecoveryDecision.RECONCILE_UNKNOWN,
                 observed_state=EffectState.UNKNOWN,
-                reason="effect record envelope hash does not match the resumed envelope",
+                reason=(
+                    "effect record envelope hash does not match the resumed envelope "
+                    "or a valid commitment continuity receipt"
+                ),
                 record=record,
             )
         if record.state is EffectState.COMMITTED:
@@ -429,6 +565,9 @@ class EffectJournal:
 __all__ = [
     "EFFECT_RECOVERY_SCHEMA",
     "EFFECT_RECOVERY_SCHEMA_VERSION",
+    "COMMITMENT_CONTINUITY_SCHEMA",
+    "COMMITMENT_CONTINUITY_SCHEMA_VERSION",
+    "CommitmentContinuityReceipt",
     "EffectState",
     "RecoveryDecision",
     "EffectJournalCorruptError",
