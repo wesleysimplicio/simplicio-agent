@@ -1,0 +1,39 @@
+{
+  "issue_id": "348",
+  "name": "issue-348-fixture-driven-change",
+  "repo": "tests/fixtures/e2e/issue-348",
+  "branch": "e2e/issue-348",
+  "scope": "fixture:issue-348",
+  "acceptance_criteria": [
+    "issue reaches a planned state before the change is attempted",
+    "the declared write set is changed mechanically and independently requeried",
+    "the focused fixture test passes before delivery is acknowledged",
+    "every lifecycle step has a content-addressed receipt"
+  ],
+  "worker": "issue-348-e2e",
+  "lease": "lease-issue-348-e2e",
+  "delivery_target": "artifact://issue-348/e2e-receipt.json",
+  "validation_command": "python -m pytest tests/test_state.py -q",
+  "write_set": ["workspace/state.txt"],
+  "plan": {
+    "summary": "Move the fixture state from draft to ready",
+    "steps": [
+      "orient the copied workspace",
+      "record a checkpoint for the lease",
+      "apply the expected mechanical edit",
+      "run the focused fixture test",
+      "requery the write set and deliver evidence"
+    ]
+  },
+  "mutation": {
+    "path": "workspace/state.txt",
+    "expected_before": "status=draft\nversion=1\n",
+    "expected_after": "status=ready\nversion=2\n"
+  },
+  "tool_outcomes": {
+    "unavailable": "cli_unavailable",
+    "permission": "cli_command_failed",
+    "timeout": "cli_timeout",
+    "invalid": "cli_invalid_json"
+  }
+}
