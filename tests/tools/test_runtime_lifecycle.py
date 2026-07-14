@@ -5,8 +5,13 @@ from unittest.mock import Mock
 import pytest
 
 from tools.runtime_lifecycle import (
+    LIFECYCLE_SCHEMA,
+    LifecycleEvent,
     LifecyclePhase,
+    LifecycleState,
     ReadinessProbes,
+    ReconnectPolicy,
+    RuntimeLifecycleController,
     RuntimeLifecycleManager,
 )
 from tools.runtime_manager import RuntimeStatus
@@ -210,3 +215,63 @@ def test_status_provider_is_called_once_per_snapshot():
     manager.readiness(_ready_probes())
 
     provider.assert_called_once_with()
+
+
+def test_lifecycle_start_health_and_protocol_are_fail_closed():
+    controller = RuntimeLifecycleController(ReconnectPolicy(max_attempts=2, delays_ms=(10, 20)))
+    state = LifecycleState()
+
+    starting = controller.step(state, LifecycleEvent.START)
+    assert starting.phase is LifecyclePhase.STARTING
+    ready = controller.step(starting.state, LifecycleEvent.HEALTHY, protocol_status="compatible")
+    assert ready.phase is LifecyclePhase.READY
+    assert ready.state.reconnect_attempts == 0
+    failed = controller.step(ready.state, LifecycleEvent.HEALTHY, protocol_status="incompatible")
+    assert failed.phase is LifecyclePhase.FAILED
+    assert not failed.retry
+    assert failed.reason == "protocol_incompatible"
+
+
+def test_lifecycle_reconnect_is_bounded_and_uses_deterministic_delays():
+    controller = RuntimeLifecycleController(ReconnectPolicy(max_attempts=2, delays_ms=(10, 20)))
+    state = LifecycleState(LifecyclePhase.READY)
+
+    first = controller.step(state, LifecycleEvent.DISCONNECTED, error="socket closed")
+    assert (first.phase, first.retry, first.retry_delay_ms) == (LifecyclePhase.RECONNECTING, True, 10)
+    second = controller.step(first.state, LifecycleEvent.RECONNECT_FAILED, error="timeout")
+    assert (second.phase, second.retry, second.retry_delay_ms) == (LifecyclePhase.RECONNECTING, True, 20)
+    exhausted = controller.step(second.state, LifecycleEvent.RECONNECT_FAILED, error="timeout")
+    assert exhausted.phase is LifecyclePhase.FAILED
+    assert not exhausted.retry
+    assert exhausted.retry_delay_ms is None
+
+
+def test_lifecycle_reconnect_success_increments_generation_and_stop_is_terminal():
+    controller = RuntimeLifecycleController()
+    state = LifecycleState(LifecyclePhase.RECONNECTING, reconnect_attempts=1, generation=4)
+
+    recovered = controller.step(state, LifecycleEvent.RECONNECT_SUCCEEDED)
+    assert recovered.phase is LifecyclePhase.READY
+    assert recovered.state == LifecycleState(LifecyclePhase.READY, generation=5)
+    stopping = controller.step(recovered.state, LifecycleEvent.STOP_REQUESTED)
+    stopped = controller.step(stopping.state, LifecycleEvent.STOPPED)
+    assert stopping.phase is LifecyclePhase.STOPPING
+    assert stopped.phase is LifecyclePhase.STOPPED
+
+
+def test_lifecycle_decision_wire_shape_is_stable_and_json_safe():
+    decision = RuntimeLifecycleController().step(LifecycleState(), LifecycleEvent.START)
+    assert decision.to_dict() == {
+        "schema": LIFECYCLE_SCHEMA,
+        "phase": "starting",
+        "state": {
+            "phase": "starting",
+            "reconnect_attempts": 0,
+            "generation": 0,
+            "last_error": "",
+        },
+        "retry": False,
+        "retry_delay_ms": None,
+        "reason": "startup_requested",
+        "protocol_status": "unreported",
+    }

@@ -17,6 +17,7 @@ from typing import Optional
 from .runtime_manager import RuntimeStatus, runtime_status
 
 _HANDSHAKE_SCHEMA = "simplicio.agent-runtime-handshake/v1"
+LIFECYCLE_SCHEMA = "simplicio.runtime-lifecycle/v1"
 
 
 class LifecyclePhase(str, Enum):
@@ -27,6 +28,178 @@ class LifecyclePhase(str, Enum):
     NOT_READY = "not_ready"
     DEGRADED = "degraded"
     READY = "ready"
+    STARTING = "starting"
+    RECONNECTING = "reconnecting"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+class LifecycleEvent(str, Enum):
+    """Events accepted by the deterministic lifecycle reducer."""
+
+    START = "start"
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+    DISCONNECTED = "disconnected"
+    RECONNECT_SUCCEEDED = "reconnect_succeeded"
+    RECONNECT_FAILED = "reconnect_failed"
+    STOP_REQUESTED = "stop_requested"
+    STOPPED = "stopped"
+
+
+_PROTOCOL_STATUSES = frozenset({"compatible", "unreported", "incompatible"})
+
+
+@dataclass(frozen=True)
+class ReconnectPolicy:
+    """Bounded retry policy; the runtime owns execution of the retry."""
+
+    max_attempts: int = 3
+    delays_ms: tuple[int, ...] = (100, 500, 1_000)
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.max_attempts, bool)
+            or not isinstance(self.max_attempts, int)
+            or self.max_attempts < 1
+        ):
+            raise ValueError("max_attempts must be a positive integer")
+        delays = tuple(self.delays_ms)
+        if not delays or any(
+            isinstance(delay, bool) or not isinstance(delay, int) or delay < 0
+            for delay in delays
+        ):
+            raise ValueError("delays_ms must be a non-empty tuple of non-negative ints")
+        object.__setattr__(self, "delays_ms", delays)
+
+
+@dataclass(frozen=True)
+class LifecycleState:
+    """Immutable reducer state carried across health/reconnect observations."""
+
+    phase: LifecyclePhase = LifecyclePhase.STOPPED
+    reconnect_attempts: int = 0
+    generation: int = 0
+    last_error: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.phase, LifecyclePhase):
+            object.__setattr__(self, "phase", LifecyclePhase(self.phase))
+        for name in ("reconnect_attempts", "generation"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        if not isinstance(self.last_error, str):
+            raise TypeError("last_error must be a string")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "phase": self.phase.value,
+            "reconnect_attempts": self.reconnect_attempts,
+            "generation": self.generation,
+            "last_error": self.last_error,
+        }
+
+
+@dataclass(frozen=True)
+class LifecycleDecision:
+    """One bounded next-step decision and its resulting state."""
+
+    phase: LifecyclePhase
+    state: LifecycleState
+    retry: bool
+    retry_delay_ms: int | None
+    reason: str
+    protocol_status: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": LIFECYCLE_SCHEMA,
+            "phase": self.phase.value,
+            "state": self.state.to_dict(),
+            "retry": self.retry,
+            "retry_delay_ms": self.retry_delay_ms,
+            "reason": self.reason,
+            "protocol_status": self.protocol_status,
+        }
+
+
+class RuntimeLifecycleController:
+    """Pure lifecycle reducer for startup, health, and reconnect boundaries."""
+
+    def __init__(self, policy: ReconnectPolicy | None = None) -> None:
+        self.policy = policy or ReconnectPolicy()
+
+    def step(
+        self,
+        state: LifecycleState,
+        event: LifecycleEvent,
+        *,
+        protocol_status: str = "unreported",
+        error: str = "",
+    ) -> LifecycleDecision:
+        if not isinstance(state, LifecycleState):
+            raise TypeError("state must be a LifecycleState")
+        if not isinstance(event, LifecycleEvent):
+            event = LifecycleEvent(event)
+        if protocol_status not in _PROTOCOL_STATUSES:
+            raise ValueError(f"invalid protocol_status: {protocol_status}")
+        if not isinstance(error, str):
+            raise TypeError("error must be a string")
+
+        if event is LifecycleEvent.START:
+            starting = LifecycleState(LifecyclePhase.STARTING, state.reconnect_attempts, state.generation, "")
+            return self._decision(
+                LifecyclePhase.STARTING, starting, False, None, "startup_requested", protocol_status
+            )
+        if event is LifecycleEvent.HEALTHY:
+            if protocol_status == "incompatible":
+                return self._decision(
+                    LifecyclePhase.FAILED,
+                    LifecycleState(LifecyclePhase.FAILED, state.reconnect_attempts, state.generation, error),
+                    False,
+                    None,
+                    "protocol_incompatible",
+                    protocol_status,
+                )
+            ready = LifecycleState(LifecyclePhase.READY, 0, state.generation, "")
+            return self._decision(LifecyclePhase.READY, ready, False, None, "health_ready", protocol_status)
+        if event in (LifecycleEvent.UNHEALTHY, LifecycleEvent.DISCONNECTED):
+            return self._retry_or_fail(state, protocol_status, error, "health_unhealthy")
+        if event is LifecycleEvent.RECONNECT_FAILED:
+            return self._retry_or_fail(state, protocol_status, error, "reconnect_failed")
+        if event is LifecycleEvent.RECONNECT_SUCCEEDED:
+            ready = LifecycleState(LifecyclePhase.READY, 0, state.generation + 1, "")
+            return self._decision(LifecyclePhase.READY, ready, False, None, "reconnect_succeeded", protocol_status)
+        if event is LifecycleEvent.STOP_REQUESTED:
+            stopping = LifecycleState(LifecyclePhase.STOPPING, state.reconnect_attempts, state.generation, "")
+            return self._decision(LifecyclePhase.STOPPING, stopping, False, None, "stop_requested", protocol_status)
+        stopped = LifecycleState(LifecyclePhase.STOPPED, state.reconnect_attempts, state.generation, "")
+        return self._decision(LifecyclePhase.STOPPED, stopped, False, None, "stopped", protocol_status)
+
+    def _retry_or_fail(
+        self, state: LifecycleState, protocol_status: str, error: str, reason: str
+    ) -> LifecycleDecision:
+        attempt = state.reconnect_attempts
+        if attempt >= self.policy.max_attempts:
+            failed = LifecycleState(LifecyclePhase.FAILED, attempt, state.generation, error)
+            return self._decision(LifecyclePhase.FAILED, failed, False, None, "reconnect_limit_exhausted", protocol_status)
+        next_attempt = attempt + 1
+        delay = self.policy.delays_ms[min(attempt, len(self.policy.delays_ms) - 1)]
+        reconnecting = LifecycleState(LifecyclePhase.RECONNECTING, next_attempt, state.generation, error)
+        return self._decision(LifecyclePhase.RECONNECTING, reconnecting, True, delay, reason, protocol_status)
+
+    @staticmethod
+    def _decision(
+        phase: LifecyclePhase,
+        state: LifecycleState,
+        retry: bool,
+        retry_delay_ms: int | None,
+        reason: str,
+        protocol_status: str,
+    ) -> LifecycleDecision:
+        return LifecycleDecision(phase, state, retry, retry_delay_ms, reason, protocol_status)
 
 
 @dataclass(frozen=True)
@@ -319,3 +492,17 @@ def _repair_plan(reason_code: str, status: RuntimeStatus) -> tuple[str, ...]:
     if reason_code == "optional_capability_unhealthy":
         return ("optional capability degraded; repair it or continue in degraded mode",)
     return ()
+
+
+__all__ = [
+    "LIFECYCLE_SCHEMA",
+    "LifecycleDecision",
+    "LifecycleEvent",
+    "LifecyclePhase",
+    "LifecycleState",
+    "ReadinessProbes",
+    "ReconnectPolicy",
+    "RuntimeLifecycleController",
+    "RuntimeLifecycleManager",
+    "RuntimeReadiness",
+]
