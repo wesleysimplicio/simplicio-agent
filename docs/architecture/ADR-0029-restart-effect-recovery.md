@@ -1,4 +1,4 @@
-# ADR-0009: Bounded restart recovery for ambiguous effects
+# ADR-0029: Bounded restart recovery for ambiguous effects
 
 Status: accepted as a bounded proof slice for issue #183
 

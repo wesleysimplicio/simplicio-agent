@@ -1,4 +1,4 @@
-# ADR-0010: `simplicio.goal-contract/v1`
+# ADR-0031: `simplicio.goal-contract/v1`
 
 **Status:** Accepted (2026-07-13).  
 **Owner:** Simplicio Agent goal-control surface.  

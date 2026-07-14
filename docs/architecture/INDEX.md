@@ -4,39 +4,42 @@
 
 | Number | Title | Status | Date | File |
 | --- | --- | --- | --- | --- |
-| ADR-0001 | ADR-0001: kernel checkpoint binding is a mirror, not a replacement | unspecified | unspecified | [ADR-0001-kernel-checkpoint-binding.md](ADR-0001-kernel-checkpoint-binding.md) |
-| ADR-0002 | ADR-0002: Provider-mode contract — 3 modes of operation | unspecified | unspecified | [ADR-0002-provider-mode-contract.md](ADR-0002-provider-mode-contract.md) |
-| ADR-0003 | ADR-0003: simplicio-runtime is a managed, pinned dependency — separate repo, unified agent | unspecified | unspecified | [ADR-0003-runtime-managed-dependency.md](ADR-0003-runtime-managed-dependency.md) |
-| ADR-0007 | ADR-0007: Turbo speed modules — actual state in Simplicio Agent (CORRECTED) | unspecified | unspecified | [ADR-0007-turbo-speed-modules-divergence.md](ADR-0007-turbo-speed-modules-divergence.md) |
-| ADR-0008 | ADR-0008: Agent-driven ecosystem — Mapper observes, Dev CLI compiles, Loop converges, Runtime acts | unspecified | unspecified | [ADR-0008-agent-driven-ecosystem-architecture.md](ADR-0008-agent-driven-ecosystem-architecture.md) |
-| ADR-0008 | ADR-0008: TaskEnvelope/v1 — state ownership | unspecified | unspecified | [ADR-0008-task-envelope-ownership.md](ADR-0008-task-envelope-ownership.md) |
-| ADR-0009 | ADR-0009: Adaptive neural skill recall on the turn hot path | unspecified | unspecified | [ADR-0009-adaptive-neural-skill-recall.md](ADR-0009-adaptive-neural-skill-recall.md) |
-| ADR-0009 | ADR-0009: Bounded restart recovery for ambiguous effects | accepted as a bounded proof slice for issue #183 | unspecified | [ADR-0009-restart-effect-recovery.md](ADR-0009-restart-effect-recovery.md) |
-| ADR-0009 | ADR-0009: CLI-first Simplicio transport boundary | unspecified | unspecified | [ADR-0009-simplicio-transport.md](ADR-0009-simplicio-transport.md) |
-| ADR-0010 | ADR-0010: `simplicio.goal-contract/v1` | unspecified | unspecified | [ADR-0010-goal-contract.md](ADR-0010-goal-contract.md) |
-| ADR-0010 | ADR-0010: Runtime-first execution and mandatory capability closure | unspecified | unspecified | [ADR-0010-runtime-first-execution.md](ADR-0010-runtime-first-execution.md) |
-| ADR-0011 | ADR-0011: Simplicio Agent as the sole public MCP gateway | unspecified | unspecified | [ADR-0011-agent-mcp-gateway.md](ADR-0011-agent-mcp-gateway.md) |
-| ADR-0011 | ADR-0011: Deterministic capability registry and routing | unspecified | unspecified | [ADR-0011-capability-registry-routing.md](ADR-0011-capability-registry-routing.md) |
-| ADR-0012 | ADR-0012: bounded watcher-gate evidence boundary | unspecified | unspecified | [ADR-0012-bounded-watcher-gate.md](ADR-0012-bounded-watcher-gate.md) |
-| ADR-0012 | ADR-0012: typed tool invocation pipeline for bounded worker execution | unspecified | unspecified | [ADR-0012-tool-invocation-pipeline.md](ADR-0012-tool-invocation-pipeline.md) |
-| ADR-0013 | ADR-0013: Deterministic golden-path harness | unspecified | unspecified | [ADR-0013-golden-path.md](ADR-0013-golden-path.md) |
-| ADR-0014 | ADR-0014: Versioned Alias Registry | unspecified | unspecified | [ADR-0014-alias-registry.md](ADR-0014-alias-registry.md) |
-| ADR-0015 | ADR-0015: Versioned machine contracts for agent/runtime identity | unspecified | unspecified | [ADR-0015-machine-contracts.md](ADR-0015-machine-contracts.md) |
-| ADR-0016 | ADR-0016: Public namespace shims for `simplicio_agent` | unspecified | unspecified | [ADR-0016-public-namespace-shims.md](ADR-0016-public-namespace-shims.md) |
-| ADR-0017 | ADR-0017: Deterministic locale contract for product-language parity | unspecified | unspecified | [ADR-0017-locale-contract.md](ADR-0017-locale-contract.md) |
-| ADR-0018 | ADR-0018: bounded deterministic multi-rate scheduler contract | unspecified | unspecified | [ADR-0018-multirate-loops.md](ADR-0018-multirate-loops.md) |
-| ADR-0018 | ADR-0018: Public docs audit for branding, commands, and unsupported claims | unspecified | unspecified | [ADR-0018-public-docs-audit.md](ADR-0018-public-docs-audit.md) |
-| ADR-0019 | ADR-0019: Bounded CLI/TUI Surface Identity Contract | unspecified | unspecified | [ADR-0019-cli-surface-identity.md](ADR-0019-cli-surface-identity.md) |
-| ADR-0019 | ADR-0019: Bounded resource homeostasis controller contract | unspecified | unspecified | [ADR-0019-resource-homeostasis.md](ADR-0019-resource-homeostasis.md) |
-| ADR-0020 | ADR-0020: bounded, acknowledged kernel binding slice for issue #20 | unspecified | unspecified | [ADR-0020-kernel-binding-slice.md](ADR-0020-kernel-binding-slice.md) |
+| ADR-0001 | ADR-0001: kernel checkpoint binding is a mirror, not a replacement | accepted | 2026-07-03 | [ADR-0001-kernel-checkpoint-binding.md](ADR-0001-kernel-checkpoint-binding.md) |
+| ADR-0002 | ADR-0002: Provider-mode contract — 3 modes of operation | accepted | 2026-07-03 | [ADR-0002-provider-mode-contract.md](ADR-0002-provider-mode-contract.md) |
+| ADR-0003 | ADR-0003: simplicio-runtime is a managed, pinned dependency — separate repo, unified agent | accepted | 2026-07-07 | [ADR-0003-runtime-managed-dependency.md](ADR-0003-runtime-managed-dependency.md) |
+| ADR-0007 | ADR-0007: Turbo speed modules — actual state in Simplicio Agent (CORRECTED) | Superseded by verification (2026-07-12). Original 2026-07-11 | 2026-07-12 (correction). | [ADR-0007-turbo-speed-modules-divergence.md](ADR-0007-turbo-speed-modules-divergence.md) |
+| ADR-0008 | ADR-0008: TaskEnvelope/v1 — state ownership | Accepted (2026-07-12). | unspecified | [ADR-0008-task-envelope-ownership.md](ADR-0008-task-envelope-ownership.md) |
+| ADR-0009 | ADR-0009: CLI-first Simplicio transport boundary | Accepted — 2026-07-13* | unspecified | [ADR-0009-simplicio-transport.md](ADR-0009-simplicio-transport.md) |
+| ADR-0010 | ADR-0010: Runtime-first execution and mandatory capability closure | Accepted (2026-07-13). | unspecified | [ADR-0010-runtime-first-execution.md](ADR-0010-runtime-first-execution.md) |
+| ADR-0011 | ADR-0011: Simplicio Agent as the sole public MCP gateway | Accepted (2026-07-13). | unspecified | [ADR-0011-agent-mcp-gateway.md](ADR-0011-agent-mcp-gateway.md) |
+| ADR-0012 | ADR-0012: typed tool invocation pipeline for bounded worker execution | accepted | 2026-07-13 | [ADR-0012-tool-invocation-pipeline.md](ADR-0012-tool-invocation-pipeline.md) |
+| ADR-0013 | ADR-0013: Deterministic golden-path harness | Accepted — 2026-07-13* | unspecified | [ADR-0013-golden-path.md](ADR-0013-golden-path.md) |
+| ADR-0014 | ADR-0014: Versioned Alias Registry | Accepted | 2026-07-13 | [ADR-0014-alias-registry.md](ADR-0014-alias-registry.md) |
+| ADR-0015 | ADR-0015: Versioned machine contracts for agent/runtime identity | accepted | 2026-07-13 | [ADR-0015-machine-contracts.md](ADR-0015-machine-contracts.md) |
+| ADR-0016 | ADR-0016: Public namespace shims for `simplicio_agent` | accepted | 2026-07-13 | [ADR-0016-public-namespace-shims.md](ADR-0016-public-namespace-shims.md) |
+| ADR-0017 | ADR-0017: Deterministic locale contract for product-language parity | accepted | 2026-07-13 | [ADR-0017-locale-contract.md](ADR-0017-locale-contract.md) |
+| ADR-0018 | ADR-0018: bounded deterministic multi-rate scheduler contract | accepted | 2026-07-13 | [ADR-0018-multirate-loops.md](ADR-0018-multirate-loops.md) |
+| ADR-0019 | ADR-0019: Bounded CLI/TUI Surface Identity Contract | Accepted | 2026-07-13 | [ADR-0019-cli-surface-identity.md](ADR-0019-cli-surface-identity.md) |
+| ADR-0020 | ADR-0020: bounded, acknowledged kernel binding slice for issue #20 | accepted for this slice | 2026-07-13 | [ADR-0020-kernel-binding-slice.md](ADR-0020-kernel-binding-slice.md) |
 | ADR-0021 | ADR-0021: Verified Runtime lock contract | unspecified | unspecified | [ADR-0021-runtime-lock-contract.md](ADR-0021-runtime-lock-contract.md) |
-| ADR-0021 | ADR-0021: bounded SimplicioBridge lifecycle contract | unspecified | unspecified | [ADR-0021-simplicio-bridge-contract.md](ADR-0021-simplicio-bridge-contract.md) |
-| ADR-0022 | ADR-0022: typed Agent<->Runtime handshake contract slice for epic #159 | unspecified | unspecified | [ADR-0022-runtime-bridge-handshake-contract.md](ADR-0022-runtime-bridge-handshake-contract.md) |
-| ADR-0023 | ADR-0023: Bounded request-to-delivery receipt | unspecified | unspecified | [ADR-0023-golden-path-receipt.md](ADR-0023-golden-path-receipt.md) |
-| ADR-0023 | ADR-0023: Transformação nativa inside-out do Simplicio Agent | unspecified | unspecified | [ADR-0023-simplicio-native-inside-out.md](ADR-0023-simplicio-native-inside-out.md) |
-| ADR-0024 | ADR-0024: Bounded Consciousness Contracts | accepted slice | unspecified | [ADR-0024-bounded-consciousness-contracts.md](ADR-0024-bounded-consciousness-contracts.md) |
-| ADR-0024 | ADR-0024: Bounded native lifecycle and adaptive-controller slices | unspecified | unspecified | [ADR-0024-bounded-native-lifecycle-and-controller-slices.md](ADR-0024-bounded-native-lifecycle-and-controller-slices.md) |
+| ADR-0022 | ADR-0022: typed Agent<->Runtime handshake contract slice for epic #159 | accepted for this slice | 2026-07-13 | [ADR-0022-runtime-bridge-handshake-contract.md](ADR-0022-runtime-bridge-handshake-contract.md) |
+| ADR-0023 | ADR-0023: Transformação nativa inside-out do Simplicio Agent | proposed / future | 2026-07-13 | [ADR-0023-simplicio-native-inside-out.md](ADR-0023-simplicio-native-inside-out.md) |
 | ADR-0024 | ADR-0024: bounded snapshot and update transaction primitives | proposed slice for issues #315 and #316. | unspecified | [ADR-0024-bounded-transaction-primitives.md](ADR-0024-bounded-transaction-primitives.md) |
-| ADR-0024 | ADR-0024: bounded native gateway bridge | unspecified | unspecified | [ADR-0024-native-gateway-bridge-contract.md](ADR-0024-native-gateway-bridge-contract.md) |
 | ADR-0025 | ADR-0025: native identity scan | unspecified | unspecified | [ADR-0025-native-identity-scan.md](ADR-0025-native-identity-scan.md) |
 | ADR-0026 | ADR-0026: digest-pinned release and rollback contract | unspecified | unspecified | [ADR-0026-release-manifest-contract.md](ADR-0026-release-manifest-contract.md) |
+| ADR-0027 | ADR-0027: Validated staging, atomic `current`, and detached restart | bounded Native 2.3 slice | unspecified | [ADR-0027-staging-activation-restart.md](ADR-0027-staging-activation-restart.md) |
+| ADR-0028 | ADR-0028: Agent-driven ecosystem — Mapper observes, Dev CLI compiles, Loop converges, Runtime acts | accepted | 2026-07-13 | [ADR-0028-agent-driven-ecosystem-architecture.md](ADR-0028-agent-driven-ecosystem-architecture.md) |
+| ADR-0029 | ADR-0029: Bounded restart recovery for ambiguous effects | accepted as a bounded proof slice for issue #183 | unspecified | [ADR-0029-restart-effect-recovery.md](ADR-0029-restart-effect-recovery.md) |
+| ADR-0030 | ADR-0030: Adaptive neural skill recall on the turn hot path | Accepted (2026-07-13). | unspecified | [ADR-0030-adaptive-neural-skill-recall.md](ADR-0030-adaptive-neural-skill-recall.md) |
+| ADR-0031 | ADR-0031: `simplicio.goal-contract/v1` | Accepted (2026-07-13). | unspecified | [ADR-0031-goal-contract.md](ADR-0031-goal-contract.md) |
+| ADR-0032 | ADR-0032: Deterministic capability registry and routing | accepted | 2026-07-13 | [ADR-0032-capability-registry-routing.md](ADR-0032-capability-registry-routing.md) |
+| ADR-0033 | ADR-0033: bounded watcher-gate evidence boundary | Accepted as a bounded slice (2026-07-13).  It does not complete | unspecified | [ADR-0033-bounded-watcher-gate.md](ADR-0033-bounded-watcher-gate.md) |
+| ADR-0034 | ADR-0034: Public docs audit for branding, commands, and unsupported claims | accepted | 2026-07-13 | [ADR-0034-public-docs-audit.md](ADR-0034-public-docs-audit.md) |
+| ADR-0035 | ADR-0035: Bounded resource homeostasis controller contract | accepted | 2026-07-13 | [ADR-0035-resource-homeostasis.md](ADR-0035-resource-homeostasis.md) |
+| ADR-0036 | ADR-0036: bounded SimplicioBridge lifecycle contract | accepted for issue #222 bounded slice | 2026-07-14 | [ADR-0036-simplicio-bridge-contract.md](ADR-0036-simplicio-bridge-contract.md) |
+| ADR-0037 | ADR-0037: Bounded request-to-delivery receipt | Accepted — 2026-07-14* | unspecified | [ADR-0037-golden-path-receipt.md](ADR-0037-golden-path-receipt.md) |
+| ADR-0038 | ADR-0038: Bounded native lifecycle and adaptive-controller slices | bounded contract | 2026-07-14 | [ADR-0038-bounded-native-lifecycle-and-controller-slices.md](ADR-0038-bounded-native-lifecycle-and-controller-slices.md) |
+| ADR-0039 | ADR-0039: Bounded Consciousness Contracts | accepted slice | unspecified | [ADR-0039-bounded-consciousness-contracts.md](ADR-0039-bounded-consciousness-contracts.md) |
+| ADR-0040 | ADR-0040: bounded live-commit attestation and manual-pull detection | unspecified | unspecified | [ADR-0040-live-commit-attestation.md](ADR-0040-live-commit-attestation.md) |
+| ADR-0041 | ADR-0041: bounded native gateway bridge | unspecified | unspecified | [ADR-0041-native-gateway-bridge-contract.md](ADR-0041-native-gateway-bridge-contract.md) |
+| ADR-0042 | ADR-0042: Installation and update preflight | bounded slice for issue #342. | unspecified | [ADR-0042-installation-update-preflight.md](ADR-0042-installation-update-preflight.md) |

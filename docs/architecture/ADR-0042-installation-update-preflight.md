@@ -1,4 +1,4 @@
-# ADR-0025: Installation and update preflight
+# ADR-0042: Installation and update preflight
 
 Status: bounded slice for issue #342.
 

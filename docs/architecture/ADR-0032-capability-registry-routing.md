@@ -1,4 +1,4 @@
-# ADR-0011: Deterministic capability registry and routing
+# ADR-0032: Deterministic capability registry and routing
 
 - Status: accepted
 - Date: 2026-07-13

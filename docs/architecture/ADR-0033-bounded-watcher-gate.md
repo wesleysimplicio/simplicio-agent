@@ -1,4 +1,4 @@
-# ADR-0012: bounded watcher-gate evidence boundary
+# ADR-0033: bounded watcher-gate evidence boundary
 
 **Status:** Accepted as a bounded slice (2026-07-13).  It does not complete
 issue #21.

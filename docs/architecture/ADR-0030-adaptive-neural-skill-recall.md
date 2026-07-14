@@ -1,4 +1,4 @@
-# ADR-0009: Adaptive neural skill recall on the turn hot path
+# ADR-0030: Adaptive neural skill recall on the turn hot path
 
 **Status:** Accepted (2026-07-13).  
 **Owner:** @wesleysimplicio.  

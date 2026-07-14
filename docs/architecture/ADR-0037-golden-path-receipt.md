@@ -1,4 +1,4 @@
-# ADR-0023: Bounded request-to-delivery receipt
+# ADR-0037: Bounded request-to-delivery receipt
 
 *Status: Accepted — 2026-07-14*
 

@@ -7,8 +7,10 @@ from pathlib import Path
 
 try:
     from scripts.adr_registry import iter_adrs, validate
+    from scripts.gen_adr_index import render
 except ImportError:  # pragma: no cover - direct script execution
     from adr_registry import iter_adrs, validate
+    from gen_adr_index import render
 
 
 def main() -> int:
@@ -18,11 +20,14 @@ def main() -> int:
         "--index", type=Path, default=Path("docs/architecture/INDEX.md")
     )
     args = parser.parse_args()
-    errors = validate(iter_adrs(args.root), require_index=args.index)
+    entries = iter_adrs(args.root)
+    errors = validate(entries, require_index=args.index)
+    if not errors and args.index.read_text(encoding="utf-8") != render(entries):
+        errors.append("index is stale; run python scripts/gen_adr_index.py")
     if errors:
         print("\n".join(errors))
         return 1
-    print(f"ADR registry OK: {len(iter_adrs(args.root))} records")
+    print(f"ADR registry OK: {len(entries)} records")
     return 0
 
 

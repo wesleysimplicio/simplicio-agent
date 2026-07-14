@@ -1,4 +1,4 @@
-# ADR-0008: Agent-driven ecosystem — Mapper observes, Dev CLI compiles, Loop converges, Runtime acts
+# ADR-0028: Agent-driven ecosystem — Mapper observes, Dev CLI compiles, Loop converges, Runtime acts
 
 - Status: accepted
 - Date: 2026-07-13
