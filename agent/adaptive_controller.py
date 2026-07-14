@@ -11,9 +11,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Generic, Sequence, TypeVar
 
 
 ADAPTIVE_CONTROLLER_SCHEMA = "simplicio.adaptive-controller/v1"
+ADAPTIVE_RECEIPT_SCHEMA = "simplicio.adaptive-controller-receipt/v1"
 
 
 class ControllerAction(StrEnum):
@@ -24,7 +26,12 @@ class ControllerAction(StrEnum):
 
 
 def _ratio(value: float, name: str) -> float:
-    value = float(value)
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a finite number between 0 and 1")
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a finite number between 0 and 1") from None
     if not math.isfinite(value) or not 0.0 <= value <= 1.0:
         raise ValueError(f"{name} must be finite and between 0 and 1")
     return value
@@ -43,15 +50,25 @@ class AdaptivePolicy:
     proportional_gain: float = 1.0
     integral_gain: float = 0.1
     derivative_gain: float = 0.0
+    max_fan_out: int | None = None
 
     def __post_init__(self) -> None:
-        if isinstance(self.min_concurrency, bool) or self.min_concurrency < 0:
-            raise ValueError("min_concurrency must be >= 0")
-        if (
-            isinstance(self.max_concurrency, bool)
-            or self.max_concurrency < self.min_concurrency
-        ):
+        for name in ("min_concurrency", "max_concurrency"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"{name} must be an integer")
+            if value < 0:
+                raise ValueError(f"{name} must be >= 0")
+        if self.max_concurrency < self.min_concurrency:
             raise ValueError("max_concurrency must be >= min_concurrency")
+        if self.max_fan_out is None:
+            object.__setattr__(self, "max_fan_out", self.max_concurrency)
+        elif (
+            isinstance(self.max_fan_out, bool)
+            or not isinstance(self.max_fan_out, int)
+            or self.max_fan_out < 0
+        ):
+            raise ValueError("max_fan_out must be an integer >= 0")
         for name in (
             "pressure_enter",
             "pressure_exit",
@@ -62,10 +79,23 @@ class AdaptivePolicy:
             object.__setattr__(self, name, _ratio(getattr(self, name), name))
         if self.pressure_exit > self.pressure_enter:
             raise ValueError("pressure_exit must be <= pressure_enter")
-        if self.integral_limit < 0 or not math.isfinite(float(self.integral_limit)):
+        if isinstance(self.integral_limit, bool):
             raise ValueError("integral_limit must be finite and >= 0")
+        try:
+            integral_limit = float(self.integral_limit)
+        except (TypeError, ValueError):
+            raise ValueError("integral_limit must be finite and >= 0") from None
+        if integral_limit < 0 or not math.isfinite(integral_limit):
+            raise ValueError("integral_limit must be finite and >= 0")
+        object.__setattr__(self, "integral_limit", integral_limit)
         for name in ("proportional_gain", "integral_gain", "derivative_gain"):
-            value = float(getattr(self, name))
+            raw_value = getattr(self, name)
+            if isinstance(raw_value, bool):
+                raise ValueError(f"{name} must be finite and >= 0")
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{name} must be finite and >= 0") from None
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and >= 0")
             object.__setattr__(self, name, value)
@@ -89,8 +119,12 @@ class AdaptiveObservation:
             "marginal_gain",
         ):
             object.__setattr__(self, name, _ratio(getattr(self, name), name))
-        if isinstance(self.current_concurrency, bool) or self.current_concurrency < 0:
-            raise ValueError("current_concurrency must be >= 0")
+        if (
+            isinstance(self.current_concurrency, bool)
+            or not isinstance(self.current_concurrency, int)
+            or self.current_concurrency < 0
+        ):
+            raise ValueError("current_concurrency must be an integer >= 0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,8 +151,17 @@ class AdaptiveDecision:
     pid_output: float
     reason: str
     state: AdaptiveState
+    receipt: "AdaptiveReceipt | None" = None
 
     def to_dict(self) -> dict[str, object]:
+        receipt = self.receipt or AdaptiveReceipt(
+            action=self.action,
+            reason=self.reason,
+            current_concurrency=self.target_concurrency,
+            target_concurrency=self.target_concurrency,
+            pressure_active=self.pressure_active,
+            pid_output=self.pid_output,
+        )
         return {
             "schema": ADAPTIVE_CONTROLLER_SCHEMA,
             "target_concurrency": self.target_concurrency,
@@ -131,7 +174,74 @@ class AdaptiveDecision:
                 "integral_error": self.state.integral_error,
                 "previous_error": self.state.previous_error,
             },
+            "receipt": receipt.to_dict(),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class AdaptiveReceipt:
+    """Safe, deterministic evidence for one policy evaluation.
+
+    The receipt contains only normalized metrics and decision metadata.  It
+    intentionally does not include context payloads, prompts, task names, or
+    process identifiers, so callers can persist it on an existing ledger.
+    """
+
+    action: ControllerAction
+    reason: str
+    current_concurrency: int
+    target_concurrency: int
+    pressure_active: bool
+    pid_output: float
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": ADAPTIVE_RECEIPT_SCHEMA,
+            "action": self.action.value,
+            "reason": self.reason,
+            "current_concurrency": self.current_concurrency,
+            "target_concurrency": self.target_concurrency,
+            "pressure_active": self.pressure_active,
+            "pid_output": self.pid_output,
+        }
+
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True, slots=True)
+class FanOutReceipt:
+    """Evidence for a bounded, deterministic fan-out selection."""
+
+    requested: int
+    allowed: int
+    selected: int
+    truncated: bool
+    reason: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": ADAPTIVE_RECEIPT_SCHEMA,
+            "kind": "fan_out",
+            "requested": self.requested,
+            "allowed": self.allowed,
+            "selected": self.selected,
+            "truncated": self.truncated,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FanOutPlan(Generic[T]):
+    """Stable input-order selection for an existing dispatch interface."""
+
+    items: tuple[T, ...]
+    receipt: FanOutReceipt
+
+    def to_dict(self) -> dict[str, object]:
+        # Do not serialize arbitrary task/context values; the receipt is the
+        # wire-safe portion and callers retain ``items`` for dispatch.
+        return {"items": len(self.items), "receipt": self.receipt.to_dict()}
 
 
 class AdaptiveController:
@@ -188,7 +298,10 @@ class AdaptiveController:
             and observation.working_set_entropy >= self.policy.entropy_scale_threshold
             and observation.marginal_gain >= self.policy.minimum_marginal_gain
         ):
-            target = min(self.policy.max_concurrency, max(current + 1, current * 2))
+            # Minimal action is deliberate: one observation can authorize one
+            # additional worker only.  A later observation must authorize the
+            # next step, preventing bursty fan-out and PID overshoot.
+            target = current + 1
             action = ControllerAction.SCALE_UP
             reason = "bounded_scale_up"
         else:
@@ -197,17 +310,70 @@ class AdaptiveController:
             reason = "within_bounds"
 
         next_state = AdaptiveState(pressure_active, integral, error)
-        return AdaptiveDecision(
-            target, action, pressure_active, pid_output, reason, next_state
+        receipt = AdaptiveReceipt(
+            action=action,
+            reason=reason,
+            current_concurrency=current,
+            target_concurrency=target,
+            pressure_active=pressure_active,
+            pid_output=pid_output,
         )
+        return AdaptiveDecision(
+            target, action, pressure_active, pid_output, reason, next_state, receipt
+        )
+
+    def bound_fan_out(
+        self,
+        items: Sequence[T],
+        *,
+        decision: AdaptiveDecision | None = None,
+    ) -> FanOutPlan[T]:
+        """Select at most the policy/decision limit in stable input order.
+
+        This is a planning helper, not a dispatcher.  The returned tuple can
+        be passed to existing synchronous or asynchronous batch interfaces;
+        no worker, thread, or process is created here.
+        """
+
+        if isinstance(items, (str, bytes, bytearray)):
+            raise TypeError("fan-out items must be a sequence of work items")
+        if decision is not None and not isinstance(decision, AdaptiveDecision):
+            raise TypeError("decision must be an AdaptiveDecision")
+        requested = len(items)
+        policy_limit = min(self.policy.max_fan_out or 0, self.policy.max_concurrency)
+        decision_limit = (
+            decision.target_concurrency if decision is not None else policy_limit
+        )
+        allowed = min(policy_limit, max(0, decision_limit))
+        selected = tuple(items[:allowed])
+        truncated = len(selected) < requested
+        reason = "bounded_to_limit" if truncated else "within_limit"
+        return FanOutPlan(
+            items=selected,
+            receipt=FanOutReceipt(
+                requested=requested,
+                allowed=allowed,
+                selected=len(selected),
+                truncated=truncated,
+                reason=reason,
+            ),
+        )
+
+    # Alias named after the policy operation used by callers that already
+    # speak in terms of planning rather than bounding.
+    plan_fan_out = bound_fan_out
 
 
 __all__ = [
     "ADAPTIVE_CONTROLLER_SCHEMA",
+    "ADAPTIVE_RECEIPT_SCHEMA",
     "AdaptiveController",
     "AdaptiveDecision",
     "AdaptiveObservation",
     "AdaptivePolicy",
+    "AdaptiveReceipt",
     "AdaptiveState",
     "ControllerAction",
+    "FanOutPlan",
+    "FanOutReceipt",
 ]

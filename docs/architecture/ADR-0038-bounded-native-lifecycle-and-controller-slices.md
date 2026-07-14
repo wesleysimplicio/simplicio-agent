@@ -16,7 +16,14 @@ compiled daemon can shadow-run without owning processes or schedulers:
 - `agent/adaptive_controller.py` evaluates one resource/queue observation at a
   time. Resource pressure throttles by one step, hysteresis prevents premature
   recovery, low marginal gain decays concurrency, and scale-up is gated by
-  queue pressure, working-set entropy, and marginal gain.
+  queue pressure, working-set entropy, and marginal gain. Every scale-up is a
+  one-worker minimal action; the PID output is bounded and emitted as policy
+  evidence rather than being allowed to create an unbounded burst.
+- `AdaptiveController.bound_fan_out()` adapts the resulting target to an
+  existing batch-dispatch interface by selecting at most the policy and
+  decision limits in input order. It returns a `FanOutPlan` with a
+  JSON-safe receipt (`requested`, `allowed`, `selected`, and `truncated`) and
+  does not create workers or perform dispatch itself.
 
 Both contracts are pure and have no daemon, scheduler, provider, or gateway
 integration. They are suitable for a later Rust implementation to consume as
@@ -26,7 +33,9 @@ golden behavior fixtures.
 
 Focused tests cover startup/readiness, protocol incompatibility, reconnect
 boundedness and delay selection, generation changes, stop transitions,
-pressure/throttle behavior, hysteresis, bounded scale-up, decay, and JSON
-stability. This slice makes no production p50/p95, benchmark-gain, or live
-crash-isolation claim; those require the compiled runtime and an evidence-
-producing benchmark/live-process gate.
+pressure/throttle behavior, hysteresis, bounded minimal scale-up, decay,
+entropy gating, PID integral clamping, bounded fan-out, fixture equivalence,
+and JSON stability. This slice makes no production CPU, memory, p50/p95,
+benchmark-gain, or live crash-isolation claim: those remain `UNVERIFIED` until
+an evidence-producing benchmark/live-process gate runs against the compiled
+runtime and representative workloads.
