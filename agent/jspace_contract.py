@@ -229,6 +229,10 @@ class JSpaceState:
         return canonical_json(self)
 
     @property
+    def canonical_bytes(self) -> bytes:
+        return self.canonical_json.encode("utf-8")
+
+    @property
     def content_hash(self) -> str:
         return content_hash(self)
 
@@ -343,6 +347,10 @@ class JSpaceTrajectory:
     @property
     def canonical_json(self) -> str:
         return canonical_json(self)
+
+    @property
+    def canonical_bytes(self) -> bytes:
+        return self.canonical_json.encode("utf-8")
 
     def append(self, transition: JSpaceTransition) -> Self:
         """Return a new trajectory after validating the transition edge."""

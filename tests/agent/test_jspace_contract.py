@@ -126,6 +126,7 @@ def test_trajectory_id_content_hash_and_replay_are_deterministic() -> None:
     assert first.replay() == (initial, after)
     assert first.verify_reproducibility()
     assert first.verify_reproducibility().replay_hash == content_hash(first.states)
+    assert first.canonical_bytes == first.canonical_json.encode("utf-8")
 
 
 def test_append_preserves_chain_and_rejects_disconnected_transition() -> None:
