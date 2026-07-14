@@ -100,3 +100,16 @@ def test_sensitive_provider_state_and_duplicates_fail_closed():
             created_at_ns=1,
             updated_at_ns=1,
         )
+
+
+def test_resume_contract_exposes_safe_boundary_and_committed_effects():
+    run = _run().record_effect(
+        RunEffect(
+            "effect-1", "idempotency-1", RunEffectStatus.COMMITTED, "receipt://effect-1"
+        ),
+        now_ns=11,
+    )
+    contract = run.resume_contract()
+    assert contract["revalidate_environment"] is True
+    assert contract["committed_effects"] == ("idempotency-1",)
+    assert contract["effect_statuses"]["idempotency-1"] == "committed"

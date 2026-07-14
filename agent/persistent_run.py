@@ -263,6 +263,29 @@ class PersistentRun:
     def is_terminal(self) -> bool:
         return self.state in _TERMINAL
 
+    def resume_contract(self) -> dict[str, Any]:
+        """Return the safe boundary a restarted worker must revalidate."""
+
+        return {
+            "schema": self.schema,
+            "run_id": self.run_id,
+            "goal_hash": self.goal_hash,
+            "state": self.state.value,
+            "phase": self.phase,
+            "step": self.step,
+            "revalidate_environment": self.state
+            not in {RunState.CANCELLED, RunState.FAILED},
+            "effect_statuses": {
+                effect.idempotency_key: effect.status.value
+                for effect in self.effects
+            },
+            "committed_effects": tuple(
+                effect.idempotency_key
+                for effect in self.effects
+                if effect.status is RunEffectStatus.COMMITTED
+            ),
+        }
+
     def transition(
         self, state: RunState | str, *, now_ns: int | None = None
     ) -> "PersistentRun":
