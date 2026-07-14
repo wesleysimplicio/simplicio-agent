@@ -49,6 +49,25 @@ the locale files themselves.
 - Legacy branding drift is visible in receipts instead of being buried inside
   large YAML catalogs.
 
+## Bounded migration follow-up (2026-07-14)
+
+The next #192 slice applied the accepted contract to the shipped source
+catalogs. Public catalog values and command examples now use the untranslated
+proper name `Simplicio Agent` and canonical command `simplicio-agent` in every
+locale. The stable internal key `gateway.update.hermes_cmd_not_found` remains
+unchanged, as required by the issue's key-stability rule; a contextual test
+allows that identifier while rejecting the legacy term in comments or public
+values.
+
+The machine-readable terminology and translator policy lives in
+[`docs/product-language-glossary.yaml`](../product-language-glossary.yaml). It
+keeps Simplicio Agent distinct from Simplicio Runtime and defines `run`,
+`checkpoint`, `receipt`, `capability`, and operational `awareness`.
+
+This follow-up does not complete issue #192. Pseudo-locale layout checks,
+priority-locale visual snapshots, RTL coverage, compiled-artifact scanning,
+coverage claims, and human language review remain separate acceptance gates.
+
 ## Alternatives considered
 
 - Keep parity checks only in `tests/agent/test_i18n.py`: rejected because those
