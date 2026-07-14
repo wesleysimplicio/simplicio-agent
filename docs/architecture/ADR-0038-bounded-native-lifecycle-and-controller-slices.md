@@ -6,7 +6,7 @@
 
 ## Decision
 
-This migration slice adds two pure, deterministic boundaries that a future
+This migration slice adds three pure, deterministic boundaries that a future
 compiled daemon can shadow-run without owning processes or schedulers:
 
 - `tools/runtime_lifecycle.py` composes the runtime version handshake with
@@ -24,6 +24,10 @@ compiled daemon can shadow-run without owning processes or schedulers:
   decision limits in input order. It returns a `FanOutPlan` with a
   JSON-safe receipt (`requested`, `allowed`, `selected`, and `truncated`) and
   does not create workers or perform dispatch itself.
+- `tools/daemon_hot_path.py` freezes the daemon startup/health/reconnect,
+  crash-isolation, and rollback wire contract around the current warm-daemon
+  and `AgentHost` interfaces. It fails closed on unreported or incompatible
+  protocol versions and keeps retry/rollback decisions bounded.
 
 Both contracts are pure and have no daemon, scheduler, provider, or gateway
 integration. They are suitable for a later Rust implementation to consume as
@@ -32,10 +36,11 @@ golden behavior fixtures.
 ## Evidence boundary
 
 Focused tests cover startup/readiness, protocol incompatibility, reconnect
-boundedness and delay selection, generation changes, stop transitions,
+bounds and delay selection, generation changes, stop transitions,
 pressure/throttle behavior, hysteresis, bounded minimal scale-up, decay,
-entropy gating, PID integral clamping, bounded fan-out, fixture equivalence,
-and JSON stability. This slice makes no production CPU, memory, p50/p95,
-benchmark-gain, or live crash-isolation claim: those remain `UNVERIFIED` until
-an evidence-producing benchmark/live-process gate runs against the compiled
-runtime and representative workloads.
+entropy gating, PID integral clamping, bounded fan-out, daemon crash
+isolation, rollback eligibility, fixture equivalence, and JSON stability. This
+slice makes no production CPU, memory, p50/p95, benchmark-gain, compiled-daemon,
+clean-machine, or live crash-isolation/rollback claim: those remain
+`UNVERIFIED` until an evidence-producing benchmark/live-process gate runs
+against the compiled runtime and representative workloads.
