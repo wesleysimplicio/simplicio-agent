@@ -8,6 +8,7 @@ from agent.prediction_receipts import (
     ConfidenceCalibration,
     Counterfactual,
     CounterfactualKind,
+    counterfactual_evidence_digest,
     HardPolicyConstraint,
     Observation,
     ObservationState,
@@ -91,6 +92,57 @@ def test_expected_effects_and_counterfactuals_are_fail_closed() -> None:
             "model-v1",
             execution="executed",
         )
+
+    with pytest.raises(ValueError, match="kind and label must be unique"):
+        _receipt(
+            counterfactuals=(
+                Counterfactual(
+                    CounterfactualKind.NO_ACTION,
+                    "same",
+                    Observation.known("balance", 8),
+                    "ledger-v1",
+                ),
+                Counterfactual(
+                    CounterfactualKind.NO_ACTION,
+                    "same",
+                    Observation.known("balance", 7),
+                    "ledger-v1",
+                ),
+                Counterfactual(
+                    CounterfactualKind.ALTERNATIVE,
+                    "defer",
+                    Observation.known("balance", 9),
+                    "ledger-v1",
+                ),
+            )
+        )
+
+
+def test_counterfactual_digest_is_canonical_and_model_only() -> None:
+    receipt = _receipt()
+    reordered = _receipt(counterfactuals=tuple(reversed(receipt.counterfactuals)))
+
+    assert counterfactual_evidence_digest(receipt) == counterfactual_evidence_digest(
+        reordered
+    )
+    changed = _receipt(
+        counterfactuals=(
+            next(
+                item
+                for item in receipt.counterfactuals
+                if item.kind is CounterfactualKind.NO_ACTION
+            ),
+            Counterfactual(
+                CounterfactualKind.ALTERNATIVE,
+                "defer",
+                Observation.known("balance", 99),
+                "ledger-v1",
+            ),
+        )
+    )
+    assert counterfactual_evidence_digest(changed) != counterfactual_evidence_digest(
+        receipt
+    )
 
 
 def test_match_uses_allowed_variance_without_learning_error() -> None:
