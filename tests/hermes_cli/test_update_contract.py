@@ -173,11 +173,12 @@ def test_interrupted_activation_recovers_at_each_boundary(
             interrupt_after=boundary,
         )
 
-    recovered = contract.recover_interrupted()
+    restarted = UpdateContract(contract.root)
+    recovered = restarted.current()
     assert recovered is not None
-    assert not contract.state_path.exists()
-    assert not (contract.slots / ".staging").exists()
-    assert contract.recover_interrupted() == recovered
+    assert not restarted.state_path.exists()
+    assert not (restarted.slots / ".staging").exists()
+    assert restarted.recover_interrupted() == recovered
 
     if boundary == "state":
         assert recovered.active_slot == first.active_slot
@@ -185,7 +186,7 @@ def test_interrupted_activation_recovers_at_each_boundary(
     else:
         assert recovered.version == "2.0.0"
         assert recovered.previous_slot == first.active_slot
-        assert (contract.slots / first.active_slot / "VERSION").read_text() == "1.0.0"
+        assert (restarted.slots / first.active_slot / "VERSION").read_text() == "1.0.0"
 
 
 def test_failed_health_check_rolls_back_without_losing_previous(tmp_path: Path) -> None:
