@@ -1,0 +1,58 @@
+{
+  "schema": "simplicio.namespace-identity-inventory/v1",
+  "version": 1,
+  "canonical_names": {
+    "product": "Simplicio Agent",
+    "distribution": "simplicio-agent",
+    "python_namespace": "simplicio_agent",
+    "environment_prefix": "SIMPLICIO_AGENT_",
+    "state_root": "~/.simplicio/agent",
+    "protocol_namespace": "simplicio.agent.",
+    "compiled_kernel": "simplicio"
+  },
+  "legacy_names": [
+    "hermes-agent",
+    "hermes",
+    "hermes_cli",
+    "HermesCLI",
+    "AIAgent",
+    "run_agent",
+    "HERMES_",
+    "~/.hermes"
+  ],
+  "entries": [
+    {
+      "name": "public-python-namespace",
+      "kind": "canonical",
+      "path_glob": "simplicio_agent/**",
+      "canonical": "simplicio_agent",
+      "owner": "namespace",
+      "reason": "canonical product-facing Python namespace"
+    },
+    {
+      "name": "public-compat-shim",
+      "kind": "shim",
+      "path_glob": "simplicio_agent/compat.py",
+      "canonical": "simplicio_agent",
+      "owner": "namespace",
+      "reason": "temporary deprecation-only import shim",
+      "expiry": "2026-12-31"
+    },
+    {
+      "name": "runtime-bridge",
+      "kind": "bridge",
+      "path_glob": "tools/simplicio_bridge.py",
+      "canonical": "simplicio",
+      "owner": "runtime",
+      "reason": "temporary runtime transport bridge",
+      "expiry": "2026-12-31"
+    },
+    {
+      "name": "legacy-python-surface",
+      "kind": "legacy_surface",
+      "path_glob": "hermes_cli/**",
+      "owner": "namespace",
+      "reason": "existing implementation surface pending inside-out migration"
+    }
+  ]
+}
