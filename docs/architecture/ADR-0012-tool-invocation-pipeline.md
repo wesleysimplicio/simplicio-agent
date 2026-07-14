@@ -16,6 +16,8 @@ small hook runner with partial stage coverage and weak metadata defaults:
 - there was no first-class serial executor adapter for callers that already
   run tools synchronously
 - external results could be copied verbatim into evidence payloads
+- split traces could lose the persist/evidence tail when execute was omitted
+- finalization hook failures could leave a terminal attempt without evidence
 
 The user also constrained the change surface to this module, its focused test
 file, this ADR, and local fixtures. Existing worker files and executors had to
@@ -49,6 +51,16 @@ The module also owns:
   known stages, in canonical order, with duplicate/unknown entries ignored
 - external-result redaction inside evidence while preserving the live tool
   result returned to callers
+- canonical trace completion preserves the bounded terminal tail (`persist`,
+  `evidence`) even when a split caller omits `execute`
+- receipt identity is scoped to `attempt_id`, so a replayed completion cannot
+  emit a second receipt for the same attempt even if its result or status differs
+- persist, evidence, receipt-writer, and cancellation failures are terminalized
+  as error/cancelled outcomes without rerunning a side-effecting persist hook
+- serial adapters remain synchronous, copy the top-level argument mapping, and
+  fall back to the `serial` executor label when callers provide an empty label
+- unknown metadata/status values resolve to conservative defaults (`pending`
+  before execution and `error` for an invalid terminal status)
 
 ## Consequences
 
@@ -63,6 +75,9 @@ The module also owns:
   `begin`/`complete` split later.
 - Evidence is safer for remote/provider-backed tools because redacted payloads
   are persisted while the live result remains intact for the conversation loop.
+- A receipt writer failure is fail-safe: the local receipt remains attached for
+  diagnostics, `receipt_written` stays false, and evidence records the writer
+  exception instead of claiming a successful persistence.
 
 ## Alternatives considered
 

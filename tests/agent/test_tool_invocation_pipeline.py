@@ -92,6 +92,116 @@ def test_pipeline_writes_once_per_attempt_receipt_across_begin_complete_cycle():
     assert len(receipts) == 1
 
 
+def test_pipeline_receipt_deduplication_is_by_attempt_not_result_content():
+    receipts = []
+    pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
+    invocation = _fixture("invocation.json")
+
+    first = pipeline.complete(
+        ToolInvocation(**invocation), {"value": 1}, ["resolve", "execute"]
+    )
+    second = pipeline.complete(
+        ToolInvocation(**invocation),
+        {"value": 2},
+        ["resolve", "execute"],
+        status="error",
+    )
+
+    assert len(receipts) == 1
+    assert second.receipt == first.receipt
+    assert second.evidence["receipt_id"] == first.receipt.receipt_id
+
+
+def test_pipeline_finalization_errors_are_terminal_and_do_not_repeat_persist():
+    persisted = []
+    pipeline = ToolInvocationPipeline(
+        hooks={
+            "persist": lambda value, *, attempt: (
+                persisted.append(attempt.metadata.attempt_id)
+                or (_ for _ in ()).throw(RuntimeError("persist failed"))
+            )
+        }
+    )
+
+    outcome = pipeline.run(
+        ToolInvocation("demo.tool", {}), lambda name, args: {"ok": True}
+    )
+
+    assert outcome.status == "error"
+    assert outcome.error_type == "RuntimeError"
+    assert outcome.receipt is not None
+    assert outcome.evidence["status"] == "error"
+    assert outcome.trace[-2:] == ["persist", "evidence"]
+    assert len(persisted) == 1
+
+
+def test_pipeline_never_executes_a_blocked_attempt_if_persist_fails():
+    executed = []
+    pipeline = ToolInvocationPipeline(
+        hooks={
+            "guardrail": lambda value, *, attempt: ToolDecision(
+                allow=False, reason="readonly"
+            ),
+            "persist": lambda value, *, attempt: (_ for _ in ()).throw(
+                RuntimeError("persist failed")
+            ),
+        }
+    )
+
+    outcome = pipeline.run(
+        ToolInvocation("danger.tool", {}),
+        lambda name, args: executed.append((name, args)),
+    )
+
+    assert outcome.status == "error"
+    assert outcome.invocation.metadata.blocked_by == "guardrail"
+    assert executed == []
+
+
+def test_pipeline_receipt_writer_failure_is_fail_safe_and_evidenced():
+    writes = []
+
+    def write(receipt):
+        writes.append(receipt)
+        raise OSError("receipt store unavailable")
+
+    outcome = ToolInvocationPipeline(receipt_writer=write).run(
+        ToolInvocation("demo.tool", {}), lambda name, args: {"ok": True}
+    )
+
+    assert outcome.status == "error"
+    assert outcome.receipt is not None
+    assert outcome.invocation.metadata.receipt_written is False
+    assert outcome.evidence["receipt_error_type"] == "OSError"
+    assert len(writes) == 1
+
+
+def test_pipeline_catches_keyboard_interrupt_as_cancelled():
+    outcome = ToolInvocationPipeline().run(
+        ToolInvocation("demo.tool", {}),
+        lambda name, args: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    assert outcome.status == "cancelled"
+    assert outcome.error_type == "KeyboardInterrupt"
+    assert outcome.receipt is not None
+    assert outcome.evidence["status"] == "cancelled"
+
+
+def test_serial_adapter_uses_serial_default_and_isolates_top_level_args():
+    received = []
+    adapter = SerialToolExecutorAdapter(
+        execute_fn=lambda name, args: received.append(args), label=""
+    )
+    outcome = ToolInvocationPipeline().run(
+        ToolInvocation("demo.tool", {"nested": {"value": 1}}), adapter
+    )
+
+    assert outcome.invocation.metadata.executor == "serial"
+    assert received == [{"nested": {"value": 1}}]
+    assert received[0] is not outcome.invocation.args
+
+
 def test_pipeline_begin_complete_matches_run_stage_and_evidence_contract():
     invocation = ToolInvocation(**_fixture("invocation.json"))
     result = {"ok": True, "value": "same"}
@@ -174,6 +284,30 @@ def test_pipeline_applies_fail_safe_metadata_defaults_and_redacts_external_resul
     assert outcome.evidence["result"]["nested"]["token"] == "[REDACTED]"
     assert outcome.result["secret"] == "keep-in-live-result"
     assert len(receipts) == 1
+
+
+def test_pipeline_normalizes_invalid_metadata_and_completion_status_fail_safe():
+    invocation = ToolInvocation(
+        "demo.tool",
+        {},
+        metadata=ToolInvocationMetadata(
+            actor="",
+            executor="",
+            status="not-a-status",
+            evidence_version="",
+        ),
+    )
+    outcome = ToolInvocationPipeline().run(invocation, lambda name, args: {"ok": True})
+    invalid_completion = ToolInvocationPipeline().complete(
+        ToolInvocation("demo.tool", {}), {"ok": True}, [], status="not-a-status"
+    )
+
+    assert outcome.status == "success"
+    assert outcome.invocation.metadata.actor == "agent"
+    assert outcome.invocation.metadata.executor == "serial"
+    assert outcome.invocation.metadata.evidence_version == "tool-invocation/v1"
+    assert invalid_completion.status == "error"
+    assert invalid_completion.evidence["status"] == "error"
 
 
 def test_pipeline_converts_execution_exception_to_error_outcome():
