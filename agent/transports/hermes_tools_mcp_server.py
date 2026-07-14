@@ -65,6 +65,20 @@ MCP_SERVER_NAME = "simplicio-agent-tools"
 LEGACY_MCP_SERVER_NAME = "hermes-tools"
 
 
+def _set_mcp_server_version(mcp: Any) -> None:
+    """Set the installed product version used by MCP ``serverInfo``.
+
+    FastMCP versions used by Simplicio Agent do not expose a public
+    constructor argument for this value.  Keep the compatibility touchpoint
+    isolated and harmless for test doubles and older SDK versions.
+    """
+    from hermes_cli import __version__
+
+    low_level_server = getattr(mcp, "_mcp_server", None)
+    if low_level_server is not None:
+        low_level_server.version = __version__
+
+
 # Tools we expose. Each name MUST match a registered Hermes tool that
 # `model_tools.handle_function_call()` can dispatch.
 #
@@ -144,6 +158,7 @@ def _build_server() -> Any:
             "memory, skills, and cross-session search."
         ),
     )
+    _set_mcp_server_version(mcp)
 
     # Pull authoritative Hermes tool schemas for the ones we expose, so
     # MCP clients see the same parameter docs Hermes gives the model.
