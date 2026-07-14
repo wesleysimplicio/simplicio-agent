@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from agent.context import (  # noqa: E402
+    CacheReceipt,
     ColdStore,
+    ContextDelta,
     Handle,
     IncrementalPipeline,
     TfidfScorer,
@@ -131,6 +133,35 @@ def test_pipeline_expand_after_register():
     assert not pipe.ws.is_hot("h")
     # direct expand loads it
     assert pipe.expand("h") == "PAYLOAD_H"
+
+
+def test_working_set_content_ids_and_deterministic_delta():
+    ws = WorkingSet()
+    before = ws.snapshot()
+    ws.put("doc", "payload-v1")
+    first = ws.delta(before)
+    assert isinstance(first, ContextDelta)
+    assert first.added == ("doc",)
+    before = ws.snapshot()
+    ws.put("doc", "payload-v2")
+    changed = ws.delta(before)
+    assert changed.changed == ("doc",)
+    assert changed.sha256 == ws.delta(before).sha256
+    assert "payload-v2" not in changed.to_dict()["sha256"]
+
+
+def test_token_cache_receipts_are_model_scoped_and_content_free():
+    cache = TokenCache(max_entries=2)
+    miss, miss_receipt = cache.get_with_receipt("model-a", "secret prompt")
+    assert miss is None
+    assert isinstance(miss_receipt, CacheReceipt)
+    assert not miss_receipt.hit
+    receipt = cache.put_with_receipt("model-a", "secret prompt", [1, 2])
+    assert receipt.key == miss_receipt.key
+    hit, hit_receipt = cache.get_with_receipt("model-a", "secret prompt")
+    assert hit == [1, 2]
+    assert hit_receipt.hit
+    assert "secret prompt" not in hit_receipt.to_dict()
 
 
 if __name__ == "__main__":

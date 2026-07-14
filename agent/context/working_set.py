@@ -12,9 +12,11 @@ Stdlib-only.  No LLM round-trip is required to score or expand handles.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import threading
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Hashable, Optional
 
 
@@ -32,6 +34,44 @@ class Handle:
     # cached hot payload; None when only the cold-ref is resident
     hot: Any = None
     token_estimate: int = 0
+    content_id: str = ""
+
+
+@dataclass(frozen=True)
+class ContextDelta:
+    """Content-addressed change set for a working-set snapshot."""
+
+    added: tuple[str, ...]
+    changed: tuple[str, ...]
+    removed: tuple[str, ...]
+    sha256: str
+
+    @property
+    def empty(self) -> bool:
+        return not (self.added or self.changed or self.removed)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "added": list(self.added),
+            "changed": list(self.changed),
+            "removed": list(self.removed),
+            "sha256": self.sha256,
+            "empty": self.empty,
+        }
+
+
+def content_address(payload: Any) -> str:
+    """Return an opaque stable id without retaining or exposing payload text."""
+
+    if isinstance(payload, bytes):
+        encoded = payload
+    elif isinstance(payload, str):
+        encoded = payload.encode("utf-8")
+    else:
+        encoded = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, default=repr
+        ).encode("utf-8")
+    return hashlib.blake2b(encoded, digest_size=32).hexdigest()
 
 
 class ColdStore:
@@ -86,6 +126,8 @@ class WorkingSet:
         self._cold = cold or ColdStore()
         self._on_evict = on_evict
         self._hot: OrderedDict[str, Handle] = OrderedDict()
+        self._content_ids: dict[str, str] = {}
+        self._cold_refs: dict[str, Any] = {}
         self._lock = threading.RLock()
 
     # ── writes ──────────────────────────────────────────────────────────
@@ -95,6 +137,8 @@ class WorkingSet:
             cold_ref = key
         with self._lock:
             self._cold.save(cold_ref, payload)
+            self._content_ids[key] = content_address(payload)
+            self._cold_refs[key] = cold_ref
             # also remember the cold_ref on the handle if it exists hot
             h = self._hot.get(key)
             if h is not None and h.cold_ref is None:
@@ -117,7 +161,10 @@ class WorkingSet:
                 cold_ref=cold_ref,
                 hot=payload,
                 token_estimate=token_estimate,
+                content_id=content_address(payload),
             )
+            self._content_ids[key] = handle.content_id
+            self._cold_refs[key] = cold_ref
             self._hot[key] = handle
             self._evict_to_cap()
             return handle
@@ -149,11 +196,16 @@ class WorkingSet:
             if h is not None:
                 self._hot.move_to_end(key)
                 return h.hot
-            payload = self._cold.load(key)
+            payload = self._cold.load(self._cold_refs.get(key, key))
             if payload is None:
                 return None
             # cold hit → promote
-            h = Handle(key=key, cold_ref=key, hot=payload)
+            h = Handle(
+                key=key,
+                cold_ref=self._cold_refs.get(key, key),
+                hot=payload,
+                content_id=self._content_ids.get(key, content_address(payload)),
+            )
             self._hot[key] = h
             self._evict_to_cap()
             return payload
@@ -165,6 +217,33 @@ class WorkingSet:
     def keys_hot(self) -> list[str]:
         with self._lock:
             return list(self._hot.keys())
+
+    def snapshot(self) -> dict[str, str]:
+        """Return opaque content ids for all registered handles."""
+
+        with self._lock:
+            return dict(sorted(self._content_ids.items()))
+
+    def delta(self, previous: Optional[dict[str, str]] = None) -> ContextDelta:
+        """Compare the current content-addressed snapshot with ``previous``."""
+
+        before = previous or {}
+        after = self.snapshot()
+        added = tuple(sorted(set(after) - set(before)))
+        removed = tuple(sorted(set(before) - set(after)))
+        changed = tuple(
+            sorted(key for key in set(after) & set(before) if after[key] != before[key])
+        )
+        payload = json.dumps(
+            {"added": added, "changed": changed, "removed": removed},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return ContextDelta(
+            added=added,
+            changed=changed,
+            removed=removed,
+            sha256=hashlib.sha256(payload).hexdigest(),
+        )
 
     def __len__(self) -> int:
         with self._lock:
