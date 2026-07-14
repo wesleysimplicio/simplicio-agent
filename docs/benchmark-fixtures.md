@@ -28,3 +28,32 @@ SHA-256, token counts, p50/p95 local latency, per-stage timings, and peak
 UTF-8-bytes/4 ceiling proxy; latency is `MEASURED|` for local stub execution,
 not a claim about a remote model. The report's `fixture_sha256` and stable
 category/route fields are the handoff boundary for Native token/latency gates.
+
+## Before/after local gate
+
+Each run report is also a `simplicio.bench-receipt/v1` receipt. The receipt is
+an aggregate over each category and records input/output token proxies plus
+local p50/p95 latency. `bench.harness` compares two receipts without importing
+the agent runtime or contacting a provider:
+
+```text
+python -m bench.harness run --repeats 100 --warmup 5 --json before.json
+# Run the same command for the candidate checkout and write after.json.
+python -m bench.harness compare --before before.json --after after.json \
+  --token-threshold-pct 5 --latency-threshold-pct 20 --json gate.json
+```
+
+The comparison receipt uses `simplicio.bench-gate/v1`. Exit status `0` means
+the receipts validate and no category's input/output tokens or p50/p95 local
+latency increased beyond the configured tolerance; status `1` is a regression
+or validation failure, and status `2` means an input file could not be read.
+`--baseline`/`--candidate` are accepted aliases for `--before`/`--after`, so
+the command can be reused by CI jobs that already use baseline terminology.
+
+The gate is fail-closed: it rejects schema or evidence drift, missing or extra
+categories, mismatched fixture hashes, and non-numeric metrics. It reports
+`MEASURED|` when both inputs carry measured local stub provenance and
+`UNVERIFIED|` when either input is explicitly unverified. The stub's timings
+are measurements of this Python runner only; the fixture's receipt-derived
+weights remain `UNVERIFIED|` until scrubbed SessionDB receipts are mined, and
+neither result is evidence of remote-provider latency or agent capability.

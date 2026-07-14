@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 
 import pytest
 
@@ -7,9 +8,13 @@ from bench.harness import (
     REPORT_SCHEMA,
     _percentile,
     case_digest,
+    compare_reports,
     load_manifest,
     run_benchmark,
     scan_sensitive,
+    validate_report,
+    RECEIPT_SCHEMA,
+    main,
 )
 
 
@@ -47,6 +52,81 @@ def test_stub_report_has_token_latency_and_memory_metrics():
         assert category["output_tokens"] > 0
         assert category["latency_us"]["p50"] <= category["latency_us"]["p95"]
         assert category["peak_memory_bytes"] > 0
+
+
+def test_report_is_a_versioned_receipt_and_validates_against_manifest():
+    report = run_benchmark(repeats=1, warmup=0)
+
+    assert report["receipt_schema"] == RECEIPT_SCHEMA
+    assert validate_report(report, load_manifest()) == []
+    assert report["evidence"].startswith("MEASURED|")
+
+
+def test_before_after_comparator_gates_token_and_latency_regressions():
+    before = run_benchmark(repeats=1, warmup=0)
+    after = deepcopy(before)
+    after["categories"][0]["input_tokens"] *= 1.20
+    after["categories"][0]["latency_us"]["p95"] *= 1.50
+
+    result = compare_reports(before, after, manifest=load_manifest())
+
+    assert result["status"] == "blocked"
+    assert "routine_deterministic.input_tokens" in result["regressions"]
+    assert "routine_deterministic.latency_us.p95" in result["regressions"]
+    assert result["summary"]["metric_count"] == 32
+
+
+def test_before_after_comparator_fails_closed_on_receipt_mismatch():
+    before = run_benchmark(repeats=1, warmup=0)
+    after = deepcopy(before)
+    after["fixture_sha256"] = "sha256:different"
+    del after["categories"][-1]
+
+    result = compare_reports(before, after, manifest=load_manifest())
+
+    assert result["status"] == "blocked"
+    assert "before and after fixture_sha256 values must match" in result["errors"]
+    assert any(
+        "report categories must cover every fixture category" in error
+        for error in result["errors"]
+    )
+
+
+def test_unverified_receipt_provenance_is_preserved_in_gate():
+    before = run_benchmark(repeats=1, warmup=0)
+    after = deepcopy(before)
+    after["evidence"] = "UNVERIFIED|synthetic before-after input"
+
+    result = compare_reports(before, after, manifest=load_manifest())
+
+    assert result["status"] == "pass"
+    assert result["evidence"].startswith("UNVERIFIED|")
+
+
+def test_compare_cli_is_reusable_and_writes_gate_receipt(tmp_path):
+    before_path = tmp_path / "before.json"
+    after_path = tmp_path / "after.json"
+    gate_path = tmp_path / "gate.json"
+    report = run_benchmark(repeats=1, warmup=0)
+    rendered = json.dumps(report)
+    before_path.write_text(rendered, encoding="utf-8")
+    after_path.write_text(rendered, encoding="utf-8")
+
+    assert (
+        main([
+            "compare",
+            "--before",
+            str(before_path),
+            "--after",
+            str(after_path),
+            "--json",
+            str(gate_path),
+        ])
+        == 0
+    )
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    assert gate["schema"] == "simplicio.bench-gate/v1"
+    assert gate["status"] == "pass"
 
 
 def test_report_shape_is_reusable_across_runs():
