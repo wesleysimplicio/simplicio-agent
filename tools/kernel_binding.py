@@ -226,10 +226,30 @@ def _get_simplicio_bridge() -> Any:
     global _simplicio_bridge
     with _simplicio_bridge_lock:
         if _simplicio_bridge is None:
-            from tools.simplicio_bridge import SimplicioBridge
-
-            _simplicio_bridge = SimplicioBridge()
+            _simplicio_bridge = _build_simplicio_bridge()
         return _simplicio_bridge
+
+
+def _build_simplicio_bridge() -> Any:
+    """Build the process-scoped bridge with the bounded #210 routing order.
+
+    ``SimplicioTransport`` remains the sole owner of transport selection: it
+    invokes the verified CLI path first and only consults ``mcp_command``
+    when that process cannot be started.  Supplying the existing Runtime MCP
+    stdio command here is the production wiring that makes the fallback real;
+    policy, lifecycle, circuit breaking, and idempotency stay in their
+    existing #222 owners.
+    """
+    from tools.simplicio_bridge import SimplicioBridge
+    from tools.simplicio_transport import SimplicioTransport
+
+    kernel_bin = resolve_kernel_bin()
+    mcp_command = (
+        (kernel_bin, "serve", "--mcp", "--stdio") if kernel_bin else None
+    )
+    return SimplicioBridge(
+        SimplicioTransport(cli_bin=kernel_bin, mcp_command=mcp_command)
+    )
 
 
 def _bridge_gate_failure_detail(bridge: Any) -> str:

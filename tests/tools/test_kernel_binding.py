@@ -16,6 +16,7 @@ import tools.kernel_binding as kb
 import tools.runtime_manager as rm
 from tools.simplicio_bridge import SimplicioBridge
 from tools.simplicio_transport import SimplicioTransport
+from tools.simplicio_transport import TransportReceipt
 
 
 @pytest.fixture(autouse=True)
@@ -130,6 +131,82 @@ class TestKernelVerified:
         kb.reset_kernel_cache()
         assert kb._simplicio_bridge is None
         bridge.reset_circuit.assert_called_once_with()
+
+
+class TestKernelBridgeTransportContract:
+    """#210 production wiring: CLI primary, bounded MCP fallback, receipts."""
+
+    def test_healthy_cli_is_primary_and_mcp_is_not_consulted(self):
+        proc = subprocess.CompletedProcess(
+            ["simplicio"], 0, stdout='{"decision":"allow"}', stderr=""
+        )
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value="simplicio"),
+            mock_patch(
+                "tools.simplicio_transport.subprocess.run", return_value=proc
+            ),
+            mock_patch.object(SimplicioTransport, "_call_mcp") as mcp,
+        ):
+            bridge = kb._build_simplicio_bridge()
+            assert bridge.gate("echo ok") == {"decision": "allow"}
+
+        mcp.assert_not_called()
+        receipt = bridge.last_receipt()
+        assert receipt is not None
+        assert receipt.ok is True
+        assert receipt.transport == "cli"
+        assert receipt.fallback_reason is None
+        assert receipt.request_id
+
+    def test_cli_launch_unavailable_uses_mcp_and_preserves_fallback_receipt(self):
+        mcp_receipt = TransportReceipt.success(
+            "gate",
+            {"decision": "allow"},
+            transport="mcp",
+            request_id="mcp-request",
+        )
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value="simplicio"),
+            mock_patch(
+                "tools.simplicio_transport.subprocess.run",
+                side_effect=FileNotFoundError("CLI launch unavailable"),
+            ),
+            mock_patch.object(
+                SimplicioTransport, "_call_mcp", return_value=mcp_receipt
+            ) as mcp,
+        ):
+            bridge = kb._build_simplicio_bridge()
+            assert bridge.gate("echo ok") == {"decision": "allow"}
+
+        mcp.assert_called_once()
+        receipt = bridge.last_receipt()
+        assert receipt is not None
+        assert receipt.ok is True
+        assert receipt.transport == "mcp"
+        assert receipt.fallback_reason == "cli_unavailable"
+        assert receipt.request_id
+
+    def test_cli_execution_error_never_falls_back_to_mcp(self):
+        proc = subprocess.CompletedProcess(
+            ["simplicio"], 2, stdout="", stderr="policy denied"
+        )
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value="simplicio"),
+            mock_patch(
+                "tools.simplicio_transport.subprocess.run", return_value=proc
+            ),
+            mock_patch.object(SimplicioTransport, "_call_mcp") as mcp,
+        ):
+            bridge = kb._build_simplicio_bridge()
+            assert bridge.gate("rm -rf /") is None
+
+        mcp.assert_not_called()
+        receipt = bridge.last_receipt()
+        assert receipt is not None
+        assert receipt.ok is False
+        assert receipt.transport == "cli"
+        assert receipt.fallback_reason is None
+        assert receipt.error == "policy denied"
 
 
 # =========================================================================
