@@ -323,6 +323,8 @@ def build_scan_receipt(
             scan_errors.append(f"scans.{kind}.kind does not match surface")
         if not _is_digest(scan.get("scan_digest")):
             scan_errors.append(f"scans.{kind}.scan_digest must use sha256")
+        if status == "pass" and scan.get("ok") is not True:
+            scan_errors.append(f"scans.{kind}.ok must be true for pass")
     if scan_errors:
         raise ValueError("invalid surface scans: " + "; ".join(scan_errors))
     payload: dict[str, Any] = {
@@ -392,6 +394,8 @@ def validate_scan_receipt(
                 errors.append(f"surfaces.{kind}.schema is invalid")
             if scan.get("kind") != kind:
                 errors.append(f"surfaces.{kind}.kind does not match surface")
+            if receipt.get("status") == "pass" and scan.get("ok") is not True:
+                errors.append(f"surfaces.{kind}.ok must be true for pass")
             digest = scan.get("scan_digest")
             if not _is_digest(digest):
                 errors.append(f"surfaces.{kind}.scan_digest must use sha256")

@@ -173,6 +173,49 @@ def test_receipt_requires_all_surfaces_and_does_not_accept_not_attempted() -> No
     assert "proof.publishes_artifact must be false" in validate_scan_contract(invalid)
 
 
+def test_pass_receipt_fails_closed_on_blocking_identity_scan(tmp_path: Path) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "main.py").write_text("name = 'hermes-agent'\n", encoding="utf-8")
+    (tmp_path / "package.bin").write_bytes(b"fixture-package")
+    (tmp_path / "runtime.bin").write_bytes(b"fixture-runtime")
+    contract = _contract()
+    scans = scan_source_package_runtime(
+        tmp_path,
+        paths={
+            "source": ["src"],
+            "package": ["package.bin"],
+            "runtime": ["runtime.bin"],
+        },
+        identity_manifest=IDENTITY_MANIFEST,
+        today="2026-07-14",
+    )
+    assert scans["source"]["ok"] is False
+
+    with pytest.raises(ValueError, match=r"scans\.source\.ok must be true for pass"):
+        build_scan_receipt(
+            contract,
+            scans=scans,
+            status="pass",
+            receipts=["receipts/scan.json"],
+        )
+
+    receipt = build_scan_receipt(
+        contract,
+        scans=scans,
+        status="fail",
+        receipts=["receipts/scan.json"],
+    )
+    receipt["status"] = "pass"
+    receipt["receipt_digest"] = digest_document({
+        key: value for key, value in receipt.items() if key != "receipt_digest"
+    })
+    assert "surfaces.source.ok must be true for pass" in validate_scan_receipt(
+        receipt,
+        contract=contract,
+    )
+
+
 def test_surface_path_cannot_escape_root(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside-release-gate-fixture.txt"
     outside.write_text("fixture", encoding="utf-8")
