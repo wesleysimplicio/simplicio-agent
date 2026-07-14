@@ -11,6 +11,7 @@ from agent.trust_boundary import (
     ControlEventReplayGuard,
     FailClosedTrustBoundaryError,
     IntegrityReceipt,
+    PoisoningQuarantineValidation,
     ReplayDetectedTrustBoundaryError,
     TrustClass,
     TrustProvenance,
@@ -20,6 +21,7 @@ from agent.trust_boundary import (
     enforce_receipt,
     issue_control_event,
     issue_receipt,
+    validate_poisoning_quarantine,
     verify_control_event,
     verify_receipt,
     verify_receipt_chain,
@@ -182,6 +184,44 @@ def test_public_block_redacts_direct_message_source_and_common_tokens():
     assert "xoxb-12345678-secret" not in rendered
     assert "ghp_12345678-secret" not in rendered
     assert "leaked-source-token" not in rendered
+
+
+def test_poisoning_quarantine_validation_is_deterministic_and_non_disclosing():
+    first = validate_poisoning_quarantine(
+        {
+            "source": "browser",
+            "signals": ["goal_mutation", "authority_escalation"],
+            "payload": "do not retain this instruction",
+        },
+        poisoning_detected=True,
+        quarantined=True,
+    )
+    second = validate_poisoning_quarantine(
+        {
+            "payload": "do not retain this instruction",
+            "signals": ["goal_mutation", "authority_escalation"],
+            "source": "browser",
+        },
+        poisoning_detected=True,
+        quarantined=True,
+    )
+
+    assert isinstance(first, PoisoningQuarantineValidation)
+    assert first.evidence_sha256 == second.evidence_sha256
+    assert first.safe_to_promote is False
+    assert "do not retain" not in repr(first)
+
+
+def test_detected_poisoning_cannot_validate_without_quarantine():
+    with pytest.raises(
+        FailClosedTrustBoundaryError,
+        match="detected poisoning must remain quarantined",
+    ):
+        validate_poisoning_quarantine(
+            {"source": "tool", "signal": "fake_completion"},
+            poisoning_detected=True,
+            quarantined=False,
+        )
 
 
 def test_receipt_fixture_chain_verifies_and_round_trips():
