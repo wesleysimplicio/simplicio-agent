@@ -20,6 +20,9 @@ from hermes_cli.staging_activation import (
 )
 
 
+pytestmark = pytest.mark.live_system_guard_bypass
+
+
 def _staging(root: Path, *, config: object | None = None) -> Path:
     staging = root / "staging"
     package = staging / "hermes_cli"
