@@ -128,6 +128,22 @@ class CapabilityState:
             self, "capability_id", _clean(self.capability_id, "capability_id")
         )
         object.__setattr__(self, "modality", _clean(self.modality, "modality"))
+        for field_name in (
+            "installed",
+            "configured",
+            "healthy",
+            "authorized",
+            "verified",
+        ):
+            if type(getattr(self, field_name)) is not bool:
+                raise TypeError(f"{field_name} must be a bool")
+        for field_name in (
+            "authority_level",
+            "authority_ceiling",
+            "budget_remaining",
+        ):
+            if type(getattr(self, field_name)) is not int:
+                raise TypeError(f"{field_name} must be an int")
         if self.authority_level < 0 or self.authority_ceiling < 0:
             raise ValueError("authority levels must be non-negative")
         if self.authority_level > self.authority_ceiling:
@@ -169,6 +185,19 @@ class CapabilityState:
             self.authorized,
             self.verified,
         ))
+
+    def can_execute(self, required_authority: int) -> bool:
+        """Fail closed unless state, authority, and budget permit an effect."""
+
+        if type(required_authority) is not int:
+            raise TypeError("required_authority must be an int")
+        if required_authority < 0:
+            raise ValueError("required_authority must be non-negative")
+        return (
+            self.available
+            and self.budget_remaining > 0
+            and required_authority <= self.authority_level <= self.authority_ceiling
+        )
 
     def with_health(
         self, healthy: bool, receipt: SourceReceipt, reason: str
