@@ -3,7 +3,15 @@
 import json
 from pathlib import Path
 
-from agent.token_governor import GovernorLevel, TokenGovernor
+import pytest
+
+from agent.telemetry.receipts import lookup_receipt
+from agent.token_governor import (
+    GovernorLevel,
+    TokenGovernor,
+    TurnBudget,
+    record_route_receipt,
+)
 
 
 def _fixture():
@@ -48,3 +56,48 @@ def test_unavailable_frontier_fails_closed_to_local_route():
     assert receipt.fallback is True
     assert receipt.remote_free
     assert receipt.escalation_reason == "frontier-unavailable-fallback"
+
+
+def test_route_receipt_is_content_free_and_uses_append_only_telemetry(
+    tmp_path: Path,
+) -> None:
+    receipt = TokenGovernor().route(
+        "private intent that must not be persisted", deterministic=True
+    )
+
+    recorded = record_route_receipt(receipt, directory=tmp_path)
+    loaded = lookup_receipt(receipt.canonical_json(), directory=tmp_path)
+
+    assert loaded == recorded
+    assert recorded.yool_id == "agent.token.governor"
+    assert recorded.cost.tokens == 0
+    assert recorded.meta["schema"] == "simplicio.agent.token-governor/v1"
+    payload = next(tmp_path.glob("*.json")).read_text(encoding="utf-8")
+    assert "private intent" not in payload
+    assert receipt.canonical_json() == receipt.canonical_json()
+
+
+def test_route_and_record_returns_same_local_decision(tmp_path: Path) -> None:
+    receipt, telemetry = TokenGovernor().route_and_record(
+        "cached", cache_hit=True, directory=tmp_path
+    )
+
+    assert receipt.level is GovernorLevel.L0
+    assert telemetry.status == "cached"
+    assert telemetry.cost.tokens == 0
+
+
+def test_zero_remote_levels_reject_nonzero_custom_budgets() -> None:
+    budgets = {
+        GovernorLevel.L0: TurnBudget(1, 0, 0),
+        GovernorLevel.L1: TurnBudget(0, 0, 0),
+        GovernorLevel.L2: TurnBudget(1, 1, 1),
+        GovernorLevel.L3: TurnBudget(1, 1, 1),
+    }
+    with pytest.raises(ValueError, match="entirely zero"):
+        TokenGovernor(budgets=budgets)
+
+
+def test_intent_must_be_text() -> None:
+    with pytest.raises(TypeError, match="intent must be text"):
+        TokenGovernor().route(None)  # type: ignore[arg-type]
