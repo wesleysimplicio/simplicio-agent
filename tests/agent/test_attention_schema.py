@@ -13,6 +13,7 @@ def _item(item_id: str, reason: AttentionReason, **changes: object) -> Attention
         "reason": reason,
         "expires_at": 100,
         "run_id": "run-a",
+        "goal_id": "goal-a",
         "created_at": 0,
         "cause_receipts": (f"receipt-{item_id}",),
     }
@@ -27,7 +28,7 @@ def test_safety_and_human_gate_preempt_content_controlled_work() -> None:
         _item("safety", AttentionReason.SAFETY, relevance=0),
     ))
 
-    workspace = queue.select_workspace(budget=2, now=10)
+    workspace = queue.select_workspace(goal_id="goal-a", budget=2, now=10)
 
     assert [item.item_id for item in workspace.items] == ["safety", "approval"]
     assert workspace.explain() == (
@@ -43,8 +44,8 @@ def test_selection_is_deterministic_fair_and_priority_is_policy_derived() -> Non
         _item("new-c", AttentionReason.NORMAL_PROGRESS, run_id="run-c"),
     ))
 
-    first = queue.select_workspace(budget=3, now=100)
-    second = queue.select_workspace(budget=3, now=100)
+    first = queue.select_workspace(goal_id="goal-a", budget=3, now=100)
+    second = queue.select_workspace(goal_id="goal-a", budget=3, now=100)
 
     assert first == second
     assert {item.run_id for item in first.items} == {"run-a", "run-b", "run-c"}
@@ -71,3 +72,37 @@ def test_duplicate_completion_is_published_once_and_open_loop_requires_receipt()
         "first", AcknowledgementState.COMPLETED, "completion-receipt"
     )
     assert not closed.is_open
+
+
+def test_workspace_selection_is_goal_scoped_and_emits_a_stable_receipt() -> None:
+    queue = AttentionQueue((
+        _item(
+            "goal-a-item",
+            AttentionReason.NORMAL_PROGRESS,
+            source="shared-source",
+        ),
+        _item(
+            "goal-b-item",
+            AttentionReason.SAFETY,
+            goal_id="goal-b",
+            source="shared-source",
+        ),
+    ))
+
+    first = queue.select_workspace(goal_id="goal-a", budget=2, now=10)
+    second = queue.select_workspace(goal_id="goal-a", budget=2, now=10)
+    other_goal = queue.select_workspace(goal_id="goal-b", budget=2, now=10)
+
+    assert [item.item_id for item in first.items] == ["goal-a-item"]
+    assert [item.item_id for item in other_goal.items] == ["goal-b-item"]
+    assert first.receipt == second.receipt
+    assert first.receipt.receipt_id != other_goal.receipt.receipt_id
+    assert first.receipt.to_dict() == {
+        "schema": "simplicio.attention-workspace-receipt/v1",
+        "receipt_id": first.receipt.receipt_id,
+        "goal_id": "goal-a",
+        "selected_at": 10,
+        "budget": 2,
+        "used": 1,
+        "item_ids": ["goal-a-item"],
+    }

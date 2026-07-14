@@ -6,6 +6,8 @@ does not invoke a model.  It publishes compact reasons, not private reasoning.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Iterable
@@ -35,6 +37,7 @@ class AcknowledgementState(str, Enum):
 
 _PRIORITY = {reason: priority for priority, reason in enumerate(AttentionReason)}
 _PREEMPTIVE = frozenset({AttentionReason.SAFETY, AttentionReason.APPROVAL})
+_WORKSPACE_RECEIPT_SCHEMA = "simplicio.attention-workspace-receipt/v1"
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,7 @@ class AttentionItem:
     reason: AttentionReason
     expires_at: int
     run_id: str
+    goal_id: str
     created_at: int
     relevance: int = 50
     provenance: str = "runtime"
@@ -54,9 +58,17 @@ class AttentionItem:
     priority: int = field(init=False)
 
     def __post_init__(self) -> None:
-        for name in ("item_id", "source", "run_id", "provenance", "profile_id"):
+        for name in (
+            "item_id",
+            "source",
+            "run_id",
+            "goal_id",
+            "provenance",
+            "profile_id",
+        ):
             if not getattr(self, name).strip():
                 raise ValueError(f"{name} must be non-empty")
+        object.__setattr__(self, "goal_id", self.goal_id.strip())
         if self.expires_at < self.created_at:
             raise ValueError("expires_at cannot precede created_at")
         if not 0 <= self.relevance <= 100:
@@ -87,10 +99,59 @@ class AttentionItem:
 
 
 @dataclass(frozen=True)
+class WorkspaceReceipt:
+    """Tamper-evident record of one goal-scoped workspace allocation."""
+
+    goal_id: str
+    selected_at: int
+    budget: int
+    used: int
+    item_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        goal_id = self.goal_id.strip()
+        if not goal_id:
+            raise ValueError("goal_id must be non-empty")
+        if self.budget < 1:
+            raise ValueError("workspace budget must be positive")
+        if not 0 <= self.used <= self.budget:
+            raise ValueError("workspace used cost must fit within budget")
+        if any(not item_id.strip() for item_id in self.item_ids):
+            raise ValueError("workspace receipt item_ids must be non-empty")
+        if len(set(self.item_ids)) != len(self.item_ids):
+            raise ValueError("workspace receipt item_ids must be unique")
+        object.__setattr__(self, "goal_id", goal_id)
+
+    @property
+    def receipt_id(self) -> str:
+        payload = json.dumps(
+            self._payload(), sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            **self._payload(),
+            "receipt_id": self.receipt_id,
+        }
+
+    def _payload(self) -> dict[str, object]:
+        return {
+            "schema": _WORKSPACE_RECEIPT_SCHEMA,
+            "goal_id": self.goal_id,
+            "selected_at": self.selected_at,
+            "budget": self.budget,
+            "used": self.used,
+            "item_ids": list(self.item_ids),
+        }
+
+
+@dataclass(frozen=True)
 class WorkspaceSnapshot:
     items: tuple[AttentionItem, ...]
     budget: int
     used: int
+    receipt: WorkspaceReceipt
 
     def explain(self) -> tuple[str, ...]:
         return tuple(
@@ -104,7 +165,7 @@ class AttentionQueue:
 
     def __init__(self, items: Iterable[AttentionItem] = ()) -> None:
         self._items: dict[str, AttentionItem] = {}
-        self._dedupe: dict[tuple[str, AttentionReason, str], str] = {}
+        self._dedupe: dict[tuple[str, AttentionReason, str, str], str] = {}
         for item in items:
             self.publish(item)
 
@@ -114,7 +175,7 @@ class AttentionQueue:
 
     def publish(self, item: AttentionItem) -> AttentionItem:
         """Publish once; duplicate events merge causal receipts without storms."""
-        key = (item.source, item.reason, item.run_id)
+        key = (item.source, item.reason, item.run_id, item.goal_id)
         existing_id = self._dedupe.get(key)
         if existing_id is not None and self._items[existing_id].is_open:
             current = self._items[existing_id]
@@ -138,13 +199,24 @@ class AttentionQueue:
     ) -> AttentionItem:
         closed = self._items[item_id].close(state, receipt)
         self._items[item_id] = closed
-        self._dedupe.pop((closed.source, closed.reason, closed.run_id), None)
+        self._dedupe.pop(
+            (closed.source, closed.reason, closed.run_id, closed.goal_id), None
+        )
         return closed
 
-    def select_workspace(self, *, budget: int, now: int) -> WorkspaceSnapshot:
+    def select_workspace(
+        self, *, goal_id: str, budget: int, now: int
+    ) -> WorkspaceSnapshot:
+        goal_id = goal_id.strip()
+        if not goal_id:
+            raise ValueError("goal_id must be non-empty")
         if budget < 1:
             raise ValueError("workspace budget must be positive")
-        candidates = [item for item in self._items.values() if item.is_open]
+        candidates = [
+            item
+            for item in self._items.values()
+            if item.is_open and item.goal_id == goal_id
+        ]
         candidates.sort(key=lambda item: self._sort_key(item, now))
 
         chosen: list[AttentionItem] = []
@@ -173,7 +245,14 @@ class AttentionQueue:
                 used += item.cost
                 represented.add((item.profile_id, item.run_id))
 
-        return WorkspaceSnapshot(tuple(chosen), budget, used)
+        receipt = WorkspaceReceipt(
+            goal_id=goal_id,
+            selected_at=now,
+            budget=budget,
+            used=used,
+            item_ids=tuple(item.item_id for item in chosen),
+        )
+        return WorkspaceSnapshot(tuple(chosen), budget, used, receipt)
 
     @staticmethod
     def _sort_key(item: AttentionItem, now: int) -> tuple[int, int, str, str]:
