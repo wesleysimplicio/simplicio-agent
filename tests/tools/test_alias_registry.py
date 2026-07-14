@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from datetime import date
 from pathlib import Path
@@ -79,6 +80,34 @@ def test_lookup_is_deterministic_and_warns_without_args_or_secrets():
     assert second.warning.to_dict() == first.warning.to_dict()
 
 
+def test_unknown_lookup_receipt_redacts_all_arguments():
+    registry = load_alias_registry(FIXTURES / "valid")
+
+    lookup = registry.lookup([
+        "not-a-command",
+        "--password",
+        "secret-value",
+        "--token=token-value",
+    ])
+
+    assert lookup.warning is None
+    assert lookup.receipt.argv_count == 4
+    receipt_blob = str(lookup.receipt.to_dict())
+    assert "secret-value" not in receipt_blob
+    assert "token-value" not in receipt_blob
+
+
+def test_entries_are_sorted_by_normalized_alias_for_deterministic_iteration():
+    registry = load_alias_registry(FIXTURES / "valid")
+
+    assert tuple(entry.alias for entry in registry.entries) == (
+        "hermes",
+        "hermes-acp",
+        "hermes-agent",
+        "simplicio-agent",
+    )
+
+
 def test_owner_deprecation_policy_flips_to_due_on_or_after_remove_after():
     registry = load_alias_registry(FIXTURES / "valid")
 
@@ -116,4 +145,54 @@ def test_invalid_document_version_is_rejected(tmp_path):
     )
 
     with pytest.raises(AliasSchemaError, match="expected version 1"):
+        load_alias_document(target)
+
+
+def test_invalid_document_shape_fails_closed(tmp_path):
+    root = tmp_path / "aliases"
+    root.mkdir()
+    target = root / "registry.json"
+    target.write_text(
+        '{"schema": "simplicio-agent/alias-registry/v1", "version": 1, '
+        '"aliases": [null]}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AliasSchemaError, match=r"aliases\[0\] must be a JSON object"):
+        load_alias_document(target)
+
+
+def test_document_root_must_be_a_json_object(tmp_path):
+    target = tmp_path / "registry.json"
+    target.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(AliasSchemaError, match="document root must be a JSON object"):
+        load_alias_document(target)
+
+
+def test_invalid_fixture_is_rejected_instead_of_skipped():
+    with pytest.raises(AliasSchemaError, match=r"aliases\[0\] must be a JSON object"):
+        load_alias_registry(FIXTURES / "invalid")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("alias", 123), ("canonical", False), ("deprecated", "true")],
+)
+def test_invalid_entry_types_are_rejected(tmp_path, field, value):
+    root = tmp_path / "aliases"
+    root.mkdir()
+    target = root / "registry.json"
+    entry = {"alias": "legacy", "canonical": "simplicio-agent"}
+    entry[field] = value
+    target.write_text(
+        json.dumps({
+            "schema": "simplicio-agent/alias-registry/v1",
+            "version": 1,
+            "aliases": [entry],
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AliasSchemaError, match=field):
         load_alias_document(target)

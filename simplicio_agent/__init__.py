@@ -9,7 +9,7 @@ working unchanged.
 from __future__ import annotations
 
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hermes_cli import __release_date__, __version__
 
@@ -20,6 +20,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "CLI": ("cli", "HermesCLI"),
     "main": ("hermes_cli.main", "main"),
 }
+
+if TYPE_CHECKING:
+    # Keep runtime imports lazy while giving type checkers the canonical
+    # public names promised by this facade.
+    from . import asolaria
+    from cli import HermesCLI as CLI
+    from hermes_cli.main import main
+    from run_agent import AIAgent as Agent
 
 
 def __getattr__(name: str) -> Any:

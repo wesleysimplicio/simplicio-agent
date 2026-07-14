@@ -185,7 +185,9 @@ def _coerce_mapping(value: Any, *, stage: StageName) -> dict[str, Any]:
     return dict(value)
 
 
-def _canonical_trace_prefix(trace: list[str] | tuple[str, ...]) -> tuple[StageName, ...]:
+def _canonical_trace_prefix(
+    trace: list[str] | tuple[str, ...],
+) -> tuple[StageName, ...]:
     """Return a bounded canonical trace prefix for split completion.
 
     Callers may round-trip the trace across process boundaries, so completion
@@ -200,12 +202,18 @@ def _canonical_trace_prefix(trace: list[str] | tuple[str, ...]) -> tuple[StageNa
             prefix.append(stage)
         if stage == "execute":
             break
-    if "persist" in seen or "evidence" in seen or "execute" in seen:
-        return tuple(prefix)
-    return tuple(prefix + ["execute"])
+    if "execute" not in seen and "persist" not in seen and "evidence" not in seen:
+        prefix.append("execute")
+    if "persist" in seen and "persist" not in prefix:
+        prefix.append("persist")
+    if "evidence" in seen and "evidence" not in prefix:
+        prefix.append("evidence")
+    return tuple(prefix)
 
 
-def _coerce_decision(value: Any, *, stage: Literal["guardrail", "action-gate"]) -> ToolDecision:
+def _coerce_decision(
+    value: Any, *, stage: Literal["guardrail", "action-gate"]
+) -> ToolDecision:
     if isinstance(value, ToolDecision):
         return value
     if value is False:
@@ -223,8 +231,10 @@ def _coerce_decision(value: Any, *, stage: Literal["guardrail", "action-gate"]) 
 
 
 def _coerce_status(value: Any) -> str:
-    candidate = str(value or "success")
-    return candidate if candidate in _SAFE_STATUS else "success"
+    if value is None or value == "":
+        return "success"
+    candidate = str(value)
+    return candidate if candidate in _SAFE_STATUS else "error"
 
 
 def _safe_text(value: Any, default: str = "") -> str:
@@ -269,7 +279,11 @@ def _metadata_defaults(invocation: ToolInvocation) -> ToolInvocationMetadata:
         actor=incoming.actor or "agent",
         executor=incoming.executor or "serial",
         classification=incoming.classification or "unknown",
-        status=incoming.status or "pending",
+        status=(
+            incoming.status
+            if incoming.status in _SAFE_STATUS or incoming.status == "pending"
+            else "pending"
+        ),
         evidence_version=incoming.evidence_version or "tool-invocation/v1",
         extras=dict(incoming.extras or {}),
     )
@@ -287,7 +301,13 @@ class ToolInvocationPipeline:
     ):
         self.hooks = dict(hooks or {})
         self.receipt_writer = receipt_writer
-        self.redacted_result_keys = redacted_result_keys or _DEFAULT_REDACTED_KEYS
+        self.redacted_result_keys = (
+            _DEFAULT_REDACTED_KEYS
+            if redacted_result_keys is None
+            else frozenset(str(key).lower() for key in redacted_result_keys)
+        )
+        self._receipts_by_attempt: dict[str, ToolInvocationReceipt] = {}
+        self._receipt_errors: dict[str, BaseException] = {}
         self._receipts_written: set[str] = set()
 
     def _call(
@@ -360,10 +380,16 @@ class ToolInvocationPipeline:
             if isinstance(execute, SerialToolExecutorAdapter)
             else SerialToolExecutorAdapter(execute_fn=execute)
         )
-        attempt = self._start_attempt(invocation).with_metadata(executor=adapter.label)
+        attempt = self._start_attempt(invocation).with_metadata(
+            executor=adapter.label or "serial"
+        )
         try:
             attempt = self._front_half(attempt)
-            if attempt.status == "blocked":
+            if (
+                attempt.status == "blocked"
+                or not attempt.guardrail_decision.allow
+                or not attempt.action_gate_decision.allow
+            ):
                 final_invocation = ToolInvocation(
                     name=attempt.resolved_name,
                     args=dict(attempt.normalized_args),
@@ -383,6 +409,15 @@ class ToolInvocationPipeline:
             attempt = attempt.with_trace("execute")
             result = adapter.execute(attempt)
             attempt = replace(attempt, result=result, status="success")
+            attempt = self._persist_and_evidence(attempt)
+        except KeyboardInterrupt as exc:
+            attempt = replace(
+                attempt,
+                status="cancelled",
+                error_type=type(exc).__name__,
+                error_message=_safe_text(exc),
+                result=None,
+            )
             attempt = self._persist_and_evidence(attempt)
         except Exception as exc:
             attempt = replace(
@@ -509,40 +544,90 @@ class ToolInvocationPipeline:
             error_message=attempt.error_message,
         )
         attempt = replace(attempt, status=status, metadata=meta)
-        persist_payload = self._call("persist", attempt.result, attempt=attempt)
-        if persist_payload is not None and persist_payload is not attempt.result:
-            attempt = replace(attempt, result=persist_payload)
+        try:
+            persist_payload = self._call("persist", attempt.result, attempt=attempt)
+            if persist_payload is not None and persist_payload is not attempt.result:
+                attempt = replace(attempt, result=persist_payload)
+        except KeyboardInterrupt as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "cancelled")
+        except Exception as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "error")
 
-        receipt = self._write_receipt_once(attempt)
+        receipt = None
+        try:
+            receipt = self._write_receipt_once(attempt)
+        except KeyboardInterrupt as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "cancelled")
+            receipt = self._receipts_by_attempt.get(attempt.metadata.attempt_id)
+        except Exception as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "error")
+            receipt = self._receipts_by_attempt.get(attempt.metadata.attempt_id)
         attempt = replace(attempt, receipt=receipt).with_metadata(
-            receipt_id=receipt.receipt_id,
-            receipt_written=receipt.receipt_id in self._receipts_written,
+            receipt_id=receipt.receipt_id if receipt else "",
+            receipt_written=bool(
+                receipt and receipt.receipt_id in self._receipts_written
+            ),
         )
 
         if "evidence" not in attempt.trace:
             attempt = attempt.with_trace("evidence")
         evidence = self._default_evidence(attempt)
-        overridden = self._call("evidence", evidence, attempt=attempt)
-        evidence = (
-            evidence
-            if overridden is None
-            else _coerce_mapping(overridden, stage="evidence")
-        )
+        try:
+            overridden = self._call("evidence", evidence, attempt=attempt)
+            evidence = (
+                evidence
+                if overridden is None
+                else _coerce_mapping(overridden, stage="evidence")
+            )
+        except KeyboardInterrupt as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "cancelled")
+            evidence = self._default_evidence(attempt)
+        except Exception as exc:
+            attempt = self._mark_finalization_error(attempt, exc, "error")
+            evidence = self._default_evidence(attempt)
+        receipt_error = self._receipt_errors.get(attempt.metadata.attempt_id)
+        if receipt_error is not None:
+            evidence = dict(evidence)
+            evidence["receipt_error_type"] = type(receipt_error).__name__
+            evidence["receipt_error_message"] = _safe_text(receipt_error)
         return replace(attempt, evidence=evidence)
+
+    @staticmethod
+    def _mark_finalization_error(
+        attempt: ToolInvocationAttempt, exc: BaseException, status: str
+    ) -> ToolInvocationAttempt:
+        status = status if status in _SAFE_STATUS else "error"
+        metadata = replace(
+            attempt.metadata,
+            status=status,
+            error_type=type(exc).__name__,
+            error_message=_safe_text(exc),
+        )
+        return replace(
+            attempt,
+            status=status,
+            error_type=type(exc).__name__,
+            error_message=_safe_text(exc),
+            metadata=metadata,
+        )
 
     def _write_receipt_once(
         self, attempt: ToolInvocationAttempt
     ) -> ToolInvocationReceipt:
         args_hash = _sha(attempt.normalized_args)
         result_hash = _sha(attempt.result)
+        attempt_id = attempt.metadata.attempt_id
+        existing = self._receipts_by_attempt.get(attempt_id)
+        if existing is not None:
+            return existing
         receipt_id = _sha({
-            "attempt_id": attempt.metadata.attempt_id,
+            "attempt_id": attempt_id,
             "status": attempt.status,
             "args_hash": args_hash,
             "result_hash": result_hash,
         })
         receipt = ToolInvocationReceipt(
-            attempt_id=attempt.metadata.attempt_id,
+            attempt_id=attempt_id,
             receipt_id=receipt_id,
             tool=attempt.resolved_name,
             status=attempt.status,
@@ -564,10 +649,14 @@ class ToolInvocationPipeline:
                 "api_request_id": attempt.metadata.api_request_id,
             },
         )
-        if receipt.receipt_id not in self._receipts_written:
+        self._receipts_by_attempt[attempt_id] = receipt
+        try:
             if self.receipt_writer is not None:
                 self.receipt_writer(receipt)
             self._receipts_written.add(receipt.receipt_id)
+        except BaseException as exc:
+            self._receipt_errors[attempt_id] = exc
+            raise
         return receipt
 
     def _default_evidence(self, attempt: ToolInvocationAttempt) -> dict[str, Any]:

@@ -27,6 +27,7 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional
 
@@ -119,6 +120,56 @@ class KernelCallResult:
     error: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class BridgeLifecycle:
+    """JSON-safe lifecycle state for one bridge binding."""
+
+    state: str
+    generation: int
+    started_at: Optional[float]
+    closed_at: Optional[float] = None
+    schema: str = "simplicio-bridge/lifecycle/v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "state": self.state,
+            "generation": self.generation,
+            "started_at": self.started_at,
+            "closed_at": self.closed_at,
+        }
+
+
+@dataclass(frozen=True)
+class BridgeReceipt:
+    """Typed evidence for a bridge dispatch, including deduplication."""
+
+    operation: str
+    ok: bool
+    value: Any = None
+    error: Optional[str] = None
+    causal_id: Optional[str] = None
+    deduplicated: bool = False
+    transport: Optional[str] = None
+    fallback_reason: Optional[str] = None
+    request_id: Optional[str] = None
+    schema: str = "simplicio-bridge/receipt/v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "operation": self.operation,
+            "ok": self.ok,
+            "value": self.value,
+            "error": self.error,
+            "causal_id": self.causal_id,
+            "deduplicated": self.deduplicated,
+            "transport": self.transport,
+            "fallback_reason": self.fallback_reason,
+            "request_id": self.request_id,
+        }
+
+
 class KernelTransport(SimplicioTransport):
     """Compatibility name for the default CLI-first transport.
 
@@ -143,6 +194,22 @@ class BridgeMetrics:
     last_call_at: Optional[float] = None
     last_transport: Optional[str] = None
     last_fallback_reason: Optional[str] = None
+    last_request_id: Optional[str] = None
+    last_deduplicated: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_calls": self.total_calls,
+            "failures": self.failures,
+            "circuit_open": self.circuit_open,
+            "consecutive_failures": self.consecutive_failures,
+            "last_error": self.last_error,
+            "last_call_at": self.last_call_at,
+            "last_transport": self.last_transport,
+            "last_fallback_reason": self.last_fallback_reason,
+            "last_request_id": self.last_request_id,
+            "last_deduplicated": self.last_deduplicated,
+        }
 
 
 class SimplicioBridge:
@@ -163,16 +230,85 @@ class SimplicioBridge:
         *,
         failure_threshold: int = 5,
         cooldown_s: float = 30.0,
+        idempotency_max_entries: int = 1024,
     ) -> None:
+        if idempotency_max_entries < 1:
+            raise ValueError("idempotency_max_entries must be positive")
         self._transport = transport or SimplicioTransport()
         self._breaker = CircuitBreaker(
             failure_threshold=failure_threshold, cooldown_s=cooldown_s
         )
         self._lock = threading.Lock()
         self._metrics = BridgeMetrics()
-        # causal id -> last result, for idempotent callers
-        self._seen: Dict[str, Any] = {}
+        self._state = "ready"
+        self._generation = 1
+        self._started_at: Optional[float] = time.time()
+        self._closed_at: Optional[float] = None
+        self._idempotency_max_entries = idempotency_max_entries
+        # causal id -> receipt, for idempotent callers.  Ordered eviction keeps
+        # a long-lived process from retaining every turn forever.
+        self._seen: OrderedDict[str, BridgeReceipt] = OrderedDict()
+        self._inflight: dict[str, threading.Event] = {}
+        self._idempotency_lock = threading.Lock()
+        self._last_receipt: Optional[BridgeReceipt] = None
         self._causal_seq = 0
+
+    # -- lifecycle -----------------------------------------------------
+    def lifecycle(self) -> BridgeLifecycle:
+        with self._lock:
+            return BridgeLifecycle(
+                state=self._state,
+                generation=self._generation,
+                started_at=self._started_at,
+                closed_at=self._closed_at,
+            )
+
+    def start(self) -> BridgeLifecycle:
+        """Start (or restart) the lazy bridge; repeated starts are harmless."""
+        with self._lock:
+            if self._state == "ready":
+                return BridgeLifecycle(
+                    state=self._state,
+                    generation=self._generation,
+                    started_at=self._started_at,
+                    closed_at=self._closed_at,
+                )
+            self._state = "ready"
+            self._generation += 1
+            self._started_at = time.time()
+            self._closed_at = None
+        start = getattr(self._transport, "start", None)
+        if callable(start):
+            start()
+        return self.lifecycle()
+
+    def close(self) -> BridgeLifecycle:
+        """Close the bridge; repeated closes never call the transport twice."""
+        with self._lock:
+            if self._state == "closed":
+                return BridgeLifecycle(
+                    state=self._state,
+                    generation=self._generation,
+                    started_at=self._started_at,
+                    closed_at=self._closed_at,
+                )
+            self._state = "closed"
+            self._closed_at = time.time()
+        close = getattr(self._transport, "close", None)
+        if callable(close):
+            close()
+        return self.lifecycle()
+
+    def __enter__(self) -> "SimplicioBridge":
+        self.start()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+    def last_receipt(self) -> Optional[BridgeReceipt]:
+        with self._lock:
+            return self._last_receipt
 
     # -- causal id -------------------------------------------------------
     def _next_causal_id(self, op: str) -> str:
@@ -193,6 +329,8 @@ class SimplicioBridge:
                 last_call_at=self._metrics.last_call_at,
                 last_transport=self._metrics.last_transport,
                 last_fallback_reason=self._metrics.last_fallback_reason,
+                last_request_id=self._metrics.last_request_id,
+                last_deduplicated=self._metrics.last_deduplicated,
             )
         return m
 
@@ -200,6 +338,7 @@ class SimplicioBridge:
         """Structured health snapshot for diagnostics/logging."""
         m = self.metrics()
         result = {
+            "schema": "simplicio-bridge/health/v1",
             "healthy": (not m.circuit_open),
             "circuit_open": m.circuit_open,
             "consecutive_failures": m.consecutive_failures,
@@ -209,7 +348,12 @@ class SimplicioBridge:
             "last_call_at": m.last_call_at,
             "last_transport": m.last_transport,
             "last_fallback_reason": m.last_fallback_reason,
+            "last_request_id": m.last_request_id,
+            "last_deduplicated": m.last_deduplicated,
+            "lifecycle": self.lifecycle().to_dict(),
         }
+        if result["lifecycle"]["state"] == "closed":
+            result["healthy"] = False
         transport_health = getattr(self._transport, "health", None)
         if callable(transport_health):
             try:
@@ -233,14 +377,68 @@ class SimplicioBridge:
         idempotent: bool = False,
     ) -> Any:
         cid = causal_id or self._next_causal_id(op)
-        if idempotent and cid in self._seen:
-            return self._seen[cid]
+        owner = False
+        if idempotent:
+            with self._idempotency_lock:
+                cached = self._seen.get(cid)
+                if cached is not None:
+                    self._seen.move_to_end(cid)
+                else:
+                    cached = None
+                if cached is not None:
+                    duplicate = BridgeReceipt(
+                        operation=op,
+                        ok=cached.ok,
+                        value=cached.value,
+                        error=cached.error,
+                        causal_id=cid,
+                        deduplicated=True,
+                        transport=cached.transport,
+                        fallback_reason=cached.fallback_reason,
+                        request_id=cached.request_id,
+                    )
+                else:
+                    duplicate = None
+                if duplicate is None:
+                    event = self._inflight.get(cid)
+                    if event is None:
+                        event = threading.Event()
+                        self._inflight[cid] = event
+                        owner = True
+            if duplicate is not None:
+                with self._lock:
+                    self._metrics.last_deduplicated = True
+                    self._last_receipt = duplicate
+                return duplicate.value
+            if not owner:
+                event.wait(timeout=30.0)
+                with self._idempotency_lock:
+                    cached = self._seen.get(cid)
+                if cached is None:
+                    return None
+                with self._lock:
+                    self._metrics.last_deduplicated = True
+                return cached.value
+        with self._lock:
+            if self._state == "closed":
+                self._metrics.last_error = "bridge_closed"
+                self._metrics.last_deduplicated = False
+                if owner:
+                    with self._idempotency_lock:
+                        self._inflight.pop(cid, None)
+                        event.set()
+                return None
         if not self._breaker.allow():
             # circuit open: degrade without hammering the kernel
             with self._lock:
                 self._metrics.last_error = "circuit_open"
                 self._metrics.last_call_at = time.monotonic()
+                self._metrics.last_deduplicated = False
             logger.warning("SimplicioBridge: circuit open, skipping %s", op)
+            if owner:
+                with self._idempotency_lock:
+                    self._inflight.pop(cid, None)
+                    event.set()
             return None
         try:
             res = fn()
@@ -256,6 +454,7 @@ class SimplicioBridge:
                 error = receipt.error.message if receipt.error else None
                 self._metrics.last_transport = receipt.transport
                 self._metrics.last_fallback_reason = receipt.fallback_reason
+                self._metrics.last_request_id = receipt.request_id
             else:
                 receipt = None
                 value = res.value
@@ -267,11 +466,31 @@ class SimplicioBridge:
                 self._breaker.record_failure()
                 self._metrics.failures += 1
                 self._metrics.last_error = error
+            self._metrics.last_deduplicated = False
+            bridge_receipt = BridgeReceipt(
+                operation=op,
+                ok=ok,
+                value=value,
+                error=error,
+                causal_id=cid,
+                transport=receipt.transport if receipt else None,
+                fallback_reason=receipt.fallback_reason if receipt else None,
+                request_id=receipt.request_id if receipt else None,
+            )
+            self._last_receipt = bridge_receipt
+        if owner:
+            with self._idempotency_lock:
+                if ok:
+                    self._seen[cid] = bridge_receipt
+                    self._seen.move_to_end(cid)
+                    while len(self._seen) > self._idempotency_max_entries:
+                        self._seen.popitem(last=False)
+                event = self._inflight.pop(cid, None)
+                if event is not None:
+                    event.set()
         if not ok:
             logger.debug("SimplicioBridge.%s failed: %s", op, error)
             return None
-        if idempotent:
-            self._seen[cid] = value
         return value
 
     # -- typed API -------------------------------------------------------

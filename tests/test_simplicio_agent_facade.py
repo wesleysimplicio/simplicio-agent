@@ -60,6 +60,26 @@ def test_public_facade_exports_canonical_symbols_without_wrapping(monkeypatch):
     assert resources.files("simplicio_agent").joinpath("py.typed").is_file()
 
 
+def test_public_facade_metadata_and_unknown_names(monkeypatch):
+    stub_agent, stub_cli, _ = _install_stub_modules(monkeypatch)
+    from hermes_cli import __release_date__, __version__
+
+    assert simplicio_agent.__version__ == __version__
+    assert simplicio_agent.__release_date__ == __release_date__
+    assert set((
+        "Agent",
+        "CLI",
+        "main",
+        "asolaria",
+        "__version__",
+        "__release_date__",
+    )) <= set(simplicio_agent.__all__)
+    assert simplicio_agent.Agent is stub_agent is simplicio_agent.Agent
+    assert simplicio_agent.CLI is stub_cli is simplicio_agent.CLI
+    with pytest.raises(AttributeError):
+        _ = simplicio_agent.not_a_public_export
+
+
 def test_compat_legacy_aliases_warn_and_preserve_identity(monkeypatch):
     stub_agent, stub_cli, _ = _install_stub_modules(monkeypatch)
 
@@ -70,9 +90,14 @@ def test_compat_legacy_aliases_warn_and_preserve_identity(monkeypatch):
 
     assert legacy_agent is simplicio_agent.Agent is stub_agent
     assert legacy_cli is simplicio_agent.CLI is stub_cli
-    assert [type(item.message) for item in caught] == [DeprecationWarning, DeprecationWarning]
+    assert [type(item.message) for item in caught] == [
+        DeprecationWarning,
+        DeprecationWarning,
+    ]
     assert "simplicio_agent.Agent" in str(caught[0].message)
     assert "simplicio_agent.CLI" in str(caught[1].message)
+    with pytest.raises(AttributeError):
+        _ = compat.not_a_legacy_export
 
 
 def _create_supported_venv(venv_dir: Path) -> Path:

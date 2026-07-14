@@ -32,6 +32,10 @@ existing modules on demand and returns the existing objects verbatim, so
 identity stays stable (`simplicio_agent.Agent is run_agent.AIAgent`) and no
 second tool or capability registry can appear.
 
+The implementation also declares these public names under `TYPE_CHECKING` so
+the shipped `py.typed` marker exposes the canonical API to static checkers
+without changing the runtime's lazy import behavior.
+
 Add `simplicio_agent.compat` as a deprecation-only shim:
 
 - `simplicio_agent.compat.AIAgent` returns `simplicio_agent.Agent`

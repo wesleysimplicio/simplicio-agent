@@ -135,9 +135,7 @@ def load_runtime_lock() -> dict:
 
 
 def _normalize_machine(machine: str) -> str:
-    return {"amd64": "x86_64", "aarch64": "arm64"}.get(
-        machine.lower(), machine.lower()
-    )
+    return {"amd64": "x86_64", "aarch64": "arm64"}.get(machine.lower(), machine.lower())
 
 
 def _target_key(system: Optional[str] = None, machine: Optional[str] = None) -> str:
@@ -213,7 +211,9 @@ def validate_runtime_lock(
             errors.append(f"{prefix}.version must be a strict semver")
         elif isinstance(minimum, str) and _STRICT_SEMVER_RE.fullmatch(minimum):
             if parse_semver(version) < parse_semver(minimum):
-                errors.append(f"{prefix}.version {version} is below min_version {minimum}")
+                errors.append(
+                    f"{prefix}.version {version} is below min_version {minimum}"
+                )
         url = entry.get("url")
         parsed_url = urlparse(url) if isinstance(url, str) else None
         if (
@@ -240,10 +240,9 @@ def validate_runtime_lock(
             target_arch = target_meta.get("arch")
             if not isinstance(target_os, str) or not isinstance(target_arch, str):
                 errors.append(f"{prefix}.target requires os and arch")
-            elif (
-                target_os.lower() != key_os.lower()
-                or _normalize_machine(target_arch) != _normalize_machine(key_arch)
-            ):
+            elif target_os.lower() != key_os.lower() or _normalize_machine(
+                target_arch
+            ) != _normalize_machine(key_arch):
                 errors.append(f"{prefix}.target does not match its target key")
         if key == requested:
             selected = entry
@@ -476,6 +475,24 @@ class RuntimeStatus:
         """Alias for callers that want the readiness contract explicitly."""
         return self.satisfied
 
+    def to_dict(self) -> dict:
+        """Return the stable, JSON-safe readiness payload used by diagnostics."""
+        return {
+            "bin_path": self.bin_path,
+            "source": self.source,
+            "version": self.version,
+            "min_version": self.min_version,
+            "satisfied": self.satisfied,
+            "detail": self.detail,
+            "lock_valid": self.lock_valid,
+            "target": self.target,
+            "asset_name": self.asset_name,
+            "sha256": self.sha256,
+            "verified": self.verified,
+            "reason_code": self.reason_code,
+            "handshake": self.handshake.to_dict() if self.handshake else None,
+        }
+
 
 def runtime_health(lock: Optional[dict] = None) -> dict:
     """Return the runtime status in the stable health/doctor shape.
@@ -629,8 +646,7 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     actual_sha256 = _sha256_file(Path(bin_path))
     if actual_sha256.lower() != expected_sha256.lower():
         detail = (
-            f"runtime sha256 mismatch: expected {expected_sha256}, "
-            f"got {actual_sha256}"
+            f"runtime sha256 mismatch: expected {expected_sha256}, got {actual_sha256}"
         )
         return RuntimeStatus(
             bin_path=bin_path,
@@ -709,7 +725,9 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
         )
     ok = version_satisfies(version, minimum)
     detail = "" if ok else f"installed {version} < pinned {minimum}"
-    reason_code = HANDSHAKE_REASON_READY if ok else HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
+    reason_code = (
+        HANDSHAKE_REASON_READY if ok else HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
+    )
     return RuntimeStatus(
         bin_path=bin_path,
         source=source,

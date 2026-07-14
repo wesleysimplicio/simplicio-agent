@@ -19,6 +19,8 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from pathlib import PurePosixPath
+from pathlib import PureWindowsPath
 from typing import Any, Callable, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,29 @@ STAGES = (
 )
 PASSING_STATUSES = frozenset(("pass", "not_applicable"))
 VALID_STATUSES = frozenset(("pass", "fail", "not_applicable", "unknown"))
+
+
+def _is_canonical_source_path(value: Any) -> bool:
+    """Return whether ``value`` is a repository-relative POSIX path."""
+
+    if not isinstance(value, str) or not value or "\\" in value:
+        return False
+    path = PurePosixPath(value)
+    return (
+        not path.is_absolute()
+        and not PureWindowsPath(value).drive
+        and value == path.as_posix()
+        and "." not in path.parts
+        and ".." not in path.parts
+    )
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value)
+    )
 
 
 @dataclass(frozen=True)
@@ -570,11 +595,16 @@ def validate_manifest(
         errors.append("schema must be simplicio.perf-integration-manifest/v1")
     if document.get("version") != VERSION:
         errors.append("version must be 1")
+    if document.get("generator") != "tools/perf_integration_manifest.py":
+        errors.append("generator must be tools/perf_integration_manifest.py")
+    if document.get("repo") != ".":
+        errors.append("repo must be .")
     axes = document.get("axes")
     if not isinstance(axes, list) or not axes:
         errors.append("axes must be a non-empty list")
         return errors
     names: list[str] = []
+    axis_ok: list[bool] = []
     for index, axis in enumerate(axes):
         prefix = f"axes[{index}]"
         if not isinstance(axis, Mapping):
@@ -585,12 +615,52 @@ def validate_manifest(
             errors.append(f"{prefix}.name must be a non-empty string")
         else:
             names.append(name)
+        if not isinstance(axis.get("description"), str) or not axis["description"]:
+            errors.append(f"{prefix}.description must be a non-empty string")
+        if not isinstance(axis.get("ok"), bool):
+            errors.append(f"{prefix}.ok must be a boolean")
+        else:
+            axis_ok.append(axis["ok"])
         source = axis.get("source")
         hashes = axis.get("source_sha256")
         if not isinstance(source, list) or not source:
             errors.append(f"{prefix}.source must be a non-empty list")
-        if not isinstance(hashes, Mapping) or set(hashes) != set(source or []):
+            source_values: list[Any] = []
+        else:
+            source_values = source
+            source_paths_valid = all(
+                _is_canonical_source_path(relative) for relative in source_values
+            )
+            for relative in source_values:
+                if not _is_canonical_source_path(relative):
+                    errors.append(f"{prefix}.source has non-canonical path: {relative}")
+            if source_paths_valid and source_values != sorted(set(source_values)):
+                errors.append(f"{prefix}.source must be sorted and unique")
+        if not isinstance(hashes, Mapping):
             errors.append(f"{prefix}.source_sha256 must hash every source path")
+        else:
+            hash_keys = list(hashes)
+            if source_values and (
+                not all(
+                    _is_canonical_source_path(relative) for relative in source_values
+                )
+                or not all(isinstance(key, str) for key in hash_keys)
+                or set(hash_keys) != set(source_values)
+            ):
+                errors.append(f"{prefix}.source_sha256 must hash every source path")
+            if not all(isinstance(key, str) for key in hash_keys):
+                errors.append(f"{prefix}.source_sha256 keys must be strings")
+            elif hash_keys != sorted(hash_keys):
+                errors.append(f"{prefix}.source_sha256 keys must be sorted")
+            for relative, expected in hashes.items():
+                if not _is_canonical_source_path(relative):
+                    errors.append(
+                        f"{prefix}.source_sha256 has non-canonical path: {relative}"
+                    )
+                if not _is_sha256(expected):
+                    errors.append(
+                        f"{prefix}.source_sha256 must contain lowercase SHA-256: {relative}"
+                    )
         results = axis.get("stage_results")
         if not isinstance(results, Mapping):
             errors.append(f"{prefix}.stage_results must be an object")
@@ -598,6 +668,9 @@ def validate_manifest(
             missing = [stage for stage in STAGES if stage not in results]
             if missing:
                 errors.append(f"{prefix}.stage_results missing: {','.join(missing)}")
+            extra = sorted(set(results) - set(STAGES), key=str)
+            if extra:
+                errors.append(f"{prefix}.stage_results has unknown: {','.join(extra)}")
             for stage, value in results.items():
                 if (
                     stage not in STAGES
@@ -605,11 +678,74 @@ def validate_manifest(
                     or value.get("status") not in VALID_STATUSES
                 ):
                     errors.append(f"{prefix}.stage_results.{stage} has invalid status")
+                    continue
+                if value.get("ok") is not (value["status"] in PASSING_STATUSES):
+                    errors.append(
+                        f"{prefix}.stage_results.{stage}.ok disagrees with status"
+                    )
+                if "reason" in value and not isinstance(value["reason"], str):
+                    errors.append(
+                        f"{prefix}.stage_results.{stage}.reason must be a string"
+                    )
+                if "evidence" in value and (
+                    not isinstance(value["evidence"], list)
+                    or any(not isinstance(item, str) for item in value["evidence"])
+                ):
+                    errors.append(
+                        f"{prefix}.stage_results.{stage}.evidence must be a string list"
+                    )
+        statuses = axis.get("stage_status")
+        if not isinstance(statuses, Mapping):
+            errors.append(f"{prefix}.stage_status must be an object")
+        else:
+            if set(statuses) != set(STAGES):
+                errors.append(f"{prefix}.stage_status must contain exactly all stages")
+        compact = axis.get("stages")
+        if not isinstance(compact, Mapping):
+            errors.append(f"{prefix}.stages must be an object")
+        elif set(compact) != set(STAGES) or any(
+            not isinstance(compact.get(stage), bool) for stage in STAGES
+        ):
+            errors.append(f"{prefix}.stages must contain boolean values for all stages")
+        if (
+            isinstance(results, Mapping)
+            and isinstance(statuses, Mapping)
+            and isinstance(compact, Mapping)
+        ):
+            for stage in STAGES:
+                result = results.get(stage)
+                status = statuses.get(stage)
+                if not isinstance(result, Mapping) or status not in VALID_STATUSES:
+                    continue
+                expected_ok = status in PASSING_STATUSES
+                if status != result.get("status"):
+                    errors.append(f"{prefix}.{stage} status receipt disagrees")
+                if compact.get(stage) is not expected_ok:
+                    errors.append(f"{prefix}.{stage} boolean receipt disagrees")
+        if isinstance(axis.get("ok"), bool) and isinstance(results, Mapping):
+            complete = all(
+                isinstance(results.get(stage), Mapping)
+                and results[stage].get("status") in PASSING_STATUSES
+                for stage in STAGES
+            )
+            if axis["ok"] is not complete:
+                errors.append(f"{prefix}.ok disagrees with stage results")
         for key in ("call_sites", "config", "fallback"):
             if key not in axis:
                 errors.append(f"{prefix}.{key} is required")
     if len(names) != len(set(names)):
         errors.append("axis names must be unique")
+    summary = document.get("summary")
+    if not isinstance(summary, Mapping):
+        errors.append("summary must be an object")
+    else:
+        if summary.get("axis_count") != len(axes):
+            errors.append("summary.axis_count disagrees with axes")
+        failed = sum(not value for value in axis_ok)
+        if summary.get("failed") != failed:
+            errors.append("summary.failed disagrees with axis results")
+        if summary.get("ok") is not (failed == 0 and len(axis_ok) == len(axes)):
+            errors.append("summary.ok disagrees with axis results")
     if repo_root is not None:
         for index, axis in enumerate(axes):
             if not isinstance(axis, Mapping) or not isinstance(
@@ -617,6 +753,8 @@ def validate_manifest(
             ):
                 continue
             for relative, expected in axis["source_sha256"].items():
+                if not _is_canonical_source_path(relative) or not _is_sha256(expected):
+                    continue
                 actual = _sha256(repo_root / relative)
                 if actual != expected:
                     errors.append(f"axes[{index}].source_sha256 mismatch: {relative}")

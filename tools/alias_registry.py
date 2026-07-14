@@ -8,6 +8,7 @@ invocation arguments or secrets. Public wiring stays outside this module.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
@@ -156,7 +157,12 @@ class AliasRegistry:
     def __init__(self, entries: Iterable[AliasEntry]) -> None:
         ordered = sorted(
             entries,
-            key=lambda entry: (entry.normalized_alias, entry.alias, entry.canonical, entry.source),
+            key=lambda entry: (
+                entry.normalized_alias,
+                entry.alias,
+                entry.canonical,
+                entry.source,
+            ),
         )
         mapping: dict[str, AliasEntry] = {}
         for entry in ordered:
@@ -204,7 +210,9 @@ class AliasRegistry:
                 canonical=invoked_as,
                 argv_count=len(parts),
             )
-            return AliasLookup(canonical=invoked_as, entry=None, warning=None, receipt=receipt)
+            return AliasLookup(
+                canonical=invoked_as, entry=None, warning=None, receipt=receipt
+            )
 
         removal_state = entry.removal_state(today=today)
         warning = None
@@ -238,17 +246,37 @@ class AliasRegistry:
         )
 
 
-def _parse_entry(raw: dict[str, Any], *, source: str) -> AliasEntry:
-    alias = str(raw.get("alias", "")).strip()
-    canonical = str(raw.get("canonical", "")).strip()
-    if not alias or not canonical:
-        raise AliasSchemaError(f"{source}: alias and canonical are required")
+def _string_field(
+    raw: Mapping[str, Any],
+    field_name: str,
+    *,
+    source: str,
+    required: bool = False,
+) -> str:
+    value = raw.get(field_name, "")
+    if not isinstance(value, str):
+        raise AliasSchemaError(
+            f"{source}: {field_name} must be a string, got {type(value).__name__}"
+        )
+    value = value.strip()
+    if required and not value:
+        raise AliasSchemaError(f"{source}: {field_name} is required")
+    return value
 
-    deprecated = bool(raw.get("deprecated", False))
-    owner = str(raw.get("owner", "")).strip()
-    warning_code = str(raw.get("warning_code", "")).strip()
-    remove_after = str(raw.get("remove_after", "")).strip()
-    note = str(raw.get("note", "")).strip()
+
+def _parse_entry(raw: Mapping[str, Any], *, source: str) -> AliasEntry:
+    alias = _string_field(raw, "alias", source=source, required=True)
+    canonical = _string_field(raw, "canonical", source=source, required=True)
+
+    deprecated = raw.get("deprecated", False)
+    if not isinstance(deprecated, bool):
+        raise AliasSchemaError(
+            f"{source}: deprecated must be a boolean, got {type(deprecated).__name__}"
+        )
+    owner = _string_field(raw, "owner", source=source)
+    warning_code = _string_field(raw, "warning_code", source=source)
+    remove_after = _string_field(raw, "remove_after", source=source)
+    note = _string_field(raw, "note", source=source)
 
     if remove_after:
         remove_after = _validate_date(
@@ -284,6 +312,9 @@ def load_alias_document(path: str | Path) -> tuple[AliasEntry, ...]:
     except json.JSONDecodeError as exc:
         raise AliasSchemaError(f"{source}: invalid JSON") from exc
 
+    if not isinstance(raw, Mapping):
+        raise AliasSchemaError(f"{source}: document root must be a JSON object")
+
     schema = raw.get("schema")
     version = raw.get("version")
     if schema != ALIAS_DOCUMENT_SCHEMA:
@@ -297,11 +328,12 @@ def load_alias_document(path: str | Path) -> tuple[AliasEntry, ...]:
     aliases = raw.get("aliases")
     if not isinstance(aliases, list):
         raise AliasSchemaError(f"{source}: aliases must be a list")
-    return tuple(
-        _parse_entry(item, source=str(source))
-        for item in aliases
-        if isinstance(item, dict)
-    )
+    entries: list[AliasEntry] = []
+    for index, item in enumerate(aliases):
+        if not isinstance(item, Mapping):
+            raise AliasSchemaError(f"{source}: aliases[{index}] must be a JSON object")
+        entries.append(_parse_entry(item, source=f"{source}: aliases[{index}]"))
+    return tuple(entries)
 
 
 def load_alias_registry(root: str | Path) -> AliasRegistry:

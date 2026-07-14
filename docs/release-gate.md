@@ -24,7 +24,7 @@ claim that the end-to-end release gate is already satisfied. The goal here is na
 
 ## Matrix model
 
-The committed fixture lives under [fixtures/release-matrix](/C:/Users/Z0059V7A/orca/workspaces/simplicio-agent/wave2-195-release-gate/fixtures/release-matrix).
+The committed fixture lives under [fixtures/release-matrix](../fixtures/release-matrix/).
 The seed document keeps the issue dimensions explicit:
 
 - `os`
@@ -84,3 +84,8 @@ python tools/release_gate.py evaluate \
 
 The CLI is intended for fixture validation and CI wiring. It is not a substitute for the later
 clean-machine and artifact-execution work still required by issue `#195`.
+
+This bounded contract also does not prove that an artifact was published, installed on a clean
+machine, upgraded, rolled back, or exercised through the complete release workflow. Those claims
+require execution receipts from the bound release operators; fixture records and matrix validation
+alone are not publication or clean-machine evidence.

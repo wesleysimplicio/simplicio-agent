@@ -1,6 +1,7 @@
 """Contract tests for the CLI-first Simplicio transport boundary."""
 
 from unittest.mock import patch
+from threading import Barrier, Thread
 
 import tools.runtime_manager as runtime_manager
 from tools.simplicio_bridge import SimplicioBridge
@@ -137,3 +138,75 @@ def test_runtime_health_and_doctor_status_are_json_safe():
     assert doctor["schema"] == "simplicio-runtime/doctor/v1"
     assert doctor["reason_code"] == "ready"
     assert doctor["handshake"] is None
+
+    status_dict = status.to_dict()
+    assert status_dict["satisfied"] is True
+    assert status_dict["reason_code"] == "ready"
+
+
+def test_bridge_lifecycle_is_idempotent_and_closed_calls_fail_closed():
+    class Stub:
+        def __init__(self):
+            self.calls = 0
+
+        def gate(self, *args, **kwargs):
+            self.calls += 1
+            return TransportReceipt.success("gate", {"decision": "allow"})
+
+        def health(self):
+            return {"schema": "stub-health", "healthy": True}
+
+    transport = Stub()
+    bridge = SimplicioBridge(transport)
+    assert bridge.start().state == "ready"
+    closed = bridge.close()
+    assert closed.state == "closed"
+    assert bridge.close() == closed
+    assert bridge.gate("echo ok") is None
+    assert transport.calls == 0
+    assert bridge.health()["healthy"] is False
+
+
+def test_bridge_idempotency_is_thread_safe_and_bounded():
+    class Stub:
+        def __init__(self):
+            self.calls = 0
+
+        def ledger(self, event):
+            self.calls += 1
+            return TransportReceipt.success("ledger", True, request_id="req-1")
+
+        def health(self):
+            return {"healthy": True}
+
+    transport = Stub()
+    bridge = SimplicioBridge(transport, idempotency_max_entries=1)
+    barrier = Barrier(2)
+    results = []
+
+    def run():
+        barrier.wait()
+        results.append(bridge.ledger({"id": "same"}, causal_id="same"))
+
+    threads = [Thread(target=run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert results == [True, True]
+    assert transport.calls == 1
+    assert bridge.metrics().last_deduplicated is True
+
+    bridge.ledger({"id": "other"}, causal_id="other")
+    bridge.ledger({"id": "third"}, causal_id="third")
+    assert len(bridge._seen) == 1
+
+
+def test_transport_close_returns_typed_failure_without_fallback():
+    transport = SimplicioTransport(cli_bin="simplicio", mcp_call=lambda *_: True)
+    transport.close()
+    receipt = transport.gate("echo ok")
+    assert receipt.ok is False
+    assert receipt.error.code == "transport_closed"
+    assert receipt.fallback_reason is None
+    assert transport.health()["state"] == "closed"
