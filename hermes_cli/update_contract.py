@@ -27,8 +27,8 @@ from tools.runtime_lock_contract import is_strict_semver
 
 
 MANIFEST_SCHEMA_VERSION = 1
-COMPATIBILITY_SCHEMA = "simplicio.update-compatibility/v1"
-COMPATIBILITY_VERSION = 1
+COMPATIBILITY_SCHEMA = "simplicio.update-compatibility/v2"
+COMPATIBILITY_VERSION = 2
 MAX_ARTIFACT_BYTES = 128 * 1024 * 1024
 MAX_FILES = 10_000
 MAX_UNPACKED_BYTES = 256 * 1024 * 1024
@@ -187,6 +187,8 @@ class ActivationRecord:
     previous_version: str | None = None
     applied_migrations: tuple[str, ...] = ()
     previous_applied_migrations: tuple[str, ...] = ()
+    rollback_migration_ids: tuple[str, ...] = ()
+    previous_rollback_migration_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,6 +201,7 @@ class CompatibilityRule:
     migration_ids: tuple[str, ...] = ()
     blocked_effects: tuple[str, ...] = ()
     notes: str = ""
+    rollback_migration_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.from_version is not None and not is_strict_semver(self.from_version):
@@ -210,13 +213,38 @@ class CompatibilityRule:
                 raise UpdateError(
                     f"compatibility migration id is invalid: {migration_id!r}"
                 )
+        for migration_id in self.rollback_migration_ids:
+            if not _MIGRATION_ID.fullmatch(migration_id):
+                raise UpdateError(
+                    "compatibility rollback migration id is invalid: "
+                    f"{migration_id!r}"
+                )
         for effect in self.blocked_effects:
             if not _EFFECT_NAME.fullmatch(effect):
                 raise UpdateError(
                     f"compatibility blocked effect is invalid: {effect!r}"
                 )
-        if not self.supported and self.migration_ids:
+        if not self.supported and (
+            self.migration_ids or self.rollback_migration_ids
+        ):
             raise UpdateError("unsupported transitions cannot declare migrations")
+        if self.rollback_migration_ids and (
+            len(self.rollback_migration_ids) != len(self.migration_ids)
+        ):
+            raise UpdateError(
+                "compatibility rollback migrations must map one-to-one to migrations"
+            )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "from_version": self.from_version,
+            "to_version": self.to_version,
+            "supported": self.supported,
+            "migration_ids": list(self.migration_ids),
+            "rollback_migration_ids": list(self.rollback_migration_ids),
+            "blocked_effects": list(self.blocked_effects),
+            "notes": self.notes,
+        }
 
 
 @dataclass(frozen=True)
@@ -274,6 +302,11 @@ class CompatibilityMatrix:
                         "compatibility migration_ids",
                         pattern=_MIGRATION_ID,
                     ),
+                    rollback_migration_ids=_require_string_list(
+                        item.get("rollback_migration_ids", []),
+                        "compatibility rollback_migration_ids",
+                        pattern=_MIGRATION_ID,
+                    ),
                     blocked_effects=_require_string_list(
                         item.get("blocked_effects", []),
                         "compatibility blocked_effects",
@@ -290,6 +323,13 @@ class CompatibilityMatrix:
             version=version,
             rows=tuple(rows),
         )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema": self.schema,
+            "version": self.version,
+            "rows": [row.to_dict() for row in self.rows],
+        }
 
     def transition(
         self, current_version: str | None, target_version: str
@@ -317,6 +357,15 @@ class UpdatePlan:
     rollback_available: bool
     reason: str
     notes: str = ""
+    rollback_migration_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.allowed and self.migration_ids and (
+            len(self.rollback_migration_ids) != len(self.migration_ids)
+        ):
+            raise UpdateError(
+                "allowed migration plans require one-to-one rollback migrations"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -325,11 +374,128 @@ class UpdatePlan:
             "direction": self.direction,
             "allowed": self.allowed,
             "migration_ids": list(self.migration_ids),
+            "rollback_migration_ids": list(self.rollback_migration_ids),
             "blocked_effects": list(self.blocked_effects),
             "rollback_available": self.rollback_available,
             "reason": self.reason,
             "notes": self.notes,
         }
+
+
+def _build_update_plan(
+    current: ActivationRecord | None,
+    manifest: UpdateManifest,
+    matrix: CompatibilityMatrix,
+    *,
+    in_flight_effects: Iterable[str] = (),
+) -> UpdatePlan:
+    """Build a plan from an explicit state snapshot and compatibility authority."""
+
+    current_version = current.version if current is not None else None
+    target_version = manifest.version
+    if current_version is None:
+        return UpdatePlan(
+            current_version=None,
+            target_version=target_version,
+            direction="install",
+            allowed=True,
+            migration_ids=(),
+            rollback_migration_ids=(),
+            blocked_effects=(),
+            rollback_available=False,
+            reason="fresh_install",
+        )
+    transition = matrix.transition(current_version, target_version)
+    direction = _plan_direction(
+        current_version,
+        target_version,
+        has_pending_migrations=bool(transition and transition.migration_ids),
+    )
+    if transition is None:
+        return UpdatePlan(
+            current_version=current_version,
+            target_version=target_version,
+            direction=direction,
+            allowed=False,
+            migration_ids=(),
+            rollback_migration_ids=(),
+            blocked_effects=(),
+            rollback_available=current.previous_slot is not None,
+            reason="unsupported_transition",
+        )
+    if not transition.supported:
+        return UpdatePlan(
+            current_version=current_version,
+            target_version=target_version,
+            direction=direction,
+            allowed=False,
+            migration_ids=(),
+            rollback_migration_ids=(),
+            blocked_effects=(),
+            rollback_available=current.previous_slot is not None,
+            reason="incompatible_transition",
+            notes=transition.notes,
+        )
+    active_effects = {item.strip() for item in in_flight_effects if item.strip()}
+    applied_migrations = set(current.applied_migrations)
+    pending_migrations = tuple(
+        migration_id
+        for migration_id in transition.migration_ids
+        if migration_id not in applied_migrations
+    )
+    pending_migration_set = set(pending_migrations)
+    pending_rollback_migrations = tuple(
+        rollback_id
+        for migration_id, rollback_id in reversed(
+            tuple(zip(transition.migration_ids, transition.rollback_migration_ids))
+        )
+        if migration_id in pending_migration_set
+    )
+    if pending_migrations and not pending_rollback_migrations:
+        return UpdatePlan(
+            current_version=current_version,
+            target_version=target_version,
+            direction=direction,
+            allowed=False,
+            migration_ids=pending_migrations,
+            rollback_migration_ids=(),
+            blocked_effects=(),
+            rollback_available=current.previous_slot is not None,
+            reason="migration_rollback_undefined",
+            notes=transition.notes,
+        )
+    blocked_effects = tuple(
+        effect for effect in transition.blocked_effects if effect in active_effects
+    )
+    if blocked_effects:
+        return UpdatePlan(
+            current_version=current_version,
+            target_version=target_version,
+            direction=direction,
+            allowed=False,
+            migration_ids=pending_migrations,
+            rollback_migration_ids=pending_rollback_migrations,
+            blocked_effects=blocked_effects,
+            rollback_available=current.previous_slot is not None,
+            reason="blocked_in_flight_effects",
+            notes=transition.notes,
+        )
+    if current_version == target_version and not pending_migrations:
+        direction = "noop"
+    elif current_version == target_version:
+        direction = "migrate"
+    return UpdatePlan(
+        current_version=current_version,
+        target_version=target_version,
+        direction=direction,
+        allowed=True,
+        migration_ids=pending_migrations,
+        rollback_migration_ids=pending_rollback_migrations,
+        blocked_effects=(),
+        rollback_available=current.previous_slot is not None,
+        reason="compatible",
+        notes=transition.notes,
+    )
 
 
 @dataclass(frozen=True)
@@ -438,21 +604,49 @@ class UpdateContract:
         _validate_slot_name(active_slot)
         if previous_slot is not None:
             _validate_slot_name(previous_slot)
+        applied_migrations = _require_string_list(
+            value.get("applied_migrations"),
+            "active.applied_migrations",
+            pattern=_MIGRATION_ID,
+        )
+        previous_applied_migrations = _require_string_list(
+            value.get("previous_applied_migrations"),
+            "active.previous_applied_migrations",
+            pattern=_MIGRATION_ID,
+        )
+        rollback_migration_ids = _require_string_list(
+            value.get("rollback_migration_ids"),
+            "active.rollback_migration_ids",
+            pattern=_MIGRATION_ID,
+        )
+        previous_rollback_migration_ids = _require_string_list(
+            value.get("previous_rollback_migration_ids"),
+            "active.previous_rollback_migration_ids",
+            pattern=_MIGRATION_ID,
+        )
+        migration_delta = set(applied_migrations) ^ set(previous_applied_migrations)
+        has_rollback_ids = "rollback_migration_ids" in value
+        has_previous_rollback_ids = "previous_rollback_migration_ids" in value
+        if has_rollback_ids != has_previous_rollback_ids:
+            raise UpdateError(
+                "active migration rollback metadata must contain both directions"
+            )
+        if has_rollback_ids and (
+            len(rollback_migration_ids) != len(migration_delta)
+            or len(previous_rollback_migration_ids) != len(migration_delta)
+        ):
+            raise UpdateError(
+                "active migration rollback ids must map one-to-one to the ledger delta"
+            )
         return ActivationRecord(
             active_slot,
             version,
             previous_slot,
             previous_version,
-            _require_string_list(
-                value.get("applied_migrations"),
-                "active.applied_migrations",
-                pattern=_MIGRATION_ID,
-            ),
-            _require_string_list(
-                value.get("previous_applied_migrations"),
-                "active.previous_applied_migrations",
-                pattern=_MIGRATION_ID,
-            ),
+            applied_migrations,
+            previous_applied_migrations,
+            rollback_migration_ids,
+            previous_rollback_migration_ids,
         )
 
     def plan(
@@ -466,84 +660,11 @@ class UpdateContract:
 
         if self.state_path.exists():
             raise UpdateError("cannot validate a plan while another update is in flight")
-        current = self.current()
-        current_version = current.version if current is not None else None
-        target_version = manifest.version
-        if current_version is None:
-            return UpdatePlan(
-                current_version=None,
-                target_version=target_version,
-                direction="install",
-                allowed=True,
-                migration_ids=(),
-                blocked_effects=(),
-                rollback_available=False,
-                reason="fresh_install",
-            )
-        transition = matrix.transition(current_version, target_version)
-        direction = _plan_direction(
-            current_version,
-            target_version,
-            has_pending_migrations=bool(transition and transition.migration_ids),
-        )
-        if transition is None:
-            return UpdatePlan(
-                current_version=current_version,
-                target_version=target_version,
-                direction=direction,
-                allowed=False,
-                migration_ids=(),
-                blocked_effects=(),
-                rollback_available=current.previous_slot is not None,
-                reason="unsupported_transition",
-            )
-        if not transition.supported:
-            return UpdatePlan(
-                current_version=current_version,
-                target_version=target_version,
-                direction=direction,
-                allowed=False,
-                migration_ids=(),
-                blocked_effects=(),
-                rollback_available=current.previous_slot is not None,
-                reason="incompatible_transition",
-                notes=transition.notes,
-            )
-        active_effects = {item.strip() for item in in_flight_effects if item.strip()}
-        pending_migrations = tuple(
-            migration_id
-            for migration_id in transition.migration_ids
-            if migration_id not in set(current.applied_migrations)
-        )
-        blocked_effects = tuple(
-            effect for effect in transition.blocked_effects if effect in active_effects
-        )
-        if blocked_effects:
-            return UpdatePlan(
-                current_version=current_version,
-                target_version=target_version,
-                direction=direction,
-                allowed=False,
-                migration_ids=pending_migrations,
-                blocked_effects=blocked_effects,
-                rollback_available=current.previous_slot is not None,
-                reason="blocked_in_flight_effects",
-                notes=transition.notes,
-            )
-        if current_version == target_version and not pending_migrations:
-            direction = "noop"
-        elif current_version == target_version:
-            direction = "migrate"
-        return UpdatePlan(
-            current_version=current_version,
-            target_version=target_version,
-            direction=direction,
-            allowed=True,
-            migration_ids=pending_migrations,
-            blocked_effects=(),
-            rollback_available=current.previous_slot is not None,
-            reason="compatible",
-            notes=transition.notes,
+        return _build_update_plan(
+            self.current(),
+            manifest,
+            matrix,
+            in_flight_effects=in_flight_effects,
         )
 
     def stage(
@@ -614,6 +735,8 @@ class UpdateContract:
         staged: StagedUpdate,
         *,
         plan: UpdatePlan | None = None,
+        matrix: CompatibilityMatrix | None = None,
+        in_flight_effects: Iterable[str] = (),
         health_check: Callable[[Path], bool] | None = None,
         interrupt_after: str | None = None,
     ) -> ActivationRecord:
@@ -629,13 +752,25 @@ class UpdateContract:
         ):
             raise UpdateError("staged update is not the pending candidate")
         old = self.current()
+        if old is not None and (plan is None or matrix is None):
+            raise UpdateError(
+                "existing installations require a compatibility plan and matrix"
+            )
         if plan is not None:
+            if matrix is None:
+                raise UpdateError("an update plan requires its compatibility matrix")
+            expected_plan = _build_update_plan(
+                old,
+                staged.manifest,
+                matrix,
+                in_flight_effects=in_flight_effects,
+            )
+            if plan != expected_plan:
+                raise UpdateError(
+                    "update plan does not match the compatibility matrix"
+                )
             if not plan.allowed:
                 raise UpdateError(f"update plan is blocked: {plan.reason}")
-            if plan.target_version != staged.manifest.version:
-                raise UpdateError("update plan does not match the staged version")
-            if plan.current_version != (old.version if old is not None else None):
-                raise UpdateError("update plan does not match the current installation")
         staging = self.slots / _STAGING_DIR
         candidate = self.slots / staged.slot
         if not staging.is_dir():
@@ -665,6 +800,8 @@ class UpdateContract:
             old.version if old else None,
             applied_migrations,
             old.applied_migrations if old else (),
+            plan.rollback_migration_ids if plan is not None else (),
+            plan.migration_ids if plan is not None else (),
         )
         self._write_active(record)
         if interrupt_after == "pointer":
@@ -699,6 +836,13 @@ class UpdateContract:
         current = self.current()
         if current is None or current.previous_slot is None:
             raise UpdateError("no previous slot is available for rollback")
+        if (
+            current.applied_migrations != current.previous_applied_migrations
+            and not current.rollback_migration_ids
+        ):
+            raise UpdateError(
+                "migration rollback contract is missing; refusing binary-only rollback"
+            )
         previous_path = self.slots / current.previous_slot
         if not previous_path.is_dir():
             raise UpdateError("previous slot is missing; refusing destructive rollback")
@@ -709,6 +853,8 @@ class UpdateContract:
             current.version,
             current.previous_applied_migrations,
             current.applied_migrations,
+            current.previous_rollback_migration_ids,
+            current.rollback_migration_ids,
         )
         self._write_active(record)
         self._write_state({
@@ -790,6 +936,10 @@ class UpdateContract:
                 "previous_version": record.previous_version,
                 "applied_migrations": list(record.applied_migrations),
                 "previous_applied_migrations": list(record.previous_applied_migrations),
+                "rollback_migration_ids": list(record.rollback_migration_ids),
+                "previous_rollback_migration_ids": list(
+                    record.previous_rollback_migration_ids
+                ),
             },
         )
 
