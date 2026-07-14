@@ -628,16 +628,26 @@ def render_compact_block(
     if len(block) <= max_chars:
         return block
 
-    # Keep the heading and as many complete capability lines as fit.  Never
-    # split a line: a partial summary is less useful than omitting a lower
-    # priority line, and all omitted lines remain recoverable by handle.
-    bounded = lines[:1]
-    for line in lines[1:]:
-        candidate = "\n".join((*bounded, line))
-        if len(candidate) > max_chars:
-            break
-        bounded.append(line)
-    return "\n".join(bounded)
+    # On an explicitly smaller budget, retain every handle (I4) and shorten
+    # only the prose.  The full default block remains byte-for-byte unchanged.
+    # A short heading makes the cap useful for callers with many active tools.
+    heading = "Compact capability index:\n"
+    prefixes = [f"- {entry['handle']}: " for entry in entries]
+    minimum = len(heading) + sum(len(prefix.rstrip()) for prefix in prefixes) + len(entries) - 1
+    if minimum > max_chars:
+        raise ValueError(
+            f"max_chars={max_chars} is too small to name all active handles "
+            f"(minimum={minimum})"
+        )
+    summary_budget = max_chars - minimum
+    # Divide the remaining budget deterministically in catalog order, then
+    # use any remainder on earlier entries.
+    per_summary, remainder = divmod(summary_budget, len(entries))
+    bounded_lines = []
+    for index, (entry, prefix) in enumerate(zip(entries, prefixes)):
+        allowance = per_summary + (1 if index < remainder else 0)
+        bounded_lines.append(prefix.rstrip() + (f" {entry['summary'][:allowance]}" if allowance else ""))
+    return heading.rstrip("\n") + "\n" + "\n".join(bounded_lines)
 
 
 def compact_block_receipt(
