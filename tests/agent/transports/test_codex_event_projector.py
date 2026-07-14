@@ -11,6 +11,7 @@ import pytest
 
 from agent.transports.codex_event_projector import (
     CodexEventProjector,
+    projection_digest,
     _deterministic_call_id,
     _format_tool_args,
 )
@@ -254,6 +255,15 @@ class TestUserAndOpaqueProjection:
 
 
 class TestHelpers:
+    def test_projection_digest_is_replay_stable(self) -> None:
+        notification = {
+            "method": "item/completed",
+            "params": {"item": {"type": "agentMessage", "id": "a1", "text": "done"}},
+        }
+        first = CodexEventProjector().project(notification)
+        replay = CodexEventProjector().project(notification)
+        assert projection_digest(first) == projection_digest(replay)
+
     def test_deterministic_call_id_stable(self) -> None:
         assert _deterministic_call_id("exec", "abc") == _deterministic_call_id("exec", "abc")
         assert _deterministic_call_id("exec", "abc") != _deterministic_call_id("exec", "xyz")
