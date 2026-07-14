@@ -31,6 +31,8 @@ contracts:
    keys are normalized with trim + casefold.
 8. Any duplicate or incompatible claim on the same normalized alias is a hard
    collision error.
+9. Documents fail closed: the root and every alias row must be JSON objects,
+   required identity fields must be strings, and `deprecated` must be boolean.
 
 ## Schema
 
@@ -58,5 +60,7 @@ contracts:
 - Removal accountability is attached to an owner instead of hidden in code.
 - Receipts and warnings are safe to persist because they never contain raw
   args, tokens, or secrets.
+- Malformed documents cannot silently add aliases through type coercion or
+  skipped rows.
 - Future CLI wiring can consume this registry without reopening schema or
   collision semantics.
