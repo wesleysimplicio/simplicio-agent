@@ -6,7 +6,7 @@ requires = ["setuptools>=77.0,<83"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hermes-agent"
+name = "simplicio-agent"
 version = "0.25.0"
 description = "The self-improving AI agent — creates skills from experience, improves them during use, and runs anywhere"
 readme = "README.md"
@@ -156,7 +156,7 @@ daytona = ["daytona==0.155.0"]
 hindsight = ["hindsight-client==0.6.1"]
 dev = ["debugpy==1.8.20", "pytest==9.0.2", "pytest-asyncio==1.3.0", "pytest-xdist==3.6.1", "mcp==1.26.0", "starlette==1.0.1", "ty==0.0.21", "ruff==0.15.10", "setuptools==81.0.0", "maturin>=1.0,<2.0"]  # starlette: CVE-2026-48710; setuptools: latest <82 (torch >=2.11 caps setuptools<82); maturin: builds the optional rust_ext hot-path extension; pytest-xdist: parallel test runs (`pytest -n auto`) across the 1850-file suite
 # Performance extras — 2-10x faster JSON encode/decode + a faster event loop.
-# Install with: pip install "hermes-agent[fast]". All three deps have graceful
+# Install with: pip install "simplicio-agent[fast]". All three deps have graceful
 # pure-Python fallbacks (agent/_fastjson.py, agent/serde/, agent/uvloop_utils.py)
 # so the extra is optional but strongly recommended for production. Ported from
 # the hermes-turbo-agent fork's performance work.
@@ -193,7 +193,7 @@ voice = [
 pty = [
   # Kept as a no-op back-compat alias — `ptyprocess` and `pywinpty` are now
   # in the main `dependencies` list (with the same platform markers), so
-  # any existing `pip install hermes-agent[pty]` invocations resolve cleanly
+  # any existing `pip install simplicio-agent[pty]` invocations resolve cleanly
   # without pulling in extra packages.
 ]
 honcho = ["honcho-ai==2.0.1"]
@@ -208,7 +208,7 @@ mem0 = ["mem0ai==2.0.10"]
 # (see the main `dependencies` list) since the byte/pixel shrink paths are on
 # the default vision-embed path and the mid-session lazy install deadlocked the
 # CLI under prompt_toolkit (#40490). This extra is kept as a no-op back-compat
-# alias so existing `pip install hermes-agent[vision]` invocations still resolve.
+# alias so existing `pip install simplicio-agent[vision]` invocations still resolve.
 vision = []
 # CVE-2026-48710 (BadHost): Starlette is pulled transitively by mcp's
 # sse-starlette / HTTP-SSE stack (and by fastapi in the `web` extra). Before
@@ -242,23 +242,23 @@ azure-identity = ["azure-identity==1.25.3"]
 termux = [
   # Baseline Android / Termux path for reliable fresh installs.
   "python-telegram-bot[webhooks]==22.6",
-  "hermes-agent[cron]",
-  "hermes-agent[cli]",
-  "hermes-agent[pty]",
-  "hermes-agent[mcp]",
-  "hermes-agent[honcho]",
-  "hermes-agent[acp]",
+  "simplicio-agent[cron]",
+  "simplicio-agent[cli]",
+  "simplicio-agent[pty]",
+  "simplicio-agent[mcp]",
+  "simplicio-agent[honcho]",
+  "simplicio-agent[acp]",
 ]
 termux-all = [
   # Best-effort "install all" profile for Termux. Same policy as [all]:
   # only includes extras that aren't covered by `tools/lazy_deps.py`.
   # Backends like telegram/slack/dingtalk/feishu/honcho lazy-install at
   # first use, so they're no longer eager-installed here.
-  "hermes-agent[termux]",
-  "hermes-agent[google]",
-  "hermes-agent[homeassistant]",
-  "hermes-agent[sms]",
-  "hermes-agent[web]",
+  "simplicio-agent[termux]",
+  "simplicio-agent[google]",
+  "simplicio-agent[homeassistant]",
+  "simplicio-agent[sms]",
+  "simplicio-agent[web]",
 ]
 dingtalk = ["dingtalk-stream==0.24.3", "alibabacloud-dingtalk==2.2.42", "qrcode==7.4.2"]
 feishu = ["lark-oapi==1.5.3", "qrcode==7.4.2"]
@@ -304,23 +304,23 @@ all = [
   # [all], `uv sync --locked` on Windows tried to build it from sdist
   # and failed on `make`. Lazy-install routes that build to first use,
   # where the user is expected to have a toolchain available.
-  "hermes-agent[cron]",
-  "hermes-agent[cli]",
-  "hermes-agent[pty]",
-  "hermes-agent[mcp]",
-  "hermes-agent[homeassistant]",
-  "hermes-agent[sms]",
-  "hermes-agent[acp]",
-  "hermes-agent[google]",
-  "hermes-agent[web]",
-  "hermes-agent[youtube]",
+  "simplicio-agent[cron]",
+  "simplicio-agent[cli]",
+  "simplicio-agent[pty]",
+  "simplicio-agent[mcp]",
+  "simplicio-agent[homeassistant]",
+  "simplicio-agent[sms]",
+  "simplicio-agent[acp]",
+  "simplicio-agent[google]",
+  "simplicio-agent[web]",
+  "simplicio-agent[youtube]",
   # Performance extras are default-on for full installs (2026-07-08): orjson/
   # msgspec ship wheels everywhere we support and uvloop already carries a
   # win32 marker, and every session touches JSON + the event loop, so they
   # meet the "[all] = things every session can use" bar above. Constrained
   # targets (Termux/minimal containers) install the base package, not [all],
   # and keep the pure-Python fallbacks.
-  "hermes-agent[fast]",
+  "simplicio-agent[fast]",
 ]
 
 [project.scripts]
