@@ -58,6 +58,9 @@ def test_public_facade_exports_canonical_symbols_without_wrapping(monkeypatch):
     assert simplicio_agent.Agent.__module__ == __name__
     assert simplicio_agent.CLI.__module__ == __name__
     assert resources.files("simplicio_agent").joinpath("py.typed").is_file()
+    package_files = resources.files("simplicio_agent")
+    assert package_files.joinpath("__init__.pyi").is_file()
+    assert package_files.joinpath("compat.pyi").is_file()
 
 
 def test_public_facade_metadata_and_unknown_names(monkeypatch):
