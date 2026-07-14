@@ -1,0 +1,72 @@
+{
+  "schema": "simplicio.bench-fixture/v1",
+  "fixture_set": "native-representative-v1",
+  "description": "Deterministic, scrubbed proxy corpus for Native token and latency gates.",
+  "sampling": {
+    "status": "proxy",
+    "method": "Hand-authored cases derived from the existing offline benchmark shapes; each category has five cases and weights are provisional until scrubbed SessionDB receipts are mined.",
+    "source": "scripts/benchmark_e2e.py and ADR-0023 route classes",
+    "period": "2026-07-14",
+    "sensitive_data_scan": "required",
+    "representativeness": "UNVERIFIED|receipt-derived weights are not available in this bounded slice"
+  },
+  "categories": [
+    {"id": "routine_deterministic", "weight": 30, "route": "L0"},
+    {"id": "memory_lookup", "weight": 15, "route": "L1"},
+    {"id": "code_edit", "weight": 15, "route": "L1"},
+    {"id": "single_tool", "weight": 12, "route": "L1"},
+    {"id": "fanout_tools", "weight": 10, "route": "L1"},
+    {"id": "freeform_chat", "weight": 8, "route": "L2"},
+    {"id": "frontier_escalation", "weight": 5, "route": "L3"},
+    {"id": "context_compaction", "weight": 5, "route": "L1"}
+  ],
+  "cases": [
+    {"id": "sha256:2a75023a6a8ccbf09c3fd9a463ca42f821ce441d25a987bbd1fd2d2139cc6ed7", "category": "routine_deterministic", "input": {"prompt": "show the current working directory", "tools": []}, "expected": {"route": "L0", "effect": "read_only", "output": "cwd"}},
+    {"id": "sha256:57400efe0190e6f98576c16a44eeaf68675e50e7edc9122cc72ce7522634a45a", "category": "routine_deterministic", "input": {"prompt": "list the files in the current directory", "tools": []}, "expected": {"route": "L0", "effect": "read_only", "output": "directory listing"}},
+    {"id": "sha256:fca4ca310507a2bfc9921c0e58988f53bf8eb3ebe4bea18bf8c427466bf0fcc3", "category": "routine_deterministic", "input": {"prompt": "format this JSON value", "value": {"ok": true, "count": 3}, "tools": []}, "expected": {"route": "L0", "effect": "pure_transform", "output": "formatted JSON"}},
+    {"id": "sha256:702b8250166f39650f8484cb482c8081933173904911d7a24cee2ebdad42c304", "category": "routine_deterministic", "input": {"prompt": "check whether the fixture is valid", "tools": []}, "expected": {"route": "L0", "effect": "validation", "output": "valid"}},
+    {"id": "sha256:a8921c09135bee002db3afdff1d746ec2e94985d37f090ab56b75a6db0bb3318", "category": "routine_deterministic", "input": {"prompt": "compute the SHA-256 of this text", "value": "fixture", "tools": []}, "expected": {"route": "L0", "effect": "pure_transform", "output": "digest"}},
+
+    {"id": "sha256:088e21cf98177b2442391208b53361ada12f3b9406fc6db508a70d5814a87238", "category": "memory_lookup", "input": {"prompt": "recall the preferred test command", "query": "test command", "tools": ["memory_search"]}, "expected": {"route": "L1", "effect": "memory_read", "output": "focused tests"}},
+    {"id": "sha256:57ee5bbbce3c6fa454a9431fe5cbdec67b807387aa69904f14e7488f67024b1a", "category": "memory_lookup", "input": {"prompt": "find the last decision about benchmark thresholds", "query": "benchmark threshold", "tools": ["memory_search"]}, "expected": {"route": "L1", "effect": "memory_read", "output": "threshold decision"}},
+    {"id": "sha256:e8d3ffa1bc3a6dc6be393fa1a07d01fcdd44125b3af6737c7e8353767a868d57", "category": "memory_lookup", "input": {"prompt": "retrieve the project naming convention", "query": "project naming", "tools": ["memory_search"]}, "expected": {"route": "L1", "effect": "memory_read", "output": "naming convention"}},
+    {"id": "sha256:58613bde17da64170965bc0fff1999c47883dd60e67b5cca58a93fe2f64e7f9b", "category": "memory_lookup", "input": {"prompt": "what was the last release gate result", "query": "release gate result", "tools": ["memory_search"]}, "expected": {"route": "L1", "effect": "memory_read", "output": "gate result"}},
+    {"id": "sha256:cbad8ccd7db4c91efd992b26ec68b1e79d44e2b0f1cbd9912bdc1e1ad87ca4dc", "category": "memory_lookup", "input": {"prompt": "recall the fixture schema version", "query": "fixture schema", "tools": ["memory_search"]}, "expected": {"route": "L1", "effect": "memory_read", "output": "v1"}},
+
+    {"id": "sha256:ff7abc6998fa62ca6af5592db84ecc12600656c3521d6b77ee6dfd88cb0b7c09", "category": "code_edit", "input": {"prompt": "add a test for the parser", "target": "tests/parser_test.py", "tools": ["read_file", "write_file"]}, "expected": {"route": "L1", "effect": "edit", "output": "test added"}},
+    {"id": "sha256:219b87a62eb01fdc7aa1f105f3020a962e37040cc36a7edca7430238cd08170a", "category": "code_edit", "input": {"prompt": "rename a local variable for clarity", "target": "src/module.py", "tools": ["read_file", "write_file"]}, "expected": {"route": "L1", "effect": "edit", "output": "variable renamed"}},
+    {"id": "sha256:a8693d76735d94225526069b24579559acec1fb6bb70e1dfdb1b049219509baf", "category": "code_edit", "input": {"prompt": "update the focused unit test expectation", "target": "tests/unit_test.py", "tools": ["read_file", "write_file"]}, "expected": {"route": "L1", "effect": "edit", "output": "expectation updated"}},
+    {"id": "sha256:23f8279f9c73c4bd3d2735932438eda807377399dad1c161d38aea4debb66467", "category": "code_edit", "input": {"prompt": "add a small helper function", "target": "src/helpers.py", "tools": ["read_file", "write_file"]}, "expected": {"route": "L1", "effect": "edit", "output": "helper added"}},
+    {"id": "sha256:f5ffc373e7037b463dc5da620f177cccf50fde83ae4954a1d91db8f1eca11838", "category": "code_edit", "input": {"prompt": "remove an unused import", "target": "src/clean.py", "tools": ["read_file", "write_file"]}, "expected": {"route": "L1", "effect": "edit", "output": "import removed"}},
+
+    {"id": "sha256:67cc42c88da2be28d2b1c0fb5d7d5572c4adaafabc7f1bdbc323cd377eb7ad8d", "category": "single_tool", "input": {"prompt": "read the benchmark manifest", "tool": "read_file", "args": {"path": "bench/fixtures/manifest.json"}}, "expected": {"route": "L1", "effect": "tool_call", "output": "manifest contents"}},
+    {"id": "sha256:7ff13f02f1575e28132cddd8ba0aa95624d5e068c75f378373a6e72102d4c2d2", "category": "single_tool", "input": {"prompt": "search for the fixture schema", "tool": "grep", "args": {"pattern": "simplicio.bench-fixture"}}, "expected": {"route": "L1", "effect": "tool_call", "output": "schema match"}},
+    {"id": "sha256:51885003f8cec39f8290f14ebe8b6d2d543956c57d55ca1a7b1d9f3ac9c5838e", "category": "single_tool", "input": {"prompt": "run the focused benchmark test", "tool": "terminal", "args": {"command": "pytest tests/bench"}}, "expected": {"route": "L1", "effect": "tool_call", "output": "tests pass"}},
+    {"id": "sha256:9bba8fb62153597684744c37d630c8bf72f8ed73387c6ee6d4ef8c23d61cd820", "category": "single_tool", "input": {"prompt": "inspect the current git diff", "tool": "git_diff", "args": {}}, "expected": {"route": "L1", "effect": "tool_call", "output": "diff"}},
+    {"id": "sha256:3c9fa467c2ba1947d7890dc6ead814a116c448c745254522f8bb3ff952edc43b", "category": "single_tool", "input": {"prompt": "calculate a file checksum", "tool": "hash_file", "args": {"path": "bench/fixtures/manifest.json"}}, "expected": {"route": "L1", "effect": "tool_call", "output": "digest"}},
+
+    {"id": "sha256:89880fc649eae3da7d425af42befb03d2a2318e93c98f1df56d130e337d334ca", "category": "fanout_tools", "input": {"prompt": "inspect these three benchmark artifacts", "tools": [{"name": "read_file", "path": "bench/fixtures/manifest.json"}, {"name": "read_file", "path": "docs/benchmark-fixtures.md"}, {"name": "git_diff", "path": ""}]}, "expected": {"route": "L1", "effect": "fanout", "output": "three artifact summaries"}},
+    {"id": "sha256:c01d0689ff82933d8643a6cf0832a3ecfb4a740d1c1bc922182cbc9ee61a87a2", "category": "fanout_tools", "input": {"prompt": "check the three fixture categories", "tools": [{"name": "validate", "category": "routine_deterministic"}, {"name": "validate", "category": "memory_lookup"}, {"name": "validate", "category": "code_edit"}]}, "expected": {"route": "L1", "effect": "fanout", "output": "category checks"}},
+    {"id": "sha256:666cdfe6d920d6c896f89caabe038dccf28bfb79c6b66946d98c6af20a147c2b", "category": "fanout_tools", "input": {"prompt": "compare the three report sections", "tools": [{"name": "read_report", "section": "tokens"}, {"name": "read_report", "section": "latency"}, {"name": "read_report", "section": "memory"}]}, "expected": {"route": "L1", "effect": "fanout", "output": "report comparison"}},
+    {"id": "sha256:c2665fdcd07d671afd1eb4c287262185d2bc0f4cdc6b07335058cbb41075c32d", "category": "fanout_tools", "input": {"prompt": "validate three scrubbed inputs", "tools": [{"name": "scan", "value": "plain text"}, {"name": "scan", "value": "safe fixture"}, {"name": "scan", "value": "synthetic case"}]}, "expected": {"route": "L1", "effect": "fanout", "output": "scan results"}},
+    {"id": "sha256:11ed8ba9c9c5d734d38004c0284994236c608aa17fd3023af04b95cc1d5055bb", "category": "fanout_tools", "input": {"prompt": "collect route labels from three cases", "tools": [{"name": "route", "case": "01"}, {"name": "route", "case": "02"}, {"name": "route", "case": "03"}]}, "expected": {"route": "L1", "effect": "fanout", "output": "route labels"}},
+
+    {"id": "sha256:19a668dbf6dd6b99e0f36ef1de60cf926057940378c4d8f1d5e6d48dd1662d17", "category": "freeform_chat", "input": {"prompt": "explain why stable prompts matter for caching", "context": "long-lived conversation", "tools": []}, "expected": {"route": "L2", "effect": "response", "output": "cache explanation"}},
+    {"id": "sha256:18c209ec2277389594db8045742d9f0d731b1f1c400e757b1217b28bc33ac0d1", "category": "freeform_chat", "input": {"prompt": "summarize the benchmark design tradeoffs", "context": "offline reproducibility", "tools": []}, "expected": {"route": "L2", "effect": "response", "output": "design summary"}},
+    {"id": "sha256:ba2f6c8ba853fb8360e0403a6169ae433a787a954d5cf5d752a6e31cd31ae21c", "category": "freeform_chat", "input": {"prompt": "suggest a clear name for this fixture set", "context": "Native gates", "tools": []}, "expected": {"route": "L2", "effect": "response", "output": "fixture name"}},
+    {"id": "sha256:bf62a2b807a175cfc5433910e766cb75cf4b83b3cef10f842ccb38f1da9584ae", "category": "freeform_chat", "input": {"prompt": "compare p50 and p95 in plain language", "context": "latency metrics", "tools": []}, "expected": {"route": "L2", "effect": "response", "output": "percentile explanation"}},
+    {"id": "sha256:45b285821fa07c12400de3d8e576f44f61dd3b7b19dad648047e91a0478ca3fa", "category": "freeform_chat", "input": {"prompt": "describe what this report does not prove", "context": "proxy fixture", "tools": []}, "expected": {"route": "L2", "effect": "response", "output": "limitations"}},
+
+    {"id": "sha256:c8e4c75dd6c5af9c2f84f460da293bd927115f3109ebbfd4abf2d69572ea5f34", "category": "frontier_escalation", "input": {"prompt": "design a migration for an unknown external system", "context": "missing requirements", "tools": []}, "expected": {"route": "L3", "effect": "escalate", "output": "request clarification"}},
+    {"id": "sha256:504c5383e0a5d39629108ac797ccb4e9b14138e19b891befddd7c9939897040c", "category": "frontier_escalation", "input": {"prompt": "make a high-impact change without a rollback plan", "context": "production boundary", "tools": []}, "expected": {"route": "L3", "effect": "escalate", "output": "approval required"}},
+    {"id": "sha256:2f5e3100eee16bdb760c17fd25f67dbd42c2ff5313ae03ababf5740434838c50", "category": "frontier_escalation", "input": {"prompt": "resolve conflicting requirements from two owners", "context": "ambiguous policy", "tools": []}, "expected": {"route": "L3", "effect": "escalate", "output": "owner decision"}},
+    {"id": "sha256:22dce9bb852083c88abe863db0ec4739c88c3cc8869d361711cf4b2f2a680b92", "category": "frontier_escalation", "input": {"prompt": "use an unavailable remote provider for this request", "context": "provider unavailable", "tools": []}, "expected": {"route": "L3", "effect": "escalate", "output": "provider unavailable"}},
+    {"id": "sha256:4eded33b6e0d36aac7b958b289b6edb633d8fb28d54dcbe275b7297d61de19bd", "category": "frontier_escalation", "input": {"prompt": "infer a sensitive value omitted from the fixture", "context": "scrubbed data", "tools": []}, "expected": {"route": "L3", "effect": "escalate", "output": "refuse inference"}},
+
+    {"id": "sha256:9acd80083a9bcb40dd6efc6f96db29085b5fdc8dfd28811e9c38ac1ebc1a7e98", "category": "context_compaction", "input": {"prompt": "compress an old transcript while keeping recent turns", "messages": 20, "tools": ["compress"]}, "expected": {"route": "L1", "effect": "context_transform", "output": "compacted transcript"}},
+    {"id": "sha256:0fdf2f4cfaf9ec6c17297bea927366d494b62082d5d5d9baad0fcfad8de5c1d3", "category": "context_compaction", "input": {"prompt": "clamp a large tool result to its head and tail", "tokens": 5000, "tools": ["clamp"]}, "expected": {"route": "L1", "effect": "context_transform", "output": "clamped result"}},
+    {"id": "sha256:b75b5beebf365229ea7f6f62885d00e53a3a5cb52853f04b6c1fc19b034b8df0", "category": "context_compaction", "input": {"prompt": "preserve the system prefix during compression", "messages": 40, "tools": ["compress", "cache_check"]}, "expected": {"route": "L1", "effect": "context_transform", "output": "stable prefix"}},
+    {"id": "sha256:1182b913739010fdaba3f884082d8feac5a2209ee3dd33380bed6e28bb032bdd", "category": "context_compaction", "input": {"prompt": "estimate tokens for a mixed text and tool transcript", "messages": 24, "tools": ["token_estimate"]}, "expected": {"route": "L1", "effect": "token_measurement", "output": "token estimate"}},
+    {"id": "sha256:9789ee98358205d7cf1745d3d84c87d57d18f9704366d4b3dd5b5cf0b910bd05", "category": "context_compaction", "input": {"prompt": "verify that compaction keeps message role order", "messages": 12, "tools": ["role_check"]}, "expected": {"route": "L1", "effect": "validation", "output": "roles valid"}}
+  ]
+}
