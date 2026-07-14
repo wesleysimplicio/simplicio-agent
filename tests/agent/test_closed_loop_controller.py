@@ -44,6 +44,7 @@ def candidate(
     digest: str,
     *,
     tokens: int = 10,
+    uncertainty: float = 0.1,
     risk: RiskClass = RiskClass.READ,
     mutating: bool = False,
     irreversible: bool = False,
@@ -62,7 +63,7 @@ def candidate(
         mutating=mutating,
         irreversible=irreversible,
         expected_failure=0.1,
-        uncertainty=0.1,
+        uncertainty=uncertainty,
         requires_human_gate=requires_human_gate,
     )
 
@@ -95,6 +96,52 @@ def test_nominal_choice_is_typed_cost_ordered_and_replayable():
         receipt.constraint_id == "candidate.eligible"
         and receipt.status is ConstraintStatus.PASSED
         for receipt in first.constraint_receipts
+    )
+
+
+def test_uncertainty_above_policy_threshold_observes_instead_of_acting():
+    controller = ClosedLoopController(
+        ControllerPolicy(max_action_uncertainty=0.25)
+    )
+
+    decision = controller.decide(
+        "inspect uncertain state",
+        FRESH_STATE,
+        [candidate("uncertain-read", uncertainty=0.26)],
+    )
+
+    assert isinstance(decision, ObserveDecision)
+    assert decision.reason_code is ReasonCode.ACTION_UNCERTAINTY_TOO_HIGH
+    assert decision.observation_request == "reduce_action_uncertainty"
+    assert "policy.max_action_uncertainty<=0.25" in decision.active_constraints
+    assert any(
+        receipt.constraint_id == "candidate.uncertainty"
+        and receipt.status is ConstraintStatus.WAITING
+        and receipt.candidate_digest == "uncertain-read"
+        for receipt in decision.constraint_receipts
+    )
+
+
+def test_uncertainty_threshold_is_inclusive_and_candidate_local():
+    controller = ClosedLoopController(
+        ControllerPolicy(max_action_uncertainty=0.25)
+    )
+
+    decision = controller.decide(
+        "choose a bounded inspection",
+        FRESH_STATE,
+        [
+            candidate("a-cheap-uncertain", tokens=1, uncertainty=0.26),
+            candidate("b-threshold", tokens=20, uncertainty=0.25),
+        ],
+    )
+
+    assert isinstance(decision, ActionDecision)
+    assert decision.action_digest == "b-threshold"
+    assert any(
+        receipt.constraint_id == "candidate.uncertainty"
+        and receipt.candidate_digest == "a-cheap-uncertain"
+        for receipt in decision.constraint_receipts
     )
 
 

@@ -52,6 +52,7 @@ class RiskClass(str, Enum):
 
 class ReasonCode(str, Enum):
     ACTION_SELECTED = "action_selected"
+    ACTION_UNCERTAINTY_TOO_HIGH = "action_uncertainty_too_high"
     COMMITTED_EFFECT_REQUIRES_RECONCILIATION = (
         "committed_effect_requires_reconciliation"
     )
@@ -437,6 +438,7 @@ class ControllerPolicy:
 
     policy_version: str = CONTROLLER_SCHEMA_VERSION
     min_precondition_confidence: float = 0.8
+    max_action_uncertainty: float = 0.5
     budget: ActionBudget = ActionBudget()
     allow_mutations: bool = True
     human_gated_risks: frozenset[RiskClass] = _DEFAULT_HUMAN_GATED_RISKS
@@ -459,6 +461,11 @@ class ControllerPolicy:
             _unit_interval(
                 self.min_precondition_confidence, "min_precondition_confidence"
             ),
+        )
+        object.__setattr__(
+            self,
+            "max_action_uncertainty",
+            _unit_interval(self.max_action_uncertainty, "max_action_uncertainty"),
         )
         object.__setattr__(
             self,
@@ -505,6 +512,7 @@ class ControllerPolicy:
         return (
             f"policy.version={self.policy_version}",
             f"policy.min_precondition_confidence>={self.min_precondition_confidence}",
+            f"policy.max_action_uncertainty<={self.max_action_uncertainty}",
             f"policy.allow_mutations={str(self.allow_mutations).lower()}",
             f"policy.max_repeat_failures={self.max_repeat_failures}",
             *self.budget.active_constraints(),
@@ -878,6 +886,7 @@ class ClosedLoopController:
         budget_blocked: list[ConstraintReceipt] = []
         mutation_blocked: list[ConstraintReceipt] = []
         suppressed_receipts: list[ConstraintReceipt] = []
+        uncertainty_blocked: list[ConstraintReceipt] = []
 
         for candidate in ordered:
             exceeded = self.policy.budget.exceeded(candidate.cost)
@@ -907,6 +916,16 @@ class ClosedLoopController:
                         "anti_oscillation",
                         ConstraintStatus.SUPPRESSED,
                         "candidate suppressed after repeated failure fingerprint",
+                        candidate.action_digest,
+                    )
+                )
+                continue
+            if candidate.uncertainty > self.policy.max_action_uncertainty:
+                uncertainty_blocked.append(
+                    ConstraintReceipt(
+                        "candidate.uncertainty",
+                        ConstraintStatus.WAITING,
+                        "candidate uncertainty exceeds action threshold",
                         candidate.action_digest,
                     )
                 )
@@ -949,7 +968,11 @@ class ClosedLoopController:
                 alternatives_considered=alternatives,
                 active_constraints=active_constraints,
                 constraint_receipts=tuple(
-                    base_receipts + budget_blocked + mutation_blocked + suppressed_receipts
+                    base_receipts
+                    + budget_blocked
+                    + mutation_blocked
+                    + suppressed_receipts
+                    + uncertainty_blocked
                 ),
                 anti_oscillation=oscillation_receipt,
                 action_digest=selected.action_digest,
@@ -970,7 +993,11 @@ class ClosedLoopController:
                 alternatives_considered=alternatives,
                 active_constraints=active_constraints,
                 constraint_receipts=tuple(
-                    base_receipts + budget_blocked + mutation_blocked + suppressed_receipts
+                    base_receipts
+                    + budget_blocked
+                    + mutation_blocked
+                    + suppressed_receipts
+                    + uncertainty_blocked
                 ),
                 anti_oscillation=oscillation_receipt,
                 action_digest=selected.action_digest,
@@ -980,6 +1007,22 @@ class ClosedLoopController:
                 verifier=selected.verifier,
                 clarify_prompt="human gate required before high-risk or irreversible action",
                 score=self.policy.score(selected),
+            )
+        if uncertainty_blocked:
+            return ObserveDecision(
+                kind=DecisionKind.OBSERVE,
+                reason_code=ReasonCode.ACTION_UNCERTAINTY_TOO_HIGH,
+                policy_version=self.policy.policy_version,
+                alternatives_considered=alternatives,
+                active_constraints=active_constraints,
+                constraint_receipts=tuple(
+                    uncertainty_blocked
+                    + budget_blocked
+                    + mutation_blocked
+                    + suppressed_receipts
+                ),
+                anti_oscillation=oscillation_receipt,
+                observation_request="reduce_action_uncertainty",
             )
         if (
             oscillation_receipt is not None
