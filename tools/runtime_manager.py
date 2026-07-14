@@ -135,9 +135,7 @@ def load_runtime_lock() -> dict:
 
 
 def _normalize_machine(machine: str) -> str:
-    return {"amd64": "x86_64", "aarch64": "arm64"}.get(
-        machine.lower(), machine.lower()
-    )
+    return {"amd64": "x86_64", "aarch64": "arm64"}.get(machine.lower(), machine.lower())
 
 
 def _target_key(system: Optional[str] = None, machine: Optional[str] = None) -> str:
@@ -213,7 +211,9 @@ def validate_runtime_lock(
             errors.append(f"{prefix}.version must be a strict semver")
         elif isinstance(minimum, str) and _STRICT_SEMVER_RE.fullmatch(minimum):
             if parse_semver(version) < parse_semver(minimum):
-                errors.append(f"{prefix}.version {version} is below min_version {minimum}")
+                errors.append(
+                    f"{prefix}.version {version} is below min_version {minimum}"
+                )
         url = entry.get("url")
         parsed_url = urlparse(url) if isinstance(url, str) else None
         if (
@@ -240,10 +240,9 @@ def validate_runtime_lock(
             target_arch = target_meta.get("arch")
             if not isinstance(target_os, str) or not isinstance(target_arch, str):
                 errors.append(f"{prefix}.target requires os and arch")
-            elif (
-                target_os.lower() != key_os.lower()
-                or _normalize_machine(target_arch) != _normalize_machine(key_arch)
-            ):
+            elif target_os.lower() != key_os.lower() or _normalize_machine(
+                target_arch
+            ) != _normalize_machine(key_arch):
                 errors.append(f"{prefix}.target does not match its target key")
         if key == requested:
             selected = entry
@@ -647,8 +646,7 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     actual_sha256 = _sha256_file(Path(bin_path))
     if actual_sha256.lower() != expected_sha256.lower():
         detail = (
-            f"runtime sha256 mismatch: expected {expected_sha256}, "
-            f"got {actual_sha256}"
+            f"runtime sha256 mismatch: expected {expected_sha256}, got {actual_sha256}"
         )
         return RuntimeStatus(
             bin_path=bin_path,
@@ -727,7 +725,9 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
         )
     ok = version_satisfies(version, minimum)
     detail = "" if ok else f"installed {version} < pinned {minimum}"
-    reason_code = HANDSHAKE_REASON_READY if ok else HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
+    reason_code = (
+        HANDSHAKE_REASON_READY if ok else HANDSHAKE_REASON_INCOMPATIBLE_RUNTIME
+    )
     return RuntimeStatus(
         bin_path=bin_path,
         source=source,
