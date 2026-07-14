@@ -108,6 +108,12 @@ Esta ADR termina somente quando o artefato instalado, o processo vivo, a configu
 
 ## GitHub execution map
 
+The seven-issue P0 reconciliation is recorded in
+[`native-p0-reconciliation.md`](native-p0-reconciliation.md) and its checked
+manifest.  Each P0 issue has exactly one relation to the Native sequence; this
+does not close or mutate any GitHub issue.  The local consistency gate is
+`python scripts/check_program_graph.py`.
+
 - Epic: [#314](https://github.com/wesleysimplicio/simplicio-agent/issues/314)
 - Transactional self-mutation kernel: [#315](https://github.com/wesleysimplicio/simplicio-agent/issues/315)
 - Source/release to live-bot updater: [#316](https://github.com/wesleysimplicio/simplicio-agent/issues/316)

@@ -1,0 +1,32 @@
+schema_version: 1
+epic_issue: 314
+native_issues: [315, 316, 317, 318, 319, 320, 321, 322, 323]
+relations:
+  - issue: 228
+    relation: prerequisite
+    native_targets: [315, 319]
+    rationale: The single invocation/effect choke point must exist before shadow-running or compiling the daemon.
+  - issue: 209
+    relation: prerequisite
+    native_targets: [316, 323]
+    rationale: The updater and release gate consume the canonical TaskEnvelope state machine.
+  - issue: 221
+    relation: prerequisite
+    native_targets: [319]
+    rationale: Session, turn, and tool boundaries define the daemon compilation boundary.
+  - issue: 220
+    relation: subordinate
+    native_targets: [317, 323]
+    rationale: The performance audit becomes the benchmark baseline for the governor and final release gate.
+  - issue: 222
+    relation: subordinate
+    native_targets: [321]
+    rationale: The hot bridge is absorbed by the native gateway while the legacy bridge remains isolated.
+  - issue: 210
+    relation: subordinate
+    native_targets: [318, 319]
+    rationale: The capability broker and daemon absorb the CLI-first and thin kernel-binding boundary.
+  - issue: 211
+    relation: subordinate
+    native_targets: [323]
+    rationale: The golden path becomes the release gate smoke test.
