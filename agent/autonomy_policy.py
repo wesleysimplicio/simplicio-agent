@@ -9,6 +9,7 @@ stale approval cannot be reused by another run.
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, Mapping
@@ -161,6 +162,10 @@ class PolicyDecision:
             "policy_version": self.policy_version,
             "approval_used": self.approval_used,
         }
+
+    def content_hash(self) -> str:
+        payload = json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
