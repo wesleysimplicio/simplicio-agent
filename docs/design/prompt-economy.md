@@ -67,7 +67,12 @@ deterministic routes have zero remote input/output budget; L2 stays local when
 entropy is within the guided threshold; only L3 receives a frontier budget.
 Every decision returns a content-free SHA-256 intent fingerprint, explicit
 input/output/schema budgets, and an escalation/fallback reason. The governor
-does not call a provider or emit the intent text.
+does not call a provider or emit the intent text. Callers that need durable
+evidence may pass the in-memory `RouteReceipt` to
+`record_route_receipt(...)`; this uses the existing append-only
+`agent.telemetry.receipts.record_receipt` interface and stores only the
+canonical route payload and intent digest. Receipt writes are opt-in and do
+not participate in routing decisions.
 
 `agent.prompt_microkernel` exposes the five stable handles (`recall`,
 `inspect`, `decide`, `act`, `verify`) and loads primitive schemas only when a
@@ -77,6 +82,19 @@ records missing/extra capabilities without changing the existing #196 full-set
 pinning behavior. Context IDs and cache receipts are opaque content hashes;
 they preserve the stable prefix and never contain prompt text.
 
-The representative route fixture measures the local contract only: its
-routine routes are at least 80% remote-free. This is a deterministic fixture
-receipt, not a provider billing or latency claim.
+The microkernel canonicalizes context and delta IDs (deduplicated, sorted, and
+free of whitespace/control characters) before hashing a capsule. Existing tool
+schemas may be supplied directly or in OpenAI `function` wrappers; the broker
+keeps them lazy until `expand`/`expand_with_receipt` is called, returns a copy,
+and records a deterministic schema hash and boundary (`recall`, `inspect`,
+`decide`, `act`, or `verify`). These boundaries are labels for routing and
+inspection only: execution and authorization remain with the existing tool
+interfaces. The representative receipt is committed at
+`tests/fixtures/native/prompt_microkernel_receipt.json`; remote
+token/cache/provider parity remains **UNVERIFIED**.
+
+The representative route fixture measures the local contract only: 9 of 10
+routine routes (90%) are remote-free, clearing the 80% benchmark gate. This is
+a deterministic fixture receipt, not a provider billing or latency claim. Real
+provider token usage, cache-hit behavior, and latency remain **UNVERIFIED**
+until a provider usage receipt is captured from an integration run.

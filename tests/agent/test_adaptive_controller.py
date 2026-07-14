@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -7,6 +8,7 @@ from agent.adaptive_controller import (
     AdaptiveController,
     AdaptiveObservation,
     AdaptivePolicy,
+    ADAPTIVE_RECEIPT_SCHEMA,
     ControllerAction,
 )
 
@@ -64,6 +66,70 @@ def test_scale_up_is_gain_and_entropy_gated_with_bounded_steps():
     assert second.target_concurrency <= 5
 
 
+def test_scale_up_is_minimal_one_step_even_when_queue_is_large():
+    controller = AdaptiveController(AdaptivePolicy(max_concurrency=8))
+    decision = controller.decide(
+        _observation(
+            queue_pressure=1.0,
+            working_set_entropy=1.0,
+            marginal_gain=1.0,
+            current_concurrency=4,
+        )
+    )
+    assert decision.action is ControllerAction.SCALE_UP
+    assert decision.target_concurrency == 5
+
+
+def test_bounded_fan_out_is_stable_and_receipt_safe():
+    controller = AdaptiveController(AdaptivePolicy(max_concurrency=8, max_fan_out=3))
+    decision = controller.decide(
+        _observation(
+            queue_pressure=0.8,
+            working_set_entropy=0.8,
+            marginal_gain=0.5,
+            current_concurrency=1,
+        )
+    )
+    plan = controller.bound_fan_out(["a", "b", "c", "d"], decision=decision)
+    assert plan.items == ("a", "b")
+    assert plan.receipt.allowed == 2
+    assert plan.receipt.selected == 2
+    assert plan.receipt.truncated
+    assert plan.to_dict()["receipt"]["schema"] == ADAPTIVE_RECEIPT_SCHEMA
+
+
+def test_pid_integral_is_bounded_and_receipt_is_json_stable():
+    controller = AdaptiveController(
+        AdaptivePolicy(
+            integral_limit=0.25,
+            proportional_gain=2.0,
+            integral_gain=1.0,
+            derivative_gain=1.0,
+        )
+    )
+    first = controller.decide(_observation(cpu_pressure=1.0))
+    second = controller.decide(_observation(cpu_pressure=1.0), first.state)
+    assert first.pid_output == pytest.approx(1.45)
+    assert second.state.integral_error == 0.25
+    assert second.pid_output == pytest.approx(1.05)
+    assert json.loads(json.dumps(second.to_dict())) == second.to_dict()
+
+
+def test_fixture_routes_are_deterministic():
+    fixture = (
+        Path(__file__).parents[1]
+        / "fixtures"
+        / "native"
+        / "adaptive_controller_routes.json"
+    )
+    payload = json.loads(fixture.read_text(encoding="utf-8"))
+    controller = AdaptiveController(AdaptivePolicy(max_concurrency=4, max_fan_out=4))
+    for route in payload["routes"]:
+        decision = controller.decide(AdaptiveObservation(**route["observation"]))
+        assert decision.action.value == route["expected_action"], route["id"]
+        assert decision.target_concurrency == route["expected_target"], route["id"]
+
+
 def test_low_gain_decays_without_falling_below_minimum():
     controller = AdaptiveController(
         AdaptivePolicy(min_concurrency=1, max_concurrency=8)
@@ -85,6 +151,10 @@ def test_invalid_bounds_and_observations_fail_closed():
         AdaptivePolicy(min_concurrency=3, max_concurrency=2)
     with pytest.raises(ValueError):
         AdaptiveObservation(2, 0, 0, 0, 0, 1)
+    with pytest.raises(ValueError):
+        AdaptivePolicy(integral_limit="not-a-number")
+    with pytest.raises(ValueError):
+        AdaptiveObservation(0, 0, 0, 0, None, 1)
 
 
 def test_decision_wire_shape_is_deterministic_and_json_safe():

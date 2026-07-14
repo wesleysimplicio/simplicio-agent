@@ -1,0 +1,171 @@
+schema_version: 1
+contract: simplicio.backlog-supersede-sweep/v1
+sweep_issue: 346
+observed_at: '2026-07-14'
+read_only: true
+
+# The scope is deliberately explicit.  A 100-percent result means every issue
+# in this list has exactly one row below; it does not pretend to enumerate a
+# live GitHub backlog when the API is unavailable.
+scope:
+  name: wave-22-native-governance-backlog
+  issue_numbers: [334, 335, 338, 339, 340, 341, 342, 343, 344, 347, 348, 349]
+
+verdicts: [superseded, subordinated, independent]
+acceptance_criteria:
+  AC-1: Every scoped issue has exactly one explicit verdict.
+  AC-2: Each verdict has a rationale and an auditable target or retention basis.
+  AC-3: The manifest is read-only and performs no close, label, assignment, or comment mutation.
+  AC-4: Bulk-close is prohibited; any future action must be individually reviewed.
+  AC-5: Owner assignment and the 48-hour review window require live receipts.
+  AC-6: Live API, owner, and 48-hour evidence limitations remain explicitly UNVERIFIED when unavailable.
+
+issues:
+  - issue: 334
+    title: Native invocation graph gate
+    verdict: independent
+    target_issues: []
+    rationale: The graph gate is a separate bounded slice and is intentionally not modified by this sweep.
+    ac_mapping: [AC-1, AC-2, AC-3, AC-4, AC-6]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 335
+    title: Fenced issue claim leases
+    verdict: independent
+    target_issues: []
+    rationale: Claim leases provide ownership fencing and are retained as an independent capability.
+    ac_mapping: [AC-1, AC-2, AC-3, AC-5]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 338
+    title: Transactional mutation snapshots
+    verdict: independent
+    target_issues: []
+    rationale: Snapshot and rollback evidence remains an independent safety boundary.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 339
+    title: Effect taxonomy
+    verdict: subordinated
+    target_issues: [334]
+    rationale: Effect taxonomy supplies the invocation graph gate; it does not replace that gate.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 340
+    title: Equivalence canary gate
+    verdict: independent
+    target_issues: []
+    rationale: Shadow comparison and canary rollback are an independent promotion safety contract.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 341
+    title: Promotion controller
+    verdict: subordinated
+    target_issues: [340]
+    rationale: Promotion consumes equivalence evidence and therefore remains subordinate to its canary gate.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 342
+    title: Installation and update preflight
+    verdict: independent
+    target_issues: []
+    rationale: Preflight and snapshot locking protect installation/update entry and remain independent.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 343
+    title: Local-change staging
+    verdict: subordinated
+    target_issues: [342]
+    rationale: Local-change staging is an update-preflight sub-capability and is not a duplicate close candidate.
+    ac_mapping: [AC-1, AC-2, AC-3, AC-4]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 344
+    title: Staging activation and restart
+    verdict: subordinated
+    target_issues: [342]
+    rationale: Activation and restart are downstream of the update preflight contract.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 347
+    title: Decision-path coverage
+    verdict: independent
+    target_issues: []
+    rationale: Decision-path tests provide independent coverage and are not superseded by backlog bookkeeping.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 348
+    title: Autonomous issue path E2E
+    verdict: subordinated
+    target_issues: [334]
+    rationale: The E2E path exercises the graph-gated autonomous route and remains subordinate to that gate.
+    ac_mapping: [AC-1, AC-2, AC-3]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+  - issue: 349
+    title: Deterministic CI quality gates
+    verdict: independent
+    target_issues: []
+    rationale: Repository quality gates are independent merge controls, not a backlog replacement.
+    ac_mapping: [AC-1, AC-2, AC-3, AC-4]
+    owner_window:
+      status: UNVERIFIED
+      window_hours: 48
+      evidence: 'UNVERIFIED|live owner and 48-hour window require the GitHub API.'
+
+receipts:
+  anti_bulk_close:
+    status: VERIFIED
+    receipt_id: local-read-only-sweep-v1
+    mutation_allowed: false
+    close_operations: 0
+    per_issue_review_required: true
+    evidence: The checker only reads the manifest and optional GET API responses.
+  live_api:
+    status: UNVERIFIED
+    receipt_id: null
+    evidence: 'UNVERIFIED| live API/owner/48-hour evidence was not available at authoring time.'
+  owner_window:
+    status: UNVERIFIED
+    window_hours: 48
+    receipt_id: null
+    evidence: 'UNVERIFIED| owner assignment and a completed 48-hour window require a live read-only API check.'
+
+ledger:
+  schema: simplicio.backlog-supersede-ledger/v1
+  append_only: true
+  close_mutation: prohibited
+  entries:
+    - receipt_id: local-read-only-sweep-v1
+      event: classify
+      status: VERIFIED
+      evidence: Manifest rows are one-per-scope and no GitHub mutation method exists in the checker.

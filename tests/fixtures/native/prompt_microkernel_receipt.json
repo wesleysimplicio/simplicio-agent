@@ -1,0 +1,11 @@
+{
+  "schema_version": "simplicio.agent.prompt.microkernel/v1",
+  "primitives": ["recall", "inspect", "decide", "act", "verify"],
+  "context_ids": ["ctx:alpha"],
+  "delta_ids": ["delta:1", "delta:2"],
+  "schema_bytes": 812,
+  "schema_sha256": "a31e1f9f61057db7ba5c4cf131e67a8cf7b95a87237a6e64bdb384f4907a88dc",
+  "prefix_sha256": "344396848912098b9488ed3af6e52a418e1c17d48dc51f20129beea4966c8e14",
+  "cache_stable": true,
+  "remote_token_cache_provider_parity": "UNVERIFIED"
+}

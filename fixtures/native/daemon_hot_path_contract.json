@@ -1,0 +1,32 @@
+{
+  "startup": {
+    "profile": "desktop",
+    "protocol_version": 1,
+    "generation": 0
+  },
+  "startup_wire": {
+    "schema": "simplicio.agent-daemon-hot-path/v1",
+    "op": "startup",
+    "profile": "desktop",
+    "protocol_version": 1,
+    "generation": 0
+  },
+  "policy": {
+    "max_attempts": 2,
+    "delays_ms": [10, 20]
+  },
+  "startup_decision": {
+    "schema": "simplicio.agent-daemon-hot-path/v1",
+    "phase": "starting",
+    "state": {
+      "phase": "starting",
+      "reconnect_attempts": 0,
+      "generation": 0,
+      "last_error": ""
+    },
+    "retry": false,
+    "retry_delay_ms": null,
+    "reason": "startup_requested",
+    "protocol_status": "unreported"
+  }
+}

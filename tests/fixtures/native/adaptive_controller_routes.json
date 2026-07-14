@@ -1,0 +1,70 @@
+{
+  "schema": "simplicio.adaptive-controller/v1",
+  "routes": [
+    {
+      "id": "pressure-throttle",
+      "observation": {
+        "queue_pressure": 0.8,
+        "cpu_pressure": 0.9,
+        "memory_pressure": 0.2,
+        "working_set_entropy": 0.9,
+        "marginal_gain": 0.9,
+        "current_concurrency": 3
+      },
+      "expected_action": "throttle",
+      "expected_target": 2
+    },
+    {
+      "id": "low-gain-decay",
+      "observation": {
+        "queue_pressure": 0.2,
+        "cpu_pressure": 0.2,
+        "memory_pressure": 0.2,
+        "working_set_entropy": 0.2,
+        "marginal_gain": 0.01,
+        "current_concurrency": 3
+      },
+      "expected_action": "decay",
+      "expected_target": 2
+    },
+    {
+      "id": "entropy-gated-hold",
+      "observation": {
+        "queue_pressure": 0.8,
+        "cpu_pressure": 0.2,
+        "memory_pressure": 0.2,
+        "working_set_entropy": 0.2,
+        "marginal_gain": 0.9,
+        "current_concurrency": 2
+      },
+      "expected_action": "hold",
+      "expected_target": 2
+    },
+    {
+      "id": "minimal-scale-up",
+      "observation": {
+        "queue_pressure": 0.8,
+        "cpu_pressure": 0.2,
+        "memory_pressure": 0.2,
+        "working_set_entropy": 0.8,
+        "marginal_gain": 0.9,
+        "current_concurrency": 2
+      },
+      "expected_action": "scale_up",
+      "expected_target": 3
+    },
+    {
+      "id": "max-bound-hold",
+      "observation": {
+        "queue_pressure": 0.8,
+        "cpu_pressure": 0.2,
+        "memory_pressure": 0.2,
+        "working_set_entropy": 0.8,
+        "marginal_gain": 0.9,
+        "current_concurrency": 4
+      },
+      "expected_action": "hold",
+      "expected_target": 4
+    }
+  ]
+}
