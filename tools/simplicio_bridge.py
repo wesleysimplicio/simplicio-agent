@@ -432,7 +432,7 @@ class SimplicioBridge:
             if not owner:
                 event.wait(timeout=30.0)
                 with self._idempotency_lock:
-                    cached = self._seen.get(cid)
+                    cached = self._seen.get(idem_key)
                 if cached is None:
                     return None
                 with self._lock:
