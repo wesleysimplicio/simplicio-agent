@@ -1,0 +1,21 @@
+{
+  "schema": "simplicio.identity-legacy-manifest/v1",
+  "version": 1,
+  "entries": [
+    {
+      "term": "hermes",
+      "path_glob": "LICENSE",
+      "classification": "legal_attribution",
+      "owner": "project",
+      "reason": "required upstream legal attribution"
+    },
+    {
+      "term": "hermes-agent",
+      "path_glob": "compatibility/*",
+      "classification": "compatibility",
+      "owner": "identity-migration",
+      "reason": "temporary compatibility alias",
+      "expiry": "2026-12-31"
+    }
+  ]
+}

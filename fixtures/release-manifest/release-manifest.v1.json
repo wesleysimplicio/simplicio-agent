@@ -1,0 +1,19 @@
+{
+  "schema": "simplicio.release-manifest/v1",
+  "version": "0.25.0",
+  "source_commit": "local-fixture",
+  "identity": "simplicio-agent",
+  "artifact": {
+    "channel": "wheel",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "kind": "wheel",
+    "name": "simplicio-agent.whl"
+  },
+  "runtime": {
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "name": "simplicio-runtime",
+    "version": "3.5.0"
+  },
+  "files": [],
+  "manifest_digest": "sha256:2eee2d54d5e3b0891c378e7e1cfbe5ad4ace54c5481f08e71ed870a4dcf3ea4d"
+}
