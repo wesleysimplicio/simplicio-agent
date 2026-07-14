@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def _print_aiohttp_missing() -> None:
     print(
         "hermes proxy requires aiohttp. Install one of:\n"
-        "  pip install 'hermes-agent[messaging]'\n"
+        "  pip install 'simplicio-agent[messaging]'\n"
         "  pip install aiohttp",
         file=sys.stderr,
     )
@@ -44,10 +44,11 @@ def cmd_proxy_start(args: Any) -> int:
         return 2
 
     if not adapter.is_authenticated():
-        auth_hint = getattr(adapter, "auth_hint", f"simplicio-agent auth add {adapter.name}")
+        auth_hint = getattr(
+            adapter, "auth_hint", f"simplicio-agent auth add {adapter.name}"
+        )
         print(
-            f"Not logged into {adapter.display_name}. "
-            f"Run `{auth_hint}` first.",
+            f"Not logged into {adapter.display_name}. Run `{auth_hint}` first.",
             file=sys.stderr,
         )
         return 2
@@ -93,9 +94,7 @@ def cmd_proxy_status(args: Any) -> int:
             continue
         expires = f" (bearer expires {cred.expires_at})" if cred.expires_at else ""
         print(f"  [{name:8s}] {adapter.display_name} — ready{expires}")
-    print(
-        "\nStart the proxy with: hermes proxy start [--provider <name>]"
-    )
+    print("\nStart the proxy with: hermes proxy start [--provider <name>]")
     return 0
 
 

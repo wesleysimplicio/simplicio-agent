@@ -109,6 +109,34 @@ def test_circuit_recovers_after_cooldown():
     assert res is not None or b.health()["consecutive_failures"] == 0
 
 
+def test_bridge_rejection_updates_receipt_instead_of_reusing_stale_success():
+    t = _StubTransport(raises=True)
+    b = SimplicioBridge(t, failure_threshold=1)
+    assert b.gate("x") is None
+    assert b.gate("x") is None
+    receipt = b.last_receipt()
+    assert receipt is not None
+    assert receipt.ok is False
+    assert receipt.error == "circuit_open"
+
+
+def test_bridge_restart_allows_same_causal_id_to_dispatch_again():
+    t = _StubTransport(
+        script=[
+            KernelCallResult(ok=True, value={"approved": True}),
+            KernelCallResult(ok=True, value={"approved": True}),
+        ]
+    )
+    t.close = lambda: None  # type: ignore[attr-defined]
+    t.start = lambda: None  # type: ignore[attr-defined]
+    b = SimplicioBridge(t)
+    assert b.gate("x", causal_id="same") == {"approved": True}
+    assert b.close().state == "closed"
+    assert b.start().generation == 2
+    assert b.gate("x", causal_id="same") == {"approved": True}
+    assert len([c for c in t.calls if c[0] == "gate"]) == 2
+
+
 def test_ledger_idempotent_dedup():
     t = _StubTransport(script=[KernelCallResult(ok=True, value=True)])
     b = SimplicioBridge(t)

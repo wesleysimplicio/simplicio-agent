@@ -289,7 +289,7 @@ install_via_pip() {
     # Fast paths (orjson/msgspec/uvloop) são padrão; SIMPLICIO_AGENT_LEAN=1
     # opta por uma instalação enxuta (Termux/containers mínimos) que usa os
     # fallbacks puro-Python já existentes.
-    local pip_spec="hermes-agent[fast] @ git+${REPO}.git"
+    local pip_spec="simplicio-agent[fast] @ git+${REPO}.git"
     if [ "${SIMPLICIO_AGENT_LEAN:-0}" = "1" ]; then
         log_info "SIMPLICIO_AGENT_LEAN=1 — instalando sem os extras de performance."
         pip_spec="git+${REPO}.git"

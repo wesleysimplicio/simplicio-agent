@@ -30,6 +30,15 @@ Session metadata contract (preserved from the legacy ``CloudBrowserProvider``)::
         "external_call_id": str,    # optional, managed-gateway billing key
     }
 
+Picker metadata returned by :meth:`get_setup_schema` includes a shared
+``capabilities`` block that advertises the browser adapter contract:
+
+    {
+        "routing": {"primary": "dom/cdp", "fallback": "visual", ...},
+        "operations": [...],
+        "safety": {"no_effect": ["snapshot", "console"], ...},
+    }
+
 ``bb_session_id`` is a legacy key name kept verbatim for backward compat with
 :mod:`tools.browser_tool` — it holds the provider's session ID regardless of
 which provider is in use.
@@ -147,11 +156,14 @@ class BrowserProvider(abc.ABC):
         expose API key prompts, badges, managed-Nous gating, and the
         ``post_setup`` install hook.
         """
+        from tools.browser_interaction_contract import browser_provider_capabilities
+
         return {
             "name": self.display_name,
             "badge": "",
             "tag": "",
             "env_vars": [],
+            "capabilities": browser_provider_capabilities(),
         }
 
     # ------------------------------------------------------------------

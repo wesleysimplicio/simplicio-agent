@@ -122,7 +122,14 @@ def test_bridge_unwraps_cli_receipt_without_losing_transport_metadata():
 
 def test_runtime_health_and_doctor_status_are_json_safe():
     status = runtime_manager.RuntimeStatus(
-        "/bin/simplicio", "path", "3.5.2", "3.5.2", True, detail=""
+        "/bin/simplicio",
+        "path",
+        "3.5.2",
+        "3.5.2",
+        True,
+        detail="",
+        release_repo="wesleysimplicio/simplicio",
+        source_repo="wesleysimplicio/simplicio-runtime",
     )
     with patch.object(runtime_manager, "runtime_status", return_value=status):
         health = runtime_manager.runtime_health()
@@ -130,6 +137,10 @@ def test_runtime_health_and_doctor_status_are_json_safe():
     assert health["schema"] == "simplicio-runtime/health/v1"
     assert health["reason_code"] == "ready"
     assert health["handshake"] is None
+    assert health["transport"] == "path"
+    assert health["repo"] == "wesleysimplicio/simplicio"
+    assert health["release_repo"] == "wesleysimplicio/simplicio"
+    assert health["source_repo"] == "wesleysimplicio/simplicio-runtime"
     assert health["doctor_command"] == "simplicio-agent doctor --fix"
 
     with patch.object(runtime_manager, "ensure_runtime", return_value=status):
@@ -138,10 +149,16 @@ def test_runtime_health_and_doctor_status_are_json_safe():
     assert doctor["schema"] == "simplicio-runtime/doctor/v1"
     assert doctor["reason_code"] == "ready"
     assert doctor["handshake"] is None
+    assert doctor["transport"] == "path"
+    assert doctor["repo"] == "wesleysimplicio/simplicio"
+    assert doctor["release_repo"] == "wesleysimplicio/simplicio"
+    assert doctor["source_repo"] == "wesleysimplicio/simplicio-runtime"
 
     status_dict = status.to_dict()
     assert status_dict["satisfied"] is True
     assert status_dict["reason_code"] == "ready"
+    assert status_dict["transport"] == "path"
+    assert status_dict["repo"] == "wesleysimplicio/simplicio"
 
 
 def test_bridge_lifecycle_is_idempotent_and_closed_calls_fail_closed():

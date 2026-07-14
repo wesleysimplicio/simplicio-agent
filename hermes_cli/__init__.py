@@ -17,7 +17,10 @@ from importlib.metadata import PackageNotFoundError, version as _distribution_ve
 
 try:
     # Distribution metadata is authoritative for installed/editable builds.
-    __version__ = _distribution_version("hermes-agent")
+    try:
+        __version__ = _distribution_version("simplicio-agent")
+    except PackageNotFoundError:
+        __version__ = _distribution_version("hermes-agent")
 except PackageNotFoundError:
     # Source checkouts without an install still expose the current project version.
     __version__ = "0.25.0"
@@ -79,8 +82,12 @@ def _ensure_utf8():
             # for streams that don't expose reconfigure() (e.g. some wrapped
             # or replaced streams). closefd=False keeps the original fd open.
             new_stream = open(
-                stream.fileno(), "w", encoding="utf-8",
-                errors="replace", buffering=1, closefd=False,
+                stream.fileno(),
+                "w",
+                encoding="utf-8",
+                errors="replace",
+                buffering=1,
+                closefd=False,
             )
             setattr(sys, stream_name, new_stream)
             repaired = True
