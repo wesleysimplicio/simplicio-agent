@@ -197,11 +197,7 @@ def _bridge_call(
     receipt = _bridge_last_receipt(bridge)
     if receipt is not None:
         if getattr(receipt, "ok", None) is not True:
-            prefix = (
-                "no healthy kernel; "
-                if not kernel_ok
-                else ""
-            )
+            prefix = "no healthy kernel; " if not kernel_ok else ""
             raise KernelBindingError(
                 f"kernel {operation} {prefix}transport failed "
                 f"({_bridge_receipt_detail(receipt)}; "
@@ -1009,7 +1005,8 @@ def edit_mechanical(plan: dict) -> Optional[dict]:
         if cfg["mode"] == "required":
             raise KernelBindingError(safe_exc) from exc
         logger.warning(
-            "kernel_binding.mechanical_edit: edit call failed, falling back: %s", safe_exc
+            "kernel_binding.mechanical_edit: edit call failed, falling back: %s",
+            safe_exc,
         )
         return None
     if not _mechanical_edit_acknowledged(result):

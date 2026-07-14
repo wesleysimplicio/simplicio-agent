@@ -200,7 +200,9 @@ def test_issue_helpers_create_verifiable_objects():
         key_id="ops-main",
         secret="fixture-secret-main",
     )
-    provenance = verify_control_event(event, keyring={"ops-main": "fixture-secret-main"})
+    provenance = verify_control_event(
+        event, keyring={"ops-main": "fixture-secret-main"}
+    )
     receipt = issue_receipt(
         receipt_id="rcpt-inline",
         subject="issue-185",

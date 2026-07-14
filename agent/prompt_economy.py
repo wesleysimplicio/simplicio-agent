@@ -633,7 +633,12 @@ def render_compact_block(
     # A short heading makes the cap useful for callers with many active tools.
     heading = "Compact capability index:\n"
     prefixes = [f"- {entry['handle']}: " for entry in entries]
-    minimum = len(heading) + sum(len(prefix.rstrip()) for prefix in prefixes) + len(entries) - 1
+    minimum = (
+        len(heading)
+        + sum(len(prefix.rstrip()) for prefix in prefixes)
+        + len(entries)
+        - 1
+    )
     if minimum > max_chars:
         raise ValueError(
             f"max_chars={max_chars} is too small to name all active handles "
@@ -646,7 +651,9 @@ def render_compact_block(
     bounded_lines = []
     for index, (entry, prefix) in enumerate(zip(entries, prefixes)):
         allowance = per_summary + (1 if index < remainder else 0)
-        bounded_lines.append(prefix.rstrip() + (f" {entry['summary'][:allowance]}" if allowance else ""))
+        bounded_lines.append(
+            prefix.rstrip() + (f" {entry['summary'][:allowance]}" if allowance else "")
+        )
     return heading.rstrip("\n") + "\n" + "\n".join(bounded_lines)
 
 
@@ -659,8 +666,7 @@ def compact_block_receipt(
     entries = _active_compactable_entries(active_handles)
     handles = tuple(entry["handle"] for entry in entries)
     raw_text = " ".join(
-        _catalog_symbol_value(entry["symbol"]) or entry["summary"]
-        for entry in entries
+        _catalog_symbol_value(entry["symbol"]) or entry["summary"] for entry in entries
     )
     compact_text = render_compact_block(handles, max_chars=max_chars)
     raw_chars = len(raw_text)

@@ -120,7 +120,9 @@ def test_replayed_begin_and_resolution_do_not_append_duplicates(tmp_path):
     path = tmp_path / "effects.jsonl"
     journal = RestartEffectJournal(path)
     pending = journal.begin(effect_id="send-1", idempotency_key="idem-1", now_ns=1)
-    assert journal.begin(effect_id="send-1", idempotency_key="idem-1", now_ns=3) == pending
+    assert (
+        journal.begin(effect_id="send-1", idempotency_key="idem-1", now_ns=3) == pending
+    )
     committed = journal.resolve(
         effect_id="send-1",
         idempotency_key="idem-1",
@@ -128,13 +130,16 @@ def test_replayed_begin_and_resolution_do_not_append_duplicates(tmp_path):
         receipt="message-1",
         now_ns=2,
     )
-    assert journal.resolve(
-        effect_id="send-1",
-        idempotency_key="idem-1",
-        state=EffectState.COMMITTED,
-        receipt="message-1",
-        now_ns=4,
-    ) == committed
+    assert (
+        journal.resolve(
+            effect_id="send-1",
+            idempotency_key="idem-1",
+            state=EffectState.COMMITTED,
+            receipt="message-1",
+            now_ns=4,
+        )
+        == committed
+    )
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 

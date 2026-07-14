@@ -37,7 +37,11 @@ DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT = float(
 def parse_restart_drain_timeout(raw: object) -> float:
     """Parse a configured drain timeout, falling back to the shared default."""
     try:
-        value = float(raw) if str(raw or "").strip() else DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT
+        value = (
+            float(raw)
+            if str(raw or "").strip()
+            else DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT
+        )
     except (TypeError, ValueError):
         return DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT
     return max(0.0, value)
@@ -100,7 +104,9 @@ class RestartEffectRecord:
                 f"unsupported schema version: {self.schema_version!r}"
             )
         if not self.effect_id or not self.idempotency_key:
-            raise RestartJournalCorruptError("effect_id and idempotency_key are required")
+            raise RestartJournalCorruptError(
+                "effect_id and idempotency_key are required"
+            )
         if self.recorded_at_ns < 0:
             raise RestartJournalCorruptError("recorded_at_ns must be non-negative")
 
@@ -231,18 +237,29 @@ class RestartEffectJournal:
             try:
                 self._accept(RestartEffectRecord.from_json(line), persist=False)
             except (RestartJournalCorruptError, RestartEffectConflictError) as exc:
-                raise RestartJournalCorruptError(f"journal line {line_no}: {exc}") from exc
+                raise RestartJournalCorruptError(
+                    f"journal line {line_no}: {exc}"
+                ) from exc
 
-    def _accept(self, record: RestartEffectRecord, *, persist: bool) -> RestartEffectRecord:
+    def _accept(
+        self, record: RestartEffectRecord, *, persist: bool
+    ) -> RestartEffectRecord:
         key = self._key(record)
         previous = self._records.get(key)
         if previous == record:
             return previous
         if previous is not None:
-            if previous.task_id != record.task_id or previous.correlation_id != record.correlation_id:
-                raise RestartEffectConflictError("effect identity belongs to another causal chain")
+            if (
+                previous.task_id != record.task_id
+                or previous.correlation_id != record.correlation_id
+            ):
+                raise RestartEffectConflictError(
+                    "effect identity belongs to another causal chain"
+                )
             if previous.state is EffectState.COMMITTED:
-                raise RestartEffectConflictError("committed effect cannot be superseded")
+                raise RestartEffectConflictError(
+                    "committed effect cannot be superseded"
+                )
             if record.state is EffectState.PENDING:
                 raise RestartEffectConflictError(
                     f"pending observation cannot follow {previous.state.value}"
@@ -268,7 +285,9 @@ class RestartEffectJournal:
 
         return self._accept(record, persist=True)
 
-    def latest(self, *, effect_id: str, idempotency_key: str) -> Optional[RestartEffectRecord]:
+    def latest(
+        self, *, effect_id: str, idempotency_key: str
+    ) -> Optional[RestartEffectRecord]:
         return self._records.get((effect_id, idempotency_key))
 
     def begin(
@@ -283,7 +302,9 @@ class RestartEffectJournal:
         existing = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
         if existing is not None:
             if existing.task_id != task_id or existing.correlation_id != correlation_id:
-                raise RestartEffectConflictError("effect identity was reused with another causal chain")
+                raise RestartEffectConflictError(
+                    "effect identity was reused with another causal chain"
+                )
             return existing
         return self.append(
             RestartEffectRecord.pending(
@@ -320,8 +341,13 @@ class RestartEffectJournal:
                 return current
             raise RestartEffectConflictError("committed effect cannot be downgraded")
         if current.state is candidate.state:
-            if candidate.receipt != current.receipt or candidate.reason != current.reason:
-                raise RestartEffectConflictError("conflicting duplicate effect observation")
+            if (
+                candidate.receipt != current.receipt
+                or candidate.reason != current.reason
+            ):
+                raise RestartEffectConflictError(
+                    "conflicting duplicate effect observation"
+                )
             return current
         return self.append(candidate)
 
@@ -341,9 +367,8 @@ class RestartEffectJournal:
                 "no durable effect record exists; commitment is unknown",
                 None,
             )
-        if (
-            (task_id is not None and task_id != record.task_id)
-            or (correlation_id is not None and correlation_id != record.correlation_id)
+        if (task_id is not None and task_id != record.task_id) or (
+            correlation_id is not None and correlation_id != record.correlation_id
         ):
             return RecoveryResult(
                 RecoveryDecision.RECONCILE_UNKNOWN,
@@ -399,7 +424,11 @@ def is_stale_restart_redelivery(
     source = getattr(event, "source", None)
     platform = getattr(getattr(source, "platform", None), "value", None)
     update_id = getattr(event, "platform_update_id", None)
-    if platform != "telegram" or isinstance(update_id, bool) or not isinstance(update_id, int):
+    if (
+        platform != "telegram"
+        or isinstance(update_id, bool)
+        or not isinstance(update_id, int)
+    ):
         return False
     try:
         data = json.loads(Path(marker_path).read_text(encoding="utf-8"))

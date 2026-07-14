@@ -34,8 +34,8 @@ MAX_PLATFORM_OUTPUT = 4000
 # wild. Anchored to start/end so substantive messages that merely *contain* the
 # word "silent" are never matched.
 _SILENCE_NARRATION = re.compile(
-    r'^[\s*_~`]*\(?\s*(silent|silence|no\s+response|no\s+reply)\s*\.?\)?[\s*_~`]*$'
-    r'|^[\s*_~`]*[\U0001F507\.\u2026]+[\s*_~`]*$',
+    r"^[\s*_~`]*\(?\s*(silent|silence|no\s+response|no\s+reply)\s*\.?\)?[\s*_~`]*$"
+    r"|^[\s*_~`]*[\U0001F507\.\u2026]+[\s*_~`]*$",
     re.IGNORECASE,
 )
 
@@ -53,6 +53,7 @@ def _is_silence_narration(content: Optional[str]) -> bool:
     if not stripped or len(stripped) > 64:  # length guard
         return False
     return bool(_SILENCE_NARRATION.match(stripped))
+
 
 from .config import Platform, GatewayConfig
 from .restart import EffectState, RecoveryDecision, RestartEffectJournal
@@ -128,24 +129,27 @@ def _classify_dead_from_error_text(error_text: Optional[str]) -> Optional[str]:
 class DeliveryTarget:
     """
     A single delivery target.
-    
+
     Represents where a message should be sent:
     - "origin" → back to source
     - "local" → save to local files
     - "telegram" → Telegram home channel
     - "telegram:123456" → specific Telegram chat
     """
+
     platform: Platform
     chat_id: Optional[str] = None  # None means use home channel
     thread_id: Optional[str] = None
     is_origin: bool = False
     is_explicit: bool = False  # True if chat_id was explicitly specified
-    
+
     @classmethod
-    def parse(cls, target: str, origin: Optional[SessionSource] = None) -> "DeliveryTarget":
+    def parse(
+        cls, target: str, origin: Optional[SessionSource] = None
+    ) -> "DeliveryTarget":
         """
         Parse a delivery target string.
-        
+
         Formats:
         - "origin" → back to source
         - "local" → local files only
@@ -154,7 +158,7 @@ class DeliveryTarget:
         """
         target_stripped = target.strip()
         target_lower = target_stripped.lower()
-        
+
         if target_lower == "origin":
             if origin:
                 return cls(
@@ -166,10 +170,10 @@ class DeliveryTarget:
             else:
                 # Fallback to local if no origin
                 return cls(platform=Platform.LOCAL, is_origin=True)
-        
+
         if target_lower == "local":
             return cls(platform=Platform.LOCAL)
-        
+
         # Check for platform:chat_id or platform:chat_id:thread_id format
         # Use the original case for chat_id/thread_id to preserve case-sensitive IDs
         if ":" in target_stripped:
@@ -179,11 +183,16 @@ class DeliveryTarget:
             thread_id = parts[2] if len(parts) > 2 else None
             try:
                 platform = Platform(platform_str)
-                return cls(platform=platform, chat_id=chat_id, thread_id=thread_id, is_explicit=True)
+                return cls(
+                    platform=platform,
+                    chat_id=chat_id,
+                    thread_id=thread_id,
+                    is_explicit=True,
+                )
             except ValueError:
                 # Unknown platform, treat as local
                 return cls(platform=Platform.LOCAL)
-        
+
         # Just a platform name (use home channel)
         try:
             platform = Platform(target_lower)
@@ -191,7 +200,7 @@ class DeliveryTarget:
         except ValueError:
             # Unknown platform, treat as local
             return cls(platform=Platform.LOCAL)
-    
+
     def to_string(self) -> str:
         """Convert back to string format."""
         if self.is_origin:
@@ -208,17 +217,21 @@ class DeliveryTarget:
 class DeliveryRouter:
     """
     Routes messages to appropriate destinations.
-    
+
     Handles the logic of resolving delivery targets and dispatching
     messages to the right platform adapters.
     """
-    
-    def __init__(self, config: GatewayConfig, adapters: Dict[Platform, Any] = None,
-                 dead_targets: Optional[DeadTargetRegistry] = None,
-                 effect_journal: Optional[RestartEffectJournal] = None):
+
+    def __init__(
+        self,
+        config: GatewayConfig,
+        adapters: Dict[Platform, Any] = None,
+        dead_targets: Optional[DeadTargetRegistry] = None,
+        effect_journal: Optional[RestartEffectJournal] = None,
+    ):
         """
         Initialize the delivery router.
-        
+
         Args:
             config: Gateway configuration
             adapters: Dict mapping platforms to their adapter instances
@@ -336,7 +349,8 @@ class DeliveryRouter:
     @staticmethod
     def _result_receipt(result: Any) -> str:
         message_id = (
-            result.get("message_id") if isinstance(result, dict)
+            result.get("message_id")
+            if isinstance(result, dict)
             else getattr(result, "message_id", None)
         )
         return str(message_id) if message_id is not None else "delivery-accepted"
@@ -353,30 +367,30 @@ class DeliveryRouter:
             "correlation_id",
             "delivery_correlation_id",
         }
-    
+
     async def deliver(
         self,
         content: str,
         targets: List[DeliveryTarget],
         job_id: Optional[str] = None,
         job_name: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Deliver content to all specified targets.
-        
+
         Args:
             content: The message/output to deliver
             targets: List of delivery targets
             job_id: Optional job ID (for cron jobs)
             job_name: Optional job name
             metadata: Additional metadata to include
-        
+
         Returns:
             Dict with delivery results per target
         """
         results = {}
-        
+
         for target in targets:
             # Skip targets we've already proven permanently unreachable
             # (deleted group, blocked/kicked bot, deactivated user). Re-sending
@@ -391,7 +405,8 @@ class DeliveryRouter:
                 logger.info(
                     "Skipping delivery to known-dead target %s:%s "
                     "(send to it again to clear)",
-                    target.platform.value, target.chat_id,
+                    target.platform.value,
+                    target.chat_id,
                 )
                 results[target.to_string()] = {
                     "success": False,
@@ -427,11 +442,8 @@ class DeliveryRouter:
                     EffectState.COMMITTED,
                     receipt=self._result_receipt(result),
                 )
-                
-                results[target.to_string()] = {
-                    "success": True,
-                    "result": result
-                }
+
+                results[target.to_string()] = {"success": True, "result": result}
             except Exception as e:
                 try:
                     # A raised adapter error may follow a provider-side commit;
@@ -454,63 +466,62 @@ class DeliveryRouter:
                     dead_kind = _classify_dead_from_error_text(str(e))
                     if dead_kind:
                         self.dead_targets.mark_dead(
-                            target.platform.value, target.chat_id,
+                            target.platform.value,
+                            target.chat_id,
                             reason=f"{dead_kind}: {str(e)[:120]}",
                         )
                 results[target.to_string()] = {
                     "success": False,
-                    "effect_unknown": self._effect_identity(target, metadata) is not None,
-                    "error": str(e)
+                    "effect_unknown": self._effect_identity(target, metadata)
+                    is not None,
+                    "error": str(e),
                 }
-        
+
         return results
-    
+
     def _deliver_local(
         self,
         content: str,
         job_id: Optional[str],
         job_name: Optional[str],
-        metadata: Optional[Dict[str, Any]]
+        metadata: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Save content to local files."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         if job_id:
             output_path = self.output_dir / job_id / f"{timestamp}.md"
         else:
             output_path = self.output_dir / "misc" / f"{timestamp}.md"
-        
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Build the output document
         lines = []
         if job_name:
             lines.append(f"# {job_name}")
         else:
             lines.append("# Delivery Output")
-        
+
         lines.append("")
         lines.append(f"**Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
+
         if job_id:
             lines.append(f"**Job ID:** {job_id}")
-        
+
         if metadata:
             for key, value in metadata.items():
                 lines.append(f"**{key}:** {value}")
-        
+
         lines.append("")
         lines.append("---")
         lines.append("")
         lines.append(content)
-        
+
         output_path.write_text("\n".join(lines))
-        
-        return {
-            "path": str(output_path),
-            "timestamp": timestamp
-        }
-    
+
+        return {"path": str(output_path), "timestamp": timestamp}
+
     def _save_full_output(self, content: str, job_id: str) -> Path:
         """Save full cron output to disk and return the file path."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -533,20 +544,17 @@ class DeliveryRouter:
         return bool(getattr(self.config, "filter_silence_narration", True))
 
     async def _deliver_to_platform(
-        self,
-        target: DeliveryTarget,
-        content: str,
-        metadata: Optional[Dict[str, Any]]
+        self, target: DeliveryTarget, content: str, metadata: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Deliver content to a messaging platform."""
         adapter = self.adapters.get(target.platform)
-        
+
         if not adapter:
             raise ValueError(f"No adapter configured for {target.platform.value}")
-        
+
         if not target.chat_id:
             raise ValueError(f"No chat ID for {target.platform.value} delivery")
-        
+
         # Guard: handle oversized cron output.
         #
         # Two independent decisions:
@@ -571,7 +579,9 @@ class DeliveryRouter:
                 logger.warning(
                     "Audit save failed for cron output (%d chars, job=%s): %s — "
                     "delivery proceeds without audit copy",
-                    len(content), job_id, exc,
+                    len(content),
+                    job_id,
+                    exc,
                 )
 
             # Step 2 — truncation (only for non-chunking adapters).
@@ -581,7 +591,8 @@ class DeliveryRouter:
                     logger.info(
                         "Cron output preserved for chunking adapter (%d chars) — "
                         "full output saved to %s",
-                        len(content), saved_path,
+                        len(content),
+                        saved_path,
                     )
             else:
                 # Non-chunking adapter — truncate with footer.  The footer
@@ -593,10 +604,11 @@ class DeliveryRouter:
                 visible = max(0, MAX_PLATFORM_OUTPUT - len(footer))
                 logger.info(
                     "Cron output truncated (%d chars) — full output: %s",
-                    len(content), saved_path,
+                    len(content),
+                    saved_path,
                 )
                 content = content[:visible] + footer
-        
+
         # Substrate-level anti-loop guard: drop hallucinated "silence narration"
         # (*(silent)*, 🔇, a bare ".", etc.) before it ever reaches the adapter.
         # In bot-to-bot channels these tokens mirror back and forth until a
@@ -644,7 +656,9 @@ class DeliveryRouter:
                     raise RuntimeError(
                         "Telegram adapter cannot create named private DM topics"
                     )
-                created_thread_id = await ensure_dm_topic(target.chat_id, target_thread_id)
+                created_thread_id = await ensure_dm_topic(
+                    target.chat_id, target_thread_id
+                )
                 if not created_thread_id:
                     raise RuntimeError(
                         f"Failed to create Telegram private DM topic '{target_thread_id}'"
@@ -671,9 +685,15 @@ class DeliveryRouter:
                     )
                 send_metadata["thread_id"] = target_thread_id
                 send_metadata["telegram_dm_topic_reply_fallback"] = True
-            elif "thread_id" not in send_metadata and "message_thread_id" not in send_metadata and not has_explicit_direct_topic:
+            elif (
+                "thread_id" not in send_metadata
+                and "message_thread_id" not in send_metadata
+                and not has_explicit_direct_topic
+            ):
                 send_metadata["thread_id"] = target_thread_id
-        result = await adapter.send(target.chat_id, content, metadata=send_metadata or None)
+        result = await adapter.send(
+            target.chat_id, content, metadata=send_metadata or None
+        )
         if _send_result_failed(result):
             if (
                 is_named_telegram_private_topic
@@ -696,11 +716,12 @@ class DeliveryRouter:
                     )
                 send_metadata["thread_id"] = str(refreshed_thread_id)
                 send_metadata["telegram_dm_topic_created_for_send"] = True
-                result = await adapter.send(target.chat_id, content, metadata=send_metadata or None)
+                result = await adapter.send(
+                    target.chat_id, content, metadata=send_metadata or None
+                )
             if _send_result_failed(result):
-                raise RuntimeError(_send_result_error(result) or f"{target.platform.value} delivery failed")
+                raise RuntimeError(
+                    _send_result_error(result)
+                    or f"{target.platform.value} delivery failed"
+                )
         return result
-
-
-
-

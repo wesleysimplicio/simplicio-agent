@@ -83,7 +83,9 @@ class AuthenticatedDigest:
         if not str(self.key_id or "").strip():
             raise FailClosedTrustBoundaryError("authenticated digest requires key_id")
         if not _HEX_DIGEST_RE.fullmatch(str(self.digest or "").strip()):
-            raise FailClosedTrustBoundaryError("authenticated digest must be 64 hex chars")
+            raise FailClosedTrustBoundaryError(
+                "authenticated digest must be 64 hex chars"
+            )
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -119,30 +121,44 @@ class TrustProvenance:
     def __post_init__(self) -> None:
         if not str(self.source or "").strip():
             raise FailClosedTrustBoundaryError("provenance source must be non-empty")
-        if not isinstance(self.kind, ProvenanceKind) or not isinstance(self.trust_class, TrustClass):
-            raise FailClosedTrustBoundaryError("provenance kind and trust class must be typed")
+        if not isinstance(self.kind, ProvenanceKind) or not isinstance(
+            self.trust_class, TrustClass
+        ):
+            raise FailClosedTrustBoundaryError(
+                "provenance kind and trust class must be typed"
+            )
         if self.trust_class is TrustClass.TRUSTED_CONTROL_PLANE:
             if self.kind is not ProvenanceKind.CONTROL_EVENT or not self.authenticated:
-                raise FailClosedTrustBoundaryError("trusted control provenance is not authenticated")
+                raise FailClosedTrustBoundaryError(
+                    "trusted control provenance is not authenticated"
+                )
             if (
                 not self.key_id
                 or not self.event_id
                 or not _HEX_DIGEST_RE.fullmatch(str(self.digest or ""))
             ):
-                raise FailClosedTrustBoundaryError("trusted control provenance is incomplete")
+                raise FailClosedTrustBoundaryError(
+                    "trusted control provenance is incomplete"
+                )
         elif self.trust_class is TrustClass.TRUSTED_RECEIPT:
             if (
                 self.kind is not ProvenanceKind.RECEIPT
                 or not self.authenticated
                 or not _HEX_DIGEST_RE.fullmatch(str(self.digest or ""))
             ):
-                raise FailClosedTrustBoundaryError("trusted receipt provenance is not authenticated")
+                raise FailClosedTrustBoundaryError(
+                    "trusted receipt provenance is not authenticated"
+                )
         elif self.trust_class is TrustClass.UNTRUSTED_INPUT:
             if self.authenticated:
-                raise FailClosedTrustBoundaryError("untrusted provenance cannot be authenticated")
+                raise FailClosedTrustBoundaryError(
+                    "untrusted provenance cannot be authenticated"
+                )
         elif self.trust_class is TrustClass.BLOCKED_COGNITIVE_INTEGRITY:
             if self.authenticated:
-                raise FailClosedTrustBoundaryError("blocked provenance cannot be authenticated")
+                raise FailClosedTrustBoundaryError(
+                    "blocked provenance cannot be authenticated"
+                )
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -177,9 +193,13 @@ class ControlEvent:
 
     def __post_init__(self) -> None:
         if self.schema != COGNITIVE_INTEGRITY_SCHEMA:
-            raise FailClosedTrustBoundaryError(f"unsupported cognitive-integrity schema: {self.schema!r}")
+            raise FailClosedTrustBoundaryError(
+                f"unsupported cognitive-integrity schema: {self.schema!r}"
+            )
         if not isinstance(self.payload, Mapping):
-            raise FailClosedTrustBoundaryError("control event payload must be an object")
+            raise FailClosedTrustBoundaryError(
+                "control event payload must be an object"
+            )
         if not isinstance(self.auth, AuthenticatedDigest):
             raise FailClosedTrustBoundaryError("control event auth must be typed")
         for field_name in ("event_id", "event_type", "actor", "issued_at", "nonce"):
@@ -220,7 +240,9 @@ class ControlEvent:
             raise FailClosedTrustBoundaryError("control event requires auth block")
         payload = value.get("payload")
         if not isinstance(payload, Mapping):
-            raise FailClosedTrustBoundaryError("control event payload must be an object")
+            raise FailClosedTrustBoundaryError(
+                "control event payload must be an object"
+            )
         return cls(
             schema=str(value.get("schema") or COGNITIVE_INTEGRITY_SCHEMA),
             event_id=str(value.get("event_id") or "").strip(),
@@ -250,7 +272,9 @@ class IntegrityReceipt:
 
     def __post_init__(self) -> None:
         if self.schema != COGNITIVE_INTEGRITY_SCHEMA:
-            raise FailClosedTrustBoundaryError(f"unsupported cognitive-integrity schema: {self.schema!r}")
+            raise FailClosedTrustBoundaryError(
+                f"unsupported cognitive-integrity schema: {self.schema!r}"
+            )
         if self.algorithm != DEFAULT_RECEIPT_ALGORITHM:
             raise FailClosedTrustBoundaryError(
                 f"unsupported receipt algorithm: {self.algorithm!r}"
@@ -267,7 +291,9 @@ class IntegrityReceipt:
         if not _HEX_DIGEST_RE.fullmatch(str(self.digest).strip()):
             raise FailClosedTrustBoundaryError("receipt digest must be 64 hex chars")
         if self.previous_digest and not _HEX_DIGEST_RE.fullmatch(self.previous_digest):
-            raise FailClosedTrustBoundaryError("receipt previous digest must be 64 hex chars")
+            raise FailClosedTrustBoundaryError(
+                "receipt previous digest must be 64 hex chars"
+            )
 
     def digest_payload(self) -> dict[str, Any]:
         return {
@@ -306,9 +332,14 @@ class IntegrityReceipt:
             outcome=str(value.get("outcome") or "").strip(),
             issued_at=str(value.get("issued_at") or "").strip(),
             provenance=TrustProvenance(
-                kind=ProvenanceKind(str(provenance.get("kind") or ProvenanceKind.UNKNOWN.value)),
+                kind=ProvenanceKind(
+                    str(provenance.get("kind") or ProvenanceKind.UNKNOWN.value)
+                ),
                 trust_class=TrustClass(
-                    str(provenance.get("trust_class") or TrustClass.UNTRUSTED_INPUT.value)
+                    str(
+                        provenance.get("trust_class")
+                        or TrustClass.UNTRUSTED_INPUT.value
+                    )
                 ),
                 source=str(provenance.get("source") or "").strip(),
                 authenticated=bool(provenance.get("authenticated", False)),
@@ -342,15 +373,23 @@ class BlockedCognitiveIntegrity:
 
     def __post_init__(self) -> None:
         if not isinstance(self.reason, BlockedReason):
-            raise FailClosedTrustBoundaryError("blocked outcomes require a typed reason")
+            raise FailClosedTrustBoundaryError(
+                "blocked outcomes require a typed reason"
+            )
         if self.trust_class is not TrustClass.BLOCKED_COGNITIVE_INTEGRITY:
-            raise FailClosedTrustBoundaryError("blocked outcomes require blocked trust class")
+            raise FailClosedTrustBoundaryError(
+                "blocked outcomes require blocked trust class"
+            )
         if not isinstance(self.provenance, TrustProvenance):
-            raise FailClosedTrustBoundaryError("blocked outcomes require typed provenance")
+            raise FailClosedTrustBoundaryError(
+                "blocked outcomes require typed provenance"
+            )
         if self.provenance.trust_class is not TrustClass.BLOCKED_COGNITIVE_INTEGRITY:
             raise ValueError("blocked outcomes require blocked provenance")
         if not isinstance(self.details, Mapping):
-            raise FailClosedTrustBoundaryError("blocked outcome details must be an object")
+            raise FailClosedTrustBoundaryError(
+                "blocked outcome details must be an object"
+            )
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -411,7 +450,9 @@ def verify_control_event(
         raise FailClosedTrustBoundaryError("control event must be an object")
     if not isinstance(keyring, Mapping):
         raise FailClosedTrustBoundaryError("control-event keyring must be an object")
-    control_event = event if isinstance(event, ControlEvent) else ControlEvent.from_dict(event)
+    control_event = (
+        event if isinstance(event, ControlEvent) else ControlEvent.from_dict(event)
+    )
     secret = keyring.get(control_event.auth.key_id)
     if secret is None:
         raise FailClosedTrustBoundaryError(
@@ -484,10 +525,14 @@ def verify_receipt(
 
     if not isinstance(receipt, (IntegrityReceipt, Mapping)):
         raise FailClosedTrustBoundaryError("receipt must be an object")
-    if previous_receipt is not None and not isinstance(previous_receipt, (IntegrityReceipt, Mapping)):
+    if previous_receipt is not None and not isinstance(
+        previous_receipt, (IntegrityReceipt, Mapping)
+    ):
         raise FailClosedTrustBoundaryError("previous receipt must be an object")
     integrity_receipt = (
-        receipt if isinstance(receipt, IntegrityReceipt) else IntegrityReceipt.from_dict(receipt)
+        receipt
+        if isinstance(receipt, IntegrityReceipt)
+        else IntegrityReceipt.from_dict(receipt)
     )
     previous = (
         previous_receipt
@@ -509,13 +554,19 @@ def verify_receipt(
     )
 
 
-def verify_receipt_chain(receipts: list[IntegrityReceipt | Mapping[str, Any]]) -> TrustProvenance:
+def verify_receipt_chain(
+    receipts: list[IntegrityReceipt | Mapping[str, Any]],
+) -> TrustProvenance:
     """Verify every receipt and chain link in order."""
 
     previous: IntegrityReceipt | None = None
     final_provenance: TrustProvenance | None = None
     for item in receipts:
-        current = item if isinstance(item, IntegrityReceipt) else IntegrityReceipt.from_dict(item)
+        current = (
+            item
+            if isinstance(item, IntegrityReceipt)
+            else IntegrityReceipt.from_dict(item)
+        )
         final_provenance = verify_receipt(current, previous_receipt=previous)
         previous = current
     if final_provenance is None:
@@ -560,7 +611,10 @@ def enforce_control_event(
         return blocked_cognitive_integrity(
             BlockedReason.UNAUTHENTICATED_CONTROL_EVENT,
             message=str(exc),
-            details={"event_id": _safe_lookup(event, "event_id"), "auth": _safe_lookup(event, "auth")},
+            details={
+                "event_id": _safe_lookup(event, "event_id"),
+                "auth": _safe_lookup(event, "auth"),
+            },
             source="control-event",
         )
 
@@ -598,9 +652,13 @@ def _normalize_value(value: Any) -> Any:
         return value
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
-            raise FailClosedTrustBoundaryError("canonical values cannot contain non-finite numbers")
+            raise FailClosedTrustBoundaryError(
+                "canonical values cannot contain non-finite numbers"
+            )
         return value
-    raise FailClosedTrustBoundaryError(f"unsupported canonical value type: {type(value).__name__}")
+    raise FailClosedTrustBoundaryError(
+        f"unsupported canonical value type: {type(value).__name__}"
+    )
 
 
 def _canonical_json(value: Any) -> str:
@@ -619,7 +677,9 @@ def _sha256_hex(value: Any) -> str:
 
 def _hmac_digest(secret: str | bytes, value: Any) -> str:
     secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
-    return hmac.new(secret_bytes, _canonical_json(value).encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(
+        secret_bytes, _canonical_json(value).encode("utf-8"), hashlib.sha256
+    ).hexdigest()
 
 
 def _sanitize_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -634,7 +694,9 @@ def _sanitize_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
             continue
         if isinstance(raw, list):
             sanitized[clean_key] = [
-                _sanitize_text(str(item)) if not isinstance(item, Mapping) else _sanitize_mapping(item)
+                _sanitize_text(str(item))
+                if not isinstance(item, Mapping)
+                else _sanitize_mapping(item)
                 for item in raw[:5]
             ]
             continue

@@ -224,8 +224,14 @@ class TestBundlePinningIsStable:
 
     def test_openai_wrapped_schemas_are_ranked_without_mutation(self):
         tools = [
-            {"type": "function", "function": {"name": "write_file", "description": "Write a file."}},
-            {"type": "function", "function": {"name": "web_search", "description": "Search the web."}},
+            {
+                "type": "function",
+                "function": {"name": "write_file", "description": "Write a file."},
+            },
+            {
+                "type": "function",
+                "function": {"name": "web_search", "description": "Search the web."},
+            },
         ]
         before = [dict(tool["function"]) for tool in tools]
         assert pin_capability_bundle_names(tools, task="search the web") == [
@@ -235,7 +241,10 @@ class TestBundlePinningIsStable:
         assert [dict(tool["function"]) for tool in tools] == before
 
     def test_duplicate_names_have_order_independent_schema_tiebreak(self):
-        first = [{"name": "tool", "description": "alpha"}, {"name": "tool", "description": "beta"}]
+        first = [
+            {"name": "tool", "description": "alpha"},
+            {"name": "tool", "description": "beta"},
+        ]
         second = list(reversed(first))
         assert pin_capability_bundle(first, task="unrelated") == pin_capability_bundle(
             second, task="unrelated"
@@ -310,9 +319,7 @@ def test_index_plus_bundle_compose():
 
 
 def test_compact_block_receipt_is_exact_and_cache_safe():
-    receipt = compact_block_receipt(
-        {"sec:skills", "sec:memory", "sec:session-search"}
-    )
+    receipt = compact_block_receipt({"sec:skills", "sec:memory", "sec:session-search"})
     assert isinstance(receipt, PromptEconomyReceipt)
     assert receipt.active_handles == (
         "sec:memory",

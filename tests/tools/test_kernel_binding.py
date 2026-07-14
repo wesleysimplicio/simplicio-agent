@@ -376,8 +376,12 @@ class TestEvaluateActionGate:
         )
         bridge = SimplicioBridge(transport)
         with (
-            mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")),
-            mock_patch.object(kb, "_kernel_verified", return_value=(False, "CLI absent")),
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(
+                kb, "_kernel_verified", return_value=(False, "CLI absent")
+            ),
             mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
         ):
             assert kb.evaluate_action_gate("rm -rf /tmp/x") is None
@@ -430,7 +434,9 @@ class TestEvaluateActionGate:
         assert result["approved"] is False
         assert "recognized decision" in result["message"]
 
-    def test_bridge_none_result_surfaces_health_diagnostics_in_required_mode(self, monkeypatch):
+    def test_bridge_none_result_surfaces_health_diagnostics_in_required_mode(
+        self, monkeypatch
+    ):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
         bridge = Mock()
         bridge.gate.return_value = None
@@ -440,9 +446,13 @@ class TestEvaluateActionGate:
             "last_fallback_reason": "cli_unavailable",
             "last_error": "mcp unavailable",
         }
-        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
-             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
-             mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge):
+        with (
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
+            mock_patch.object(kb, "_get_simplicio_bridge", return_value=bridge),
+        ):
             result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
         assert result["approved"] is False
         assert "circuit_open" in result["message"]
@@ -450,12 +460,17 @@ class TestEvaluateActionGate:
 
     def test_bridge_runtime_error_still_honors_no_raise_contract(self, monkeypatch):
         monkeypatch.delenv("HERMES_KERNEL_BIN", raising=False)
-        with mock_patch("hermes_cli.config.load_config", return_value=self._cfg("required")), \
-             mock_patch.object(kb, "_kernel_verified", return_value=(True, "")), \
-             mock_patch.object(
-                 kb, "_get_simplicio_bridge",
-                 return_value=Mock(gate=Mock(side_effect=RuntimeError("boom"))),
-             ):
+        with (
+            mock_patch(
+                "hermes_cli.config.load_config", return_value=self._cfg("required")
+            ),
+            mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
+            mock_patch.object(
+                kb,
+                "_get_simplicio_bridge",
+                return_value=Mock(gate=Mock(side_effect=RuntimeError("boom"))),
+            ),
+        ):
             result = kb.evaluate_action_gate("rm -rf /tmp/x", description="rm -rf")
         assert result["approved"] is False
         assert "boom" in result["message"]
@@ -657,7 +672,9 @@ class TestSavingsEvent:
         log_path = tmp_path / "kernel_binding.jsonl"
         monkeypatch.setenv("HERMES_KERNEL_BINDING_LOG", str(log_path))
         secret = "sk-test-secret-value-1234567890"
-        kb.emit_savings_event("gate", "kernel_denied", f"command=OPENAI_API_KEY={secret}")
+        kb.emit_savings_event(
+            "gate", "kernel_denied", f"command=OPENAI_API_KEY={secret}"
+        )
         record = json.loads(log_path.read_text().strip())
         assert secret not in record["detail"]
         assert "***" in record["detail"] or "redacted" in record["detail"]

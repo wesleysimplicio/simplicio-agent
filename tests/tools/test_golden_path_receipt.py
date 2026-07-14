@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from agent.golden_path import GoldenPathHarness
+from agent.golden_path import (
+    GoldenPathHarness,
+    GoldenPathScenario,
+    build_fixture_mcp_call,
+)
 from tools.golden_path import (
     GoldenPathReceiptError,
     build_request_delivery_receipt,
@@ -40,7 +44,12 @@ def _fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             encoding="utf-8",
         )
         cli.chmod(cli.stat().st_mode | stat.S_IEXEC)
-    return GoldenPathHarness.from_fixture(fixture_root, cli_bin=str(cli)).run()
+    scenario = GoldenPathScenario.from_path(fixture_root)
+    return GoldenPathHarness.from_fixture(
+        fixture_root,
+        cli_bin=str(cli),
+        mcp_call=build_fixture_mcp_call(scenario),
+    ).run()
 
 
 def test_receipt_is_stable_and_explicitly_fixture_scoped(tmp_path, monkeypatch):
