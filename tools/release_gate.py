@@ -31,6 +31,21 @@ from tools.release_manifest import (  # noqa: E402
     validate_release_manifest,
     validate_rollback_contract,
 )
+from tools.release_gate_scan import (  # noqa: E402
+    SCAN_CONTRACT_SCHEMA,
+    SCAN_RECEIPT_SCHEMA,
+    SURFACE_SCAN_SCHEMA,
+    build_release_scan_contract,
+    build_release_scan_receipt,
+    build_scan_contract,
+    build_scan_receipt,
+    scan_source_package_runtime,
+    scan_surface,
+    validate_scan_contract,
+    validate_scan_receipt,
+    validate_release_scan_contract,
+    validate_release_scan_receipt,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX_SCHEMA = "simplicio.release-matrix/v1"

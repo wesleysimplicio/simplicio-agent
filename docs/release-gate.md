@@ -89,3 +89,45 @@ This bounded contract also does not prove that an artifact was published, instal
 machine, upgraded, rolled back, or exercised through the complete release workflow. Those claims
 require execution receipts from the bound release operators; fixture records and matrix validation
 alone are not publication or clean-machine evidence.
+
+## Bounded scan contracts (issue #323)
+
+`tools/release_gate_scan.py` adds a read-only contract for the three bounded
+release scenarios: `clean-install`, `upgrade`, and `rollback`. Each contract
+requires explicit `source`, `package`, and `runtime` surfaces and carries the
+existing `simplicio.release-manifest/v1` digest. The scanner reads files (and
+zip/wheel members) in deterministic order, reuses the native identity scanner
+for UTF-8 text, and never invokes an installer, changes a release, activates a
+slot, or publishes an artifact.
+
+Completed observations are represented by
+`simplicio.release-scan-receipt/v1`. A receipt binds the contract digest,
+manifest digest, per-surface scan digests, and non-empty evidence references;
+`validate_scan_receipt()` recomputes every digest and rejects tampering or any
+publication/mutation claim. A valid contract or receipt is local integrity
+evidence only: clean-machine, OS/provider, live-bot, and external runtime
+execution remain `UNVERIFIED` until a separately bound operator emits receipts.
+
+The committed plan fixture is
+[`fixtures/release-gate/release-scan-contract.v1.json`](../fixtures/release-gate/release-scan-contract.v1.json).
+The Python APIs are re-exported from `tools.release_gate` for existing gate
+callers:
+
+```python
+from tools.release_gate import (
+    build_scan_contract,
+    build_scan_receipt,
+    scan_source_package_runtime,
+    validate_scan_receipt,
+)
+```
+
+Contract-only CLI checks are also available and do not execute release actions:
+
+```bash
+python tools/release_gate_scan.py validate-contract \
+  fixtures/release-gate/release-scan-contract.v1.json \
+  --manifest fixtures/release-manifest/release-manifest.v1.json
+python tools/release_gate_scan.py validate-receipt RECEIPT.json \
+  --contract fixtures/release-gate/release-scan-contract.v1.json
+```

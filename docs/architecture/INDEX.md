@@ -43,3 +43,4 @@
 | ADR-0040 | ADR-0040: bounded live-commit attestation and manual-pull detection | unspecified | unspecified | [ADR-0040-live-commit-attestation.md](ADR-0040-live-commit-attestation.md) |
 | ADR-0041 | ADR-0041: bounded native gateway bridge | unspecified | unspecified | [ADR-0041-native-gateway-bridge-contract.md](ADR-0041-native-gateway-bridge-contract.md) |
 | ADR-0042 | ADR-0042: Installation and update preflight | bounded slice for issue #342. | unspecified | [ADR-0042-installation-update-preflight.md](ADR-0042-installation-update-preflight.md) |
+| ADR-0043 | ADR-0043: namespace and identity migration audit | accepted for issue #322 bounded slice | 2026-07-14 | [ADR-0043-namespace-identity-audit.md](ADR-0043-namespace-identity-audit.md) |

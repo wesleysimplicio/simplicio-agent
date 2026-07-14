@@ -1,0 +1,40 @@
+{
+  "manifest_digest": "sha256:2eee2d54d5e3b0891c378e7e1cfbe5ad4ace54c5481f08e71ed870a4dcf3ea4d",
+  "operation": {
+    "bounded": true,
+    "name": "clean-install"
+  },
+  "proof": {
+    "clean_machine_e2e": "not_claimed",
+    "external_services": false,
+    "mutates_release": false,
+    "publishes_artifact": false
+  },
+  "receipts": [
+    "receipts/release-scan.json"
+  ],
+  "scenario": "clean-install",
+  "schema": "simplicio.release-scan-contract/v1",
+  "surfaces": {
+    "package": {
+      "paths": [
+        "dist/simplicio-agent.whl"
+      ],
+      "required": true
+    },
+    "runtime": {
+      "paths": [
+        "dist/simplicio-runtime"
+      ],
+      "required": true
+    },
+    "source": {
+      "paths": [
+        "simplicio_agent",
+        "tools"
+      ],
+      "required": true
+    }
+  },
+  "version": 1
+}

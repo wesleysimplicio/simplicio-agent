@@ -1,0 +1,35 @@
+{
+  "schema": "simplicio.gateway-native/v1",
+  "scope": "fixture_only",
+  "receipts": [
+    {
+      "bridge_id": "smoke",
+      "ok": true,
+      "request_id": "smoke-1",
+      "schema": "simplicio.gateway-native/v1",
+      "sequence": 1,
+      "status": "ok",
+      "value": {
+        "message": "ok",
+        "op": "echo"
+      }
+    },
+    {
+      "bridge_id": "expiry",
+      "error": "lease_expired",
+      "ok": false,
+      "request_id": "expiry-1",
+      "schema": "simplicio.gateway-native/v1",
+      "sequence": 0,
+      "status": "expired"
+    },
+    {
+      "bridge_id": "rollback",
+      "error": "smoke_failed",
+      "ok": false,
+      "schema": "simplicio.gateway-native/v1",
+      "sequence": 0,
+      "status": "rolled_back"
+    }
+  ]
+}

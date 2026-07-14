@@ -1,0 +1,29 @@
+{
+  "schema": "simplicio.shadow-divergence-fixtures/v1",
+  "cases": [
+    {
+      "id": "additional-effect",
+      "legacy": [{"effect": "fs_read", "operation": "read", "target": "input.txt"}],
+      "shadow": [{"effect": "fs_read", "operation": "read", "target": "input.txt"}, {"effect": "fs_write", "operation": "write", "target": "output.txt", "payload": {"path": "output.txt", "content": "x"}}],
+      "expected": "addition"
+    },
+    {
+      "id": "missing-effect",
+      "legacy": [{"effect": "fs_read", "operation": "read", "target": "input.txt"}, {"effect": "fs_write", "operation": "write", "target": "output.txt", "payload": {"path": "output.txt", "content": "x"}}],
+      "shadow": [{"effect": "fs_read", "operation": "read", "target": "input.txt"}],
+      "expected": "missing"
+    },
+    {
+      "id": "order-changed",
+      "legacy": [{"effect": "fs_read", "operation": "one", "target": "a"}, {"effect": "fs_read", "operation": "two", "target": "b"}],
+      "shadow": [{"effect": "fs_read", "operation": "two", "target": "b"}, {"effect": "fs_read", "operation": "one", "target": "a"}],
+      "expected": "order"
+    },
+    {
+      "id": "payload-changed",
+      "legacy": [{"effect": "fs_write", "operation": "write", "target": "output.txt", "payload": {"path": "output.txt", "content": "before"}}],
+      "shadow": [{"effect": "fs_write", "operation": "write", "target": "output.txt", "payload": {"path": "output.txt", "content": "after"}}],
+      "expected": "payload"
+    }
+  ]
+}
