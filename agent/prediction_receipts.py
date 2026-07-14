@@ -574,6 +574,11 @@ class PredictionReceipt:
             item if isinstance(item, Counterfactual) else Counterfactual.from_dict(item)
             for item in self.counterfactuals
         )
+        counterfactual_keys = [
+            (item.kind.value, item.label.strip()) for item in counterfactuals
+        ]
+        if len(counterfactual_keys) != len(set(counterfactual_keys)):
+            raise ValueError("counterfactual kind and label must be unique")
         kinds = {item.kind for item in counterfactuals}
         if self.counterfactual_required and not {
             CounterfactualKind.NO_ACTION,
@@ -900,6 +905,20 @@ def prediction_evidence_digest(receipt: PredictionReceipt) -> str:
     return hashlib.sha256(receipt.to_json().encode("utf-8")).hexdigest()
 
 
+def counterfactual_evidence_digest(receipt: PredictionReceipt) -> str:
+    """Return a stable digest of model-only alternatives without executing them."""
+
+    if not isinstance(receipt, PredictionReceipt):
+        raise TypeError("counterfactual evidence requires a PredictionReceipt")
+    payload = json.dumps(
+        [item.to_dict() for item in receipt.counterfactuals],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 __all__ = [
     "PREDICTION_RECEIPT_SCHEMA",
     "PREDICTION_RECEIPT_SCHEMA_VERSION",
@@ -917,4 +936,6 @@ __all__ = [
     "Observation",
     "Counterfactual",
     "PredictionReceipt",
+    "prediction_evidence_digest",
+    "counterfactual_evidence_digest",
 ]

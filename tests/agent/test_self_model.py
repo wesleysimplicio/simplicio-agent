@@ -87,6 +87,32 @@ def test_authority_can_only_be_attenuated() -> None:
         capability.attenuate(2, _receipt("policy-2"))
 
 
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"healthy": False},
+        {"authorized": False},
+        {"verified": False},
+        {"authority_level": 1},
+        {"budget_remaining": 0},
+    ),
+)
+def test_execution_contract_fails_closed_on_health_authority_and_budget(
+    changes: dict[str, object],
+) -> None:
+    assert _capability().can_execute(required_authority=2) is True
+    assert _capability(**changes).can_execute(required_authority=2) is False
+
+
+def test_execution_contract_rejects_ambiguous_state_and_invalid_limits() -> None:
+    with pytest.raises(TypeError, match="healthy must be a bool"):
+        _capability(healthy="unknown")
+    with pytest.raises(TypeError, match="authority_level must be an int"):
+        _capability(authority_level=True)
+    with pytest.raises(ValueError, match="required_authority must be non-negative"):
+        _capability().can_execute(required_authority=-1)
+
+
 def test_untrusted_sources_and_secret_like_fields_are_rejected() -> None:
     with pytest.raises(ValueError, match="untrusted"):
         SourceReceipt("receipt-1", "MEASURED", "tool_output")

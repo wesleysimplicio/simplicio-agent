@@ -546,32 +546,44 @@ class BeliefStateEngine:
             )
         )
         selected = facts[0]
-        canonical_payloads = {
-            _stable_json(fact.value) if not fact.missing else "<missing>"
-            for fact in facts
-        }
+        def canonical_payload(fact: BeliefFact) -> str:
+            if fact.distribution:
+                return _stable_json({"distribution": fact.distribution})
+            return _stable_json({"value": fact.value})
+
+        selected_payload = canonical_payload(selected)
+        conflicting_facts = tuple(
+            fact
+            for fact in facts[1:]
+            if canonical_payload(fact) != selected_payload
+        )
         conflicts = tuple(
             sorted({
                 f"{fact.subject}:{fact.source_event_id}"
-                for fact in facts[1:]
-                if _stable_json(fact.value) != _stable_json(selected.value)
-                or fact.distribution != selected.distribution
+                for fact in conflicting_facts
             })
         )
         uncertainty = max(
             [fact.uncertainty for fact in facts] + ([1.0] if missing else [])
         )
         evidence_to_change = tuple(
-            sorted(
-                set(
-                    fact.source_event_id
-                    for fact in facts[1:]
-                    if _stable_json(fact.value) != _stable_json(selected.value)
-                    or fact.distribution != selected.distribution
+            sorted({fact.source_event_id for fact in conflicting_facts})
+        )
+        has_conflict = bool(conflicting_facts)
+        relevant_facts = (selected,) + conflicting_facts
+        freshness_unsatisfied = (
+            selected.freshness in {Freshness.STALE, Freshness.EXPIRED}
+            or (
+                require_fresh
+                and any(
+                    fact.freshness is not Freshness.FRESH for fact in relevant_facts
                 )
             )
         )
-        has_conflict = len(canonical_payloads) > 1
+        if freshness_unsatisfied:
+            uncertainty = max(uncertainty, 0.75 if has_conflict else 0.8)
+        elif has_conflict:
+            uncertainty = max(uncertainty, 0.65)
         primary_fact = replace(
             selected,
             conflicts=conflicts,
@@ -579,7 +591,11 @@ class BeliefStateEngine:
             uncertainty=max(selected.uncertainty, uncertainty),
         )
         assessment_facts = (primary_fact,) + tuple(facts[1:])
-        if selected.freshness in {Freshness.STALE, Freshness.EXPIRED} or require_fresh:
+        if freshness_unsatisfied:
+            stale = any(
+                fact.freshness in {Freshness.STALE, Freshness.EXPIRED}
+                for fact in relevant_facts
+            )
             if has_conflict:
                 return BeliefAssessment(
                     subject=selected.subject,
@@ -589,8 +605,10 @@ class BeliefStateEngine:
                     facts=assessment_facts,
                     conflicts=conflicts,
                     missing=missing,
-                    uncertainty=max(uncertainty, 0.75),
-                    reason="stale conflicting observation",
+                    uncertainty=uncertainty,
+                    reason="stale conflicting observation"
+                    if stale
+                    else "conflicting observation with unknown freshness",
                     required_observation=selected.subject,
                     evidence_to_change=evidence_to_change or (selected.subject,),
                 )
@@ -602,8 +620,8 @@ class BeliefStateEngine:
                 facts=assessment_facts,
                 conflicts=conflicts,
                 missing=missing,
-                uncertainty=max(uncertainty, 0.8),
-                reason="stale observation",
+                uncertainty=uncertainty,
+                reason="stale observation" if stale else "freshness unknown",
                 required_observation=selected.subject,
                 evidence_to_change=evidence_to_change or (selected.subject,),
             )
@@ -621,7 +639,7 @@ class BeliefStateEngine:
                 facts=assessment_facts,
                 conflicts=conflicts,
                 missing=missing,
-                uncertainty=max(uncertainty, 0.65),
+                uncertainty=uncertainty,
                 reason="conflicting observations",
                 required_observation=selected.subject,
                 evidence_to_change=evidence_to_change or (selected.subject,),

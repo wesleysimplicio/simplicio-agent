@@ -127,7 +127,7 @@ class AutobiographicalStore:
         if not manifest.completed_verified or manifest.scope is MemoryScope.EXTERNAL:
             return ()
 
-        promoted: list[AutobiographicalMemory] = []
+        candidates: list[tuple[int, EpisodeFact, str, tuple[str, ...]]] = []
         for index, fact in enumerate(manifest.facts):
             if fact.poisoned_source:
                 continue
@@ -138,20 +138,51 @@ class AutobiographicalStore:
             if fact.kind is MemoryKind.PROCEDURAL and not manifest.completed_verified:
                 continue
 
-            current = self._active_for(manifest.scope, fact.key)
+            provenance = (
+                fact.evidence.prediction_receipt,
+                fact.evidence.outcome_receipt,
+                *((fact.consent_receipt,) if fact.consent_receipt else ()),
+            )
+            candidates.append((
+                index,
+                fact,
+                sanitize_evidence(fact.summary),
+                provenance,
+            ))
+
+        for index, fact, summary, provenance in candidates:
             memory_id = f"{manifest.episode_id}:{index}"
+            existing = self._memories.get(memory_id)
+            if existing is None:
+                continue
+            if not (
+                existing.key == fact.key
+                and existing.summary == summary
+                and existing.kind is fact.kind
+                and existing.scope is manifest.scope
+                and existing.confidence == fact.confidence
+                and existing.provenance == provenance
+                and existing.valid_from == manifest.valid_from
+            ):
+                raise ValueError(
+                    f"memory_id {memory_id!r} conflicts with its causal lineage"
+                )
+
+        promoted: list[AutobiographicalMemory] = []
+        for index, fact, summary, provenance in candidates:
+            memory_id = f"{manifest.episode_id}:{index}"
+            if memory_id in self._memories:
+                continue
+
+            current = self._active_for(manifest.scope, fact.key)
             memory = AutobiographicalMemory(
                 memory_id=memory_id,
                 key=fact.key,
-                summary=sanitize_evidence(fact.summary),
+                summary=summary,
                 kind=fact.kind,
                 scope=manifest.scope,
                 confidence=fact.confidence,
-                provenance=(
-                    fact.evidence.prediction_receipt,
-                    fact.evidence.outcome_receipt,
-                    *((fact.consent_receipt,) if fact.consent_receipt else ()),
-                ),
+                provenance=provenance,
                 valid_from=manifest.valid_from,
                 system_time=system_time,
                 supersedes=current.memory_id if current else "",
