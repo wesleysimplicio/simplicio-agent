@@ -20,7 +20,7 @@ import types
 
 import pytest
 
-from agent.task_envelope import TaskState
+from agent.task_envelope import TaskLedger, TaskState
 from agent.turn_envelope import finish_turn_envelope, start_turn_envelope
 from agent.turn_finalizer import finalize_turn
 
@@ -219,6 +219,42 @@ def test_full_turn_lifecycle_through_real_finalize_turn_reaches_closed():
         "closed",
     ]
     assert len(agent._task_envelope_events) == 9
+
+
+def test_successful_finalize_uses_strict_close_gate():
+    class _SpyLedger(TaskLedger):
+        def __init__(self):
+            super().__init__()
+            self.close_calls = []
+
+        def close_if_verified(self, envelope, *, verified_evidence_refs=()):
+            self.close_calls.append(
+                (envelope.state, tuple(verified_evidence_refs))
+            )
+            return super().close_if_verified(
+                envelope, verified_evidence_refs=verified_evidence_refs
+            )
+
+    agent = _StubAgent()
+    ledger = _SpyLedger()
+    agent._task_envelope_ledger = ledger
+    turn_id = "turn-close-gate"
+    start_turn_envelope(agent, turn_id=turn_id, user_message="hi")
+
+    _finalize(
+        agent,
+        [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "ok"}],
+        turn_id=turn_id,
+        interrupted=False,
+        failed=False,
+        final_response="ok",
+    )
+
+    assert ledger.close_calls == [
+        (TaskState.DELIVERED, (f"turn:{turn_id}",))
+    ]
+    assert agent._task_envelope.receipts == (f"turn:{turn_id}",)
+    assert agent._task_envelope.state is TaskState.CLOSED
 
 
 def test_failed_turn_drives_envelope_to_failed_via_real_finalize_turn():

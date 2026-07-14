@@ -391,6 +391,36 @@ def run_local_reversible_path(
         str(root), checkpoint["hash"], ARTIFACT_RELATIVE_PATH.as_posix()
     )
     undo = _snapshot(artifact)
+    if verification.status != "passed":
+        return _blocked(
+            root=root,
+            goal=goal,
+            route=decision.to_dict(),
+            gate=gate,
+            checkpoint=runtime_checkpoint,
+            reason="local artifact observation failed; reversible proof is incomplete",
+            availability=availability,
+        )
+    if not restore.get("success"):
+        return _blocked(
+            root=root,
+            goal=goal,
+            route=decision.to_dict(),
+            gate=gate,
+            checkpoint=runtime_checkpoint,
+            reason="checkpoint restore failed; reversible proof is incomplete",
+            availability=availability,
+        )
+    if not undo["exists"] or undo["content"] != BASELINE_CONTENT:
+        return _blocked(
+            root=root,
+            goal=goal,
+            route=decision.to_dict(),
+            gate=gate,
+            checkpoint=runtime_checkpoint,
+            reason="checkpoint restore did not restore the baseline artifact",
+            availability=availability,
+        )
     watcher = {
         "name": WATCHER_NAME,
         "status": "passed"
