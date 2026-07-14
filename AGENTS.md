@@ -27,10 +27,14 @@ checkpoints/undo, zero-token mechanical editing, HBP ledger). Canonical spec:
 
 **Inheritance reality (verified 2026-07-12, see ADR-0007):** the Turbo speed
 axes are *mostly already in the tree*, not aspirational. Of the 8 Turbo
-speed/observability axes: 6 are present (warm daemon, deterministic router,
+speed/observability axes: 7 are present (warm daemon, deterministic router,
 `token_saver` plugin, `telemetry`, `iteration_budget`/`budget_config` as the
-governor, plus `lazy_schema` + `distributed` added 2026-07-12 via PR #216/#215);
-`working_set` was never built in either repo (spec only, MODIFICATIONS.md §2.2).
+governor, `lazy_schema` + `distributed` added 2026-07-12 via PR #216/#215, and
+`working_set` built 2026-07-13 — `agent/context/` with LRU hot set + cold-ref
+`expand`, TF-IDF scorer, blake2b token cache, and incremental prefetch
+pipeline; tests in `tests/test_working_set.py`). The only axis still spec-only
+upstream (Turbo MODIFICATIONS.md §2.2 listed it as built, but the code was
+absent in both repos) is now closed in Simplicio.
 TTFT of a paid model is already on par with Hermes (~585 ms measured 2026-07-11)
 because streaming + warm daemon cover first-token latency; the remaining work
 targets per-turn token cost, not TTFT.
