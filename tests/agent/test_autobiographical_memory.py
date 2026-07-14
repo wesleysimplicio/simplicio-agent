@@ -1,3 +1,5 @@
+import pytest
+
 from agent.autobiographical_memory import (
     AutobiographicalStore,
     CausalEvidence,
@@ -84,6 +86,32 @@ def test_conflict_supersedes_and_revocation_makes_recall_unknown() -> None:
     ).active
     store.revoke(new.memory_id, system_time=40)
     assert not store.recall("delivery.preference", scope=MemoryScope.USER_PROJECT).known
+
+
+def test_replayed_episode_is_idempotent_and_never_self_supersedes() -> None:
+    store = AutobiographicalStore()
+    manifest = _manifest("episode-1", _fact("Use email"))
+    (memory,) = store.consolidate(manifest, system_time=20)
+
+    assert store.consolidate(manifest, system_time=30) == ()
+    assert store.memories == (memory,)
+    assert memory.active
+    assert memory.supersedes == ""
+
+
+def test_episode_id_collision_preserves_existing_lineage() -> None:
+    store = AutobiographicalStore()
+    (memory,) = store.consolidate(
+        _manifest("episode-1", _fact("Use email")), system_time=20
+    )
+
+    with pytest.raises(ValueError, match="causal lineage"):
+        store.consolidate(_manifest("episode-1", _fact("Use webhook")), system_time=30)
+
+    assert store.memories == (memory,)
+    assert store.recall(
+        "delivery.preference", scope=MemoryScope.USER_PROJECT
+    ).memories == (memory,)
 
 
 def test_prediction_evidence_digest_is_stable_and_non_disclosing() -> None:
