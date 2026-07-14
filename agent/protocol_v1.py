@@ -77,6 +77,7 @@ REDACTION_SECRET = "secret"
 
 EXECUTION_CONTEXT_SCHEMA = "simplicio.execution-context/v1"
 RUN_EVENT_SCHEMA = "simplicio.run-event/v1"
+CAUSAL_EVENT_SUMMARY_SCHEMA = "simplicio.causal-event-summary/v1"
 
 _SECRET_REDACTION_TOKEN = "[redacted]"
 _RUN_CONTEXT_MUTABLE_FIELDS = frozenset(
@@ -751,6 +752,99 @@ class ReplayProjection:
         return _canonical_hash(self.to_dict())
 
 
+@dataclass(frozen=True)
+class CausalEventSummary:
+    """Bounded, tamper-evident summary of a contiguous run-event range.
+
+    Payloads and execution contexts stay in the append-only stream.  The
+    summary carries only aggregate counts, causal boundary metadata, and
+    digests needed to verify an exact expansion from that stream.
+    """
+
+    run_id: str
+    first_sequence: int
+    last_sequence: int
+    first_event_id: str
+    last_event_id: str
+    causal_parent: str
+    event_count: int
+    event_type_counts: Dict[str, int]
+    classification_counts: Dict[str, int]
+    causal_digest: str
+    content_digest: str
+    schema_version: str = CAUSAL_EVENT_SUMMARY_SCHEMA
+
+    def __post_init__(self) -> None:
+        if not self.run_id:
+            raise ValueError("run_id must be non-empty")
+        if self.first_sequence < 1:
+            raise ValueError("first_sequence must be positive")
+        if self.last_sequence < self.first_sequence:
+            raise ValueError("last_sequence must not precede first_sequence")
+        expected_count = self.last_sequence - self.first_sequence + 1
+        if self.event_count != expected_count:
+            raise ValueError(
+                f"event_count must match the sequence range ({expected_count})"
+            )
+        if not self.first_event_id or not self.last_event_id:
+            raise ValueError("summary boundary event ids must be non-empty")
+        if not self.causal_digest or not self.content_digest:
+            raise ValueError("summary digests must be non-empty")
+        for field_name in ("event_type_counts", "classification_counts"):
+            counts = getattr(self, field_name)
+            if any(not key or count < 1 for key, count in counts.items()):
+                raise ValueError(f"{field_name} must contain positive counts")
+            object.__setattr__(
+                self,
+                field_name,
+                {key: counts[key] for key in sorted(counts)},
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "run_id": self.run_id,
+            "first_sequence": self.first_sequence,
+            "last_sequence": self.last_sequence,
+            "first_event_id": self.first_event_id,
+            "last_event_id": self.last_event_id,
+            "causal_parent": self.causal_parent,
+            "event_count": self.event_count,
+            "event_type_counts": _freeze_json(self.event_type_counts),
+            "classification_counts": _freeze_json(self.classification_counts),
+            "causal_digest": self.causal_digest,
+            "content_digest": self.content_digest,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "CausalEventSummary":
+        return cls(
+            run_id=str(data["run_id"]),
+            first_sequence=int(data["first_sequence"]),
+            last_sequence=int(data["last_sequence"]),
+            first_event_id=str(data["first_event_id"]),
+            last_event_id=str(data["last_event_id"]),
+            causal_parent=str(data.get("causal_parent", "")),
+            event_count=int(data["event_count"]),
+            event_type_counts=dict(data["event_type_counts"]),
+            classification_counts=dict(data["classification_counts"]),
+            causal_digest=str(data["causal_digest"]),
+            content_digest=str(data["content_digest"]),
+            schema_version=str(
+                data.get("schema_version", CAUSAL_EVENT_SUMMARY_SCHEMA)
+            ),
+        )
+
+    @property
+    def context_size_bytes(self) -> int:
+        """Return the deterministic UTF-8 size charged to context."""
+
+        return len(_canonical_json_bytes(self.to_dict()))
+
+    def canonical_hash(self) -> str:
+        return _canonical_hash(self.to_dict())
+
+
 class RunEventStream:
     """Append-only, bounded run stream with replay projection and dedupe."""
 
@@ -843,6 +937,74 @@ class RunEventStream:
             event_type_counts=event_type_counts,
             effect_receipts=tuple(effect_receipts),
             context=last.context if last is not None else self._context,
+        )
+
+    def coarse_grain(self, *, max_context_bytes: int) -> CausalEventSummary:
+        """Summarize the stream without exceeding an explicit context budget."""
+
+        if (
+            not isinstance(max_context_bytes, int)
+            or isinstance(max_context_bytes, bool)
+            or max_context_bytes < 1
+        ):
+            raise ValueError("max_context_bytes must be a positive integer")
+        if not self._events:
+            raise ValueError("cannot coarse-grain an empty event stream")
+        summary = self._summarize_events(tuple(self._events))
+        if summary.context_size_bytes > max_context_bytes:
+            raise ValueError(
+                "causal event summary exceeds context budget: "
+                f"{summary.context_size_bytes} > {max_context_bytes} bytes"
+            )
+        return summary
+
+    def expand_causal_summary(
+        self, summary: CausalEventSummary
+    ) -> tuple[RunEvent, ...]:
+        """Expand and verify a summary against this append-only stream."""
+
+        if summary.run_id != self._context.run_id:
+            raise ValueError("summary.run_id must match stream run_id")
+        if summary.last_sequence > len(self._events):
+            raise SequenceGapError(
+                summary.run_id, len(self._events), summary.last_sequence
+            )
+        events = tuple(
+            self._events[summary.first_sequence - 1 : summary.last_sequence]
+        )
+        if not events or self._summarize_events(events) != summary:
+            raise ValueError("causal event summary does not match the event stream")
+        return events
+
+    @staticmethod
+    def _summarize_events(events: tuple[RunEvent, ...]) -> CausalEventSummary:
+        first = events[0]
+        last = events[-1]
+        event_type_counts: Dict[str, int] = {}
+        classification_counts: Dict[str, int] = {}
+        causal_links = []
+        content_hashes = []
+        for event in events:
+            event_type_counts[event.event_type] = (
+                event_type_counts.get(event.event_type, 0) + 1
+            )
+            classification_counts[event.classification] = (
+                classification_counts.get(event.classification, 0) + 1
+            )
+            causal_links.append((event.event_id, event.causal_parent))
+            content_hashes.append(event.canonical_hash())
+        return CausalEventSummary(
+            run_id=first.run_id,
+            first_sequence=first.sequence,
+            last_sequence=last.sequence,
+            first_event_id=first.event_id,
+            last_event_id=last.event_id,
+            causal_parent=first.causal_parent,
+            event_count=len(events),
+            event_type_counts=event_type_counts,
+            classification_counts=classification_counts,
+            causal_digest=_canonical_hash(causal_links),
+            content_digest=_canonical_hash(content_hashes),
         )
 
     def events_after(self, cursor: ReplayCursor) -> tuple[RunEvent, ...]:
@@ -986,6 +1148,7 @@ __all__ = [
     "REDACTION_SECRET",
     "EXECUTION_CONTEXT_SCHEMA",
     "RUN_EVENT_SCHEMA",
+    "CAUSAL_EVENT_SUMMARY_SCHEMA",
     "LifecycleEvent",
     "PresentationEvent",
     "ExecutionEvent",
@@ -1004,6 +1167,7 @@ __all__ = [
     "IdempotencyConflictError",
     "ImmutableContextError",
     "ReplayProjection",
+    "CausalEventSummary",
     "RunEventStream",
     "Emitter",
 ]
