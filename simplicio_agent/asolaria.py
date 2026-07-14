@@ -15,14 +15,21 @@ from types import ModuleType
 from typing import Any
 
 __all__ = [
+    "addressing_geometry",
+    "citizen_identity",
+    "encode_addr",
+    "fnv1a64",
     "prism_crt_capacity",
     "prism_crt_decompose",
     "prism_crt_recombine",
     "prism_forward",
     "prism_inverse",
     "prism_seal",
+    "realmathpos",
     "run_n_nest",
     "selftest",
+    "sha16",
+    "verify_citizen",
 ]
 
 _PATTERN_DIR = (
@@ -98,11 +105,50 @@ def prism_crt_recombine(
     return _load_pattern("prism_comb").crt_recombine(residues, domain_size=domain_size)
 
 
-def selftest() -> int:
-    """Run both existing pattern selftests and return zero on success."""
+def addressing_geometry() -> ModuleType:
+    """Return the Addressing Geometry pattern module (issue #36)."""
+    return _load_pattern("addressing_geometry")
 
+
+def realmathpos(file: str, line: int, col: int) -> Any:
+    """REALMATHPOS — file:line:col as a monotone, locality-preserving coord."""
+    return _load_pattern("addressing_geometry").realmathpos(file, line, col)
+
+
+def fnv1a64(data: bytes | str) -> int:
+    """FNV-1a/64 fast non-cryptographic hash of a file path."""
+    return _load_pattern("addressing_geometry").fnv1a64(data)
+
+
+def sha16(s: str) -> str:
+    """Canonical 16-hex module identifier (sha256[:16])."""
+    return _load_pattern("addressing_geometry").sha16(s)
+
+
+def encode_addr(tier: str, file: str, line: int, col: int) -> int:
+    """Locality-preserving slot for ``(file, line, col)`` in ``tier``."""
+    return _load_pattern("addressing_geometry").encode_addr(tier, file, line, col)
+
+
+def citizen_identity(
+    file: str, line: int, col: int, tier: str = "1024", tag: str = "CANON"
+) -> Any:
+    """Fused canonical citizen identity CIT-<file_id>-<tier><slot>[-tag]."""
+    return _load_pattern("addressing_geometry").citizen_identity(
+        file, line, col, tier=tier, tag=tag  # type: ignore[arg-type]
+    )
+
+
+def verify_citizen(cit: Any, file: str, line: int, col: int) -> bool:
+    """Re-derive a citizen identity and close the round-trip (refuses UNVERIFIED)."""
+    return _load_pattern("addressing_geometry").verify_citizen(cit, file, line, col)
+
+
+def selftest() -> int:
+    """Run every pattern selftest and return zero on success."""
     _load_pattern("nest_depthn").selftest()
     _load_pattern("prism_comb").selftest()
+    _load_pattern("addressing_geometry").selftest()
     return 0
 
 

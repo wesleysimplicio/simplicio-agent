@@ -36,3 +36,42 @@ def test_public_prism_facade_preserves_round_trip_and_capacity_gate():
 
 def test_public_selftest():
     assert asolaria.selftest() == 0
+
+
+# --- issue #36: Addressing Geometry ----------------------------------------
+def test_addressing_realmathpos_locality():
+    from simplicio_agent.asolaria import realmathpos
+
+    p0 = realmathpos("mod.py", 10, 5)
+    p1 = realmathpos("mod.py", 11, 5)
+    p2 = realmathpos("mod.py", 10, 6)
+    assert p1.pos > p0.pos > 0
+    assert p2.pos > p0.pos
+    assert p0.file_id == asolaria.sha16("mod.py")
+
+
+def test_addressing_fnv1a64_vectors():
+    assert asolaria.fnv1a64(b"") == 0xCBF29CE484222325
+    assert asolaria.fnv1a64(b"a") == 0xAF63DC4C8601EC8C
+    assert asolaria.fnv1a64(b"foobar") == 0x85944171F73967E8
+
+
+def test_addressing_tiers_in_range():
+    for tier, rng in (("256", 256), ("1024", 1024), ("hyper", 1 << 48)):
+        slot = asolaria.encode_addr(tier, "mod.py", 3, 7)
+        assert 0 <= slot < rng
+
+
+def test_addressing_citizen_roundtrip_and_tamper():
+    cit = asolaria.citizen_identity("mod.py", 42, 7, tier="1024", tag="CANON")
+    assert asolaria.verify_citizen(cit, "mod.py", 42, 7) is True
+    assert asolaria.verify_citizen(cit, "mod.py", 43, 7) is False
+    assert asolaria.verify_citizen(cit, "other.py", 42, 7) is False
+
+
+def test_addressing_unverified_rejected():
+    unverified = asolaria.citizen_identity(
+        "mod.py", 42, 7, tier="1024", tag="UNVERIFIED"
+    )
+    assert unverified.tag == "UNVERIFIED"
+    assert asolaria.verify_citizen(unverified, "mod.py", 42, 7) is False
