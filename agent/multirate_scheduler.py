@@ -57,6 +57,7 @@ class LaneConfig:
     latency_budget_ticks: int
     token_budget: int
     base_priority: int
+    resource_budget: int = 1
     starvation_window_ticks: int = 1
     escalation_target: LaneName | None = None
 
@@ -69,6 +70,8 @@ class LaneConfig:
             raise ValueError("latency_budget_ticks must be >= 1")
         if self.token_budget < 1:
             raise ValueError("token_budget must be >= 1")
+        if self.resource_budget < 1:
+            raise ValueError("resource_budget must be >= 1")
         if self.starvation_window_ticks < 1:
             raise ValueError("starvation_window_ticks must be >= 1")
 
@@ -78,6 +81,7 @@ class LaneConfig:
             "max_queue": self.max_queue,
             "latency_budget_ticks": self.latency_budget_ticks,
             "token_budget": self.token_budget,
+            "resource_budget": self.resource_budget,
             "base_priority": self.base_priority,
             "starvation_window_ticks": self.starvation_window_ticks,
         }
@@ -94,6 +98,7 @@ class LaneConfig:
             latency_budget_ticks=int(value["latency_budget_ticks"]),
             token_budget=int(value["token_budget"]),
             base_priority=int(value["base_priority"]),
+            resource_budget=int(value.get("resource_budget", 1)),
             starvation_window_ticks=int(value.get("starvation_window_ticks", 1)),
             escalation_target=LaneName(target) if target else None,
         )
@@ -143,6 +148,7 @@ class WorkItem:
     lane: LaneName
     payload: str
     token_cost: int = 1
+    resource_cost: int = 1
     priority_boost: int = 0
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
@@ -153,6 +159,8 @@ class WorkItem:
             raise ValueError("payload must be non-empty")
         if self.token_cost < 1:
             raise ValueError("token_cost must be >= 1")
+        if self.resource_cost < 1:
+            raise ValueError("resource_cost must be >= 1")
 
 
 @dataclass(frozen=True)
@@ -180,6 +188,7 @@ class DispatchDecision:
     lane: LaneName
     payload: str
     token_cost: int
+    resource_cost: int
     tick: int
     waited_ticks: int
     effective_priority: int
@@ -206,6 +215,9 @@ class MultiRateScheduler:
         self._remaining_tokens: dict[LaneName, int] = {
             lane: config.lanes[lane].token_budget for lane in LANE_ORDER
         }
+        self._remaining_resources: dict[LaneName, int] = {
+            lane: config.lanes[lane].resource_budget for lane in LANE_ORDER
+        }
         self._last_budget_reset_tick = 0
         self.event_log: list[QueueEvent] = []
         self.failure_log: list[QueueEvent] = []
@@ -219,6 +231,10 @@ class MultiRateScheduler:
             },
             "remaining_tokens": {
                 lane.value: self._remaining_tokens[lane]
+                for lane in LANE_ORDER
+            },
+            "remaining_resources": {
+                lane.value: self._remaining_resources[lane]
                 for lane in LANE_ORDER
             },
             "event_log_size": len(self.event_log),
@@ -274,6 +290,7 @@ class MultiRateScheduler:
                     lane=decision.lane,
                     payload=decision.payload,
                     token_cost=decision.token_cost,
+                    resource_cost=decision.resource_cost,
                     metadata=decision.metadata,
                 ),
                 from_lane=decision.lane,
@@ -286,6 +303,7 @@ class MultiRateScheduler:
             return
         for lane in LANE_ORDER:
             self._remaining_tokens[lane] = self.config.lanes[lane].token_budget
+            self._remaining_resources[lane] = self.config.lanes[lane].resource_budget
         self._last_budget_reset_tick = self.current_tick
 
     def _dispatch_ready(self) -> DispatchDecision | None:
@@ -307,13 +325,26 @@ class MultiRateScheduler:
                 self._record_drop(queued.work, lane=lane, reason="token_budget_exceeded")
                 del self._queues[lane][owner]
                 continue
+            if queued.work.resource_cost > self._remaining_resources[lane]:
+                if self._escalate_work(
+                    queued.work,
+                    from_lane=lane,
+                    reason="resource_budget_exceeded",
+                ):
+                    del self._queues[lane][owner]
+                    continue
+                self._record_drop(queued.work, lane=lane, reason="resource_budget_exceeded")
+                del self._queues[lane][owner]
+                continue
             del self._queues[lane][owner]
             self._remaining_tokens[lane] -= queued.work.token_cost
+            self._remaining_resources[lane] -= queued.work.resource_cost
             decision = DispatchDecision(
                 owner=queued.work.owner,
                 lane=lane,
                 payload=queued.work.payload,
                 token_cost=queued.work.token_cost,
+                resource_cost=queued.work.resource_cost,
                 tick=self.current_tick,
                 waited_ticks=waited_ticks,
                 effective_priority=self._effective_priority(lane, queued),
@@ -377,6 +408,7 @@ class MultiRateScheduler:
                 lane=target,
                 payload=work.payload,
                 token_cost=work.token_cost,
+                resource_cost=work.resource_cost,
                 priority_boost=work.priority_boost,
                 metadata=dict(work.metadata, escalated_from=from_lane.value, escalation_reason=reason),
             ),

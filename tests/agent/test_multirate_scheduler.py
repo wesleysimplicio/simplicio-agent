@@ -81,6 +81,46 @@ def test_token_budget_exhaustion_escalates_from_reflex_to_attention():
     assert decision.metadata["escalated_from"] == LaneName.REFLEX.value
 
 
+def test_resource_budget_exhaustion_escalates_and_preserves_cost():
+    scheduler = _load_scheduler()
+    scheduler.enqueue(
+        WorkItem(
+            owner="chat:resource",
+            lane=LaneName.REFLEX,
+            payload="provider-work",
+            resource_cost=3,
+        )
+    )
+    assert scheduler.tick() is None
+    assert scheduler.snapshot()["queues"]["reflex"] == 0
+    assert scheduler.snapshot()["queues"]["attention"] == 1
+    assert scheduler.event_log[-1].reason == "resource_budget_exceeded"
+
+    decision = _decision_or_fail(scheduler.tick())
+    assert decision.lane is LaneName.ATTENTION
+    assert decision.resource_cost == 3
+    assert scheduler.snapshot()["remaining_resources"]["attention"] == 5
+
+
+def test_dispatch_debits_token_and_resource_budgets_together():
+    scheduler = _load_scheduler()
+    scheduler.enqueue(
+        WorkItem(
+            owner="chat:budget",
+            lane=LaneName.EVENT,
+            payload="bounded-work",
+            token_cost=2,
+            resource_cost=2,
+        )
+    )
+    decision = _decision_or_fail(scheduler.tick())
+    snapshot = scheduler.snapshot()
+    assert decision.token_cost == 2
+    assert decision.resource_cost == 2
+    assert snapshot["remaining_tokens"]["event"] == 0
+    assert snapshot["remaining_resources"]["event"] == 0
+
+
 def test_latency_budget_exceeded_escalates_to_slower_lane():
     scheduler = _load_scheduler()
     scheduler.enqueue(WorkItem(owner="chat:3", lane=LaneName.ATTENTION, payload="slow"))

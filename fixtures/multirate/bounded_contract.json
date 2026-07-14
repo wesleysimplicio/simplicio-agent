@@ -6,6 +6,7 @@
       "max_queue": 2,
       "latency_budget_ticks": 1,
       "token_budget": 2,
+      "resource_budget": 2,
       "base_priority": 50,
       "starvation_window_ticks": 1,
       "escalation_target": "reflex"
@@ -15,6 +16,7 @@
       "max_queue": 8,
       "latency_budget_ticks": 2,
       "token_budget": 2,
+      "resource_budget": 2,
       "base_priority": 40,
       "starvation_window_ticks": 1,
       "escalation_target": "attention"
@@ -24,6 +26,7 @@
       "max_queue": 8,
       "latency_budget_ticks": 1,
       "token_budget": 8,
+      "resource_budget": 8,
       "base_priority": 10,
       "starvation_window_ticks": 1,
       "escalation_target": "deliberation"
@@ -33,6 +36,7 @@
       "max_queue": 8,
       "latency_budget_ticks": 3,
       "token_budget": 10,
+      "resource_budget": 10,
       "base_priority": 15,
       "starvation_window_ticks": 1,
       "escalation_target": "consolidation"
@@ -42,6 +46,7 @@
       "max_queue": 8,
       "latency_budget_ticks": 8,
       "token_budget": 12,
+      "resource_budget": 12,
       "base_priority": 1,
       "starvation_window_ticks": 1
     }
