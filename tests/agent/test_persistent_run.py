@@ -30,21 +30,36 @@ def _run() -> PersistentRun:
 def test_lifecycle_is_explicit_and_same_state_is_idempotent():
     run = _run()
     assert run.transition(RunState.PLANNED, now_ns=10) is run
-    run = run.transition(RunState.QUEUED, now_ns=11).transition(RunState.RUNNING, now_ns=12)
-    run = run.transition(RunState.PAUSED, now_ns=13).transition(RunState.QUEUED, now_ns=14)
+    run = run.transition(RunState.QUEUED, now_ns=11).transition(
+        RunState.RUNNING, now_ns=12
+    )
+    run = run.transition(RunState.PAUSED, now_ns=13).transition(
+        RunState.QUEUED, now_ns=14
+    )
     assert run.state is RunState.QUEUED
     with pytest.raises(InvalidRunTransition):
         run.transition(RunState.COMPLETED, now_ns=15)
 
 
 def test_completion_requires_receipt_and_no_unresolved_effect():
-    run = _run().transition(RunState.QUEUED, now_ns=11).transition(RunState.RUNNING, now_ns=12)
-    run = run.record_effect(RunEffect("effect-1", "idempotency-1", RunEffectStatus.UNKNOWN), now_ns=13)
+    run = (
+        _run()
+        .transition(RunState.QUEUED, now_ns=11)
+        .transition(RunState.RUNNING, now_ns=12)
+    )
+    run = run.record_effect(
+        RunEffect("effect-1", "idempotency-1", RunEffectStatus.UNKNOWN), now_ns=13
+    )
     run = run.add_receipt("receipt://run-1/goal", now_ns=14)
     with pytest.raises(CompletionNotReady):
         run.transition(RunState.COMPLETED, now_ns=15)
     run = run.record_effect(
-        RunEffect("effect-1", "idempotency-1", RunEffectStatus.RECONCILED, "receipt://run-1/effect-1"),
+        RunEffect(
+            "effect-1",
+            "idempotency-1",
+            RunEffectStatus.RECONCILED,
+            "receipt://run-1/effect-1",
+        ),
         now_ns=16,
     )
     assert run.transition(RunState.COMPLETED, now_ns=17).state is RunState.COMPLETED
@@ -52,12 +67,16 @@ def test_completion_requires_receipt_and_no_unresolved_effect():
 
 def test_committed_effect_cannot_be_replaced():
     run = _run().record_effect(
-        RunEffect("effect-1", "idempotency-1", RunEffectStatus.COMMITTED, "receipt://effect-1"),
+        RunEffect(
+            "effect-1", "idempotency-1", RunEffectStatus.COMMITTED, "receipt://effect-1"
+        ),
         now_ns=11,
     )
     assert run.record_effect(run.effects[0], now_ns=12) is run
     with pytest.raises(DuplicateCommittedEffect):
-        run.record_effect(RunEffect("effect-1", "different", RunEffectStatus.COMMITTED), now_ns=12)
+        run.record_effect(
+            RunEffect("effect-1", "different", RunEffectStatus.COMMITTED), now_ns=12
+        )
 
 
 def test_serialization_and_hash_are_stable():
@@ -70,7 +89,9 @@ def test_serialization_and_hash_are_stable():
 
 def test_sensitive_provider_state_and_duplicates_fail_closed():
     with pytest.raises(PersistentRunError, match="sensitive"):
-        PersistentRun.create(run_id="run-1", goal_hash="goal", provider_state={"api_token": "x"})
+        PersistentRun.create(
+            run_id="run-1", goal_hash="goal", provider_state={"api_token": "x"}
+        )
     with pytest.raises(PersistentRunError, match="duplicate"):
         PersistentRun(
             run_id="run-1",

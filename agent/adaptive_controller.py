@@ -47,7 +47,10 @@ class AdaptivePolicy:
     def __post_init__(self) -> None:
         if isinstance(self.min_concurrency, bool) or self.min_concurrency < 0:
             raise ValueError("min_concurrency must be >= 0")
-        if isinstance(self.max_concurrency, bool) or self.max_concurrency < self.min_concurrency:
+        if (
+            isinstance(self.max_concurrency, bool)
+            or self.max_concurrency < self.min_concurrency
+        ):
             raise ValueError("max_concurrency must be >= min_concurrency")
         for name in (
             "pressure_enter",
@@ -167,7 +170,9 @@ class AdaptiveController:
 
         if pressure_active:
             target = max(self.policy.min_concurrency, current - 1)
-            action = ControllerAction.THROTTLE if target < current else ControllerAction.HOLD
+            action = (
+                ControllerAction.THROTTLE if target < current else ControllerAction.HOLD
+            )
             reason = "resource_pressure"
         elif (
             current > self.policy.min_concurrency
@@ -192,7 +197,9 @@ class AdaptiveController:
             reason = "within_bounds"
 
         next_state = AdaptiveState(pressure_active, integral, error)
-        return AdaptiveDecision(target, action, pressure_active, pid_output, reason, next_state)
+        return AdaptiveDecision(
+            target, action, pressure_active, pid_output, reason, next_state
+        )
 
 
 __all__ = [

@@ -90,7 +90,9 @@ class SourceReceipt:
         if evidence.value not in _TRUSTED_SOURCES:
             raise ValueError("self-model requires measured or canonical evidence")
         if self.source.casefold() in {"tool_output", "page", "browser_page"}:
-            raise ValueError("untrusted tool/page output cannot attest self-model state")
+            raise ValueError(
+                "untrusted tool/page output cannot attest self-model state"
+            )
         object.__setattr__(self, "evidence", evidence)
 
     def to_dict(self) -> dict[str, str]:
@@ -122,7 +124,9 @@ class CapabilityState:
     limitations: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "capability_id", _clean(self.capability_id, "capability_id"))
+        object.__setattr__(
+            self, "capability_id", _clean(self.capability_id, "capability_id")
+        )
         object.__setattr__(self, "modality", _clean(self.modality, "modality"))
         if self.authority_level < 0 or self.authority_ceiling < 0:
             raise ValueError("authority levels must be non-negative")
@@ -135,24 +139,40 @@ class CapabilityState:
         if self.authorized and not self.owner_scope:
             raise ValueError("authorized capability requires an owner scope")
         if self.verifier_ref:
-            object.__setattr__(self, "verifier_ref", _clean(self.verifier_ref, "verifier_ref"))
+            object.__setattr__(
+                self, "verifier_ref", _clean(self.verifier_ref, "verifier_ref")
+            )
         if self.rollback_ref:
-            object.__setattr__(self, "rollback_ref", _clean(self.rollback_ref, "rollback_ref"))
+            object.__setattr__(
+                self, "rollback_ref", _clean(self.rollback_ref, "rollback_ref")
+            )
         if self.owner_scope:
-            object.__setattr__(self, "owner_scope", _clean(self.owner_scope, "owner_scope"))
+            object.__setattr__(
+                self, "owner_scope", _clean(self.owner_scope, "owner_scope")
+            )
         receipts = tuple(self.source_receipts)
         if not receipts:
             raise ValueError("capability state requires at least one source receipt")
         object.__setattr__(self, "source_receipts", receipts)
-        object.__setattr__(self, "limitations", _sorted_strings(self.limitations, "limitation"))
+        object.__setattr__(
+            self, "limitations", _sorted_strings(self.limitations, "limitation")
+        )
 
     @property
     def available(self) -> bool:
         """Return whether every required availability dimension is true."""
 
-        return all((self.installed, self.configured, self.healthy, self.authorized, self.verified))
+        return all((
+            self.installed,
+            self.configured,
+            self.healthy,
+            self.authorized,
+            self.verified,
+        ))
 
-    def with_health(self, healthy: bool, receipt: SourceReceipt, reason: str) -> "CapabilityState":
+    def with_health(
+        self, healthy: bool, receipt: SourceReceipt, reason: str
+    ) -> "CapabilityState":
         """Return a loss/recovery update without changing authority or ownership."""
 
         if not isinstance(receipt, SourceReceipt):
@@ -170,14 +190,20 @@ class CapabilityState:
             limitations=tuple(limitations),
         )
 
-    def attenuate(self, authority_level: int, receipt: SourceReceipt) -> "CapabilityState":
+    def attenuate(
+        self, authority_level: int, receipt: SourceReceipt
+    ) -> "CapabilityState":
         """Lower authority only; no state update may self-escalate authority."""
 
         if authority_level < 0 or authority_level > self.authority_level:
             raise ValueError("authority may only be attenuated")
         if not isinstance(receipt, SourceReceipt):
             raise TypeError("authority updates require a SourceReceipt")
-        return replace(self, authority_level=authority_level, source_receipts=self.source_receipts + (receipt,))
+        return replace(
+            self,
+            authority_level=authority_level,
+            source_receipts=self.source_receipts + (receipt,),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -218,8 +244,12 @@ class SelfModelSnapshot:
     def __post_init__(self) -> None:
         object.__setattr__(self, "profile_id", _clean(self.profile_id, "profile_id"))
         object.__setattr__(self, "tenant_id", _clean(self.tenant_id, "tenant_id"))
-        object.__setattr__(self, "identity_ref", _clean(self.identity_ref, "identity_ref"))
-        capabilities = tuple(sorted(self.capabilities, key=lambda item: item.capability_id))
+        object.__setattr__(
+            self, "identity_ref", _clean(self.identity_ref, "identity_ref")
+        )
+        capabilities = tuple(
+            sorted(self.capabilities, key=lambda item: item.capability_id)
+        )
         if len({item.capability_id for item in capabilities}) != len(capabilities):
             raise ValueError("capability ids must be unique")
         object.__setattr__(self, "capabilities", capabilities)
@@ -227,10 +257,22 @@ class SelfModelSnapshot:
         if any(not isinstance(value, int) or value < 0 for value in budgets.values()):
             raise ValueError("budgets must contain non-negative integer values")
         object.__setattr__(self, "budgets", budgets)
-        object.__setattr__(self, "active_providers", _sorted_strings(self.active_providers, "provider"))
-        object.__setattr__(self, "degraded_modalities", _sorted_strings(self.degraded_modalities, "modality"))
-        object.__setattr__(self, "known_limitations", _sorted_strings(self.known_limitations, "limitation"))
-        if self.snapshot_receipt is not None and not isinstance(self.snapshot_receipt, SourceReceipt):
+        object.__setattr__(
+            self, "active_providers", _sorted_strings(self.active_providers, "provider")
+        )
+        object.__setattr__(
+            self,
+            "degraded_modalities",
+            _sorted_strings(self.degraded_modalities, "modality"),
+        )
+        object.__setattr__(
+            self,
+            "known_limitations",
+            _sorted_strings(self.known_limitations, "limitation"),
+        )
+        if self.snapshot_receipt is not None and not isinstance(
+            self.snapshot_receipt, SourceReceipt
+        ):
             raise TypeError("snapshot_receipt must be a SourceReceipt")
 
     def to_dict(self) -> dict[str, Any]:
@@ -244,32 +286,46 @@ class SelfModelSnapshot:
             "active_providers": list(self.active_providers),
             "degraded_modalities": list(self.degraded_modalities),
             "known_limitations": list(self.known_limitations),
-            "snapshot_receipt": self.snapshot_receipt.to_dict() if self.snapshot_receipt else None,
+            "snapshot_receipt": self.snapshot_receipt.to_dict()
+            if self.snapshot_receipt
+            else None,
         }
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(
+            self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
 
     def digest(self) -> str:
         return hashlib.sha256(self.to_json().encode("utf-8")).hexdigest()
 
-    def transition(self, capability_id: str, healthy: bool, receipt: SourceReceipt, reason: str) -> tuple["SelfModelSnapshot", CapabilityTransition]:
+    def transition(
+        self, capability_id: str, healthy: bool, receipt: SourceReceipt, reason: str
+    ) -> tuple["SelfModelSnapshot", CapabilityTransition]:
         """Apply a measured loss/recovery and return its typed transition."""
 
         capability_id = _clean(capability_id, "capability_id")
-        current = next((item for item in self.capabilities if item.capability_id == capability_id), None)
+        current = next(
+            (item for item in self.capabilities if item.capability_id == capability_id),
+            None,
+        )
         if current is None:
             raise KeyError(capability_id)
         if current.healthy == healthy:
             raise ValueError("health transition does not change state")
         updated = current.with_health(healthy, receipt, reason)
-        capabilities = tuple(updated if item.capability_id == capability_id else item for item in self.capabilities)
+        capabilities = tuple(
+            updated if item.capability_id == capability_id else item
+            for item in self.capabilities
+        )
         degraded = set(self.degraded_modalities)
         if healthy:
             degraded.discard(current.modality)
         else:
             degraded.add(current.modality)
-        return replace(self, capabilities=capabilities, degraded_modalities=tuple(degraded)), (CapabilityTransition.RECOVERY if healthy else CapabilityTransition.LOSS)
+        return replace(
+            self, capabilities=capabilities, degraded_modalities=tuple(degraded)
+        ), (CapabilityTransition.RECOVERY if healthy else CapabilityTransition.LOSS)
 
 
 def build_snapshot(

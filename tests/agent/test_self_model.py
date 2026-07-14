@@ -66,11 +66,15 @@ def test_capability_loss_and_recovery_are_typed_and_scoped() -> None:
         snapshot_receipt=_receipt("snapshot-1"),
     )
 
-    degraded, event = snapshot.transition("filesystem.read", False, _receipt("loss"), "runtime unavailable")
+    degraded, event = snapshot.transition(
+        "filesystem.read", False, _receipt("loss"), "runtime unavailable"
+    )
     assert event is CapabilityTransition.LOSS
     assert degraded.capabilities[0].healthy is False
     assert "filesystem" in degraded.degraded_modalities
-    recovered, event = degraded.transition("filesystem.read", True, _receipt("recovery"), "runtime restored")
+    recovered, event = degraded.transition(
+        "filesystem.read", True, _receipt("recovery"), "runtime restored"
+    )
     assert event is CapabilityTransition.RECOVERY
     assert recovered.capabilities[0].healthy is True
     assert "filesystem" not in recovered.degraded_modalities

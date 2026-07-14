@@ -59,25 +59,32 @@ class CompletionNotReady(PersistentRunError):
 _TERMINAL = frozenset({RunState.CANCELLED, RunState.COMPLETED, RunState.FAILED})
 _ALLOWED: dict[RunState, frozenset[RunState]] = {
     RunState.PLANNED: frozenset({RunState.QUEUED, RunState.CANCELLED}),
-    RunState.QUEUED: frozenset(
-        {RunState.RUNNING, RunState.PAUSED, RunState.BLOCKED, RunState.CANCELLED}
-    ),
-    RunState.RUNNING: frozenset(
-        {
-            RunState.WAITING_HUMAN,
-            RunState.BLOCKED,
-            RunState.PAUSED,
-            RunState.CANCELLING,
-            RunState.COMPLETED,
-            RunState.FAILED,
-        }
-    ),
-    RunState.WAITING_HUMAN: frozenset(
-        {RunState.RUNNING, RunState.BLOCKED, RunState.PAUSED, RunState.CANCELLED}
-    ),
-    RunState.BLOCKED: frozenset(
-        {RunState.QUEUED, RunState.PAUSED, RunState.CANCELLED, RunState.FAILED}
-    ),
+    RunState.QUEUED: frozenset({
+        RunState.RUNNING,
+        RunState.PAUSED,
+        RunState.BLOCKED,
+        RunState.CANCELLED,
+    }),
+    RunState.RUNNING: frozenset({
+        RunState.WAITING_HUMAN,
+        RunState.BLOCKED,
+        RunState.PAUSED,
+        RunState.CANCELLING,
+        RunState.COMPLETED,
+        RunState.FAILED,
+    }),
+    RunState.WAITING_HUMAN: frozenset({
+        RunState.RUNNING,
+        RunState.BLOCKED,
+        RunState.PAUSED,
+        RunState.CANCELLED,
+    }),
+    RunState.BLOCKED: frozenset({
+        RunState.QUEUED,
+        RunState.PAUSED,
+        RunState.CANCELLED,
+        RunState.FAILED,
+    }),
     RunState.PAUSED: frozenset({RunState.QUEUED, RunState.CANCELLED}),
     RunState.CANCELLING: frozenset({RunState.CANCELLED, RunState.FAILED}),
 }
@@ -188,18 +195,28 @@ class PersistentRun:
         )
         object.__setattr__(self, "leases", _refs(self.leases, "leases"))
         object.__setattr__(self, "receipts", _refs(self.receipts, "receipts"))
-        effects = tuple(item if isinstance(item, RunEffect) else RunEffect.from_dict(item) for item in self.effects)
+        effects = tuple(
+            item if isinstance(item, RunEffect) else RunEffect.from_dict(item)
+            for item in self.effects
+        )
         if len({item.effect_id for item in effects}) != len(effects):
-            raise PersistentRunError("effects must not contain duplicate effect_id values")
+            raise PersistentRunError(
+                "effects must not contain duplicate effect_id values"
+            )
         object.__setattr__(self, "effects", effects)
         if not isinstance(self.state, RunState):
             object.__setattr__(self, "state", RunState(self.state))
         if not isinstance(self.created_at_ns, int) or self.created_at_ns < 0:
             raise PersistentRunError("created_at_ns must be a non-negative integer")
-        if not isinstance(self.updated_at_ns, int) or self.updated_at_ns < self.created_at_ns:
+        if (
+            not isinstance(self.updated_at_ns, int)
+            or self.updated_at_ns < self.created_at_ns
+        ):
             raise PersistentRunError("updated_at_ns must be >= created_at_ns")
         if self.state is RunState.COMPLETED and not self.can_complete:
-            raise CompletionNotReady("completed runs require receipts and reconciled effects")
+            raise CompletionNotReady(
+                "completed runs require receipts and reconciled effects"
+            )
 
     @classmethod
     def create(
@@ -246,20 +263,28 @@ class PersistentRun:
     def is_terminal(self) -> bool:
         return self.state in _TERMINAL
 
-    def transition(self, state: RunState | str, *, now_ns: int | None = None) -> "PersistentRun":
+    def transition(
+        self, state: RunState | str, *, now_ns: int | None = None
+    ) -> "PersistentRun":
         target = state if isinstance(state, RunState) else RunState(state)
         if target is self.state:
             return self
         if target not in _ALLOWED.get(self.state, frozenset()):
-            raise InvalidRunTransition(f"invalid run transition {self.state.value!r} -> {target.value!r}")
+            raise InvalidRunTransition(
+                f"invalid run transition {self.state.value!r} -> {target.value!r}"
+            )
         if target is RunState.COMPLETED and not self.can_complete:
-            raise CompletionNotReady("completed runs require receipts and reconciled effects")
+            raise CompletionNotReady(
+                "completed runs require receipts and reconciled effects"
+            )
         timestamp = time.time_ns() if now_ns is None else now_ns
         if timestamp < self.updated_at_ns:
             raise PersistentRunError("updated_at_ns must not move backwards")
         return replace(self, state=target, updated_at_ns=timestamp)
 
-    def record_effect(self, effect: RunEffect, *, now_ns: int | None = None) -> "PersistentRun":
+    def record_effect(
+        self, effect: RunEffect, *, now_ns: int | None = None
+    ) -> "PersistentRun":
         if not isinstance(effect, RunEffect):
             raise TypeError("effect must be a RunEffect")
         for index, current in enumerate(self.effects):
@@ -272,19 +297,35 @@ class PersistentRun:
             updated = list(self.effects)
             updated[index] = effect
             timestamp = time.time_ns() if now_ns is None else now_ns
-            return replace(self, effects=tuple(updated), updated_at_ns=max(timestamp, self.updated_at_ns))
+            return replace(
+                self,
+                effects=tuple(updated),
+                updated_at_ns=max(timestamp, self.updated_at_ns),
+            )
         timestamp = time.time_ns() if now_ns is None else now_ns
-        return replace(self, effects=self.effects + (effect,), updated_at_ns=max(timestamp, self.updated_at_ns))
+        return replace(
+            self,
+            effects=self.effects + (effect,),
+            updated_at_ns=max(timestamp, self.updated_at_ns),
+        )
 
-    def add_receipt(self, receipt: str, *, now_ns: int | None = None) -> "PersistentRun":
+    def add_receipt(
+        self, receipt: str, *, now_ns: int | None = None
+    ) -> "PersistentRun":
         receipt = _text(receipt, "receipt")
         if receipt in self.receipts:
             return self
         timestamp = time.time_ns() if now_ns is None else now_ns
-        return replace(self, receipts=self.receipts + (receipt,), updated_at_ns=max(timestamp, self.updated_at_ns))
+        return replace(
+            self,
+            receipts=self.receipts + (receipt,),
+            updated_at_ns=max(timestamp, self.updated_at_ns),
+        )
 
     def content_hash(self) -> str:
-        payload = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        payload = json.dumps(
+            self.to_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
@@ -306,21 +347,36 @@ class PersistentRun:
         }
 
     def to_json(self, *, indent: int | None = None) -> str:
-        return json.dumps(self.to_dict(), sort_keys=True, ensure_ascii=False, indent=indent, separators=None if indent else (",", ":"))
+        return json.dumps(
+            self.to_dict(),
+            sort_keys=True,
+            ensure_ascii=False,
+            indent=indent,
+            separators=None if indent else (",", ":"),
+        )
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PersistentRun":
-        if data.get("schema") != PERSISTENT_RUN_SCHEMA or data.get("schema_version") != PERSISTENT_RUN_SCHEMA_VERSION:
+        if (
+            data.get("schema") != PERSISTENT_RUN_SCHEMA
+            or data.get("schema_version") != PERSISTENT_RUN_SCHEMA_VERSION
+        ):
             raise PersistentRunError("unsupported persistent-run schema")
         return cls(
             run_id=data["run_id"],
             goal_hash=data["goal_hash"],
             phase=data.get("phase", ""),
             step=data.get("step", ""),
-            budgets=tuple((key, value) for key, value in data.get("budgets", {}).items()),
+            budgets=tuple(
+                (key, value) for key, value in data.get("budgets", {}).items()
+            ),
             leases=tuple(data.get("leases", ())),
-            provider_state=tuple((key, value) for key, value in data.get("provider_state", {}).items()),
-            effects=tuple(RunEffect.from_dict(item) for item in data.get("effects", ())),
+            provider_state=tuple(
+                (key, value) for key, value in data.get("provider_state", {}).items()
+            ),
+            effects=tuple(
+                RunEffect.from_dict(item) for item in data.get("effects", ())
+            ),
             receipts=tuple(data.get("receipts", ())),
             state=data.get("state", RunState.PLANNED),
             created_at_ns=int(data.get("created_at_ns", 0)),

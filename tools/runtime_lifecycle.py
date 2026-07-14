@@ -149,46 +149,107 @@ class RuntimeLifecycleController:
             raise TypeError("error must be a string")
 
         if event is LifecycleEvent.START:
-            starting = LifecycleState(LifecyclePhase.STARTING, state.reconnect_attempts, state.generation, "")
+            starting = LifecycleState(
+                LifecyclePhase.STARTING, state.reconnect_attempts, state.generation, ""
+            )
             return self._decision(
-                LifecyclePhase.STARTING, starting, False, None, "startup_requested", protocol_status
+                LifecyclePhase.STARTING,
+                starting,
+                False,
+                None,
+                "startup_requested",
+                protocol_status,
             )
         if event is LifecycleEvent.HEALTHY:
             if protocol_status == "incompatible":
                 return self._decision(
                     LifecyclePhase.FAILED,
-                    LifecycleState(LifecyclePhase.FAILED, state.reconnect_attempts, state.generation, error),
+                    LifecycleState(
+                        LifecyclePhase.FAILED,
+                        state.reconnect_attempts,
+                        state.generation,
+                        error,
+                    ),
                     False,
                     None,
                     "protocol_incompatible",
                     protocol_status,
                 )
             ready = LifecycleState(LifecyclePhase.READY, 0, state.generation, "")
-            return self._decision(LifecyclePhase.READY, ready, False, None, "health_ready", protocol_status)
+            return self._decision(
+                LifecyclePhase.READY,
+                ready,
+                False,
+                None,
+                "health_ready",
+                protocol_status,
+            )
         if event in (LifecycleEvent.UNHEALTHY, LifecycleEvent.DISCONNECTED):
-            return self._retry_or_fail(state, protocol_status, error, "health_unhealthy")
+            return self._retry_or_fail(
+                state, protocol_status, error, "health_unhealthy"
+            )
         if event is LifecycleEvent.RECONNECT_FAILED:
-            return self._retry_or_fail(state, protocol_status, error, "reconnect_failed")
+            return self._retry_or_fail(
+                state, protocol_status, error, "reconnect_failed"
+            )
         if event is LifecycleEvent.RECONNECT_SUCCEEDED:
             ready = LifecycleState(LifecyclePhase.READY, 0, state.generation + 1, "")
-            return self._decision(LifecyclePhase.READY, ready, False, None, "reconnect_succeeded", protocol_status)
+            return self._decision(
+                LifecyclePhase.READY,
+                ready,
+                False,
+                None,
+                "reconnect_succeeded",
+                protocol_status,
+            )
         if event is LifecycleEvent.STOP_REQUESTED:
-            stopping = LifecycleState(LifecyclePhase.STOPPING, state.reconnect_attempts, state.generation, "")
-            return self._decision(LifecyclePhase.STOPPING, stopping, False, None, "stop_requested", protocol_status)
-        stopped = LifecycleState(LifecyclePhase.STOPPED, state.reconnect_attempts, state.generation, "")
-        return self._decision(LifecyclePhase.STOPPED, stopped, False, None, "stopped", protocol_status)
+            stopping = LifecycleState(
+                LifecyclePhase.STOPPING, state.reconnect_attempts, state.generation, ""
+            )
+            return self._decision(
+                LifecyclePhase.STOPPING,
+                stopping,
+                False,
+                None,
+                "stop_requested",
+                protocol_status,
+            )
+        stopped = LifecycleState(
+            LifecyclePhase.STOPPED, state.reconnect_attempts, state.generation, ""
+        )
+        return self._decision(
+            LifecyclePhase.STOPPED, stopped, False, None, "stopped", protocol_status
+        )
 
     def _retry_or_fail(
         self, state: LifecycleState, protocol_status: str, error: str, reason: str
     ) -> LifecycleDecision:
         attempt = state.reconnect_attempts
         if attempt >= self.policy.max_attempts:
-            failed = LifecycleState(LifecyclePhase.FAILED, attempt, state.generation, error)
-            return self._decision(LifecyclePhase.FAILED, failed, False, None, "reconnect_limit_exhausted", protocol_status)
+            failed = LifecycleState(
+                LifecyclePhase.FAILED, attempt, state.generation, error
+            )
+            return self._decision(
+                LifecyclePhase.FAILED,
+                failed,
+                False,
+                None,
+                "reconnect_limit_exhausted",
+                protocol_status,
+            )
         next_attempt = attempt + 1
         delay = self.policy.delays_ms[min(attempt, len(self.policy.delays_ms) - 1)]
-        reconnecting = LifecycleState(LifecyclePhase.RECONNECTING, next_attempt, state.generation, error)
-        return self._decision(LifecyclePhase.RECONNECTING, reconnecting, True, delay, reason, protocol_status)
+        reconnecting = LifecycleState(
+            LifecyclePhase.RECONNECTING, next_attempt, state.generation, error
+        )
+        return self._decision(
+            LifecyclePhase.RECONNECTING,
+            reconnecting,
+            True,
+            delay,
+            reason,
+            protocol_status,
+        )
 
     @staticmethod
     def _decision(
@@ -199,7 +260,9 @@ class RuntimeLifecycleController:
         reason: str,
         protocol_status: str,
     ) -> LifecycleDecision:
-        return LifecycleDecision(phase, state, retry, retry_delay_ms, reason, protocol_status)
+        return LifecycleDecision(
+            phase, state, retry, retry_delay_ms, reason, protocol_status
+        )
 
 
 @dataclass(frozen=True)
@@ -471,14 +534,18 @@ def _repair_plan(reason_code: str, status: RuntimeStatus) -> tuple[str, ...]:
             "run `simplicio-agent doctor --fix` if the managed runtime needs reinstall",
         )
     if reason_code == "blocked_incompatible_runtime":
-        plan = ["run `simplicio-agent doctor --fix` to install or update the pinned runtime"]
+        plan = [
+            "run `simplicio-agent doctor --fix` to install or update the pinned runtime"
+        ]
         if status.source in {"env", "path"}:
             plan.append(
                 "remove or upgrade the user-managed runtime that is winning selection"
             )
         return tuple(plan)
     if reason_code == "runtime_health_not_ready":
-        return ("restart or reconnect the managed runtime process before governed effects",)
+        return (
+            "restart or reconnect the managed runtime process before governed effects",
+        )
     if reason_code == "migrations_not_ready":
         return ("apply runtime migrations before the first governed mutation",)
     if reason_code == "seed_not_ready":

@@ -7,7 +7,14 @@ agent core without pulling heavy dependencies into the per-call path.
 
 from __future__ import annotations
 
-from .working_set import ColdStore, ContextDelta, Handle, WorkingSet, content_address, expand
+from .working_set import (
+    ColdStore,
+    ContextDelta,
+    Handle,
+    WorkingSet,
+    content_address,
+    expand,
+)
 from .retrieval import TfidfScorer
 from .token_cache import CacheReceipt, TokenCache
 from .incremental import IncrementalPipeline

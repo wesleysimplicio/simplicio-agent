@@ -85,7 +85,9 @@ class ActionRequest:
     mutating: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "action_digest", _text(self.action_digest, "action_digest"))
+        object.__setattr__(
+            self, "action_digest", _text(self.action_digest, "action_digest")
+        )
         object.__setattr__(self, "goal_hash", _text(self.goal_hash, "goal_hash"))
         object.__setattr__(self, "scope", _text(self.scope, "scope"))
         if not isinstance(self.risk, ActionRisk):
@@ -106,12 +108,20 @@ class ApprovalGrant:
     approved_by: str = "human"
 
     def __post_init__(self) -> None:
-        for field in ("action_digest", "goal_hash", "scope", "policy_version", "approved_by"):
+        for field in (
+            "action_digest",
+            "goal_hash",
+            "scope",
+            "policy_version",
+            "approved_by",
+        ):
             object.__setattr__(self, field, _text(getattr(self, field), field))
         if not isinstance(self.expires_at_ns, int) or self.expires_at_ns <= 0:
             raise AutonomyPolicyError("expires_at_ns must be a positive integer")
 
-    def valid_for(self, action: ActionRequest, *, policy_version: str, now_ns: int) -> bool:
+    def valid_for(
+        self, action: ActionRequest, *, policy_version: str, now_ns: int
+    ) -> bool:
         return (
             now_ns <= self.expires_at_ns
             and self.policy_version == policy_version
@@ -168,40 +178,106 @@ class AutonomyPolicy:
     def __post_init__(self) -> None:
         if not isinstance(self.level, AutonomyLevel):
             object.__setattr__(self, "level", AutonomyLevel(self.level))
-        object.__setattr__(self, "profile_scope", _text(self.profile_scope, "profile_scope"))
-        object.__setattr__(self, "policy_version", _text(self.policy_version, "policy_version"))
-        risks = tuple(risk if isinstance(risk, ActionRisk) else ActionRisk(risk) for risk in self.allowed_risks)
-        gates = tuple(risk if isinstance(risk, ActionRisk) else ActionRisk(risk) for risk in self.human_gated_risks)
+        object.__setattr__(
+            self, "profile_scope", _text(self.profile_scope, "profile_scope")
+        )
+        object.__setattr__(
+            self, "policy_version", _text(self.policy_version, "policy_version")
+        )
+        risks = tuple(
+            risk if isinstance(risk, ActionRisk) else ActionRisk(risk)
+            for risk in self.allowed_risks
+        )
+        gates = tuple(
+            risk if isinstance(risk, ActionRisk) else ActionRisk(risk)
+            for risk in self.human_gated_risks
+        )
         if len(set(risks)) != len(risks) or len(set(gates)) != len(gates):
             raise AutonomyPolicyError("risk lists must not contain duplicates")
         object.__setattr__(self, "allowed_risks", risks)
         object.__setattr__(self, "human_gated_risks", gates)
         if not isinstance(self.killswitch, bool):
             raise TypeError("killswitch must be a boolean")
-        approvals = tuple(item if isinstance(item, ApprovalGrant) else ApprovalGrant.from_dict(item) for item in self.approvals)
+        approvals = tuple(
+            item if isinstance(item, ApprovalGrant) else ApprovalGrant.from_dict(item)
+            for item in self.approvals
+        )
         if len({item.action_digest for item in approvals}) != len(approvals):
-            raise AutonomyPolicyError("approvals must not contain duplicate action digests")
+            raise AutonomyPolicyError(
+                "approvals must not contain duplicate action digests"
+            )
         object.__setattr__(self, "approvals", approvals)
 
     def with_killswitch(self, active: bool = True) -> "AutonomyPolicy":
         return replace(self, killswitch=active)
 
-    def decide(self, action: ActionRequest, *, now_ns: int, approval: ApprovalGrant | None = None) -> PolicyDecision:
+    def decide(
+        self,
+        action: ActionRequest,
+        *,
+        now_ns: int,
+        approval: ApprovalGrant | None = None,
+    ) -> PolicyDecision:
         if self.killswitch:
-            return PolicyDecision(PolicyDecisionKind.DENY, PolicyReason.KILLSWITCH_ACTIVE, action.action_digest, self.policy_version)
+            return PolicyDecision(
+                PolicyDecisionKind.DENY,
+                PolicyReason.KILLSWITCH_ACTIVE,
+                action.action_digest,
+                self.policy_version,
+            )
         if action.risk not in self.allowed_risks:
-            return PolicyDecision(PolicyDecisionKind.DENY, PolicyReason.RISK_NOT_ALLOWED, action.action_digest, self.policy_version)
-        if approval is not None and approval.valid_for(action, policy_version=self.policy_version, now_ns=now_ns):
-            return PolicyDecision(PolicyDecisionKind.ALLOW, PolicyReason.APPROVAL_ACCEPTED, action.action_digest, self.policy_version, True)
+            return PolicyDecision(
+                PolicyDecisionKind.DENY,
+                PolicyReason.RISK_NOT_ALLOWED,
+                action.action_digest,
+                self.policy_version,
+            )
+        if approval is not None and approval.valid_for(
+            action, policy_version=self.policy_version, now_ns=now_ns
+        ):
+            return PolicyDecision(
+                PolicyDecisionKind.ALLOW,
+                PolicyReason.APPROVAL_ACCEPTED,
+                action.action_digest,
+                self.policy_version,
+                True,
+            )
         if self.level is AutonomyLevel.L0_CONVERSATION:
-            return PolicyDecision(PolicyDecisionKind.DENY, PolicyReason.CONVERSATION_ONLY, action.action_digest, self.policy_version)
+            return PolicyDecision(
+                PolicyDecisionKind.DENY,
+                PolicyReason.CONVERSATION_ONLY,
+                action.action_digest,
+                self.policy_version,
+            )
         if self.level is AutonomyLevel.L1_SUGGEST:
-            return PolicyDecision(PolicyDecisionKind.ASK, PolicyReason.SUPERVISION_REQUIRED, action.action_digest, self.policy_version)
-        if self.level is AutonomyLevel.L2_SUPERVISED and (action.mutating or action.risk is not ActionRisk.READ):
-            return PolicyDecision(PolicyDecisionKind.ASK, PolicyReason.SUPERVISION_REQUIRED, action.action_digest, self.policy_version)
+            return PolicyDecision(
+                PolicyDecisionKind.ASK,
+                PolicyReason.SUPERVISION_REQUIRED,
+                action.action_digest,
+                self.policy_version,
+            )
+        if self.level is AutonomyLevel.L2_SUPERVISED and (
+            action.mutating or action.risk is not ActionRisk.READ
+        ):
+            return PolicyDecision(
+                PolicyDecisionKind.ASK,
+                PolicyReason.SUPERVISION_REQUIRED,
+                action.action_digest,
+                self.policy_version,
+            )
         if action.risk in self.human_gated_risks:
-            return PolicyDecision(PolicyDecisionKind.ASK, PolicyReason.HUMAN_GATE_REQUIRED, action.action_digest, self.policy_version)
-        return PolicyDecision(PolicyDecisionKind.ALLOW, PolicyReason.ALLOWED, action.action_digest, self.policy_version)
+            return PolicyDecision(
+                PolicyDecisionKind.ASK,
+                PolicyReason.HUMAN_GATE_REQUIRED,
+                action.action_digest,
+                self.policy_version,
+            )
+        return PolicyDecision(
+            PolicyDecisionKind.ALLOW,
+            PolicyReason.ALLOWED,
+            action.action_digest,
+            self.policy_version,
+        )
 
     def explain(self) -> dict[str, Any]:
         return {
@@ -215,7 +291,9 @@ class AutonomyPolicy:
         }
 
     def to_json(self, *, indent: int | None = None) -> str:
-        return json.dumps(self.explain(), sort_keys=True, ensure_ascii=False, indent=indent)
+        return json.dumps(
+            self.explain(), sort_keys=True, ensure_ascii=False, indent=indent
+        )
 
 
 __all__ = [
