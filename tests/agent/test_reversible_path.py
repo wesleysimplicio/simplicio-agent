@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from agent import reversible_path
 from agent.reversible_path import (
     BASELINE_CONTENT,
     FINAL_CONTENT,
@@ -36,6 +37,23 @@ class FakeTransport:
 
 def _manager(root: Path) -> CheckpointManager:
     return CheckpointManager(enabled=True, checkpoint_base=root / ".checkpoints")
+
+
+class _CheckpointDouble:
+    def __init__(self, *, restore_success=True):
+        self.restore_success = restore_success
+
+    def new_turn(self):
+        return None
+
+    def ensure_checkpoint(self, working_dir, reason):
+        return True
+
+    def list_checkpoints(self, working_dir):
+        return [{"hash": "a" * 40, "short_hash": "aaaaaaa"}]
+
+    def restore(self, working_dir, commit_hash, file_path):
+        return {"success": self.restore_success}
 
 
 def test_local_reversible_path_proves_after_and_undo(tmp_path):
@@ -105,3 +123,37 @@ def test_runtime_confirmation_is_not_treated_as_allow(tmp_path):
     assert result.status == "blocked"
     assert result.availability["runtime"]["available"] is False
     assert result.before["content"] == BASELINE_CONTENT
+
+
+def test_failed_observation_is_blocked_without_verified_completion(tmp_path, monkeypatch):
+    prepare_reversible_workspace(tmp_path)
+    original_write_text = Path.write_text
+
+    def write_wrong_content(path, data, *args, **kwargs):
+        if data == FINAL_CONTENT:
+            data = "# unexpected observation\n"
+        return original_write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(reversible_path.Path, "write_text", write_wrong_content)
+    result = run_local_reversible_path(
+        tmp_path,
+        transport=FakeTransport(),
+        checkpoint_manager=_CheckpointDouble(),
+    )
+
+    assert result.status == "blocked"
+    assert "observation failed" in result.goal["facts"][-1]["text"]
+    assert result.delivery_certificate["status"] == "blocked"
+
+
+def test_failed_restore_is_blocked_without_verified_completion(tmp_path):
+    prepare_reversible_workspace(tmp_path)
+    result = run_local_reversible_path(
+        tmp_path,
+        transport=FakeTransport(),
+        checkpoint_manager=_CheckpointDouble(restore_success=False),
+    )
+
+    assert result.status == "blocked"
+    assert "restore failed" in result.goal["facts"][-1]["text"]
+    assert result.delivery_certificate["status"] == "blocked"
