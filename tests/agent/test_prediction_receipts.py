@@ -5,6 +5,7 @@ import json
 import pytest
 
 from agent.prediction_receipts import (
+    ConfidenceCalibration,
     Counterfactual,
     CounterfactualKind,
     HardPolicyConstraint,
@@ -140,6 +141,43 @@ def test_unknown_and_error_never_become_mismatches() -> None:
     assert error.prediction_error.state is ObservationState.ERROR
     assert error.reconciliation is ReconciliationDecision.ESCALATE
     assert error.next_strategy_fingerprint != error.strategy_fingerprint
+
+
+def test_confidence_calibration_stays_explicitly_unknown_without_measurement() -> None:
+    pending = _receipt().confidence_calibration()
+    unresolved = _receipt().assess(()).confidence_calibration()
+
+    for calibration in (pending, unresolved):
+        assert isinstance(calibration, ConfidenceCalibration)
+        assert calibration.state is ObservationState.UNKNOWN
+        assert calibration.observed_accuracy is None
+        assert calibration.absolute_residual is None
+        assert calibration.reason
+        assert calibration.to_dict()["state"] == ObservationState.UNKNOWN.value
+        assert calibration.to_dict()["observed_accuracy"] is None
+        assert calibration.to_dict()["absolute_residual"] is None
+
+
+def test_confidence_calibration_uses_only_measured_prediction_error() -> None:
+    matched = _receipt(confidence=0.8).assess((Observation.known("balance", 10),))
+    mismatched = _receipt(confidence=0.8).assess((Observation.known("balance", 0),))
+    verifier_error = _receipt(confidence=0.8).assess((
+        Observation.error("balance", "verifier crashed"),
+    ))
+
+    match_calibration = matched.confidence_calibration()
+    mismatch_calibration = mismatched.confidence_calibration()
+    error_calibration = verifier_error.confidence_calibration()
+
+    assert match_calibration.state is ObservationState.KNOWN
+    assert match_calibration.observed_accuracy == 1.0
+    assert match_calibration.absolute_residual == pytest.approx(0.2)
+    assert mismatch_calibration.state is ObservationState.KNOWN
+    assert mismatch_calibration.observed_accuracy == 0.0
+    assert mismatch_calibration.absolute_residual == pytest.approx(0.8)
+    assert error_calibration.state is ObservationState.ERROR
+    assert error_calibration.observed_accuracy is None
+    assert error_calibration.absolute_residual is None
 
 
 def test_ambiguous_timeout_requires_effect_journal_reconciliation() -> None:

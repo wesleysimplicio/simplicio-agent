@@ -290,6 +290,58 @@ class PredictionError:
 
 
 @dataclass(frozen=True)
+class ConfidenceCalibration:
+    """Per-receipt confidence result without claiming aggregate calibration."""
+
+    state: ObservationState
+    predicted_confidence: float
+    observed_accuracy: float | None = None
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        state = ObservationState(self.state)
+        object.__setattr__(self, "state", state)
+        predicted_confidence = float(self.predicted_confidence)
+        if (
+            not math.isfinite(predicted_confidence)
+            or not 0 <= predicted_confidence <= 1
+        ):
+            raise ValueError("predicted confidence must be between 0 and 1")
+        object.__setattr__(self, "predicted_confidence", predicted_confidence)
+
+        if state is ObservationState.KNOWN:
+            if self.observed_accuracy is None:
+                raise ValueError("known calibration requires observed accuracy")
+            observed_accuracy = float(self.observed_accuracy)
+            if not math.isfinite(observed_accuracy) or not 0 <= observed_accuracy <= 1:
+                raise ValueError("observed accuracy must be between 0 and 1")
+            if self.reason:
+                raise ValueError("known calibration cannot carry a reason")
+            object.__setattr__(self, "observed_accuracy", observed_accuracy)
+        elif self.observed_accuracy is not None or not self.reason.strip():
+            raise ValueError(
+                f"{state.value} calibration requires a reason and no observed accuracy"
+            )
+
+    @property
+    def absolute_residual(self) -> float | None:
+        """Return the bounded per-receipt residual when an outcome was measured."""
+
+        if self.observed_accuracy is None:
+            return None
+        return abs(self.predicted_confidence - self.observed_accuracy)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "state": self.state.value,
+            "predicted_confidence": self.predicted_confidence,
+            "observed_accuracy": self.observed_accuracy,
+            "absolute_residual": self.absolute_residual,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
 class Observation:
     """One named, JSON-serializable effect observation."""
 
@@ -697,6 +749,22 @@ class PredictionReceipt:
     def from_json(cls, text: str) -> "PredictionReceipt":
         return cls.from_dict(json.loads(text))
 
+    def confidence_calibration(self) -> ConfidenceCalibration:
+        """Derive a per-receipt confidence result from assessed evidence only."""
+
+        if self.prediction_error.state is ObservationState.KNOWN:
+            assert self.prediction_error.rate is not None
+            return ConfidenceCalibration(
+                state=ObservationState.KNOWN,
+                predicted_confidence=self.confidence,
+                observed_accuracy=1.0 - self.prediction_error.rate,
+            )
+        return ConfidenceCalibration(
+            state=self.prediction_error.state,
+            predicted_confidence=self.confidence,
+            reason=self.prediction_error.reason,
+        )
+
     def assess(
         self,
         observations: Iterable[Observation | Mapping[str, Any]],
@@ -840,6 +908,7 @@ __all__ = [
     "ReconciliationDecision",
     "CounterfactualKind",
     "PreconditionKind",
+    "ConfidenceCalibration",
     "PredictionError",
     "Precondition",
     "Verifier",

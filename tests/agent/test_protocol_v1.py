@@ -7,6 +7,7 @@ import json
 import pytest
 
 from agent.protocol_v1 import (
+    CausalEventSummary,
     ControlCommand,
     DuplicateEventError,
     Envelope,
@@ -427,6 +428,45 @@ def test_run_event_stream_cursor_returns_only_unconfirmed_tail():
     stream.replay([first, second])
 
     assert stream.events_after(ReplayCursor("run-1", 1, first.event_id)) == (second,)
+
+
+def test_run_event_stream_coarse_graining_is_bounded_causal_and_reversible():
+    stream = RunEventStream(context=_context())
+    events = []
+    causal_parent = "external-trigger"
+    for sequence in range(1, 65):
+        event = _run_event(
+            sequence,
+            causal_parent=causal_parent,
+            payload=SecretSafePayload.inline({"blob": "x" * 4096, "seq": sequence}),
+        )
+        stream.append(event)
+        events.append(event)
+        causal_parent = event.event_id
+
+    summary = stream.coarse_grain(max_context_bytes=1024)
+    encoded = json.dumps(summary.to_dict(), sort_keys=True, separators=(",", ":"))
+    restored = CausalEventSummary.from_dict(json.loads(encoded))
+
+    assert len(encoded.encode("utf-8")) <= 1024
+    assert "blob" not in encoded
+    assert summary.event_count == len(events)
+    assert summary.causal_parent == "external-trigger"
+    assert summary.first_event_id == events[0].event_id
+    assert summary.last_event_id == events[-1].event_id
+    assert stream.expand_causal_summary(restored) == tuple(events)
+    assert [event.causal_parent for event in stream.expand_causal_summary(restored)] == [
+        "external-trigger",
+        *(event.event_id for event in events[:-1]),
+    ]
+
+    with pytest.raises(ValueError, match="exceeds context budget"):
+        stream.coarse_grain(max_context_bytes=summary.context_size_bytes - 1)
+
+    tampered = summary.to_dict()
+    tampered["causal_digest"] = "0" * 64
+    with pytest.raises(ValueError, match="does not match the event stream"):
+        stream.expand_causal_summary(CausalEventSummary.from_dict(tampered))
 
 
 def test_run_event_stream_rejects_tool_goal_hash_mutation():

@@ -21,5 +21,9 @@ content-addressed receipts ledger. Counterfactuals are declarative and reject
 any execution mode other than `model_only`. Non-match outcomes emit a
 deterministic `failure_fingerprint` plus a changed
 `next_strategy_fingerprint`, so repeated equivalent failures can be recognized
-without claiming that calibration or end-to-end idempotence is already proven
-in this layer.
+without claiming that end-to-end idempotence is already proven in this layer.
+`confidence_calibration()` exposes one bounded confidence result per receipt:
+measured outcomes carry observed accuracy and an absolute residual, while
+pending, unresolved, and verifier-error outcomes carry an explicit state and
+reason with no fabricated numeric result. This per-receipt residual is input to
+aggregate calibration analysis, not a claim that the model is calibrated.
