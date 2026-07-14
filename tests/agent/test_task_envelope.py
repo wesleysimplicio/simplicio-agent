@@ -63,6 +63,27 @@ def test_wrong_schema_id_is_rejected():
         TaskEnvelope.from_dict(data)
 
 
+def test_invalid_receipt_and_evidence_refs_fail_closed():
+    env = _make()
+    with pytest.raises(ValueError, match="non-empty strings"):
+        env.transition(TaskState.ORIENTED, receipts=[""])
+    data = env.to_dict()
+    data["evidence_refs"] = ["ok", "ok"]
+    with pytest.raises(ValueError, match="must not contain duplicates"):
+        TaskEnvelope.from_dict(data)
+
+
+def test_blocked_requires_a_reason_and_time_cannot_move_backwards():
+    env = _make(now_ns=10)
+    with pytest.raises(ValueError, match="block_reason"):
+        env.transition(TaskState.BLOCKED)
+    with pytest.raises(ValueError, match="updated_at_ns"):
+        env.transition(TaskState.ORIENTED, now_ns=9)
+    progressed = env.transition(TaskState.ORIENTED, now_ns=11)
+    with pytest.raises(ValueError, match="prior value"):
+        progressed.transition(TaskState.PLANNED, now_ns=10)
+
+
 def test_transition_accepts_wire_state_value_and_rejects_unknown_state():
     env = _make().transition("oriented")
     assert env.state is TaskState.ORIENTED

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agent.protocol_v1 import Emitter, LifecycleEvent
-from agent.task_envelope import TaskEnvelope, TaskState
+from agent.task_envelope import InvalidTransitionError, TaskEnvelope, TaskState
 from agent.task_envelope_bridge import emit_for_transition
 
 
@@ -67,6 +67,54 @@ def test_mismatched_task_id_is_rejected():
 
     with pytest.raises(ValueError):
         emit_for_transition(a, b, emitter, turn_id="t1")
+
+
+def test_bridge_rejects_forged_jump_even_when_task_id_matches():
+    envelope = _new_envelope()
+    forged = envelope.transition(TaskState.ORIENTED).transition(TaskState.PLANNED)
+    # A caller must emit each committed transition in order; passing a later
+    # snapshot directly must not bypass the state machine.
+    with pytest.raises(InvalidTransitionError):
+        emit_for_transition(envelope, forged, Emitter(session_id="s1"), turn_id="t1")
+
+
+def test_bridge_rejects_same_state_metadata_changes_instead_of_silently_nooping():
+    envelope = _new_envelope()
+    forged = envelope.transition(TaskState.ORIENTED)
+    # Same-state replay is only idempotent when it is the exact same envelope.
+    forged = TaskEnvelope.from_dict({
+        **forged.to_dict(),
+        "receipts": ["receipt://forged"],
+    })
+    with pytest.raises(ValueError, match="same-state transition"):
+        emit_for_transition(
+            envelope.transition(TaskState.ORIENTED),
+            forged,
+            Emitter(session_id="s1"),
+            turn_id="t1",
+        )
+
+
+def test_bridge_rejects_lineage_changes_on_an_otherwise_legal_transition():
+    before = _new_envelope()
+    after = before.transition(TaskState.ORIENTED)
+    forged = TaskEnvelope.from_dict({**after.to_dict(), "scope": "other-task"})
+
+    with pytest.raises(ValueError, match="lineage mismatch"):
+        emit_for_transition(before, forged, Emitter(session_id="s1"), turn_id="t1")
+
+
+def test_bridge_rejects_forged_receipt_removal_and_attempt_count():
+    before = _new_envelope().transition(TaskState.ORIENTED)
+    before = before.transition(TaskState.PLANNED, receipts=["receipt://plan"])
+    after = TaskEnvelope.from_dict({
+        **before.to_dict(),
+        "state": TaskState.CLAIMED.value,
+        "receipts": [],
+    })
+
+    with pytest.raises(ValueError, match="receipts cannot be removed"):
+        emit_for_transition(before, after, Emitter(session_id="s1"), turn_id="t1")
 
 
 def test_failed_and_quarantined_both_map_to_failed_lifecycle_event():
