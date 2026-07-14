@@ -39,36 +39,35 @@ TTFT of a paid model is already on par with Hermes (~585 ms measured 2026-07-11)
 because streaming + warm daemon cover first-token latency; the remaining work
 targets per-turn token cost, not TTFT.
 
-Two names, one rule for keeping them straight (updated 2026-07-08, user
-decision — supersedes the earlier "hermes stays the primary command" wording):
+## Identity migration — standing decision (2026-07-13)
 
-- **User-facing surfaces are "Simplicio Agent" and the canonical command is
-  `simplicio-agent`** — CLI banners, MCP server name, docs, install output,
-  error/billing messages, desktop app, and every in-product hint that tells
-  the user to run a command (`simplicio-agent doctor`, not `hermes doctor`).
-  `hermes`, `hermes-agent`, and `hermes-acp` remain working **deprecated
-  aliases**: invoking them prints a once-per-day nudge toward
-  `simplicio-agent` (see `_warn_deprecated_alias_once` in
-  `hermes_cli/main.py` and `cli_name()` in `hermes_constants.py`).
-- **Internal code stays Hermes** — never rename variables, functions, config
-  keys, module paths, or the `HERMES_*` env prefix (see
-  `hermes_cli/default_soul.py`). The runtime reads 100+ `HERMES_*` vars; the
-  prefix is a cross-repo contract, not branding. `SIMPLICIO_AGENT_*` names
-  are accepted as canonical aliases where a dual read exists (e.g.
-  `SIMPLICIO_AGENT_HOME` → `HERMES_HOME`).
+The former policy that preserved internal upstream names is revoked. The target
+state is a native Simplicio Agent codebase with no legacy identity in variables,
+functions, classes, modules, package names, environment variables, commands,
+schemas, directories, messages, telemetry, or distributed artifacts.
 
-"Não expor código" means shipping the composed product (binary/thin-client)
-without the source tree, and not leaking internals through user-facing
-surfaces — not renaming internals.
+Canonical identity:
 
-## What Hermes Is
+- product: `Simplicio Agent`;
+- CLI and distribution: `simplicio-agent`;
+- Python namespace: `simplicio_agent`;
+- agent environment: `SIMPLICIO_AGENT_*`;
+- state root: `~/.simplicio/agent`;
+- protocols and schemas: `simplicio.agent.*`;
+- compiled execution kernel: `simplicio`.
 
-Hermes is a personal AI agent that runs the same agent core across a CLI, a
-messaging gateway (Telegram, Discord, Slack, and ~20 other platforms), a TUI,
-and an Electron desktop app. It learns across sessions (memory + skills),
-delegates to subagents, runs scheduled jobs, and drives a real terminal and
-browser. It is extended primarily through **plugins and skills**, not by
-growing the core.
+Migration is incremental, not a blind replace-all. Each slice freezes observable
+behavior, adds a canonical path, shadow-runs or dual-reads where necessary,
+promotes atomically after equivalence gates, and removes the legacy path only
+after consumer search plus rollback evidence. Temporary aliases live only in an
+isolated compatibility bridge with an owner, expiry, telemetry, and deletion
+issue; no business logic may diverge into that bridge.
+
+The authoritative future architecture and safe self-mutation protocol are in
+`docs/architecture/ADR-0023-simplicio-native-inside-out.md`. New code must use
+canonical Simplicio names immediately. Existing legacy names are migration debt
+and must not be cited as a reason to introduce more. Legal attribution, when
+required, is isolated from product identity and runtime namespaces.
 
 ## Tool routing
 
