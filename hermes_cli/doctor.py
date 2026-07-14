@@ -209,6 +209,30 @@ def check_info(text: str):
     print(f"    {color('→', Colors.CYAN)} {text}")
 
 
+def _report_bootstrap_transaction(status) -> None:
+    """Project Runtime bootstrap status without performing a mutation."""
+    if status.ready:
+        check_ok(
+            "bootstrap transaction ready",
+            f"(transaction {status.transaction_id or 'unknown'})",
+        )
+    elif status.reason_code == "bootstrap_not_started":
+        check_info(
+            "bootstrap transaction not started",
+            "(Runtime owns plan/apply/rollback)",
+        )
+    elif status.reason_code == "runtime_not_ready":
+        check_info(
+            "bootstrap transaction not checked",
+            "(Runtime readiness is required first)",
+        )
+    else:
+        check_warn(
+            "bootstrap transaction not ready",
+            f"({status.reason_code})",
+        )
+
+
 def _section(title: str) -> None:
     """Print a doctor section banner: blank line + bold cyan ◆ title."""
     print()
@@ -1878,6 +1902,9 @@ def run_doctor(args):
             ensure_runtime,
             sync_canonical_symlink,
         )
+        from tools.bootstrap_transaction_client import (
+            read_bootstrap_transaction_status,
+        )
 
         _rt = ensure_runtime(install=should_fix)
         _rt_where = f"{_rt.bin_path} [{_rt.source}]" if _rt.bin_path else ""
@@ -1908,6 +1935,9 @@ def run_doctor(args):
             )
             if _rt.detail:
                 check_info(_rt.detail)
+
+        _bootstrap = read_bootstrap_transaction_status(runtime=_rt)
+        _report_bootstrap_transaction(_bootstrap)
 
         # Canonical PATH shim (issue #96): the fixed, documented location
         # (~/.local/bin/simplicio) that shell scripts and humans use is a
