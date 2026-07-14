@@ -80,3 +80,11 @@ def test_l0_and_disallowed_risk_fail_closed():
         restricted.decide(_action(ActionRisk.INSTALL), now_ns=1).reason
         is PolicyReason.RISK_NOT_ALLOWED
     )
+
+
+def test_policy_decision_receipt_has_stable_content_hash():
+    decision = AutonomyPolicy(level=AutonomyLevel.L3_GOAL_SCOPED).decide(
+        _action(), now_ns=1
+    )
+    assert len(decision.content_hash()) == 64
+    assert decision.content_hash() == decision.content_hash()
