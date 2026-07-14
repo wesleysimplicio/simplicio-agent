@@ -35,7 +35,9 @@ def collect_receipt(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     root = repo_root.resolve()
     source = root / SOURCE_PATH
     source_exists = source.is_file()
-    source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest() if source_exists else ""
+    source_sha256 = (
+        hashlib.sha256(source.read_bytes()).hexdigest() if source_exists else ""
+    )
     stages: dict[str, dict[str, Any]] = {
         "SOURCE": {
             "status": "pass" if source_exists else "fail",
@@ -82,14 +84,12 @@ def collect_receipt(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     }
     if loaded_from_source and module is not None:
         try:
-            broker = module.CapabilityBroker(
-                [
-                    {
-                        "type": "function",
-                        "function": {"name": "act", "description": "receipt probe"},
-                    }
-                ]
-            )
+            broker = module.CapabilityBroker([
+                {
+                    "type": "function",
+                    "function": {"name": "act", "description": "receipt probe"},
+                }
+            ])
             schema, expansion = broker.expand_with_receipt("act")
             repeated = broker.expand_with_receipt("act")[1]
             called = bool(
@@ -98,12 +98,10 @@ def collect_receipt(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                 and expansion == repeated
                 and expansion.schema_sha256
             )
-            call_evidence.update(
-                {
-                    "schema_sha256": expansion.schema_sha256,
-                    "cache_stable": expansion.cache_stable,
-                }
-            )
+            call_evidence.update({
+                "schema_sha256": expansion.schema_sha256,
+                "cache_stable": expansion.cache_stable,
+            })
         except Exception as exc:  # pragma: no cover - defensive CLI receipt
             call_evidence["error"] = type(exc).__name__
     stages["CALLED"] = {
@@ -119,7 +117,10 @@ def collect_receipt(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "schema": SCHEMA,
         "optimization": "prompt-microkernel",
         "scope": ["SOURCE", "LOADED", "CALLED"],
-        "ok": all(stages[stage]["status"] == "pass" for stage in ("SOURCE", "LOADED", "CALLED")),
+        "ok": all(
+            stages[stage]["status"] == "pass"
+            for stage in ("SOURCE", "LOADED", "CALLED")
+        ),
         "stages": stages,
     }
 
