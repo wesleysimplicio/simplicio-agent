@@ -56,3 +56,23 @@ The contract deliberately does not own planning, state persistence,
 reconciliation storage, resource governance, or execution. Those remain with
 the existing goal contract, awareness work, resource governor, and Runtime
 action gate.
+
+## Bounded horizon validation and rollback intent
+
+Issue #174 adds one receding-horizon boundary without introducing a planner or
+an execution loop. `HorizonPlan` carries a state anchor and a policy-bounded
+sequence of predicted `HorizonStep` values. Each step declares its expected
+state digest and the rollback action digest that remains owned by the caller.
+
+`ClosedLoopController.validate_horizon()` first checks that the plan remains
+attached to the observed anchor, then evaluates only the leading step:
+
+- a matching committed action and observed state returns `validated`, records
+  exactly one validated step, and requires replanning before another action;
+- any uncommitted divergence or over-limit horizon returns `rejected`;
+- a committed anchor, action, or state divergence (and a committed over-limit
+  horizon) returns `rollback_required` with the leading step's rollback intent.
+
+The controller does not execute the rollback, continue through the remaining
+horizon, or claim that restoration succeeded. Live planning, execution,
+observation, and rollback evidence remain outside this bounded contract.

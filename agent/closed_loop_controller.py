@@ -9,7 +9,9 @@ action gate.
 Missing, stale, conflicting, or otherwise insufficient state fails closed to
 observe/wait/clarify/block outcomes.  A committed-but-unverified effect wins
 over retrying the same action, and repeated failure fingerprints can suppress
-oscillating retries until a different strategy is chosen.
+oscillating retries until a different strategy is chosen.  The optional
+horizon contract validates only the leading predicted step, requires replanning
+after a match, and emits a caller-owned rollback intent after divergence.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from typing import Iterable
 
 
 CONTROLLER_SCHEMA_VERSION = "simplicio.closed-loop-controller/v1"
+HORIZON_SCHEMA_VERSION = "simplicio.closed-loop-horizon/v1"
 
 
 class DecisionKind(str, Enum):
@@ -76,6 +79,21 @@ class ConstraintStatus(str, Enum):
     REQUIRES_CLARIFY = "requires_clarify"
     WAITING = "waiting"
     SUPPRESSED = "suppressed"
+
+
+class HorizonValidationStatus(str, Enum):
+    VALIDATED = "validated"
+    REJECTED = "rejected"
+    ROLLBACK_REQUIRED = "rollback_required"
+
+
+class HorizonValidationReason(str, Enum):
+    LEADING_STEP_MATCHED = "leading_step_matched"
+    ANCHOR_STATE_DIVERGED = "anchor_state_diverged"
+    HORIZON_LIMIT_EXCEEDED = "horizon_limit_exceeded"
+    EXECUTED_ACTION_DIVERGED = "executed_action_diverged"
+    OBSERVED_STATE_DIVERGED = "observed_state_diverged"
+    EFFECT_NOT_COMMITTED = "effect_not_committed"
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -283,6 +301,144 @@ class ActionCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class HorizonStep:
+    """One predicted action boundary and its caller-owned rollback intent."""
+
+    action_digest: str
+    expected_state_digest: str
+    rollback_action_digest: str
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "action_digest",
+            "expected_state_digest",
+            "rollback_action_digest",
+        ):
+            object.__setattr__(
+                self, field_name, _require_text(getattr(self, field_name), field_name)
+            )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "action_digest": self.action_digest,
+            "expected_state_digest": self.expected_state_digest,
+            "rollback_action_digest": self.rollback_action_digest,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class HorizonPlan:
+    """A bounded prediction horizon; only its leading step may be validated."""
+
+    anchor_state_digest: str
+    steps: tuple[HorizonStep, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "anchor_state_digest",
+            _require_text(self.anchor_state_digest, "anchor_state_digest"),
+        )
+        object.__setattr__(self, "steps", tuple(self.steps))
+        if not self.steps:
+            raise ValueError("steps must contain at least one horizon step")
+        if not all(isinstance(step, HorizonStep) for step in self.steps):
+            raise TypeError("steps must contain only HorizonStep values")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "anchor_state_digest": self.anchor_state_digest,
+            "steps": [step.to_dict() for step in self.steps],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class HorizonValidationReceipt:
+    """Validation or rollback intent for the leading observation boundary."""
+
+    status: HorizonValidationStatus
+    reason: HorizonValidationReason
+    anchor_state_digest: str
+    observed_anchor_state_digest: str
+    executed_action_digest: str
+    expected_state_digest: str
+    observed_state_digest: str
+    rollback_action_digest: str
+    horizon_steps: int
+    validated_steps: int
+    effect_committed: bool
+    replan_required: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.status, HorizonValidationStatus):
+            object.__setattr__(self, "status", HorizonValidationStatus(self.status))
+        if not isinstance(self.reason, HorizonValidationReason):
+            object.__setattr__(self, "reason", HorizonValidationReason(self.reason))
+        for field_name in (
+            "anchor_state_digest",
+            "observed_anchor_state_digest",
+            "executed_action_digest",
+            "expected_state_digest",
+            "observed_state_digest",
+            "rollback_action_digest",
+        ):
+            object.__setattr__(
+                self, field_name, _require_text(getattr(self, field_name), field_name)
+            )
+        if not isinstance(self.horizon_steps, int) or isinstance(
+            self.horizon_steps, bool
+        ):
+            raise TypeError("horizon_steps must be an integer")
+        if self.horizon_steps < 1:
+            raise ValueError("horizon_steps must be positive")
+        if not isinstance(self.validated_steps, int) or isinstance(
+            self.validated_steps, bool
+        ):
+            raise TypeError("validated_steps must be an integer")
+        if self.validated_steps not in (0, 1):
+            raise ValueError("validated_steps must be zero or one")
+        if not isinstance(self.effect_committed, bool):
+            raise TypeError("effect_committed must be boolean")
+        if not isinstance(self.replan_required, bool):
+            raise TypeError("replan_required must be boolean")
+        validated = self.status is HorizonValidationStatus.VALIDATED
+        if (
+            self.validated_steps != int(validated)
+            or self.replan_required is not validated
+        ):
+            raise ValueError(
+                "validated status must record one step and require replanning"
+            )
+        if (
+            validated != self.effect_committed
+            and self.status is not HorizonValidationStatus.ROLLBACK_REQUIRED
+        ):
+            raise ValueError("receipt status must agree with committed effect state")
+        if (
+            self.status is HorizonValidationStatus.ROLLBACK_REQUIRED
+            and not self.effect_committed
+        ):
+            raise ValueError("rollback_required needs a committed effect")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": HORIZON_SCHEMA_VERSION,
+            "status": self.status.value,
+            "reason": self.reason.value,
+            "anchor_state_digest": self.anchor_state_digest,
+            "observed_anchor_state_digest": self.observed_anchor_state_digest,
+            "executed_action_digest": self.executed_action_digest,
+            "expected_state_digest": self.expected_state_digest,
+            "observed_state_digest": self.observed_state_digest,
+            "rollback_action_digest": self.rollback_action_digest,
+            "horizon_steps": self.horizon_steps,
+            "validated_steps": self.validated_steps,
+            "effect_committed": self.effect_committed,
+            "replan_required": self.replan_required,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ConstraintReceipt:
     """Explicit policy or budget constraint evaluation."""
 
@@ -443,6 +599,7 @@ class ControllerPolicy:
     allow_mutations: bool = True
     human_gated_risks: frozenset[RiskClass] = _DEFAULT_HUMAN_GATED_RISKS
     max_repeat_failures: int = 2
+    max_horizon_steps: int = 3
     failure_weight: float = 1.0
     latency_weight: float = 1.0
     token_weight: float = 1.0
@@ -481,6 +638,12 @@ class ControllerPolicy:
             or self.max_repeat_failures < 1
         ):
             raise ValueError("max_repeat_failures must be a positive integer")
+        if (
+            not isinstance(self.max_horizon_steps, int)
+            or isinstance(self.max_horizon_steps, bool)
+            or self.max_horizon_steps < 1
+        ):
+            raise ValueError("max_horizon_steps must be a positive integer")
         if not isinstance(self.allow_mutations, bool):
             raise TypeError("allow_mutations must be boolean")
         for field_name in (
@@ -515,6 +678,7 @@ class ControllerPolicy:
             f"policy.max_action_uncertainty<={self.max_action_uncertainty}",
             f"policy.allow_mutations={str(self.allow_mutations).lower()}",
             f"policy.max_repeat_failures={self.max_repeat_failures}",
+            f"policy.max_horizon_steps={self.max_horizon_steps}",
             *self.budget.active_constraints(),
         )
 
@@ -735,6 +899,67 @@ class ClosedLoopController:
 
     def __init__(self, policy: ControllerPolicy | None = None) -> None:
         self.policy = policy or ControllerPolicy()
+
+    def validate_horizon(
+        self,
+        plan: HorizonPlan,
+        *,
+        observed_anchor_state_digest: str,
+        executed_action_digest: str,
+        observed_state_digest: str,
+        effect_committed: bool,
+    ) -> HorizonValidationReceipt:
+        """Validate one leading step and return a caller-owned rollback intent."""
+
+        if not isinstance(plan, HorizonPlan):
+            raise TypeError("plan must be a HorizonPlan")
+        observed_anchor_state_digest = _require_text(
+            observed_anchor_state_digest, "observed_anchor_state_digest"
+        )
+        executed_action_digest = _require_text(
+            executed_action_digest, "executed_action_digest"
+        )
+        observed_state_digest = _require_text(
+            observed_state_digest, "observed_state_digest"
+        )
+        if not isinstance(effect_committed, bool):
+            raise TypeError("effect_committed must be boolean")
+
+        leading = plan.steps[0]
+        if observed_anchor_state_digest != plan.anchor_state_digest:
+            reason = HorizonValidationReason.ANCHOR_STATE_DIVERGED
+        elif len(plan.steps) > self.policy.max_horizon_steps:
+            reason = HorizonValidationReason.HORIZON_LIMIT_EXCEEDED
+        elif executed_action_digest != leading.action_digest:
+            reason = HorizonValidationReason.EXECUTED_ACTION_DIVERGED
+        elif observed_state_digest != leading.expected_state_digest:
+            reason = HorizonValidationReason.OBSERVED_STATE_DIVERGED
+        elif not effect_committed:
+            reason = HorizonValidationReason.EFFECT_NOT_COMMITTED
+        else:
+            reason = HorizonValidationReason.LEADING_STEP_MATCHED
+
+        if reason is HorizonValidationReason.LEADING_STEP_MATCHED:
+            status = HorizonValidationStatus.VALIDATED
+        elif effect_committed:
+            status = HorizonValidationStatus.ROLLBACK_REQUIRED
+        else:
+            status = HorizonValidationStatus.REJECTED
+
+        return HorizonValidationReceipt(
+            status=status,
+            reason=reason,
+            anchor_state_digest=plan.anchor_state_digest,
+            observed_anchor_state_digest=observed_anchor_state_digest,
+            executed_action_digest=executed_action_digest,
+            expected_state_digest=leading.expected_state_digest,
+            observed_state_digest=observed_state_digest,
+            rollback_action_digest=leading.rollback_action_digest,
+            horizon_steps=len(plan.steps),
+            validated_steps=int(status is HorizonValidationStatus.VALIDATED),
+            effect_committed=effect_committed,
+            replan_required=status is HorizonValidationStatus.VALIDATED,
+        )
 
     def decide(
         self,
@@ -1128,6 +1353,12 @@ __all__ = [
     "DecisionBase",
     "DecisionKind",
     "Freshness",
+    "HORIZON_SCHEMA_VERSION",
+    "HorizonPlan",
+    "HorizonStep",
+    "HorizonValidationReason",
+    "HorizonValidationReceipt",
+    "HorizonValidationStatus",
     "ObserveDecision",
     "ReasonCode",
     "RiskClass",

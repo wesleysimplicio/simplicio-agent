@@ -15,6 +15,10 @@ from agent.closed_loop_controller import (
     ControllerPolicy,
     DecisionKind,
     Freshness,
+    HorizonPlan,
+    HorizonStep,
+    HorizonValidationReason,
+    HorizonValidationStatus,
     ObserveDecision,
     ReasonCode,
     RiskClass,
@@ -365,3 +369,96 @@ def test_decision_serialization_has_no_private_reasoning():
     assert "reasoning" not in payload
     assert payload["kind"] == "action"
     assert payload["predicted_cost"] == decision.predicted_cost.to_dict()
+
+
+def test_horizon_validation_accepts_only_the_leading_step_then_requires_replan():
+    plan = HorizonPlan(
+        anchor_state_digest="state-0",
+        steps=(
+            HorizonStep("inspect", "state-1", "restore-state-0"),
+            HorizonStep("mutate", "state-2", "restore-state-1"),
+        ),
+    )
+
+    receipt = ClosedLoopController().validate_horizon(
+        plan,
+        observed_anchor_state_digest="state-0",
+        executed_action_digest="inspect",
+        observed_state_digest="state-1",
+        effect_committed=True,
+    )
+
+    assert receipt.status is HorizonValidationStatus.VALIDATED
+    assert receipt.reason is HorizonValidationReason.LEADING_STEP_MATCHED
+    assert receipt.effect_committed is True
+    assert receipt.validated_steps == 1
+    assert receipt.replan_required is True
+    assert receipt.rollback_action_digest == "restore-state-0"
+
+
+def test_horizon_validation_emits_rollback_intent_on_committed_divergence():
+    plan = HorizonPlan(
+        anchor_state_digest="state-0",
+        steps=(HorizonStep("mutate", "state-1", "restore-state-0"),),
+    )
+
+    receipt = ClosedLoopController().validate_horizon(
+        plan,
+        observed_anchor_state_digest="state-0",
+        executed_action_digest="mutate",
+        observed_state_digest="unexpected-state",
+        effect_committed=True,
+    )
+
+    assert receipt.status is HorizonValidationStatus.ROLLBACK_REQUIRED
+    assert receipt.reason is HorizonValidationReason.OBSERVED_STATE_DIVERGED
+    assert receipt.effect_committed is True
+    assert receipt.validated_steps == 0
+    assert receipt.replan_required is False
+    assert receipt.rollback_action_digest == "restore-state-0"
+    assert receipt.to_dict()["schema_version"] == "simplicio.closed-loop-horizon/v1"
+    assert receipt.to_dict()["status"] == "rollback_required"
+
+
+def test_horizon_validation_rejects_an_uncommitted_plan_beyond_policy_bound():
+    plan = HorizonPlan(
+        anchor_state_digest="state-0",
+        steps=(
+            HorizonStep("one", "state-1", "restore-state-0"),
+            HorizonStep("two", "state-2", "restore-state-1"),
+        ),
+    )
+    controller = ClosedLoopController(ControllerPolicy(max_horizon_steps=1))
+
+    receipt = controller.validate_horizon(
+        plan,
+        observed_anchor_state_digest="state-0",
+        executed_action_digest="one",
+        observed_state_digest="state-1",
+        effect_committed=False,
+    )
+
+    assert receipt.status is HorizonValidationStatus.REJECTED
+    assert receipt.reason is HorizonValidationReason.HORIZON_LIMIT_EXCEEDED
+    assert receipt.effect_committed is False
+    assert receipt.validated_steps == 0
+    assert receipt.replan_required is False
+
+
+def test_horizon_validation_rejects_a_plan_detached_from_current_state():
+    plan = HorizonPlan(
+        anchor_state_digest="state-0",
+        steps=(HorizonStep("inspect", "state-1", "restore-state-0"),),
+    )
+
+    receipt = ClosedLoopController().validate_horizon(
+        plan,
+        observed_anchor_state_digest="different-anchor",
+        executed_action_digest="inspect",
+        observed_state_digest="state-1",
+        effect_committed=False,
+    )
+
+    assert receipt.status is HorizonValidationStatus.REJECTED
+    assert receipt.reason is HorizonValidationReason.ANCHOR_STATE_DIVERGED
+    assert receipt.validated_steps == 0
