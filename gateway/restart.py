@@ -213,16 +213,21 @@ class RecoveryResult:
 
 
 class RestartEffectJournal:
-    """Durable JSONL journal with idempotent appends and monotonic commits."""
+    """Durable JSONL journal with idempotent appends and monotonic commits.
+
+    The caller-owned idempotency key is the durable identity.  ``effect_id``
+    remains part of the causal receipt, but cannot be changed to make a replay
+    look like a new effect after restart.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self._records: dict[tuple[str, str], RestartEffectRecord] = {}
+        self._records: dict[str, RestartEffectRecord] = {}
         self._load()
 
     @staticmethod
-    def _key(record: RestartEffectRecord) -> tuple[str, str]:
-        return record.effect_id, record.idempotency_key
+    def _key(record: RestartEffectRecord) -> str:
+        return record.idempotency_key
 
     def _load(self) -> None:
         if not self.path.exists():
@@ -250,11 +255,12 @@ class RestartEffectJournal:
             return previous
         if previous is not None:
             if (
-                previous.task_id != record.task_id
+                previous.effect_id != record.effect_id
+                or previous.task_id != record.task_id
                 or previous.correlation_id != record.correlation_id
             ):
                 raise RestartEffectConflictError(
-                    "effect identity belongs to another causal chain"
+                    "idempotency key belongs to another causal chain"
                 )
             if previous.state is EffectState.COMMITTED:
                 raise RestartEffectConflictError(
@@ -285,10 +291,16 @@ class RestartEffectJournal:
 
         return self._accept(record, persist=True)
 
+    def _latest_for_key(
+        self, idempotency_key: str
+    ) -> Optional[RestartEffectRecord]:
+        return self._records.get(idempotency_key)
+
     def latest(
         self, *, effect_id: str, idempotency_key: str
     ) -> Optional[RestartEffectRecord]:
-        return self._records.get((effect_id, idempotency_key))
+        record = self._latest_for_key(idempotency_key)
+        return record if record is not None and record.effect_id == effect_id else None
 
     def begin(
         self,
@@ -299,11 +311,15 @@ class RestartEffectJournal:
         correlation_id: str = "",
         now_ns: Optional[int] = None,
     ) -> RestartEffectRecord:
-        existing = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
+        existing = self._latest_for_key(idempotency_key)
         if existing is not None:
-            if existing.task_id != task_id or existing.correlation_id != correlation_id:
+            if (
+                existing.effect_id != effect_id
+                or existing.task_id != task_id
+                or existing.correlation_id != correlation_id
+            ):
                 raise RestartEffectConflictError(
-                    "effect identity was reused with another causal chain"
+                    "idempotency key was reused with another causal chain"
                 )
             return existing
         return self.append(
@@ -326,9 +342,13 @@ class RestartEffectJournal:
         reason: Optional[str] = None,
         now_ns: Optional[int] = None,
     ) -> RestartEffectRecord:
-        current = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
+        current = self._latest_for_key(idempotency_key)
         if current is None:
             raise KeyError(f"no pending effect {effect_id!r} for idempotency key")
+        if current.effect_id != effect_id:
+            raise RestartEffectConflictError(
+                "idempotency key belongs to a different effect"
+            )
         candidate = current.resolve(
             state, receipt=receipt, reason=reason, now_ns=now_ns
         )
@@ -359,7 +379,7 @@ class RestartEffectJournal:
         task_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> RecoveryResult:
-        record = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
+        record = self._latest_for_key(idempotency_key)
         if record is None:
             return RecoveryResult(
                 RecoveryDecision.RECONCILE_UNKNOWN,
@@ -367,13 +387,18 @@ class RestartEffectJournal:
                 "no durable effect record exists; commitment is unknown",
                 None,
             )
-        if (task_id is not None and task_id != record.task_id) or (
-            correlation_id is not None and correlation_id != record.correlation_id
+        if (
+            effect_id != record.effect_id
+            or (task_id is not None and task_id != record.task_id)
+            or (
+                correlation_id is not None
+                and correlation_id != record.correlation_id
+            )
         ):
             return RecoveryResult(
                 RecoveryDecision.RECONCILE_UNKNOWN,
                 EffectState.UNKNOWN,
-                "effect record belongs to a different task or correlation",
+                "idempotency key belongs to a different effect, task, or correlation",
                 record,
             )
         if record.state is EffectState.COMMITTED:
