@@ -150,3 +150,30 @@ def test_snapshot_rebuilds_when_persisted_snapshot_is_corrupt(tmp_path):
         json.loads(snapshot_path.read_text(encoding="utf-8"))["snapshot_hash"]
         == rebuilt.snapshot_hash
     )
+
+
+def test_snapshot_delta_is_small_deterministic_and_handle_safe():
+    projector = OperationalNowProjector()
+    receipts = load_receipts()
+    previous = projector.project(receipts)
+    changed = receipts + [
+        AwarenessReceipt(
+            receipt_id="receipt-goal-updated",
+            path="goal.updated",
+            value="continue bounded awareness",
+            status="canon",
+            freshness="fresh",
+            source="operator",
+            source_event_id="event-goal-updated",
+            recorded_at_ns=999,
+        )
+    ]
+    current = projector.project(changed)
+
+    delta = current.delta(previous)
+    assert delta["from_hash"] == previous.snapshot_hash
+    assert delta["to_hash"] == current.snapshot_hash
+    assert delta["changed"]["goal.updated"]["value"] == "continue bounded awareness"
+    assert delta["removed"] == []
+    assert "payload" not in delta["changed"]["goal.updated"]
+    assert delta == current.delta(previous)
