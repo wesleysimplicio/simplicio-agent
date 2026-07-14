@@ -172,6 +172,26 @@ def test_replayed_begin_and_resolution_do_not_create_new_attempts(tmp_path):
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 
+def test_reused_idempotency_key_cannot_name_a_new_effect_after_restart(tmp_path):
+    envelope = _envelope()
+    path = tmp_path / "effects.jsonl"
+    first = EffectJournal(path)
+    first.begin(
+        envelope, effect_id="effect-1", idempotency_key="idem-1", now_ns=2
+    )
+
+    restarted = EffectJournal(path)
+    with pytest.raises(EffectStateConflictError, match="idempotency key"):
+        restarted.begin(
+            envelope,
+            effect_id="effect-2",
+            idempotency_key="idem-1",
+            now_ns=3,
+        )
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
 def test_committed_cannot_be_downgraded(tmp_path):
     envelope = _envelope()
     path = tmp_path / "effects.jsonl"

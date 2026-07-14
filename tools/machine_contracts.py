@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
+from simplicio_agent.product_identity import PRODUCT_IDENTITY
+
 PRODUCT_SCHEMA = "machine-contracts/product/v1"
 COMPONENT_SCHEMA = "machine-contracts/component/v1"
 ENVELOPE_SCHEMA = "machine-contracts/capability-envelope/v1"
@@ -59,7 +61,7 @@ class ProductIdentity:
 
     product: str
     version: str
-    surface: str = "simplicio-agent"
+    surface: str = PRODUCT_IDENTITY.cli
     role: str = "agent_product"
     schema: str = PRODUCT_SCHEMA
 
@@ -148,8 +150,14 @@ def _redact_value(key: str, value: Any) -> Any:
     return value
 
 
-def make_product_identity(version: str, *, surface: str = "simplicio-agent") -> ProductIdentity:
-    return ProductIdentity(product="Simplicio Agent", version=version, surface=surface)
+def make_product_identity(
+    version: str, *, surface: str = PRODUCT_IDENTITY.cli
+) -> ProductIdentity:
+    return ProductIdentity(
+        product=PRODUCT_IDENTITY.product,
+        version=version,
+        surface=surface,
+    )
 
 
 def make_component_identity(
@@ -189,7 +197,7 @@ def build_machine_contract(
 ) -> MachineContract:
     product = make_product_identity(product_version)
     agent = make_component_identity(
-        "simplicio-agent",
+        PRODUCT_IDENTITY.cli,
         agent_version,
         role="agent",
         boundary="orchestration",

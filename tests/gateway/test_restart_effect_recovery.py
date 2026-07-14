@@ -143,6 +143,22 @@ def test_replayed_begin_and_resolution_do_not_append_duplicates(tmp_path):
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 
+def test_reused_idempotency_key_cannot_name_a_new_effect_after_restart(tmp_path):
+    path = tmp_path / "effects.jsonl"
+    first = RestartEffectJournal(path)
+    first.begin(effect_id="send-1", idempotency_key="idem-1", now_ns=1)
+
+    restarted = RestartEffectJournal(path)
+    with pytest.raises(RestartEffectConflictError, match="idempotency key"):
+        restarted.begin(
+            effect_id="send-2",
+            idempotency_key="idem-1",
+            now_ns=2,
+        )
+
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
 def test_committed_effect_cannot_be_downgraded(tmp_path):
     journal = RestartEffectJournal(tmp_path / "effects.jsonl")
     journal.begin(effect_id="send-1", idempotency_key="idem-1", now_ns=1)
@@ -244,6 +260,36 @@ def test_delivery_does_not_repeat_committed_effect_after_restart(tmp_path):
         result = await second.deliver("hello", [_target()], metadata=_metadata())
 
         assert result["telegram:chat-1"]["skipped"] == "committed_effect"
+        assert second_adapter.calls == 0
+
+    asyncio.run(run())
+
+
+def test_delivery_rejects_reused_idempotency_key_after_restart(tmp_path):
+    async def run():
+        path = tmp_path / "effects.jsonl"
+        first_adapter = _Adapter()
+        first = DeliveryRouter(
+            GatewayConfig(),
+            adapters={Platform.TELEGRAM: first_adapter},
+            effect_journal=RestartEffectJournal(path),
+        )
+        first_result = await first.deliver("hello", [_target()], metadata=_metadata())
+        assert first_result["telegram:chat-1"]["success"], first_result
+
+        duplicate_metadata = {**_metadata(), "effect_id": "send-2"}
+        second_adapter = _Adapter()
+        restarted = DeliveryRouter(
+            GatewayConfig(),
+            adapters={Platform.TELEGRAM: second_adapter},
+            effect_journal=RestartEffectJournal(path),
+        )
+        result = await restarted.deliver(
+            "different effect", [_target()], metadata=duplicate_metadata
+        )
+
+        assert result["telegram:chat-1"]["effect_unknown"] is True
+        assert "idempotency key" in result["telegram:chat-1"]["error"]
         assert second_adapter.calls == 0
 
     asyncio.run(run())

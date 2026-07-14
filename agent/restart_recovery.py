@@ -206,16 +206,21 @@ class RecoveryResult:
 
 
 class EffectJournal:
-    """Durable JSONL effect journal with committed-state monotonicity."""
+    """Durable JSONL effect journal with committed-state monotonicity.
+
+    The caller-owned idempotency key is the durable identity.  ``effect_id``
+    remains part of the causal receipt, but cannot be changed to make a replay
+    look like a new effect after restart.
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self._records: dict[tuple[str, str], EffectRecord] = {}
+        self._records: dict[str, EffectRecord] = {}
         self._load()
 
     @staticmethod
-    def _key(record: EffectRecord) -> tuple[str, str]:
-        return record.effect_id, record.idempotency_key
+    def _key(record: EffectRecord) -> str:
+        return record.idempotency_key
 
     def _load(self) -> None:
         if not self.path.exists():
@@ -241,6 +246,15 @@ class EffectJournal:
         if previous == record:
             return previous
         if previous is not None:
+            if (
+                previous.effect_id != record.effect_id
+                or previous.task_id != record.task_id
+                or previous.correlation_id != record.correlation_id
+                or previous.envelope_hash != record.envelope_hash
+            ):
+                raise EffectStateConflictError(
+                    "idempotency key belongs to another causal chain"
+                )
             if previous.state is EffectState.COMMITTED:
                 raise EffectStateConflictError(
                     f"committed effect {record.effect_id!r} cannot be superseded"
@@ -270,6 +284,9 @@ class EffectJournal:
 
         return self._accept(record, persist=True)
 
+    def _latest_for_key(self, idempotency_key: str) -> Optional[EffectRecord]:
+        return self._records.get(idempotency_key)
+
     def begin(
         self,
         envelope: TaskEnvelope,
@@ -278,15 +295,16 @@ class EffectJournal:
         idempotency_key: str,
         now_ns: Optional[int] = None,
     ) -> EffectRecord:
-        existing = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
+        existing = self._latest_for_key(idempotency_key)
         if existing is not None:
             if (
-                existing.task_id != envelope.task_id
+                existing.effect_id != effect_id
+                or existing.task_id != envelope.task_id
                 or existing.correlation_id != envelope.correlation_id
                 or existing.envelope_hash != envelope.content_hash()
             ):
                 raise EffectStateConflictError(
-                    "effect identity was reused with a different task envelope"
+                    "idempotency key was reused with a different effect or task envelope"
                 )
             # Replaying begin after a restart must observe the durable state;
             # it must not create a fresh pending attempt over a commit.
@@ -311,10 +329,13 @@ class EffectJournal:
         reason: Optional[str] = None,
         now_ns: Optional[int] = None,
     ) -> EffectRecord:
-        key = (effect_id, idempotency_key)
-        current = self._records.get(key)
+        current = self._latest_for_key(idempotency_key)
         if current is None:
             raise KeyError(f"no pending effect {effect_id!r} for idempotency key")
+        if current.effect_id != effect_id:
+            raise EffectStateConflictError(
+                "idempotency key belongs to a different effect"
+            )
         if (
             current.task_id != envelope.task_id
             or current.correlation_id != envelope.correlation_id
@@ -343,7 +364,8 @@ class EffectJournal:
         return self.append(candidate)
 
     def latest(self, *, effect_id: str, idempotency_key: str) -> Optional[EffectRecord]:
-        return self._records.get((effect_id, idempotency_key))
+        record = self._latest_for_key(idempotency_key)
+        return record if record is not None and record.effect_id == effect_id else None
 
     def recover(
         self,
@@ -352,7 +374,7 @@ class EffectJournal:
         effect_id: str,
         idempotency_key: str,
     ) -> RecoveryResult:
-        record = self.latest(effect_id=effect_id, idempotency_key=idempotency_key)
+        record = self._latest_for_key(idempotency_key)
         if record is None:
             return RecoveryResult(
                 decision=RecoveryDecision.RECONCILE_UNKNOWN,
@@ -361,13 +383,17 @@ class EffectJournal:
                 record=None,
             )
         if (
-            record.task_id != envelope.task_id
+            record.effect_id != effect_id
+            or record.task_id != envelope.task_id
             or record.correlation_id != envelope.correlation_id
         ):
             return RecoveryResult(
                 decision=RecoveryDecision.RECONCILE_UNKNOWN,
                 observed_state=EffectState.UNKNOWN,
-                reason="effect record belongs to a different task or correlation",
+                reason=(
+                    "idempotency key belongs to a different effect, task, "
+                    "or correlation"
+                ),
                 record=record,
             )
         if record.envelope_hash != envelope.content_hash():
