@@ -915,6 +915,7 @@ class ClosedLoopController:
                 candidate.requires_human_gate
                 or candidate.risk in self.policy.human_gated_risks
                 or candidate.irreversible
+                or candidate.cost.irreversibility > 0.0
             )
             if requires_gate:
                 gated.append(candidate)

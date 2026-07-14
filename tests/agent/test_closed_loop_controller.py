@@ -47,12 +47,16 @@ def candidate(
     risk: RiskClass = RiskClass.READ,
     mutating: bool = False,
     irreversible: bool = False,
+    irreversibility: float | None = None,
     requires_human_gate: bool = False,
 ) -> ActionCandidate:
+    cost_irreversibility = irreversibility
+    if cost_irreversibility is None:
+        cost_irreversibility = 1.0 if irreversible else 0.0
     return ActionCandidate(
         action_digest=digest,
         predicted_effect=f"effect:{digest}",
-        cost=cost(tokens=tokens, irreversibility=1.0 if irreversible else 0.0),
+        cost=cost(tokens=tokens, irreversibility=cost_irreversibility),
         verifier=f"verify:{digest}",
         risk=risk,
         mutating=mutating,
@@ -195,6 +199,29 @@ def test_high_risk_action_returns_typed_clarify_with_prediction_receipt():
         and receipt.status is ConstraintStatus.REQUIRES_CLARIFY
         for receipt in decision.constraint_receipts
     )
+
+
+def test_positive_action_cost_irreversibility_monotonically_requires_human_gate():
+    controller = ClosedLoopController()
+
+    decisions = [
+        controller.decide(
+            "apply predicted effect",
+            FRESH_STATE,
+            [candidate("effect", irreversibility=irreversibility)],
+        )
+        for irreversibility in (0.0, 0.01, 0.5, 1.0)
+    ]
+
+    assert isinstance(decisions[0], ActionDecision)
+    for decision in decisions[1:]:
+        assert isinstance(decision, ClarifyDecision)
+        assert decision.reason_code is ReasonCode.HUMAN_GATE_REQUIRED
+        assert any(
+            receipt.constraint_id == "human_gate"
+            and receipt.status is ConstraintStatus.REQUIRES_CLARIFY
+            for receipt in decision.constraint_receipts
+        )
 
 
 def test_budget_and_mutation_policy_constraints_are_explicit():
