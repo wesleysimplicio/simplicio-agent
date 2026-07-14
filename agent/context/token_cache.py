@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Hashable, Optional
 
 
@@ -24,6 +25,24 @@ def content_key(model: str, text: str) -> str:
     h.update(b"\x00")
     h.update(text.encode("utf-8"))
     return h.hexdigest()
+
+
+@dataclass(frozen=True)
+class CacheReceipt:
+    """Content-free evidence for one model-scoped cache lookup."""
+
+    model: str
+    key: str
+    hit: bool
+    token_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "model": self.model,
+            "key": self.key,
+            "hit": self.hit,
+            "token_count": self.token_count,
+        }
 
 
 class TokenCache:
@@ -44,6 +63,22 @@ class TokenCache:
                 return list(self._store[key])  # copy to avoid mutability leaks
             return None
 
+    def get_with_receipt(
+        self, model: str, text: str
+    ) -> tuple[Optional[list[int]], CacheReceipt]:
+        key = content_key(model, text)
+        with self._lock:
+            tokens = self._store.get(key)
+            if tokens is None:
+                return None, CacheReceipt(
+                    model=model, key=key, hit=False, token_count=0
+                )
+            self._store.move_to_end(key)
+            value = list(tokens)
+            return value, CacheReceipt(
+                model=model, key=key, hit=True, token_count=len(value)
+            )
+
     def put(self, model: str, text: str, tokens: list[int]) -> str:
         key = content_key(model, text)
         with self._lock:
@@ -52,6 +87,12 @@ class TokenCache:
             while len(self._store) > self.max_entries:
                 self._store.popitem(last=False)
             return key
+
+    def put_with_receipt(
+        self, model: str, text: str, tokens: list[int]
+    ) -> CacheReceipt:
+        key = self.put(model, text, tokens)
+        return CacheReceipt(model=model, key=key, hit=False, token_count=len(tokens))
 
     def __contains__(self, item: tuple[str, str]) -> bool:
         model, text = item

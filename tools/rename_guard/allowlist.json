@@ -72,6 +72,46 @@
       "reason": "rename-guard status report for issue #187 that quotes internal paths (hermes_cli/*, hermes_constants.py) verbatim for auditing purposes; not a branding regression",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
+    },
+    {
+      "path_glob": "tools/identity_scan.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "identity scanner implementation must contain the legacy matcher and schema terms it detects; scanner is not a product identity surface",
+      "owner": "identity-migration",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests/tools/test_identity_scan.py",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "focused identity scanner tests intentionally exercise legacy references",
+      "owner": "identity-migration",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests/tools/test_release_manifest.py",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "release contract test intentionally proves legacy runtime identities are rejected",
+      "owner": "identity-migration",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "fixtures/identity/*",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "machine-readable identity inventory intentionally records temporary legacy aliases",
+      "owner": "identity-migration",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docs/architecture/ADR-0025-native-identity-scan.md",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "migration ADR documents the bounded legacy scanner contract",
+      "owner": "identity-migration",
+      "expiry": "2026-12-31"
     }
   ]
 }

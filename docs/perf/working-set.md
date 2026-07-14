@@ -50,3 +50,13 @@ Run:
 
 (If `pytest` is not installed in the venv, the test functions are plain
 `test_*` callables and can be driven by any runner.)
+
+## Native context IDs and cache receipts
+
+The bounded #318 slice adds `WorkingSet.snapshot()` and `WorkingSet.delta()`.
+Snapshots contain only opaque BLAKE2b content IDs; deltas sort `added`,
+`changed`, and `removed` keys and include a deterministic digest, so unchanged
+context can be skipped without rereading its bytes. `TokenCache` provides
+`get_with_receipt()` and `put_with_receipt()` for model-scoped cache evidence;
+the receipt contains only the model label, content key, hit flag, and token
+count. These helpers are additive and preserve the existing `get`/`put` API.

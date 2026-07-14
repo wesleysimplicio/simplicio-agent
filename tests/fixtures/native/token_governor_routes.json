@@ -1,0 +1,15 @@
+{
+  "name": "routine-native-routes",
+  "routes": [
+    {"id": "cached-recall", "entropy": 0.0, "cache_hit": true, "deterministic": false, "expected": "L0"},
+    {"id": "known-inspect", "entropy": 0.05, "cache_hit": false, "deterministic": true, "expected": "L1"},
+    {"id": "guided-decide", "entropy": 0.4, "cache_hit": false, "deterministic": false, "expected": "L2"},
+    {"id": "known-act", "entropy": 0.1, "cache_hit": false, "deterministic": true, "expected": "L1"},
+    {"id": "guided-verify", "entropy": 0.5, "cache_hit": false, "deterministic": false, "expected": "L2"},
+    {"id": "frontier-ambiguity", "entropy": 0.95, "cache_hit": false, "deterministic": false, "expected": "L3"},
+    {"id": "cache-receipt", "entropy": 0.2, "cache_hit": true, "deterministic": false, "expected": "L0"},
+    {"id": "deterministic-verify", "entropy": 0.0, "cache_hit": false, "deterministic": true, "expected": "L1"},
+    {"id": "local-guidance", "entropy": 0.3, "cache_hit": false, "deterministic": false, "expected": "L2"},
+    {"id": "frontier-fallback", "entropy": 0.9, "cache_hit": false, "deterministic": true, "remote_available": false, "expected": "L1"}
+  ]
+}

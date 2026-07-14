@@ -17,6 +17,21 @@ from itertools import product
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+# The #323 release-manifest contract is kept in a focused module, while these
+# re-exports make it available to existing release-gate callers without a
+# second import surface.
+from tools.release_manifest import (  # noqa: E402
+    RELEASE_MANIFEST_SCHEMA,
+    RELEASE_REPORT_SCHEMA,
+    ROLLBACK_CONTRACT_SCHEMA,
+    build_release_manifest,
+    build_rollback_contract,
+    digest_document,
+    evaluate_release_contract,
+    validate_release_manifest,
+    validate_rollback_contract,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX_SCHEMA = "simplicio.release-matrix/v1"
 EXPANDED_SCHEMA = "simplicio.release-matrix-expanded/v1"

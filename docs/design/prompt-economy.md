@@ -58,3 +58,25 @@ schema reducer and is not currently wired into request construction;
 provider-side tool-schema tax reduction is therefore **UNVERIFIED** by this
 slice and requires a separate integration change plus provider usage/cache
 evidence. No claim of billed-token savings follows from the local receipts.
+
+## Native #317/#318 bounded slice
+
+`agent.token_governor.TokenGovernor` adds a deterministic L0–L3 decision
+boundary around this existing economy layer. L0 cache/receipt hits and L1
+deterministic routes have zero remote input/output budget; L2 stays local when
+entropy is within the guided threshold; only L3 receives a frontier budget.
+Every decision returns a content-free SHA-256 intent fingerprint, explicit
+input/output/schema budgets, and an escalation/fallback reason. The governor
+does not call a provider or emit the intent text.
+
+`agent.prompt_microkernel` exposes the five stable handles (`recall`,
+`inspect`, `decide`, `act`, `verify`) and loads primitive schemas only when a
+caller builds a capsule. The fixed primitive schema is capped at 1 KiB, the
+fixture capsule is below 2,000 rough tokens, and `CapabilityParityReceipt`
+records missing/extra capabilities without changing the existing #196 full-set
+pinning behavior. Context IDs and cache receipts are opaque content hashes;
+they preserve the stable prefix and never contain prompt text.
+
+The representative route fixture measures the local contract only: its
+routine routes are at least 80% remote-free. This is a deterministic fixture
+receipt, not a provider billing or latency claim.
