@@ -151,7 +151,10 @@ def test_rollback_schema_is_required_for_rollback_cases() -> None:
     assert validate_rollback_evidence(good_rollback) == []
     incomplete = dict(good_rollback)
     incomplete["schema"] = "wrong"
-    assert "rollback.schema must be simplicio.release-rollback-evidence/v1" in validate_rollback_evidence(incomplete)
+    assert (
+        "rollback.schema must be simplicio.release-rollback-evidence/v1"
+        in validate_rollback_evidence(incomplete)
+    )
     bundle = build_evidence_bundle(
         matrix,
         [
@@ -256,6 +259,107 @@ def test_required_tier_evaluation_is_fail_closed_on_missing_required_case() -> N
     ]
 
 
+def test_unknown_case_and_malformed_digest_fail_closed_without_key_error() -> None:
+    matrix = _sample_matrix()
+    artifact = build_artifact_descriptor(
+        name="bundle.zip",
+        channel="wheel",
+        kind="bundle",
+        digest="sha256:" + "a" * 63,
+        source_uri="https://example.invalid/bundle",
+    )
+    environment = build_environment_descriptor(
+        runner="gha-ubuntu-24.04",
+        clean_room=True,
+        cache_scope="job",
+        manifest={"python": "3.13.5"},
+    )
+    evidence = build_evidence_bundle(
+        matrix,
+        [
+            build_evidence_record(
+                case_id="unknown-case",
+                tier="required",
+                status="pass",
+                artifact=artifact,
+                environment=environment,
+                receipts=["clean.json"],
+            )
+        ],
+    )
+    errors = validate_evidence_bundle(evidence, matrix)
+    assert "records[0].case_id not present in matrix: unknown-case" in errors
+    assert "records[0].artifact.digest must use sha256" in errors
+    assert (
+        evaluate_release_gate(matrix, evidence)["summary"]["stable_promotion"]
+        == "block"
+    )
+
+
+def test_invalid_matrix_evaluation_returns_a_blocking_report() -> None:
+    matrix = _sample_matrix()
+    matrix["axes"][0]["values"] = []  # type: ignore[index]
+    evidence = build_evidence_bundle(matrix, [])
+    report = evaluate_release_gate(matrix, evidence)
+    assert report["validation"]["ok"] is False
+    assert report["summary"] == {"ok": False, "stable_promotion": "block"}
+
+
+def test_passing_rollback_requires_state_preservation() -> None:
+    matrix = _sample_matrix()
+    rollback_case = expand_matrix(matrix)["cases"][1]["id"]
+    artifact = build_artifact_descriptor(
+        name="bundle.zip",
+        channel="wheel",
+        kind="bundle",
+        digest="sha256:" + "a" * 64,
+        source_uri="https://example.invalid/bundle",
+    )
+    environment = build_environment_descriptor(
+        runner="gha-ubuntu-24.04",
+        clean_room=True,
+        cache_scope="job",
+        manifest={"python": "3.13.5"},
+    )
+    rollback = build_rollback_evidence(
+        from_release="0.24.0",
+        to_release="0.25.0",
+        restored_release="0.24.0",
+        restored_artifact_digest="sha256:" + "b" * 64,
+        state_preserved=False,
+        receipts=["rollback.json"],
+        restored_identity={
+            "agent": {
+                "name": "simplicio-agent",
+                "version": "0.24.0",
+                "digest": "sha256:" + "b" * 64,
+            },
+            "runtime": {
+                "name": "simplicio-runtime",
+                "version": "3.5.0",
+                "digest": "sha256:" + "c" * 64,
+            },
+            "compatible": True,
+        },
+    )
+    evidence = build_evidence_bundle(
+        matrix,
+        [
+            build_evidence_record(
+                case_id=rollback_case,
+                tier="required",
+                status="pass",
+                artifact=artifact,
+                environment=environment,
+                receipts=["rollback.json"],
+                rollback=rollback,
+            )
+        ],
+    )
+    errors = validate_evidence_bundle(evidence, matrix)
+    assert "records[0].rollback.state_preserved must be true for pass" in errors
+
+
 def test_fixtures_are_valid_and_required_tier_green() -> None:
     assert MATRIX_FIXTURE.is_file()
     assert EVIDENCE_FIXTURE.is_file()
@@ -277,5 +381,14 @@ def test_cli_expand_and_evaluate_fixture_documents(tmp_path: Path) -> None:
     assert json.loads(expanded.read_text(encoding="utf-8"))["schema"] == EXPANDED_SCHEMA
     assert main(["validate-matrix", str(MATRIX_FIXTURE)]) == 0
     assert main(["validate-evidence", str(MATRIX_FIXTURE), str(EVIDENCE_FIXTURE)]) == 0
-    assert main(["evaluate", str(MATRIX_FIXTURE), str(EVIDENCE_FIXTURE), "--write", str(report)]) == 0
+    assert (
+        main([
+            "evaluate",
+            str(MATRIX_FIXTURE),
+            str(EVIDENCE_FIXTURE),
+            "--write",
+            str(report),
+        ])
+        == 0
+    )
     assert json.loads(report.read_text(encoding="utf-8"))["schema"] == REPORT_SCHEMA

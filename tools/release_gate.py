@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from itertools import product
 from pathlib import Path
@@ -25,6 +26,7 @@ ROLLBACK_SCHEMA = "simplicio.release-rollback-evidence/v1"
 VERSION = 1
 VALID_TIERS = frozenset(("required", "experimental"))
 VALID_STATUSES = frozenset(("pass", "fail", "blocked", "skipped"))
+SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _canonical_json(document: Any) -> str:
@@ -37,6 +39,10 @@ def _digest_bytes(payload: bytes) -> str:
 
 def _digest_document(document: Mapping[str, Any]) -> str:
     return _digest_bytes(json.dumps(document, sort_keys=True).encode("utf-8"))
+
+
+def _is_sha256_digest(value: Any) -> bool:
+    return isinstance(value, str) and SHA256_DIGEST.fullmatch(value) is not None
 
 
 def build_artifact_descriptor(
@@ -145,6 +151,8 @@ def _case_id(axis_names: Sequence[str], values: Mapping[str, str]) -> str:
 
 def _normalise_value(value: Any) -> dict[str, str]:
     if isinstance(value, str):
+        if not value:
+            raise ValueError("matrix value id must be a non-empty string")
         return {"id": value, "tier": "required"}
     if not isinstance(value, Mapping):
         raise TypeError(f"matrix value must be a string or object, got {type(value)!r}")
@@ -159,6 +167,8 @@ def _normalise_value(value: Any) -> dict[str, str]:
 
 def validate_matrix(document: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    if not isinstance(document, Mapping):
+        return ["matrix document must be an object"]
     if document.get("schema") != MATRIX_SCHEMA:
         errors.append("schema must be simplicio.release-matrix/v1")
     if document.get("version") != VERSION:
@@ -227,13 +237,14 @@ def expand_matrix(document: Mapping[str, Any]) -> dict[str, Any]:
     axes = list(document["axes"])
     axis_names = [str(axis["name"]) for axis in axes]
     normalised_values = [
-        [ _normalise_value(value) for value in axis["values"] ]
-        for axis in axes
+        [_normalise_value(value) for value in axis["values"]] for axis in axes
     ]
     excludes = [dict(rule["when"]) for rule in document.get("exclude", [])]
     cases: list[dict[str, Any]] = []
     for choice in product(*normalised_values):
-        dimensions = {axis_names[index]: value["id"] for index, value in enumerate(choice)}
+        dimensions = {
+            axis_names[index]: value["id"] for index, value in enumerate(choice)
+        }
         if any(
             all(dimensions.get(key) == expected for key, expected in rule.items())
             for rule in excludes
@@ -253,11 +264,7 @@ def expand_matrix(document: Mapping[str, Any]) -> dict[str, Any]:
                 "artifact",
                 "environment",
                 "receipts",
-                *(
-                    ["rollback"]
-                    if dimensions.get("scenario") == "rollback"
-                    else []
-                ),
+                *(["rollback"] if dimensions.get("scenario") == "rollback" else []),
             ],
         }
         cases.append(case)
@@ -280,6 +287,8 @@ def expand_matrix(document: Mapping[str, Any]) -> dict[str, Any]:
 
 def validate_rollback_evidence(document: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
+    if not isinstance(document, Mapping):
+        return ["rollback must be an object"]
     if document.get("schema") != ROLLBACK_SCHEMA:
         errors.append("rollback.schema must be simplicio.release-rollback-evidence/v1")
     for key in (
@@ -293,12 +302,14 @@ def validate_rollback_evidence(document: Mapping[str, Any]) -> list[str]:
     if not isinstance(document.get("state_preserved"), bool):
         errors.append("rollback.state_preserved must be a boolean")
     receipts = document.get("receipts")
-    if not isinstance(receipts, list) or not receipts or not all(
-        isinstance(value, str) and value for value in receipts
+    if (
+        not isinstance(receipts, list)
+        or not receipts
+        or not all(isinstance(value, str) and value for value in receipts)
     ):
         errors.append("rollback.receipts must be a non-empty list of strings")
     digest = document.get("restored_artifact_digest", "")
-    if isinstance(digest, str) and not digest.startswith("sha256:"):
+    if not _is_sha256_digest(digest):
         errors.append("rollback.restored_artifact_digest must use sha256")
     identity = document.get("restored_identity")
     if not isinstance(identity, Mapping):
@@ -322,9 +333,7 @@ def validate_rollback_evidence(document: Mapping[str, Any]) -> list[str]:
                 if not isinstance(value.get(key), str) or not value[key]:
                     errors.append(f"{prefix}.{key} must be a non-empty string")
             component_digest = value.get("digest")
-            if isinstance(component_digest, str) and not component_digest.startswith(
-                "sha256:"
-            ):
+            if not _is_sha256_digest(component_digest):
                 errors.append(f"{prefix}.digest must use sha256")
         agent = identity.get("agent")
         if isinstance(agent, Mapping):
@@ -344,6 +353,8 @@ def validate_evidence_bundle(
     document: Mapping[str, Any], matrix_document: Mapping[str, Any] | None = None
 ) -> list[str]:
     errors: list[str] = []
+    if not isinstance(document, Mapping):
+        return ["evidence document must be an object"]
     if document.get("schema") != EVIDENCE_SCHEMA:
         errors.append("schema must be simplicio.release-evidence/v1")
     if document.get("version") != VERSION:
@@ -352,11 +363,20 @@ def validate_evidence_bundle(
     if not isinstance(records, list) or not records:
         errors.append("records must be a non-empty list")
         return errors
-    expanded = expand_matrix(matrix_document) if matrix_document is not None else None
+    expanded = None
+    if matrix_document is not None:
+        matrix_errors = validate_matrix(matrix_document)
+        if matrix_errors:
+            errors.extend(f"matrix.{error}" for error in matrix_errors)
+        else:
+            expanded = expand_matrix(matrix_document)
     valid_cases = {case["id"]: case for case in expanded["cases"]} if expanded else {}
+    matrix_digest = document.get("matrix_digest")
+    if not _is_sha256_digest(matrix_digest):
+        errors.append("matrix_digest must use sha256")
     if matrix_document is not None:
         expected_digest = _digest_document(matrix_document)
-        if document.get("matrix_digest") != expected_digest:
+        if matrix_digest != expected_digest:
             errors.append("matrix_digest does not match the provided matrix document")
     seen_case_ids: set[str] = set()
     for index, record in enumerate(records):
@@ -373,10 +393,11 @@ def validate_evidence_bundle(
         seen_case_ids.add(case_id)
         if expanded and case_id not in valid_cases:
             errors.append(f"{prefix}.case_id not present in matrix: {case_id}")
+        case = valid_cases.get(case_id)
         tier = record.get("tier")
         if tier not in VALID_TIERS:
             errors.append(f"{prefix}.tier must be one of {sorted(VALID_TIERS)}")
-        elif expanded and tier != valid_cases[case_id]["tier"]:
+        elif case is not None and tier != case["tier"]:
             errors.append(f"{prefix}.tier does not match matrix tier for {case_id}")
         status = record.get("status")
         if status not in VALID_STATUSES:
@@ -386,18 +407,28 @@ def validate_evidence_bundle(
             errors.append(f"{prefix}.artifact must be an object")
         else:
             digest = artifact.get("digest", "")
-            if not isinstance(digest, str) or not digest.startswith("sha256:"):
+            if not _is_sha256_digest(digest):
                 errors.append(f"{prefix}.artifact.digest must use sha256")
             for key in ("name", "channel", "kind", "source_uri"):
                 if not isinstance(artifact.get(key), str) or not artifact[key]:
                     errors.append(f"{prefix}.artifact.{key} must be a non-empty string")
+            if case is not None:
+                expected_channel = case["dimensions"].get("channel")
+                if expected_channel and artifact.get("channel") != expected_channel:
+                    errors.append(
+                        f"{prefix}.artifact.channel does not match matrix channel for {case_id}"
+                    )
         environment = record.get("environment")
         if not isinstance(environment, Mapping):
             errors.append(f"{prefix}.environment must be an object")
         else:
-            for key in ("runner", "cache_scope", "manifest_digest"):
+            for key in ("runner", "cache_scope"):
                 if not isinstance(environment.get(key), str) or not environment[key]:
-                    errors.append(f"{prefix}.environment.{key} must be a non-empty string")
+                    errors.append(
+                        f"{prefix}.environment.{key} must be a non-empty string"
+                    )
+            if not _is_sha256_digest(environment.get("manifest_digest")):
+                errors.append(f"{prefix}.environment.manifest_digest must use sha256")
             if not isinstance(environment.get("clean_room"), bool):
                 errors.append(f"{prefix}.environment.clean_room must be a boolean")
             manifest = environment.get("manifest")
@@ -406,12 +437,14 @@ def validate_evidence_bundle(
             elif environment.get("manifest_digest") != _digest_document(manifest):
                 errors.append(f"{prefix}.environment.manifest_digest mismatch")
         receipts = record.get("receipts")
-        if not isinstance(receipts, list) or not receipts or not all(
-            isinstance(value, str) and value for value in receipts
+        if (
+            not isinstance(receipts, list)
+            or not receipts
+            or not all(isinstance(value, str) and value for value in receipts)
         ):
             errors.append(f"{prefix}.receipts must be a non-empty list of strings")
         needs_rollback = bool(
-            expanded and valid_cases[case_id]["dimensions"].get("scenario") == "rollback"
+            case is not None and case["dimensions"].get("scenario") == "rollback"
         )
         rollback = record.get("rollback")
         if needs_rollback and rollback is None:
@@ -421,6 +454,13 @@ def validate_evidence_bundle(
                 errors.append(f"{prefix}.rollback must be an object")
             else:
                 errors.extend(validate_rollback_evidence(rollback))
+                if (
+                    record.get("status") == "pass"
+                    and rollback.get("state_preserved") is not True
+                ):
+                    errors.append(
+                        f"{prefix}.rollback.state_preserved must be true for pass"
+                    )
     return sorted(set(errors))
 
 
@@ -429,10 +469,26 @@ def evaluate_release_gate(
 ) -> dict[str, Any]:
     matrix_errors = validate_matrix(matrix_document)
     evidence_errors = validate_evidence_bundle(evidence_document, matrix_document)
-    expanded = expand_matrix(matrix_document)
+    expanded = (
+        expand_matrix(matrix_document)
+        if not matrix_errors
+        else {
+            "matrix_digest": _digest_document(matrix_document)
+            if isinstance(matrix_document, Mapping)
+            else "",
+            "cases": [],
+        }
+    )
+    evidence_records = (
+        evidence_document.get("records", [])
+        if isinstance(evidence_document, Mapping)
+        else []
+    )
+    if not isinstance(evidence_records, list):
+        evidence_records = []
     records = {
         str(record["case_id"]): dict(record)
-        for record in evidence_document.get("records", [])
+        for record in evidence_records
         if isinstance(record, Mapping) and "case_id" in record
     }
     required: list[dict[str, Any]] = []
@@ -450,13 +506,20 @@ def evaluate_release_gate(
             required.append(entry)
         else:
             experimental.append(entry)
-    required_missing = [entry["case_id"] for entry in required if entry["status"] == "missing"]
+    required_missing = [
+        entry["case_id"] for entry in required if entry["status"] == "missing"
+    ]
     required_failed = [
         entry["case_id"]
         for entry in required
         if entry["status"] not in {"pass", "missing"}
     ]
-    required_ok = not matrix_errors and not evidence_errors and not required_missing and not required_failed
+    required_ok = (
+        not matrix_errors
+        and not evidence_errors
+        and not required_missing
+        and not required_failed
+    )
     experimental_passed = sum(entry["status"] == "pass" for entry in experimental)
     return {
         "schema": REPORT_SCHEMA,
@@ -477,7 +540,8 @@ def evaluate_release_gate(
         "experimental": {
             "total": len(experimental),
             "passed": experimental_passed,
-            "observed": len(experimental) - sum(entry["status"] == "missing" for entry in experimental),
+            "observed": len(experimental)
+            - sum(entry["status"] == "missing" for entry in experimental),
         },
         "cases": required + experimental,
         "summary": {
@@ -502,7 +566,9 @@ def main(argv: list[str] | None = None) -> int:
 
     expand_parser = subparsers.add_parser("expand", help="expand a release matrix")
     expand_parser.add_argument("matrix", help="path to release-matrix/v1 JSON")
-    expand_parser.add_argument("--write", metavar="PATH", help="write expanded JSON to PATH")
+    expand_parser.add_argument(
+        "--write", metavar="PATH", help="write expanded JSON to PATH"
+    )
 
     validate_matrix_parser = subparsers.add_parser(
         "validate-matrix", help="validate a release-matrix/v1 JSON"
@@ -512,15 +578,21 @@ def main(argv: list[str] | None = None) -> int:
     validate_evidence_parser = subparsers.add_parser(
         "validate-evidence", help="validate a release-evidence/v1 JSON"
     )
-    validate_evidence_parser.add_argument("matrix", help="path to release-matrix/v1 JSON")
-    validate_evidence_parser.add_argument("evidence", help="path to release-evidence/v1 JSON")
+    validate_evidence_parser.add_argument(
+        "matrix", help="path to release-matrix/v1 JSON"
+    )
+    validate_evidence_parser.add_argument(
+        "evidence", help="path to release-evidence/v1 JSON"
+    )
 
     evaluate_parser = subparsers.add_parser(
         "evaluate", help="evaluate required-tier promotion against evidence"
     )
     evaluate_parser.add_argument("matrix", help="path to release-matrix/v1 JSON")
     evaluate_parser.add_argument("evidence", help="path to release-evidence/v1 JSON")
-    evaluate_parser.add_argument("--write", metavar="PATH", help="write report JSON to PATH")
+    evaluate_parser.add_argument(
+        "--write", metavar="PATH", help="write report JSON to PATH"
+    )
 
     args = parser.parse_args(argv)
 
