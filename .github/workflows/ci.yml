@@ -112,6 +112,11 @@ jobs:
     if: needs.detect.outputs.python == 'true'
     uses: ./.github/workflows/perf-gate.yml
 
+  quality-gates:
+    name: Quality gates
+    needs: detect
+    uses: ./.github/workflows/quality-gates.yml
+
   docker-lint:
     name: Lint Docker scripts
     needs: detect
@@ -159,6 +164,7 @@ jobs:
       - uv-lockfile
       - rename-guard
       - perf-gate
+      - quality-gates
       - docker-lint
       - supply-chain
       - osv-scanner

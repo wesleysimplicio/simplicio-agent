@@ -1,0 +1,153 @@
+name: Quality Gates
+
+on:
+  workflow_call: {}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gates-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  QUALITY_CONFIG: .github/quality-gates.yml
+
+jobs:
+  unit:
+    name: Unit gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - run: uv run pytest tests/ci/test_quality_gates.py -q
+
+  integration:
+    name: Integration gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - run: >-
+          uv run pytest
+          tests/agent/test_task_envelope_bridge.py
+          tests/agent/test_protocol_v1.py
+          -q
+
+  security:
+    name: Security gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - run: >-
+          uv run pytest
+          tests/gateway/test_reply_to_injection.py
+          tests/gateway/test_fresh_reset_skill_injection.py
+          tests/tools/test_smart_approval_injection.py
+          -q
+
+  cost:
+    name: Cost and latency gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - run: >-
+          uv run pytest
+          tests/router/test_cost_aware.py
+          tests/hermes_cli/test_model_cost_guard.py
+          tests/run_agent/test_background_review_cost_controls.py
+          -q
+      - name: Compare offline cost/latency baseline
+        run: uv run python -m tools.perf_gate.compare --json quality-gates-cost-report.json
+      - name: Upload cost/latency report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quality-gates-cost-report
+          path: quality-gates-cost-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  coverage:
+    name: Coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - name: Install pinned coverage tools
+        run: uv pip install --python .venv coverage==7.15.0 pytest-cov==6.1.1
+      - run: >-
+          uv run pytest tests/ci/test_quality_gates.py
+          --cov=tests/ci
+          --cov-report=term-missing
+          --cov-report=json:quality-gates-coverage.json
+          --cov-fail-under=85
+          -q
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quality-gates-coverage-report
+          path: quality-gates-coverage.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  diagnostics:
+    name: Diagnostics gate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - run: uv sync --locked --python 3.11 --extra dev
+      - run: uv run pytest tests/ci/test_quality_gates.py -q
+      - run: uv run ruff check tests/ci/test_quality_gates.py
+
+  quality-gates:
+    name: All quality gates pass
+    needs: [unit, integration, security, cost, coverage, diagnostics]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate required gate results
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          python -c "import json, os, sys; results=json.loads(os.environ['RESULTS']); bad=[r for r in results if r != 'success']; print('required quality gates:', results); sys.exit(1 if bad else 0)"

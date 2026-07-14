@@ -4,6 +4,7 @@ import pytest
 
 from tools.transaction_primitives import (
     JournalError,
+    MutationReceipt,
     SnapshotError,
     SnapshotStore,
     TransactionError,
@@ -60,6 +61,56 @@ def test_snapshot_rejects_symlink_and_store_round_trips(tmp_path: Path):
     assert shadow_equivalence(manifest, restored).equivalent
 
 
+def test_snapshot_manifest_metadata_is_not_part_of_content_address(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _tree(source)
+    store = SnapshotStore(tmp_path / "store")
+
+    first = store.create(source, commit="abc", timestamp="2026-07-14T00:00:00Z")
+    second = store.create(source, commit="def", timestamp="2026-07-15T00:00:00Z")
+
+    assert first.root_digest == second.root_digest
+    assert first.snapshot_id == second.snapshot_id
+    assert store.load(first.snapshot_id).commit == "def"
+    assert len(list((tmp_path / "store" / "blobs").iterdir())) == 2
+
+
+def test_restore_verify_only_returns_deterministic_receipt_and_detects_drift(
+    tmp_path: Path,
+):
+    source = tmp_path / "source"
+    source.mkdir()
+    _tree(source)
+    store = SnapshotStore(tmp_path / "store")
+    manifest = store.create(source)
+    restored = tmp_path / "restored"
+
+    receipt = store.restore(manifest, restored)
+    assert receipt.verified
+    assert receipt.before_digest == manifest.root_digest
+    assert receipt.digest() == store.restore(manifest, tmp_path / "restored-2").digest()
+
+    (restored / "app.txt").write_text("drift", encoding="utf-8")
+    check = store.restore(manifest, restored, verify_only=True)
+    assert not check.verified
+    assert check.changed == ("app.txt",)
+
+
+def test_restore_rejects_corrupt_blob_before_writing_target(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _tree(source)
+    store = SnapshotStore(tmp_path / "store")
+    manifest = store.create(source)
+    blob = store.blobs / manifest.entries[0].digest
+    blob.write_bytes(b"corrupt")
+
+    with pytest.raises(SnapshotError, match="corrupt"):
+        store.restore(manifest, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+
+
 def test_journal_hash_chain_detects_tampering(tmp_path: Path):
     path = tmp_path / "journal.jsonl"
     journal = TransactionJournal(path)
@@ -73,6 +124,44 @@ def test_journal_hash_chain_detects_tampering(tmp_path: Path):
     )
     with pytest.raises(JournalError):
         journal.records()
+
+
+def test_journal_mutation_receipt_and_truncated_tail_are_replay_safe(tmp_path: Path):
+    path = tmp_path / "journal.jsonl"
+    journal = TransactionJournal(path)
+    record = journal.append_mutation(
+        intent="update-config",
+        actor="agent",
+        snapshot_before="a" * 64,
+        snapshot_after="b" * 64,
+        fencing_token="17",
+        result={"status": "committed", "files": ["config.yaml"]},
+    )
+    assert record.mutation == MutationReceipt(
+        "update-config",
+        "agent",
+        "a" * 64,
+        "b" * 64,
+        "17",
+        {"status": "committed", "files": ["config.yaml"]},
+    )
+    assert (
+        record.mutation.digest()
+        == MutationReceipt(
+            "update-config",
+            "agent",
+            "a" * 64,
+            "b" * 64,
+            "17",
+            {"files": ["config.yaml"], "status": "committed"},
+        ).digest()
+    )
+
+    with path.open("ab") as handle:
+        handle.write(b'{"sequence":2,"event":"mutation"')
+    assert len(journal.records()) == 1
+    journal.append("commit", {"snapshot": "b" * 64})
+    assert [item.sequence for item in journal.records()] == [1, 2]
 
 
 def test_update_transaction_preserves_previous_and_rolls_back(tmp_path: Path):
