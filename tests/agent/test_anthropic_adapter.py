@@ -29,6 +29,28 @@ from agent.anthropic_adapter import (
 from agent.transports import get_transport
 
 
+@pytest.fixture(autouse=True)
+def _no_keychain_by_default(monkeypatch):
+    """Neutralize the macOS-only Keychain credential lookup for this module.
+
+    ``_read_claude_code_credentials_from_keychain`` (Claude Code >=2.1.114
+    on macOS) shells out to ``security find-generic-password`` and is a
+    no-op on non-Darwin hosts. Most tests below broadly ``patch("subprocess.
+    run")`` to control the ``claude setup-token``/credential-refresh flow they
+    actually care about, and on a real macOS dev host that same mock also
+    intercepts the Keychain subprocess call, feeding a MagicMock into
+    ``json.loads`` and crashing with a TypeError that never reproduces on
+    Linux CI (where the Darwin gate short-circuits before any subprocess
+    call). Tests that want to exercise the Keychain path directly live in
+    tests/agent/test_anthropic_keychain.py and TestReadClaudeCodeCredentials
+    below, which already override this via their own fixture/monkeypatch.
+    """
+    monkeypatch.setattr(
+        "agent.anthropic_adapter._read_claude_code_credentials_from_keychain",
+        lambda: None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Auth helpers
 # ---------------------------------------------------------------------------
@@ -507,7 +529,12 @@ class TestResolveAnthropicToken:
 
 
 class TestRefreshOauthToken:
-    def test_returns_none_without_refresh_token(self):
+    def test_returns_none_without_refresh_token(self, tmp_path, monkeypatch):
+        # Isolate from any real Claude Code credentials on the host: without
+        # this, _refresh_oauth_token's live re-read (see its docstring) picks
+        # up this dev machine's actual ~/.claude/.credentials.json and
+        # "adopts" a real token instead of hitting the no-refresh-token path.
+        monkeypatch.setattr("agent.anthropic_adapter.Path.home", lambda: tmp_path)
         creds = {"accessToken": "expired", "refreshToken": "", "expiresAt": 0}
         assert _refresh_oauth_token(creds) is None
 
@@ -544,7 +571,10 @@ class TestRefreshOauthToken:
         assert written["claudeAiOauth"]["accessToken"] == "new-token-abc"
         assert written["claudeAiOauth"]["refreshToken"] == "new-refresh-456"
 
-    def test_failed_refresh_returns_none(self):
+    def test_failed_refresh_returns_none(self, tmp_path, monkeypatch):
+        # See test_returns_none_without_refresh_token: isolate from real
+        # on-host Claude Code credentials.
+        monkeypatch.setattr("agent.anthropic_adapter.Path.home", lambda: tmp_path)
         creds = {
             "accessToken": "old",
             "refreshToken": "refresh-123",

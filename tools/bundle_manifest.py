@@ -69,7 +69,11 @@ def create(root: Path, source_commit: str, version: str, signing_key: str | None
         sig_path.parent.mkdir(parents=True, exist_ok=True)
         generated = manifest.with_suffix(manifest.suffix + ".minisig")
         assert minisign is not None
-        subprocess.run([minisign, "-Sm", str(manifest), "-s", signing_key, "-W"], check=True)
+        subprocess.run(
+            [minisign, "-Sm", str(manifest), "-s", signing_key, "-W"],
+            check=True,
+            stdin=subprocess.DEVNULL,
+        )
         generated.replace(sig_path)
         checksums.write_text(
             "".join(f"{sha}  {path}\n" for path, sha in entries)

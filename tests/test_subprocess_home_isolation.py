@@ -293,7 +293,21 @@ class TestSanitizeSubprocessEnvHomeInjection:
         monkeypatch.setenv("TERMINAL_HOME_MODE", "profile")
         monkeypatch.setenv("HERMES_HOME", str(hermes_home))
 
-        base_env = {"HOME": str(real_home), "PATH": "/usr/bin", "USER": "root"}
+        # _sanitize_subprocess_env builds its result strictly from base_env/
+        # extra_env (a deliberate process boundary — it does not silently
+        # pull arbitrary vars from the live process environment), and only
+        # bridges the *context-local* HERMES_HOME override (see
+        # _inject_context_hermes_home), not the plain os.environ var. A real
+        # caller passes a base_env derived from the live environment (e.g.
+        # dict(os.environ)), so include HERMES_HOME here too — otherwise this
+        # fixture doesn't actually exercise "profile" mode's HERMES_HOME-based
+        # profile-home lookup, unlike what the monkeypatch.setenv above implies.
+        base_env = {
+            "HOME": str(real_home),
+            "PATH": "/usr/bin",
+            "USER": "root",
+            "HERMES_HOME": str(hermes_home),
+        }
         from tools.environments.local import _sanitize_subprocess_env
         result = _sanitize_subprocess_env(base_env)
 

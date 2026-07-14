@@ -335,6 +335,12 @@ class TestRuntimeStatus:
         version.assert_not_called()
 
     def test_unsupported_target_is_not_replaced_by_wrong_target(self, tmp_path, monkeypatch):
+        # Force the "current" target to something the lock's only asset does
+        # NOT match, regardless of the host this test actually runs on — a
+        # hardcoded "darwin-arm64" asset would coincidentally *match* the real
+        # target on an Apple Silicon Mac (and find a real installed kernel
+        # binary via PATH), defeating the "unsupported target" premise.
+        monkeypatch.setattr(rm, "_target_key", lambda *a, **k: "linux-x64")
         lock = _write_lock(tmp_path, monkeypatch)
         lock["assets"] = {
             "darwin-arm64": {

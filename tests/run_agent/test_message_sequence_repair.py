@@ -277,11 +277,19 @@ def test_flush_guard_clamps_overshooting_cursor():
     not produce a negative-start slice that skips everything (#44837)."""
 
     class _DB:
+        """Fake session DB using the batch append_messages() API.
+
+        perf(gateway): batch durable turn message writes (2924afcb4) switched
+        _flush_messages_to_session_db from one append_message() call per
+        message to a single append_messages() batch call — this fake must
+        match the API AIAgent actually calls.
+        """
+
         def __init__(self):
             self.rows = []
 
-        def append_message(self, **kw):
-            self.rows.append(kw)
+        def append_messages(self, *, session_id, messages):
+            self.rows.extend(messages)
 
     agent = _bare_agent()
     agent._session_db = _DB()

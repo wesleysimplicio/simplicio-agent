@@ -103,6 +103,23 @@ def _is_alive_like_dispatcher(pid: int) -> bool:
                         break
         except (FileNotFoundError, PermissionError, OSError):
             pass
+    else:
+        # No /proc on macOS/BSD. kill(pid, 0) alone can't distinguish a
+        # zombie (exited, not yet reaped) from a truly-alive process — both
+        # answer successfully until something reaps the zombie. This test
+        # is the pid's parent (spawned it via subprocess.Popen), so a
+        # non-blocking reap attempt is the portable equivalent of the
+        # Linux /proc State:Z check: WNOHANG returns immediately, and a
+        # nonzero returned pid means the child had already exited.
+        try:
+            reaped_pid, _status = os.waitpid(pid, os.WNOHANG)
+            if reaped_pid == pid:
+                return False
+        except ChildProcessError:
+            # Already reaped by someone else (or not our child) — kill(pid, 0)
+            # succeeding above means it's still a live PID owned by another
+            # process in that case, so fall through to "alive".
+            pass
     return True
 
 

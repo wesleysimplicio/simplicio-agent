@@ -849,10 +849,19 @@ def get_subprocess_home(env: dict[str, str] | None = None) -> str | None:
     * ``profile``: use ``{HERMES_HOME}/home`` when it exists, preserving the
       older strict per-profile tool-config isolation.
     """
-    env = env or {}
+    # `env` stays None when the caller didn't pass one — that's the sentinel
+    # `_profile_home_path`/`get_real_home`/`env_get` use to mean "read the
+    # real process environment". Coercing it to `{}` here (as an earlier
+    # version of this function did) broke that: an explicit empty dict means
+    # "use no environment at all" downstream, not "fall back to os.environ",
+    # so `get_subprocess_home()` called with no args (the common case,
+    # including tools/file_tools.py's `~` expansion) silently ignored
+    # HERMES_HOME/TERMINAL_HOME_MODE/HOME entirely. Use a separate `lookup`
+    # dict only for this function's own direct `.get()` calls below.
+    lookup = env or {}
     profile_home = _profile_home_path(env)
     mode = (
-        str(env.get("TERMINAL_HOME_MODE") or os.getenv("TERMINAL_HOME_MODE", "auto"))
+        str(lookup.get("TERMINAL_HOME_MODE") or os.getenv("TERMINAL_HOME_MODE", "auto"))
         .strip()
         .lower()
         or "auto"
@@ -866,7 +875,7 @@ def get_subprocess_home(env: dict[str, str] | None = None) -> str | None:
         return profile_home
 
     real_home = get_real_home(env)
-    current_home = str(env.get("HOME") or os.getenv("HOME", "")).strip()
+    current_home = str(lookup.get("HOME") or os.getenv("HOME", "")).strip()
     if mode == "real":
         return (
             real_home

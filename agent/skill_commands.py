@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 _skill_commands: Dict[str, Dict[str, Any]] = {}
 _skill_commands_platform: Optional[str] = None
-_skill_payload_cache: Dict[tuple[Optional[str], str], tuple[float, tuple[dict[str, Any], Path | None, str]]] = {}
-_skill_payload_cache_inflight: set[tuple[Optional[str], str]] = set()
+_skill_payload_cache: Dict[tuple[Optional[str], str, str], tuple[float, tuple[dict[str, Any], Path | None, str]]] = {}
+_skill_payload_cache_inflight: set[tuple[Optional[str], str, str]] = set()
 _skill_payload_cache_lock = threading.Lock()
 _SKILL_PAYLOAD_CACHE_TTL_SECONDS = 300.0
 _SKILL_PAYLOAD_INFLIGHT_WAIT_SECONDS = 0.35
@@ -217,11 +217,22 @@ def _read_skill_payload_uncached(skill_identifier: str, task_id: str | None = No
     return loaded_skill, skill_dir, skill_name
 
 
-def _skill_payload_cache_key(skill_identifier: str) -> tuple[Optional[str], str] | None:
+def _skill_payload_cache_key(skill_identifier: str) -> tuple[Optional[str], str, str] | None:
     normalized = _normalize_skill_identifier(skill_identifier)
     if not normalized:
         return None
-    return (_resolve_skill_commands_platform(), normalized)
+    # Scope the cache key to the current SKILLS_DIR: without this, two skills
+    # sharing a name but living under different roots (a real scenario when
+    # ``--skills-dir``/per-project overrides change SKILLS_DIR at runtime, and
+    # an observed test-isolation hazard when tests monkeypatch SKILLS_DIR to a
+    # fresh tmp dir per test) collide on the same cache entry and one serves
+    # the other's stale payload for up to _SKILL_PAYLOAD_CACHE_TTL_SECONDS.
+    try:
+        from tools.skills_tool import SKILLS_DIR
+        skills_dir_key = str(SKILLS_DIR)
+    except Exception:
+        skills_dir_key = ""
+    return (_resolve_skill_commands_platform(), skills_dir_key, normalized)
 
 
 def invalidate_skill_payload_cache(skill_identifier: str | None = None) -> None:
@@ -289,7 +300,7 @@ def _wait_for_inflight_skill_payload(
 
 
 def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> None:
-    keys_to_warm: list[tuple[Optional[str], str]] = []
+    keys_to_warm: list[tuple[Optional[str], str, str]] = []
     max_items = _bounded_skills_config_int(
         "prewarm_max_items",
         _SKILL_PREWARM_MAX_ITEMS_DEFAULT,
@@ -319,7 +330,9 @@ def prewarm_skill_payloads(skill_identifiers: list[str] | tuple[str, ...]) -> No
 
     def _worker() -> None:
         for key in keys_to_warm:
-            _, normalized = key
+            # key is (platform, skills_dir, normalized_identifier) — see
+            # _skill_payload_cache_key. Only the last element is needed here.
+            normalized = key[-1]
             try:
                 payload = _read_skill_payload_uncached(normalized)
                 if payload is not None:

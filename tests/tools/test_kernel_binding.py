@@ -8,6 +8,7 @@ savings-event/v1 telemetry emitter.
 
 import json
 import subprocess
+from pathlib import Path
 from unittest.mock import Mock, patch as mock_patch
 
 import pytest
@@ -24,6 +25,22 @@ def _reset_kernel_cache():
     kb.reset_kernel_cache()
     yield
     kb.reset_kernel_cache()
+
+
+@pytest.fixture(autouse=True)
+def _no_managed_kernel_dir(monkeypatch, tmp_path):
+    """Neutralize the managed-install-dir fallback in resolve_kernel_bin().
+
+    On a dev machine that has actually run ``tools.runtime_manager.ensure_runtime``
+    (installing the real kernel binary under ``~/.simplicio/bin``), mocking
+    ``shutil.which`` alone does not simulate "kernel absent" — resolve_kernel_bin()
+    falls back to that managed dir and finds the real binary anyway. Point the
+    fallback at an empty tmp dir so "absent" tests are actually isolated from the
+    host's real Simplicio install.
+    """
+    monkeypatch.setattr(
+        "tools.runtime_manager.managed_bin_dir", lambda: tmp_path / "no-such-managed-dir"
+    )
 
 
 # =========================================================================

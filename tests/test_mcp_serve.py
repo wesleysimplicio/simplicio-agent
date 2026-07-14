@@ -1144,6 +1144,9 @@ class TestToolRegistration:
             # savings (issue #98 Fase 3): read/record the token-savings
             # ledger, reusing agent.telemetry.{token_savings,savings_report}.
             "savings",
+            # simplicio_act / simplicio_capabilities: MCP-exposed Simplicio
+            # Runtime action/capability surface (see mcp_serve.py).
+            "simplicio_act", "simplicio_capabilities",
         }
         assert expected == tool_names, f"Missing: {expected - tool_names}, Extra: {tool_names - expected}"
 

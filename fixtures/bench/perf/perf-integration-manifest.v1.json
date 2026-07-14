@@ -32,8 +32,8 @@
         "agent/uvloop_utils.py"
       ],
       "source_sha256": {
-        "agent/async_dag/uvloop_runner.py": "c415e18f3a81ce936371e86b3685d1ea77ff3b69e9233c373618a10f82aa9394",
-        "agent/uvloop_utils.py": "84f2d8848873aad7976d6d9e4f686961421d9a4f9b0708d58bbd0089df0b975c"
+        "agent/async_dag/uvloop_runner.py": "48773c340dabe84acf9b55992b2552c6141c9f09c6c2d8823ba47278bb90635a",
+        "agent/uvloop_utils.py": "64274a9044d13dcfe8a8699f50556a39397f3c4177e5e5cdeac9d3274c090d19"
       },
       "stage_results": {
         "BUILT": {
@@ -67,13 +67,15 @@
         },
         "INSTALLED": {
           "ok": true,
-          "reason": "uvloop is not supported on Windows",
-          "status": "not_applicable"
+          "reason": "uvloop importable",
+          "status": "pass"
         },
         "INVOKED": {
+          "evidence": [
+            "agent.uvloop_utils:install_uvloop_policy"
+          ],
           "ok": true,
-          "reason": "asyncio fallback is the Windows path",
-          "status": "not_applicable"
+          "status": "pass"
         },
         "PACKAGED": {
           "evidence": [
@@ -103,8 +105,8 @@
         "DEFAULT": "pass",
         "E2E": "pass",
         "GATED": "pass",
-        "INSTALLED": "not_applicable",
-        "INVOKED": "not_applicable",
+        "INSTALLED": "pass",
+        "INVOKED": "pass",
         "PACKAGED": "pass",
         "PRESENT": "pass",
         "SAME_SOURCE": "pass"
@@ -158,9 +160,9 @@
         "agent/serde/fast_json.py"
       ],
       "source_sha256": {
-        "agent/_fastjson.py": "22ca36a05f84dab3b0859b5f9cff0e203d1aa123c254244f1392fdd8b6f2f172",
-        "agent/serde/__init__.py": "0da142c171757126545c1571fbe5f9bb03db8ff644954c2cf98620692d7c7ae2",
-        "agent/serde/fast_json.py": "8aaf7fc80362d5e0ada871451e2d55aea689b8ba8dad911f5ec69f4dc0c68cff"
+        "agent/_fastjson.py": "faed372d5e0d98a6bebca5a37894d38a9725e29d3699b1d4e7d6429ce1f24b4d",
+        "agent/serde/__init__.py": "dfa030f2022d8f4cedb6e86db006fea0b80620f48f75a46cf4d6162445561cbf",
+        "agent/serde/fast_json.py": "6187c940d817d7844174ccaed3b8f88fc0d0ad0a1d4719434e70c9afb4454264"
       },
       "stage_results": {
         "BUILT": {
@@ -194,7 +196,7 @@
         },
         "INSTALLED": {
           "ok": true,
-          "reason": "orjson=True msgspec=False",
+          "reason": "orjson=True msgspec=True",
           "status": "pass"
         },
         "INVOKED": {
@@ -289,9 +291,9 @@
         "hermes_cli/model_switch.py"
       ],
       "source_sha256": {
-        "agent/agent_init.py": "ff61a02fbf4390a01874bcd51a32247095677e973a2cdb87ea672b9e0d67b4d3",
-        "agent/skill_commands.py": "38c0b8cf18b90defd59a5b61ac22ca40656a3dc6dc4d2f7f5e3ba282f51e4071",
-        "hermes_cli/model_switch.py": "db5322bf583fa51b65b1eeee6fd01951d9158c4005199e8272868d69b387ec88"
+        "agent/agent_init.py": "baa07e8bd9926254e948d18e83634fc2985cda8f0f4047258245903e13e4bfd2",
+        "agent/skill_commands.py": "7b89220927ff6bd39efb7163ac280962ed4c1dbe06af8849548ac0d4e73a3e62",
+        "hermes_cli/model_switch.py": "6cfc4726f65325a23b8251f70fd70cfae27749c5492365518bdeebc04ad7c8e3"
       },
       "stage_results": {
         "BUILT": {

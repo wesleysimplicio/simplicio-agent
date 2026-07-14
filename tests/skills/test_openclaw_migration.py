@@ -904,9 +904,15 @@ def test_rebrand_text_preserves_filesystem_path_casing():
         "config is at ~/.hermes/config.yaml"
     assert mod.rebrand_text("use .openclaw directory") == "use .hermes directory"
     assert mod.rebrand_text("Path.home() / '.openclaw'") == "Path.home() / '.hermes'"
-    # Sentence with both lowercase path and capitalized prose.
+    # Sentence with both a bare lowercase prose mention and a lowercase path.
+    # Consistent with the other bare-lowercase-prose case above
+    # ("openclaw should always respond concisely" -> "hermes ..."): rebrand_text
+    # always targets "Hermes"/"hermes" (the real ~/.hermes home directory
+    # name), never "simplicio-agent" — that would need path- vs. prose-context
+    # detection this script doesn't (and, per the other assertions in this
+    # file, isn't meant to) do.
     assert mod.rebrand_text("openclaw config path: ~/.openclaw/") == \
-        "simplicio-agent config path: ~/.hermes/"
+        "hermes config path: ~/.hermes/"
 
 
 def test_migrate_memory_rebrands_entries(tmp_path):

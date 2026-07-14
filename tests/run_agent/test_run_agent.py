@@ -1130,6 +1130,10 @@ class TestBuildSystemPrompt:
     def test_memory_guidance_when_memory_tool_loaded(self, agent_with_memory_tool):
         from agent.prompt_builder import MEMORY_GUIDANCE
 
+        # Prompt-economy mode (on by default) replaces the full guidance text
+        # with a condensed handle (see agent/system_prompt.py _economy_enabled)
+        # — disable it here to test the verbose guidance path this test targets.
+        agent_with_memory_tool._prompt_economy_enabled = False
         prompt = agent_with_memory_tool._build_system_prompt()
         assert MEMORY_GUIDANCE in prompt
 
@@ -6953,8 +6957,11 @@ class TestPersistUserMessageOverride:
         agent._persist_session(messages, [])
 
         assert messages[0]["content"] == "Hello there"
-        first_db_write = agent._session_db.append_message.call_args_list[0].kwargs
-        assert first_db_write["content"] == "Hello there"
+        # _flush_messages_to_session_db batches the turn into one
+        # append_messages(...) call (#860 duplicate-write fix) rather than
+        # calling append_message per row.
+        batch_call = agent._session_db.append_messages.call_args_list[0].kwargs
+        assert batch_call["messages"][0]["content"] == "Hello there"
 
 
 class TestReasoningReplayForStrictProviders:

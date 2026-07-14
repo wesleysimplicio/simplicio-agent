@@ -565,15 +565,32 @@ class GatewaySlashCommandsMixin:
             if isinstance(model_cfg, dict):
                 provider_name = _clean_str(model_cfg.get("provider"))
         if not context_total:
-            # Resolve the real context window from the model metadata instead
-            # of trusting model.context_length in the config, which can be a
-            # stale number inherited from a previously-selected model.
+            # Resolve the real context window from model metadata, but still
+            # honor an explicit config.model.context_length override when the
+            # config's own configured model matches the one being displayed
+            # (get_model_context_length's step-0 "user knows best" override) —
+            # this is the only source of truth when there's no live agent to
+            # probe and the persisted model isn't one get_model_context_length
+            # can detect on its own (see #45966-status vs. d01aeaabd's
+            # model-switch fix, which this must not regress).
+            _status_config_ctx = None
+            model_cfg_for_status = user_config.get("model", {}) if isinstance(user_config, dict) else {}
+            if isinstance(model_cfg_for_status, dict):
+                _cfg_model_name = model_cfg_for_status.get("default") or model_cfg_for_status.get("model")
+                if not _cfg_model_name or _cfg_model_name == model_name:
+                    _raw_status_ctx = model_cfg_for_status.get("context_length")
+                    if _raw_status_ctx is not None:
+                        try:
+                            _status_config_ctx = int(_raw_status_ctx)
+                        except (TypeError, ValueError):
+                            _status_config_ctx = None
             try:
                 from agent.model_metadata import get_model_context_length
                 _resolved = get_model_context_length(
                     model_name or "",
                     base_url=base_url or "",
                     provider=provider_name or "",
+                    config_context_length=_status_config_ctx,
                 )
                 if _resolved and int(_resolved) > 0:
                     context_total = int(_resolved)

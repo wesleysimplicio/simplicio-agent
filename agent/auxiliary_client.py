@@ -428,11 +428,20 @@ def _or_attr(name: str, default: str) -> str:
     return val.strip() or default
 
 
-_OR_HEADERS_BASE = {
-    "HTTP-Referer": _or_attr("OPENROUTER_HTTP_REFERER", "https://simpleti.com.br/simplicio"),
-    "X-Title": _or_attr("OPENROUTER_X_TITLE", "Simplicio Agent"),
-    "X-OpenRouter-Categories": "productivity,cli-agent",
-}
+def _or_headers_base() -> dict:
+    """Build the base OpenRouter attribution headers, reading env vars live.
+
+    Must not be memoized at import time: a deployment can set
+    ``OPENROUTER_HTTP_REFERER`` / ``OPENROUTER_X_TITLE`` after this module has
+    already been imported (the normal case — env vars are usually set by
+    config/CLI/tests after Python has already imported its modules), and the
+    documented override contract above requires that to work.
+    """
+    return {
+        "HTTP-Referer": _or_attr("OPENROUTER_HTTP_REFERER", "https://simpleti.com.br/simplicio"),
+        "X-Title": _or_attr("OPENROUTER_X_TITLE", "Simplicio Agent"),
+        "X-OpenRouter-Categories": "productivity,cli-agent",
+    }
 
 # Truthy values for boolean env-var parsing.
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
@@ -482,7 +491,7 @@ def build_or_headers(or_config: dict | None = None) -> dict:
     *or_config* is the ``openrouter`` section from config.yaml.  When *None*,
     falls back to reading config from disk via ``load_config()``.
     """
-    headers = dict(_OR_HEADERS_BASE)
+    headers = _or_headers_base()
 
     # Resolve config from disk if not provided.
     if or_config is None:

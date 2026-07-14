@@ -27,13 +27,17 @@ class TestSkinConfig:
     def test_get_color_with_fallback(self):
         from hermes_cli.skin_engine import load_skin
         skin = load_skin("default")
-        assert skin.get_color("banner_title") == "#FFD700"
+        # Simplicio rebrand (commit 2910dc713) recolored the "default" skin's
+        # banner_title from gold (#FFD700) to green (#7CFC00).
+        assert skin.get_color("banner_title") == "#7CFC00"
         assert skin.get_color("nonexistent", "#000") == "#000"
 
     def test_get_branding_with_fallback(self):
         from hermes_cli.skin_engine import load_skin
         skin = load_skin("default")
-        assert skin.get_branding("agent_name") == "Hermes Agent"
+        # Simplicio rebrand (issue #191 / commit 647eabb47) renamed the
+        # machine-facing agent_name from "Hermes Agent" to "Simplicio Agent".
+        assert skin.get_branding("agent_name") == "Simplicio Agent"
         assert skin.get_branding("nonexistent", "fallback") == "fallback"
 
     def test_get_spinner_wings_empty_for_default(self):
@@ -204,8 +208,10 @@ class TestUserSkins:
         assert skin.get_color("banner_title") == "#FF0000"
         assert skin.get_branding("agent_name") == "Custom Agent"
         assert skin.tool_prefix == "▸"
-        # Should inherit defaults for unspecified colors
-        assert skin.get_color("banner_border") == "#CD7F32"  # from default
+        # Should inherit defaults for unspecified colors. Simplicio rebrand
+        # (commit 2910dc713) recolored the "default" skin's banner_border
+        # from #CD7F32 to #B8860B.
+        assert skin.get_color("banner_border") == "#B8860B"  # from default
 
     def test_load_user_skin_invalid_section_types_fall_back_to_defaults(self, tmp_path, monkeypatch):
         from hermes_cli.skin_engine import load_skin
@@ -232,8 +238,10 @@ class TestUserSkins:
         skin = load_skin("broken")
 
         assert skin.name == "broken"
-        assert skin.get_color("banner_title") == "#FFD700"
-        assert skin.get_branding("agent_name") == "Hermes Agent"
+        # Same rebrand-driven default values as test_get_color_with_fallback
+        # / test_get_branding_with_fallback above.
+        assert skin.get_color("banner_title") == "#7CFC00"
+        assert skin.get_branding("agent_name") == "Simplicio Agent"
         assert skin.spinner.get("waiting_faces", []) == []
         assert skin.tool_emojis == {}
         assert skin.tool_prefix == "!"
@@ -284,8 +292,10 @@ class TestDisplayIntegration:
 class TestCliBrandingHelpers:
     def test_active_prompt_symbol_default(self):
         from hermes_cli.skin_engine import get_active_prompt_symbol
+        # Simplicio rebrand (commit 2910dc713) changed the "default" skin's
+        # branding.prompt_symbol from "❯" to ">".
 
-        assert get_active_prompt_symbol() == "❯ "
+        assert get_active_prompt_symbol() == "> "
 
     def test_active_prompt_symbol_ares(self):
         from hermes_cli.skin_engine import set_active_skin, get_active_prompt_symbol

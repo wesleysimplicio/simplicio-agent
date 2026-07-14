@@ -383,6 +383,18 @@ class TestDockerHostBindApproval:
         """Host-bound Docker execute_code does not get the container fast-path."""
         import tools.approval as A
         monkeypatch.setenv("HERMES_EXEC_ASK", "1")
+        # Isolate from this host's real ~/.hermes state: if the developer
+        # machine running this test has approvals.mode: off (or yolo enabled,
+        # or a persisted "Always approve execute_code" allowlist entry from
+        # real prior usage) set for their own personal use,
+        # check_execute_code_guard auto-approves before ever reaching the
+        # has_host_access branch this test exists to exercise, independent
+        # of HERMES_EXEC_ASK.
+        monkeypatch.setattr(A, "_get_approval_mode", lambda: "manual")
+        monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", False)
+        monkeypatch.setattr(A, "is_current_session_yolo_enabled", lambda: False)
+        monkeypatch.setattr(A, "_permanent_approved", set())
+        monkeypatch.setattr(A, "_session_approved", {})
         res = A.check_execute_code_guard(
             "import os; os.system('rm -rf /workspace')", "docker",
             has_host_access=True)

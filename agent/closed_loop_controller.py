@@ -757,7 +757,7 @@ class ActionDecision(DecisionBase):
     score: float | None = None
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ActionDecision, self).__post_init__()
         object.__setattr__(self, "kind", DecisionKind.ACTION)
         object.__setattr__(
             self, "action_digest", _require_text(self.action_digest, "action_digest")
@@ -798,7 +798,7 @@ class ObserveDecision(DecisionBase):
     observation_request: str = ""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ObserveDecision, self).__post_init__()
         object.__setattr__(self, "kind", DecisionKind.OBSERVE)
         object.__setattr__(self, "missing_inputs", tuple(self.missing_inputs))
         object.__setattr__(self, "conflicting_inputs", tuple(self.conflicting_inputs))
@@ -825,7 +825,7 @@ class WaitDecision(DecisionBase):
     wait_for: str = ""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(WaitDecision, self).__post_init__()
         object.__setattr__(self, "kind", DecisionKind.WAIT)
         object.__setattr__(self, "wait_for", _require_text(self.wait_for, "wait_for"))
 
@@ -846,7 +846,7 @@ class ClarifyDecision(DecisionBase):
     score: float | None = None
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(ClarifyDecision, self).__post_init__()
         object.__setattr__(self, "kind", DecisionKind.CLARIFY)
         object.__setattr__(
             self, "action_digest", _require_text(self.action_digest, "action_digest")
@@ -891,7 +891,7 @@ class BlockDecision(DecisionBase):
     blocked_by: str = ""
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super(BlockDecision, self).__post_init__()
         object.__setattr__(self, "kind", DecisionKind.BLOCK)
         object.__setattr__(
             self, "blocked_by", _require_text(self.blocked_by, "blocked_by")
