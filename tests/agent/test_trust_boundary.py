@@ -8,8 +8,10 @@ import pytest
 from agent.trust_boundary import (
     BlockedCognitiveIntegrity,
     BlockedReason,
+    ControlEventReplayGuard,
     FailClosedTrustBoundaryError,
     IntegrityReceipt,
+    ReplayDetectedTrustBoundaryError,
     TrustClass,
     TrustProvenance,
     ProvenanceKind,
@@ -71,6 +73,49 @@ def test_unknown_control_event_key_fails_closed():
     assert isinstance(blocked, BlockedCognitiveIntegrity)
     assert blocked.reason is BlockedReason.UNAUTHENTICATED_CONTROL_EVENT
     assert blocked.trust_class is TrustClass.BLOCKED_COGNITIVE_INTEGRITY
+
+
+def test_replay_guard_accepts_authenticated_nonce_once():
+    event = _load("control_event_valid.json")
+    keyring = _load("control_event_keyring.json")
+    guard = ControlEventReplayGuard()
+
+    provenance = guard.verify(event, keyring=keyring)
+
+    assert provenance.trust_class is TrustClass.TRUSTED_CONTROL_PLANE
+
+
+def test_replay_guard_rejects_duplicate_nonce_and_sanitizes_enforcement():
+    event = _load("control_event_valid.json")
+    keyring = _load("control_event_keyring.json")
+    guard = ControlEventReplayGuard()
+    guard.verify(event, keyring=keyring)
+
+    with pytest.raises(ReplayDetectedTrustBoundaryError):
+        guard.verify(event, keyring=keyring)
+
+    blocked = enforce_control_event(event, keyring=keyring, replay_guard=guard)
+
+    assert isinstance(blocked, BlockedCognitiveIntegrity)
+    public = blocked.to_public_dict()
+    assert public["reason"] == BlockedReason.REPLAYED_CONTROL_EVENT.value
+    assert public["message"] == "control event replay rejected"
+    assert "payload" not in public["details"]
+    assert "auth" not in public["details"]
+
+
+def test_replay_guard_does_not_consume_nonce_after_failed_authentication():
+    event = _load("control_event_valid.json")
+    tampered = dict(event)
+    tampered["payload"] = dict(event["payload"])
+    tampered["payload"]["action"] = "forged"
+    keyring = _load("control_event_keyring.json")
+    guard = ControlEventReplayGuard()
+
+    with pytest.raises(FailClosedTrustBoundaryError):
+        guard.verify(tampered, keyring=keyring)
+
+    assert guard.verify(event, keyring=keyring).trust_class is TrustClass.TRUSTED_CONTROL_PLANE
 
 
 def test_unsupported_control_event_algorithm_is_denied():
