@@ -476,6 +476,24 @@ class RuntimeStatus:
         """Alias for callers that want the readiness contract explicitly."""
         return self.satisfied
 
+    def to_dict(self) -> dict:
+        """Return the stable, JSON-safe readiness payload used by diagnostics."""
+        return {
+            "bin_path": self.bin_path,
+            "source": self.source,
+            "version": self.version,
+            "min_version": self.min_version,
+            "satisfied": self.satisfied,
+            "detail": self.detail,
+            "lock_valid": self.lock_valid,
+            "target": self.target,
+            "asset_name": self.asset_name,
+            "sha256": self.sha256,
+            "verified": self.verified,
+            "reason_code": self.reason_code,
+            "handshake": self.handshake.to_dict() if self.handshake else None,
+        }
+
 
 def runtime_health(lock: Optional[dict] = None) -> dict:
     """Return the runtime status in the stable health/doctor shape.

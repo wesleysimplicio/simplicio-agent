@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 RECEIPT_SCHEMA = "simplicio-transport/receipt/v1"
 ERROR_SCHEMA = "simplicio-transport/error/v1"
 FALLBACK_REASON_CLI_UNAVAILABLE = "cli_unavailable"
+TRANSPORT_HEALTH_SCHEMA = "simplicio-transport/health/v1"
 
 
 @dataclass(frozen=True)
@@ -146,7 +147,10 @@ class SimplicioTransport:
         mcp_command: Optional[Sequence[str]] = None,
         timeout_s: float = 20.0,
         fallback_ledger: Optional[Callable[[dict[str, Any]], Any]] = None,
+        fallback_event_limit: int = 256,
     ) -> None:
+        if fallback_event_limit < 1:
+            raise ValueError("fallback_event_limit must be positive")
         self.cli_bin = cli_bin
         self.mcp_call = mcp_call
         self.mcp_command = tuple(mcp_command) if mcp_command else None
@@ -162,6 +166,52 @@ class SimplicioTransport:
         self._last_fallback_reason: Optional[str] = None
         self._last_call_at: Optional[float] = None
         self._fallback_events: list[dict[str, Any]] = []
+        self._fallback_event_limit = fallback_event_limit
+        self._state = "ready"
+        self._generation = 1
+        self._started_at = time.time()
+        self._closed_at: Optional[float] = None
+
+    # -- lifecycle -----------------------------------------------------
+    def lifecycle(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "schema": "simplicio-transport/lifecycle/v1",
+                "state": self._state,
+                "generation": self._generation,
+                "started_at": self._started_at,
+                "closed_at": self._closed_at,
+            }
+
+    def start(self) -> dict[str, Any]:
+        """Start (or restart) the stateless transport idempotently."""
+        with self._lock:
+            if self._state == "closed":
+                self._state = "ready"
+                self._generation += 1
+                self._started_at = time.time()
+                self._closed_at = None
+            return {
+                "schema": "simplicio-transport/lifecycle/v1",
+                "state": self._state,
+                "generation": self._generation,
+                "started_at": self._started_at,
+                "closed_at": self._closed_at,
+            }
+
+    def close(self) -> dict[str, Any]:
+        """Close the transport idempotently; no subprocess is left running."""
+        with self._lock:
+            if self._state == "ready":
+                self._state = "closed"
+                self._closed_at = time.time()
+            return {
+                "schema": "simplicio-transport/lifecycle/v1",
+                "state": self._state,
+                "generation": self._generation,
+                "started_at": self._started_at,
+                "closed_at": self._closed_at,
+            }
 
     # -- public operation methods -------------------------------------
     def gate(
@@ -201,6 +251,17 @@ class SimplicioTransport:
         """Execute one operation and return a uniform receipt."""
         request_id = uuid.uuid4().hex
         started = time.monotonic()
+        with self._lock:
+            closed = self._state == "closed"
+        if closed:
+            return self._finish(
+                TransportReceipt.failure(
+                    operation,
+                    TransportError("transport_closed", "Simplicio transport is closed"),
+                    request_id=request_id,
+                    elapsed_ms=(time.monotonic() - started) * 1000,
+                )
+            )
         if operation not in self._COMMANDS:
             return self._finish(
                 TransportReceipt.failure(
@@ -252,8 +313,13 @@ class SimplicioTransport:
         """Return transport health suitable for status/doctor surfaces."""
         with self._lock:
             return {
-                "schema": "simplicio-transport/health/v1",
-                "healthy": self._failures == 0 or self._calls == 0,
+                "schema": TRANSPORT_HEALTH_SCHEMA,
+                "healthy": self._state == "ready"
+                and (self._failures == 0 or self._calls == 0),
+                "state": self._state,
+                "generation": self._generation,
+                "started_at": self._started_at,
+                "closed_at": self._closed_at,
                 "calls": self._calls,
                 "cli_calls": self._cli_calls,
                 "mcp_calls": self._mcp_calls,
@@ -557,6 +623,8 @@ class SimplicioTransport:
         }
         with self._lock:
             self._fallback_events.append(event)
+            if len(self._fallback_events) > self._fallback_event_limit:
+                del self._fallback_events[: -self._fallback_event_limit]
         if self.fallback_ledger is not None:
             try:
                 self.fallback_ledger(event)
