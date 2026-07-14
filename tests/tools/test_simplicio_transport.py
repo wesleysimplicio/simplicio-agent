@@ -47,6 +47,28 @@ def test_mcp_fallback_only_when_cli_cannot_start_and_records_reason():
     assert transport.health()["fallbacks"] == 1
 
 
+def test_batch_cli_retries_without_windows_hide_flags_after_launch_error():
+    import os
+    import subprocess
+
+    if os.name != "nt":
+        return
+    proc = subprocess.CompletedProcess(
+        ["cmd.exe"], 0, stdout='{"decision":"allow"}', stderr=""
+    )
+    with patch(
+        "tools.simplicio_transport.subprocess.run",
+        side_effect=[OSError(6, "invalid handle"), proc],
+    ) as run:
+        receipt = SimplicioTransport(cli_bin="fake.cmd").gate("echo ok")
+
+    assert receipt.ok is True
+    assert receipt.transport == "cli"
+    assert run.call_count == 2
+    assert "creationflags" in run.call_args_list[0].kwargs
+    assert "creationflags" not in run.call_args_list[1].kwargs
+
+
 def test_cli_command_error_does_not_trigger_mcp_fallback():
     proc = __import__("subprocess").CompletedProcess(
         ["simplicio"], 2, stdout="", stderr="policy denied"

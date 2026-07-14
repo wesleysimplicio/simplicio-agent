@@ -288,14 +288,35 @@ class SimplicioTransport:
             command = [cli_bin, *argv]
             if os.name == "nt" and Path(cli_bin).suffix.lower() in {".cmd", ".bat"}:
                 command = ["cmd.exe", "/d", "/c", cli_bin, *argv]
-            proc = subprocess.run(
-                command,
-                input=input_data,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_s,
-                **self._windows_flags(),
-            )
+            windows_flags = self._windows_flags()
+            try:
+                proc = subprocess.run(
+                    command,
+                    input=input_data,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout_s,
+                    **windows_flags,
+                )
+            except OSError:
+                # Some Windows hosts reject CREATE_NO_WINDOW for a batch
+                # wrapper after another subprocess has changed console/job
+                # state. The wrapper is still a valid CLI, so retry once
+                # without cosmetic creation flags before declaring it absent.
+                if not (
+                    os.name == "nt"
+                    and Path(cli_bin).suffix.lower() in {".cmd", ".bat"}
+                    and windows_flags.get("creationflags")
+                ):
+                    raise
+                logger.debug("retrying CLI wrapper without Windows hide flags")
+                proc = subprocess.run(
+                    command,
+                    input=input_data,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout_s,
+                )
         except (FileNotFoundError, PermissionError) as exc:
             logger.debug("simplicio CLI unavailable: %s", exc)
             return None
