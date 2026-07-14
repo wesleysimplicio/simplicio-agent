@@ -21,6 +21,7 @@ interface, the registry, and the plugin glue layer simultaneously.
 Mirrors ``tests/plugins/web/test_web_search_provider_plugins.py`` from
 PR #25182.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -115,6 +116,15 @@ class TestBundledPluginsRegister:
         assert isinstance(schema, dict)
         assert "name" in schema
         assert "env_vars" in schema
+        assert (
+            schema.get("capabilities", {}).get("routing", {}).get("primary")
+            == "dom/cdp"
+        )
+        assert (
+            schema.get("capabilities", {}).get("routing", {}).get("fallback")
+            == "visual"
+        )
+        assert schema["capabilities"]["safety"]["no_effect"] == ["snapshot", "console"]
         # Every cloud-browser plugin needs the agent-browser post-setup hook
         # so the picker auto-installs the CLI on selection.
         assert schema.get("post_setup") == "agent_browser"
@@ -135,9 +145,7 @@ class TestBundledPluginsRegister:
         # default — we check by comparing the function reference.
         assert type(provider).create_session is not BrowserProvider.create_session
         assert type(provider).close_session is not BrowserProvider.close_session
-        assert (
-            type(provider).emergency_cleanup is not BrowserProvider.emergency_cleanup
-        )
+        assert type(provider).emergency_cleanup is not BrowserProvider.emergency_cleanup
 
 
 # ---------------------------------------------------------------------------

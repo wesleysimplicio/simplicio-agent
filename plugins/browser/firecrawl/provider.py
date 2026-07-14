@@ -34,6 +34,7 @@ from typing import Any, Dict
 import requests
 
 from agent.browser_provider import BrowserProvider
+from tools.browser_interaction_contract import browser_provider_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,7 @@ class FirecrawlBrowserProvider(BrowserProvider):
                 timeout=30,
             )
         except requests.RequestException as exc:
-            raise RuntimeError(
-                f"Firecrawl API connection failed: {exc}"
-            ) from exc
+            raise RuntimeError(f"Firecrawl API connection failed: {exc}") from exc
 
         if not response.ok:
             raise RuntimeError(
@@ -168,4 +167,5 @@ class FirecrawlBrowserProvider(BrowserProvider):
                 },
             ],
             "post_setup": "agent_browser",
+            "capabilities": browser_provider_capabilities(),
         }
