@@ -459,6 +459,8 @@ class RuntimeStatus:
     satisfied: bool
     detail: str = ""
     lock_valid: bool = False
+    release_repo: Optional[str] = None
+    source_repo: Optional[str] = None
     target: Optional[str] = None
     asset_name: Optional[str] = None
     sha256: Optional[str] = None
@@ -480,11 +482,15 @@ class RuntimeStatus:
         return {
             "bin_path": self.bin_path,
             "source": self.source,
+            "transport": self.source,
             "version": self.version,
             "min_version": self.min_version,
             "satisfied": self.satisfied,
             "detail": self.detail,
             "lock_valid": self.lock_valid,
+            "repo": self.release_repo,
+            "release_repo": self.release_repo,
+            "source_repo": self.source_repo,
             "target": self.target,
             "asset_name": self.asset_name,
             "sha256": self.sha256,
@@ -511,8 +517,12 @@ def runtime_health(lock: Optional[dict] = None) -> dict:
         else ("stale" if status.present else "absent"),
         "bin_path": status.bin_path,
         "source": status.source,
+        "transport": status.source,
         "version": status.version,
         "min_version": status.min_version,
+        "repo": status.release_repo,
+        "release_repo": status.release_repo,
+        "source_repo": status.source_repo,
         "target": status.target,
         "asset_name": status.asset_name,
         "sha256": status.sha256,
@@ -542,8 +552,12 @@ def doctor_status(*, fix: bool = False) -> dict:
             else ("stale" if status.present else "absent"),
             "bin_path": status.bin_path,
             "source": status.source,
+            "transport": status.source,
             "version": status.version,
             "min_version": status.min_version,
+            "repo": status.release_repo,
+            "release_repo": status.release_repo,
+            "source_repo": status.source_repo,
             "target": status.target,
             "asset_name": status.asset_name,
             "sha256": status.sha256,
@@ -576,6 +590,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     validation = validate_runtime_lock(lock)
     if not validation.valid:
         detail = f"runtime lock invalid: {validation.detail}"
+        release_repo = str(lock.get("release_repo") or "") or None
+        source_repo = str(lock.get("source_repo") or "") or None
         return RuntimeStatus(
             bin_path=None,
             source="absent",
@@ -584,12 +600,16 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             satisfied=False,
             detail=detail,
             lock_valid=False,
+            release_repo=release_repo,
+            source_repo=source_repo,
             target=validation.target,
             reason_code=HANDSHAKE_REASON_HANDSHAKE_FAILED,
         )
     asset = validation.asset or {}
     asset_name = str(asset["name"])
     expected_sha256 = str(asset["sha256"])
+    release_repo = str(lock.get("release_repo") or "") or None
+    source_repo = str(lock.get("source_repo") or "") or None
     bin_path, source = resolve_kernel(lock)
     if not bin_path:
         detail = "kernel binary not found (env override, PATH, managed dir)"
@@ -601,6 +621,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             satisfied=False,
             detail=detail,
             lock_valid=True,
+            release_repo=release_repo,
+            source_repo=source_repo,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
@@ -628,6 +650,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             satisfied=False,
             detail=detail,
             lock_valid=True,
+            release_repo=release_repo,
+            source_repo=source_repo,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
@@ -656,6 +680,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             satisfied=False,
             detail=detail,
             lock_valid=True,
+            release_repo=release_repo,
+            source_repo=source_repo,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
@@ -707,6 +733,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             satisfied=False,
             detail=detail,
             lock_valid=True,
+            release_repo=release_repo,
+            source_repo=source_repo,
             target=validation.target,
             asset_name=asset_name,
             sha256=expected_sha256,
@@ -736,6 +764,8 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
         satisfied=ok,
         detail=detail,
         lock_valid=True,
+        release_repo=release_repo,
+        source_repo=source_repo,
         target=validation.target,
         asset_name=asset_name,
         sha256=expected_sha256,

@@ -294,6 +294,7 @@ class SimplicioBridge:
                 )
             self._state = "closed"
             self._closed_at = time.time()
+            self._breaker.reset()
         close = getattr(self._transport, "close", None)
         if callable(close):
             close()
@@ -316,6 +317,23 @@ class SimplicioBridge:
             self._causal_seq += 1
             seq = self._causal_seq
         return f"brg:{op}:{uuid.uuid4().hex[:8]}:{seq}"
+
+    def _idempotency_key(self, causal_id: str) -> str:
+        with self._lock:
+            generation = self._generation
+        return f"{generation}:{causal_id}"
+
+    @staticmethod
+    def _failure_receipt(
+        op: str, cid: str, error: str, *, request_id: Optional[str] = None
+    ) -> BridgeReceipt:
+        return BridgeReceipt(
+            operation=op,
+            ok=False,
+            error=error,
+            causal_id=cid,
+            request_id=request_id or cid,
+        )
 
     # -- metrics ---------------------------------------------------------
     def metrics(self) -> BridgeMetrics:
@@ -377,12 +395,13 @@ class SimplicioBridge:
         idempotent: bool = False,
     ) -> Any:
         cid = causal_id or self._next_causal_id(op)
+        idem_key = self._idempotency_key(cid)
         owner = False
         if idempotent:
             with self._idempotency_lock:
-                cached = self._seen.get(cid)
+                cached = self._seen.get(idem_key)
                 if cached is not None:
-                    self._seen.move_to_end(cid)
+                    self._seen.move_to_end(idem_key)
                 else:
                     cached = None
                 if cached is not None:
@@ -400,10 +419,10 @@ class SimplicioBridge:
                 else:
                     duplicate = None
                 if duplicate is None:
-                    event = self._inflight.get(cid)
+                    event = self._inflight.get(idem_key)
                     if event is None:
                         event = threading.Event()
-                        self._inflight[cid] = event
+                        self._inflight[idem_key] = event
                         owner = True
             if duplicate is not None:
                 with self._lock:
@@ -421,23 +440,34 @@ class SimplicioBridge:
                 return cached.value
         with self._lock:
             if self._state == "closed":
+                failure = self._failure_receipt(op, cid, "bridge_closed")
                 self._metrics.last_error = "bridge_closed"
+                self._metrics.last_call_at = time.monotonic()
+                self._metrics.last_transport = None
+                self._metrics.last_fallback_reason = None
+                self._metrics.last_request_id = cid
                 self._metrics.last_deduplicated = False
+                self._last_receipt = failure
                 if owner:
                     with self._idempotency_lock:
-                        self._inflight.pop(cid, None)
+                        self._inflight.pop(idem_key, None)
                         event.set()
                 return None
         if not self._breaker.allow():
             # circuit open: degrade without hammering the kernel
             with self._lock:
+                failure = self._failure_receipt(op, cid, "circuit_open")
                 self._metrics.last_error = "circuit_open"
                 self._metrics.last_call_at = time.monotonic()
+                self._metrics.last_transport = None
+                self._metrics.last_fallback_reason = None
+                self._metrics.last_request_id = cid
                 self._metrics.last_deduplicated = False
+                self._last_receipt = failure
             logger.warning("SimplicioBridge: circuit open, skipping %s", op)
             if owner:
                 with self._idempotency_lock:
-                    self._inflight.pop(cid, None)
+                    self._inflight.pop(idem_key, None)
                     event.set()
             return None
         try:
@@ -481,11 +511,11 @@ class SimplicioBridge:
         if owner:
             with self._idempotency_lock:
                 if ok:
-                    self._seen[cid] = bridge_receipt
-                    self._seen.move_to_end(cid)
+                    self._seen[idem_key] = bridge_receipt
+                    self._seen.move_to_end(idem_key)
                     while len(self._seen) > self._idempotency_max_entries:
                         self._seen.popitem(last=False)
-                event = self._inflight.pop(cid, None)
+                event = self._inflight.pop(idem_key, None)
                 if event is not None:
                     event.set()
         if not ok:
