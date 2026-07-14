@@ -1,0 +1,71 @@
+{
+  "planning": {
+    "objective": "publish the verified release",
+    "acceptance_criteria": ["tests pass", "receipt is recorded"],
+    "evidence": "receipt://issue-347/tests",
+    "watcher": "issue-347-watcher"
+  },
+  "memory": {
+    "episode_id": "issue-347-memory",
+    "key": "delivery.preference",
+    "summary": "User alice@example.com prefers token=secret-value",
+    "prediction_receipt": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "outcome_receipt": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "consent_receipt": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "tools": {
+    "name": "demo.tool",
+    "args": {"path": "README.md"},
+    "tool_call_id": "call-issue-347",
+    "result": {"ok": true, "secret": "keep-live", "nested": {"token": "keep-live"}}
+  },
+  "authority": {
+    "action_digest": "sha256:issue-347-action",
+    "goal_hash": "sha256:issue-347-goal",
+    "scope": "workspace:issue-347",
+    "policy_version": "issue-347-policy/v1",
+    "now_ns": 100,
+    "cases": [
+      {"level": "L2", "risk": "read", "mutating": false, "expected": "allow", "reason": "allowed"},
+      {"level": "L2", "risk": "reversible_local_write", "mutating": true, "expected": "ask", "reason": "supervision_required"},
+      {"level": "L3", "risk": "payment", "mutating": true, "expected": "ask", "reason": "human_gate_required"},
+      {"level": "L0", "risk": "read", "mutating": false, "expected": "deny", "reason": "conversation_only"}
+    ]
+  },
+  "belief": {
+    "subject": "deployment.status",
+    "source": "deployment-sensor",
+    "source_version": "2026-07-14",
+    "reliability": 1.0,
+    "observations": {
+      "accept": {
+        "source_event_id": "evt-accept",
+        "value": "ready",
+        "freshness": "fresh",
+        "confidence": 0.95,
+        "expected": "accept"
+      },
+      "clarify": {
+        "source_event_id": "evt-clarify",
+        "value": "ready",
+        "freshness": "fresh",
+        "confidence": 0.45,
+        "expected": "clarify"
+      },
+      "block": {
+        "source_event_id": "evt-block",
+        "value": "ready",
+        "freshness": "fresh",
+        "confidence": 0.20,
+        "expected": "block"
+      },
+      "stale": {
+        "source_event_id": "evt-stale",
+        "value": "ready",
+        "freshness": "stale",
+        "confidence": 0.95,
+        "expected": "defer"
+      }
+    }
+  }
+}
