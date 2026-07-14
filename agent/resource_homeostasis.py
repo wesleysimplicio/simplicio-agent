@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from math import isfinite
 from typing import Any, Mapping
 
 
@@ -64,6 +65,15 @@ def _require_name(value: str, field_name: str) -> str:
     return value.strip()
 
 
+def _require_finite_number(value: float, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{field_name} must be numeric")
+    result = float(value)
+    if not isfinite(result):
+        raise ValueError(f"{field_name} must be finite")
+    return result
+
+
 def _coerce_evidence(value: Mapping[str, Any] | None) -> dict[str, Any]:
     if value is None:
         return {}
@@ -100,12 +110,8 @@ class HysteresisThreshold:
     comparison: Comparison
 
     def __post_init__(self) -> None:
-        if isinstance(self.enter, bool) or not isinstance(self.enter, (int, float)):
-            raise TypeError("enter must be numeric")
-        if isinstance(self.exit, bool) or not isinstance(self.exit, (int, float)):
-            raise TypeError("exit must be numeric")
-        object.__setattr__(self, "enter", float(self.enter))
-        object.__setattr__(self, "exit", float(self.exit))
+        object.__setattr__(self, "enter", _require_finite_number(self.enter, "enter"))
+        object.__setattr__(self, "exit", _require_finite_number(self.exit, "exit"))
         if not isinstance(self.comparison, Comparison):
             object.__setattr__(self, "comparison", Comparison(self.comparison))
         if self.comparison is Comparison.ABOVE and self.exit > self.enter:
@@ -129,9 +135,7 @@ class ResourceObservation:
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", _require_name(self.name, "name"))
         object.__setattr__(self, "unit", _require_name(self.unit, "unit"))
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
-            raise TypeError("value must be numeric")
-        object.__setattr__(self, "value", float(self.value))
+        object.__setattr__(self, "value", _require_finite_number(self.value, "value"))
         object.__setattr__(self, "evidence", _coerce_evidence(self.evidence))
 
 
@@ -145,9 +149,7 @@ class QualityObservation:
     def __post_init__(self) -> None:
         object.__setattr__(self, "name", _require_name(self.name, "name"))
         object.__setattr__(self, "unit", _require_name(self.unit, "unit"))
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
-            raise TypeError("value must be numeric")
-        object.__setattr__(self, "value", float(self.value))
+        object.__setattr__(self, "value", _require_finite_number(self.value, "value"))
         object.__setattr__(self, "evidence", _coerce_evidence(self.evidence))
 
 
@@ -203,10 +205,11 @@ class ActionCostReceipt:
         if not isinstance(self.status, ReceiptStatus):
             object.__setattr__(self, "status", ReceiptStatus(self.status))
         for field_name in ("estimated_cost", "budget_before", "budget_after"):
-            value = getattr(self, field_name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise TypeError(f"{field_name} must be numeric")
-            object.__setattr__(self, field_name, float(value))
+            object.__setattr__(
+                self,
+                field_name,
+                _require_finite_number(getattr(self, field_name), field_name),
+            )
         object.__setattr__(self, "reason", _require_name(self.reason, "reason"))
 
     def to_dict(self) -> dict[str, Any]:
@@ -304,17 +307,23 @@ class HomeostasisPolicy:
         costs: dict[ActionKind, float] = {}
         for action, value in self.action_costs.items():
             kind = action if isinstance(action, ActionKind) else ActionKind(action)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-                raise ValueError("action costs must be non-negative numbers")
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+                or value < 0
+            ):
+                raise ValueError("action costs must be finite non-negative numbers")
             costs[kind] = float(value)
         object.__setattr__(self, "action_costs", costs)
 
         if (
             isinstance(self.max_total_cost, bool)
             or not isinstance(self.max_total_cost, (int, float))
+            or not isfinite(self.max_total_cost)
             or self.max_total_cost < 0
         ):
-            raise ValueError("max_total_cost must be a non-negative number")
+            raise ValueError("max_total_cost must be a finite non-negative number")
         object.__setattr__(self, "max_total_cost", float(self.max_total_cost))
         object.__setattr__(
             self,

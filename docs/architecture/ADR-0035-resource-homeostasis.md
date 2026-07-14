@@ -35,6 +35,8 @@ deterministic evaluator.
   `nominal`, `degraded`, or `fail_safe`.
 - `ActionCostReceipt` records whether each corrective action was applied or
   skipped because of the current budget bound.
+- Numeric observations, thresholds, action costs, budgets, and receipts must be
+  finite; constructors reject `NaN` and infinity before mode selection.
 - `redact_evidence()` strips secret-like fields from evidence before decisions
   are serialized or logged.
 

@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from agent.resource_homeostasis import (
+    ActionCostReceipt,
     ActionKind,
     Comparison,
     HomeostasisMode,
@@ -193,3 +196,63 @@ def test_evidence_is_redacted_and_fixture_round_trip_is_json_safe():
     payload = decision.to_dict()
     assert payload["mode"] == "degraded"
     assert json.loads(json.dumps(payload))["receipts"][0]["action"] == "reduce_concurrency"
+
+
+@pytest.mark.parametrize(
+    ("factory", "message"),
+    [
+        (
+            lambda: ResourceObservation("cpu", float("nan"), "ratio"),
+            "value must be finite",
+        ),
+        (
+            lambda: QualityObservation("response_quality", float("inf"), "ratio"),
+            "value must be finite",
+        ),
+        (
+            lambda: HysteresisThreshold(
+                enter=float("nan"), exit=0.6, comparison=Comparison.ABOVE
+            ),
+            "enter must be finite",
+        ),
+        (
+            lambda: HysteresisThreshold(
+                enter=0.8, exit=float("-inf"), comparison=Comparison.ABOVE
+            ),
+            "exit must be finite",
+        ),
+        (
+            lambda: HomeostasisPolicy(
+                resource_thresholds={},
+                quality_thresholds={},
+                resource_actions={},
+                max_total_cost=float("nan"),
+            ),
+            "max_total_cost must be a finite non-negative number",
+        ),
+        (
+            lambda: HomeostasisPolicy(
+                resource_thresholds={},
+                quality_thresholds={},
+                resource_actions={},
+                action_costs={ActionKind.NOOP: float("inf")},
+            ),
+            "action costs must be finite non-negative numbers",
+        ),
+        (
+            lambda: ActionCostReceipt(
+                action=ActionKind.NOOP,
+                target=None,
+                status=ReceiptStatus.APPLIED,
+                estimated_cost=float("nan"),
+                budget_before=0.0,
+                budget_after=0.0,
+                reason="finite_receipt_required",
+            ),
+            "estimated_cost must be finite",
+        ),
+    ],
+)
+def test_non_finite_control_inputs_are_rejected(factory, message):
+    with pytest.raises(ValueError, match=message):
+        factory()
