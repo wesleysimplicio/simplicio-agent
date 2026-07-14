@@ -68,7 +68,7 @@ def test_packaged_cli_aliases_delegate_to_the_canonical_cli_entrypoint():
     assert scripts["simplicio-agent"] == "hermes_cli.main:main"
     assert scripts["hermes"] == scripts["simplicio-agent"]
     assert scripts["hermes-agent"] == scripts["simplicio-agent"]
-    assert scripts["hermes-acp"] == "acp_adapter.entry:main"
+    assert scripts["hermes-acp"] == scripts["simplicio-agent-acp"]
 
 
 def test_fixture_manifest_loads_and_validates():
@@ -138,3 +138,11 @@ def test_validate_manifest_raises_for_invalid_schema(tmp_path):
 
     with pytest.raises(CliSurfaceSchemaError, match="canonical_command must be"):
         validate_manifest(load_manifest(tmp))
+
+
+def test_tui_setup_instruction_uses_canonical_command_and_preserves_legacy_hint():
+    setup = Path(__file__).resolve().parents[2] / "ui-tui" / "src" / "content" / "setup.ts"
+    text = setup.read_text(encoding="utf-8")
+
+    assert "run `simplicio-agent setup` manually" in text
+    assert "legacy `hermes setup` remains compatible" in text

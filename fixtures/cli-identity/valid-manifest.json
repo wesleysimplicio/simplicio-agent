@@ -26,7 +26,7 @@
     },
     {
       "alias": "hermes-acp",
-      "canonical": "simplicio-agent",
+      "canonical": "simplicio-agent-acp",
       "policy": "migration_only",
       "owner": "cli",
       "warning_code": "deprecated_cli_alias",

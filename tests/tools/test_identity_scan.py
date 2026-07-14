@@ -60,3 +60,29 @@ def test_report_digest_is_stable():
     first = report(scan_text("x.txt", "hermes\n", m))
     second = report(scan_text("x.txt", "hermes\n", m))
     assert first["digest"] == second["digest"]
+
+
+def test_public_install_reference_blocks_but_migration_context_is_allowed():
+    empty = {"schema": IDENTITY_MANIFEST_SCHEMA, "version": 1, "entries": []}
+    public = scan_text(
+        "docs/quickstart.md",
+        "Install with `pip install hermes-agent`.\n",
+        empty,
+        today=date(2026, 7, 14),
+    )
+    assert report(public)["ok"] is False
+
+    migration = scan_text(
+        "docs/migration/hermes-to-simplicio.md",
+        "The legacy `hermes-agent` alias remains supported during migration.\n",
+        manifest(
+            term="hermes-agent",
+            path_glob="docs/migration/*",
+            classification="compatibility",
+            owner="release",
+            reason="documented migration alias",
+            expiry="2027-01-01",
+        ),
+        today=date(2026, 7, 14),
+    )
+    assert report(migration)["ok"] is True

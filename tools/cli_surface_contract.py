@@ -29,6 +29,9 @@ ALLOWED_MESSAGE_CLASSIFICATIONS = frozenset(
     {"canonical_hint", "migration_notice", "branding_event", "neutral_public_text"}
 )
 _LEGACY_ALIASES = tuple(entry.alias for entry in default_cli_alias_entries())
+_LEGACY_ALIAS_TARGETS = {
+    entry.alias.casefold(): entry.canonical for entry in default_cli_alias_entries()
+}
 _SENSITIVE_KEY_TOKENS = (
     "token",
     "secret",
@@ -330,9 +333,12 @@ def check_manifest(manifest: CliSurfaceManifest) -> dict[str, Any]:
         seen_aliases.add(norm)
         if alias.alias == CANONICAL_COMMAND:
             errors.append("canonical command may not appear in legacy_aliases")
-        if alias.canonical != CANONICAL_COMMAND:
+        expected_canonical = _LEGACY_ALIAS_TARGETS.get(norm)
+        if expected_canonical is None:
+            errors.append(f"legacy alias {alias.alias!r} is not registered")
+        elif alias.canonical != expected_canonical:
             errors.append(
-                f"legacy alias {alias.alias!r} must map to {CANONICAL_COMMAND!r}"
+                f"legacy alias {alias.alias!r} must map to {expected_canonical!r}"
             )
         if alias.policy != MIGRATION_ONLY:
             errors.append(

@@ -1,0 +1,15 @@
+{
+  "schema": "simplicio.agent.identity-contract/v1",
+  "mcp": {
+    "server_info_name": "simplicio-agent-tools",
+    "legacy_server_names": [
+      "hermes-tools"
+    ]
+  },
+  "receipt": {
+    "schema": "simplicio.agent.telemetry.receipt/v1",
+    "product": "Simplicio Agent",
+    "component": "simplicio-agent",
+    "legacy_source_schema": "unversioned-receipt"
+  }
+}

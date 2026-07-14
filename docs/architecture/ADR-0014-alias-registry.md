@@ -33,6 +33,13 @@ contracts:
    collision error.
 9. Documents fail closed: the root and every alias row must be JSON objects,
    required identity fields must be strings, and `deprecated` must be boolean.
+10. Deprecated command aliases declare `deprecated_since`, `remove_after`,
+    `minimum_release_window` (two to three stable releases), and a bounded
+    `warning_cadence` (`once_per_process` or `once_per_session`).
+11. A command alias contains no implementation of its own: its installed
+    entrypoint must exactly equal the entrypoint of its canonical command.
+    In particular, `hermes-acp` maps to `simplicio-agent-acp`, not the general
+    `simplicio-agent` command.
 
 ## Schema
 
@@ -46,8 +53,11 @@ contracts:
       "canonical": "simplicio-agent",
       "deprecated": true,
       "owner": "cli",
+      "deprecated_since": "2026-07-13",
       "warning_code": "deprecated_command_alias",
+      "warning_cadence": "once_per_process",
       "remove_after": "2027-01-01",
+      "minimum_release_window": 2,
       "note": "legacy CLI alias"
     }
   ]
@@ -62,5 +72,8 @@ contracts:
   args, tokens, or secrets.
 - Malformed documents cannot silently add aliases through type coercion or
   skipped rows.
+- The repository contract test loads the versioned registry and installed
+  script table together, measuring the deprecation window and proving aliases
+  delegate without alias-specific business logic.
 - Future CLI wiring can consume this registry without reopening schema or
   collision semantics.

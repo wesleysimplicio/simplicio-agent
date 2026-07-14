@@ -8,6 +8,12 @@ duplicate work can short-circuit by looking up the hash before re-executing.
 Schema (JSON file at ``<dir>/<sha>.json``):
 
     {
+      "schema":  "simplicio.agent.telemetry.receipt/v1",
+      "producer": {
+        "product": "Simplicio Agent",
+        "component": "simplicio-agent",
+        "version": "<installed product version>"
+      },
       "sha":     "<sha256 hex>",
       "yool_id": "agent.<authority>.<slug>",
       "lane":    "fast|slow|background",
@@ -32,9 +38,12 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
 from agent.serde import dumps as _serde_dumps, loads as _serde_loads
+from tools.machine_contracts import make_product_identity
 
 _DIR_ENV = "HERMES_RECEIPTS_DIR"
 _DEFAULT_REL = Path(".receipts")
+RECEIPT_SCHEMA = "simplicio.agent.telemetry.receipt/v1"
+LEGACY_RECEIPT_SCHEMA = "unversioned-receipt"
 
 
 def default_receipts_dir(root: Optional[str | Path] = None) -> Path:
@@ -73,6 +82,30 @@ class Cost:
 
 
 @dataclass(frozen=True)
+class ReceiptProducer:
+    """Canonical product/component identity for a receipt producer."""
+
+    product: str
+    component: str
+    version: str
+
+
+def _receipt_producer(version: str) -> ReceiptProducer:
+    identity = make_product_identity(version)
+    return ReceiptProducer(
+        product=identity.product,
+        component=identity.surface,
+        version=identity.version,
+    )
+
+
+def _installed_receipt_producer() -> ReceiptProducer:
+    from hermes_cli import __version__
+
+    return _receipt_producer(__version__)
+
+
+@dataclass(frozen=True)
 class Receipt:
     sha: str
     yool_id: str = "unknown"
@@ -81,11 +114,56 @@ class Receipt:
     cost: Cost = field(default_factory=Cost)
     ts: str = field(default_factory=_utc_now)
     meta: Mapping[str, Any] = field(default_factory=dict)
+    schema: str = RECEIPT_SCHEMA
+    producer: ReceiptProducer = field(default_factory=_installed_receipt_producer)
+    legacy_source_schema: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["meta"] = dict(self.meta)
+        if self.legacy_source_schema is None:
+            data.pop("legacy_source_schema")
         return data
+
+
+def _receipt_from_data(
+    data: Mapping[str, Any],
+    *,
+    sha: str,
+    yool_id: str = "unknown",
+    lane: str = "fast",
+    status: str = "ok",
+) -> Receipt:
+    source_schema = data.get("schema")
+    if source_schema not in (None, RECEIPT_SCHEMA):
+        raise ValueError(f"unsupported receipt schema: {source_schema}")
+
+    producer_data = data.get("producer")
+    if isinstance(producer_data, Mapping):
+        producer = _receipt_producer(str(producer_data.get("version") or "unknown"))
+    else:
+        producer = _receipt_producer("unknown")
+
+    cost = data.get("cost", {}) or {}
+    return Receipt(
+        sha=str(data.get("sha", sha)),
+        yool_id=str(data.get("yool_id", yool_id)),
+        lane=str(data.get("lane", lane)),
+        status=str(data.get("status", status)),
+        cost=Cost(
+            tokens=int(cost.get("tokens", 0)),
+            tokens_raw=int(cost.get("tokens_raw", 0)),
+            tokens_saved=int(cost.get("tokens_saved", 0)),
+        ),
+        ts=str(data.get("ts", _utc_now())),
+        meta=data.get("meta", {}) or {},
+        producer=producer,
+        legacy_source_schema=(
+            str(data.get("legacy_source_schema") or LEGACY_RECEIPT_SCHEMA)
+            if source_schema is None
+            else data.get("legacy_source_schema")
+        ),
+    )
 
 
 def receipt_path(sha: str, directory: Optional[Path] = None) -> Path:
@@ -122,19 +200,12 @@ def record_receipt(
     if target.exists():
         try:
             data = _serde_loads(target.read_text(encoding="utf-8"))
-            cost = data.get("cost", {}) or {}
-            return Receipt(
-                sha=data.get("sha", sha),
-                yool_id=data.get("yool_id", yool_id),
-                lane=data.get("lane", lane),
-                status=data.get("status", status),
-                cost=Cost(
-                    tokens=int(cost.get("tokens", 0)),
-                    tokens_raw=int(cost.get("tokens_raw", 0)),
-                    tokens_saved=int(cost.get("tokens_saved", 0)),
-                ),
-                ts=data.get("ts", _utc_now()),
-                meta=data.get("meta", {}) or {},
+            return _receipt_from_data(
+                data,
+                sha=sha,
+                yool_id=yool_id,
+                lane=lane,
+                status=status,
             )
         except (OSError, ValueError):
             pass  # corrupt — fall through and overwrite below
@@ -171,17 +242,7 @@ def lookup_receipt(
         data = _serde_loads(target.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    cost = data.get("cost", {}) or {}
-    return Receipt(
-        sha=data.get("sha", sha),
-        yool_id=data.get("yool_id", "unknown"),
-        lane=data.get("lane", "fast"),
-        status=data.get("status", "ok"),
-        cost=Cost(
-            tokens=int(cost.get("tokens", 0)),
-            tokens_raw=int(cost.get("tokens_raw", 0)),
-            tokens_saved=int(cost.get("tokens_saved", 0)),
-        ),
-        ts=data.get("ts", _utc_now()),
-        meta=data.get("meta", {}) or {},
-    )
+    try:
+        return _receipt_from_data(data, sha=sha)
+    except (TypeError, ValueError):
+        return None

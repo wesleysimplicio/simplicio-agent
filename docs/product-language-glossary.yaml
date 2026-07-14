@@ -1,0 +1,54 @@
+schema: simplicio.agent.product-language/v1
+version: 1
+
+product_names:
+  agent:
+    canonical: Simplicio Agent
+    kind: proper_noun
+    translate: false
+    translator_comment: >-
+      The shipped product name. Keep these two words unchanged in every locale;
+      translate only surrounding grammar.
+  runtime:
+    canonical: Simplicio Runtime
+    executable: simplicio
+    kind: proper_noun
+    translate: false
+    translator_comment: >-
+      The deterministic execution component, distinct from Simplicio Agent.
+      Keep the display name unchanged and keep the executable lowercase.
+  cli:
+    canonical: simplicio-agent
+    kind: command
+    translate: false
+    translator_comment: Keep lowercase inside code spans and command examples.
+
+terms:
+  run:
+    meaning: one bounded execution of an action or workflow
+    translator_comment: Translate as an execution noun or verb according to context.
+  checkpoint:
+    meaning: a restorable state captured before or during execution
+    translator_comment: Do not describe a checkpoint as a backup unless it is one.
+  receipt:
+    meaning: machine-readable evidence emitted by a completed operation
+    translator_comment: Preserve the evidence and verification meaning.
+  capability:
+    meaning: an action the system is able and authorized to perform
+    translator_comment: Keep ability distinct from permission or configuration.
+  awareness:
+    meaning: operational inspection of state, plan, confidence, and error
+    translator_comment: Do not translate as sentience or consciousness.
+
+legacy_identity:
+  term: Hermes
+  public_copy: forbidden
+  allowed_contexts:
+    - credit
+    - legacy_alias
+    - migration
+  stable_locale_keys:
+    - gateway.update.hermes_cmd_not_found
+  translator_comment: >-
+    Stable locale keys are internal identifiers and are not translated. The
+    associated public value must use Simplicio Agent and simplicio-agent.

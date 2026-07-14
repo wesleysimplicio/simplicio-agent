@@ -103,6 +103,76 @@ def test_compat_legacy_aliases_warn_and_preserve_identity(monkeypatch):
         _ = compat.not_a_legacy_export
 
 
+@pytest.mark.parametrize("canonical_first", [True, False])
+def test_public_module_import_order_preserves_legacy_identity(
+    canonical_first,
+):
+    stub_loader = """
+        import importlib.abc
+        import importlib.util
+        import sys
+
+        load_counts = {name: 0 for name in ("run_agent", "cli", "hermes_cli.main")}
+
+        class StubLoader(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname in load_counts:
+                    return importlib.util.spec_from_loader(fullname, self)
+                return None
+
+            def exec_module(self, module):
+                load_counts[module.__name__] += 1
+                if module.__name__ == "run_agent":
+                    module.AIAgent = type("AIAgent", (), {})
+                elif module.__name__ == "cli":
+                    module.HermesCLI = type("HermesCLI", (), {})
+                else:
+                    module.main = lambda: None
+
+        sys.meta_path.insert(0, StubLoader())
+    """
+    canonical_imports = """
+        import simplicio_agent
+        Agent = simplicio_agent.Agent
+        CLI = simplicio_agent.CLI
+        main = simplicio_agent.main
+    """
+    legacy_imports = """
+        from run_agent import AIAgent
+        from cli import HermesCLI
+        from hermes_cli.main import main as legacy_main
+    """
+    ordered_imports = (
+        (canonical_imports, legacy_imports)
+        if canonical_first
+        else (legacy_imports, canonical_imports)
+    )
+    assertions = """
+        assert Agent is AIAgent
+        assert CLI is HermesCLI
+        assert main is legacy_main
+        assert load_counts == {
+            "run_agent": 1,
+            "cli": 1,
+            "hermes_cli.main": 1,
+        }
+    """
+    probe = "\n".join(
+        textwrap.dedent(part)
+        for part in (stub_loader, *ordered_imports, assertions)
+    )
+    run = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert run.returncode == 0, (
+        f"import-order probe failed:\nstdout: {run.stdout}\nstderr: {run.stderr}"
+    )
+
+
 def _create_supported_venv(venv_dir: Path) -> Path:
     if sys.version_info < (3, 14):
         venv.create(venv_dir, with_pip=True)

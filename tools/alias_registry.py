@@ -18,11 +18,19 @@ ALIAS_DOCUMENT_SCHEMA = "simplicio-agent/alias-registry/v1"
 ALIAS_WARNING_SCHEMA = "simplicio-agent/alias-warning/v1"
 ALIAS_RECEIPT_SCHEMA = "simplicio-agent/alias-receipt/v1"
 ALIAS_DOCUMENT_VERSION = 1
+MIN_DEPRECATION_RELEASES = 2
+MAX_DEPRECATION_RELEASES = 3
+ALLOWED_WARNING_CADENCES = frozenset({"once_per_process", "once_per_session"})
 CLI_ALIAS_CANONICAL = "simplicio-agent"
 CLI_ALIAS_OWNER = "cli"
 CLI_ALIAS_SOURCE = "builtin:cli"
 CLI_ALIAS_WARNING_CODE = "deprecated_cli_alias"
-CLI_ALIAS_NAMES = ("hermes", "hermes-agent", "hermes-acp")
+CLI_ALIAS_TARGETS = (
+    ("hermes", CLI_ALIAS_CANONICAL),
+    ("hermes-agent", CLI_ALIAS_CANONICAL),
+    ("hermes-acp", "simplicio-agent-acp"),
+)
+CLI_ALIAS_NAMES = tuple(alias for alias, _canonical in CLI_ALIAS_TARGETS)
 
 
 class AliasRegistryError(ValueError):
@@ -35,6 +43,10 @@ class AliasSchemaError(AliasRegistryError):
 
 class AliasCollisionError(AliasRegistryError):
     """Raised when two documents claim the same alias incompatibly."""
+
+
+class AliasContractError(AliasRegistryError):
+    """Raised when aliases violate deprecation or delegation policy."""
 
 
 def normalize_alias(value: str) -> str:
@@ -60,8 +72,11 @@ class AliasEntry:
     source: str
     owner: str = ""
     deprecated: bool = False
+    deprecated_since: str = ""
     warning_code: str = ""
+    warning_cadence: str = ""
     remove_after: str = ""
+    minimum_release_window: int = 0
     note: str = ""
 
     @property
@@ -73,14 +88,17 @@ class AliasEntry:
             return "none"
         return "due" if today >= date.fromisoformat(self.remove_after) else "scheduled"
 
-    def signature(self) -> tuple[str, str, bool, str, str, str]:
+    def signature(self) -> tuple[str, str, bool, str, str, str, str, str, int]:
         return (
             self.alias,
             self.canonical,
             self.deprecated,
             self.owner,
+            self.deprecated_since,
             self.warning_code,
+            self.warning_cadence,
             self.remove_after,
+            self.minimum_release_window,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -140,14 +158,18 @@ def default_cli_alias_entries() -> tuple[AliasEntry, ...]:
     return tuple(
         AliasEntry(
             alias=alias,
-            canonical=CLI_ALIAS_CANONICAL,
+            canonical=canonical,
             source=CLI_ALIAS_SOURCE,
             owner=CLI_ALIAS_OWNER,
             deprecated=True,
+            deprecated_since="2026-07-13",
             warning_code=CLI_ALIAS_WARNING_CODE,
+            warning_cadence="once_per_process",
+            remove_after="2027-01-01",
+            minimum_release_window=MIN_DEPRECATION_RELEASES,
             note="migration_only",
         )
-        for alias in CLI_ALIAS_NAMES
+        for alias, canonical in CLI_ALIAS_TARGETS
     )
 
 
@@ -264,6 +286,18 @@ def _string_field(
     return value
 
 
+def _integer_field(
+    raw: Mapping[str, Any], field_name: str, *, source: str
+) -> int:
+    value = raw.get(field_name, 0)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AliasSchemaError(
+            f"{source}: {field_name} must be an integer, "
+            f"got {type(value).__name__}"
+        )
+    return value
+
+
 def _parse_entry(raw: Mapping[str, Any], *, source: str) -> AliasEntry:
     alias = _string_field(raw, "alias", source=source, required=True)
     canonical = _string_field(raw, "canonical", source=source, required=True)
@@ -274,10 +308,19 @@ def _parse_entry(raw: Mapping[str, Any], *, source: str) -> AliasEntry:
             f"{source}: deprecated must be a boolean, got {type(deprecated).__name__}"
         )
     owner = _string_field(raw, "owner", source=source)
+    deprecated_since = _string_field(raw, "deprecated_since", source=source)
     warning_code = _string_field(raw, "warning_code", source=source)
+    warning_cadence = _string_field(raw, "warning_cadence", source=source)
     remove_after = _string_field(raw, "remove_after", source=source)
+    minimum_release_window = _integer_field(
+        raw, "minimum_release_window", source=source
+    )
     note = _string_field(raw, "note", source=source)
 
+    if deprecated_since:
+        deprecated_since = _validate_date(
+            deprecated_since, field_name="deprecated_since", source=source
+        )
     if remove_after:
         remove_after = _validate_date(
             remove_after, field_name="remove_after", source=source
@@ -299,8 +342,11 @@ def _parse_entry(raw: Mapping[str, Any], *, source: str) -> AliasEntry:
         source=source,
         owner=owner,
         deprecated=deprecated,
+        deprecated_since=deprecated_since,
         warning_code=warning_code,
+        warning_cadence=warning_cadence,
         remove_after=remove_after,
+        minimum_release_window=minimum_release_window,
         note=note,
     )
 
@@ -345,17 +391,90 @@ def load_alias_registry(root: str | Path) -> AliasRegistry:
     return AliasRegistry(entries)
 
 
+def validate_alias_contract(
+    registry: AliasRegistry,
+    entrypoints: Mapping[str, str],
+) -> AliasRegistry:
+    """Validate bounded deprecation policy and logic-free delegation.
+
+    Document shape and field types are validated while loading.  This second
+    gate validates the policy that cannot be expressed by JSON shape alone:
+    every deprecated alias has a two-to-three-release window and delegates to
+    the exact implementation registered for its canonical command.
+    """
+
+    normalized_entrypoints = {
+        normalize_alias(name): target.strip() for name, target in entrypoints.items()
+    }
+    errors: list[str] = []
+    for entry in registry.entries:
+        if not entry.deprecated:
+            continue
+
+        prefix = f"deprecated alias {entry.alias!r}"
+        if entry.normalized_alias == normalize_alias(entry.canonical):
+            errors.append(f"{prefix} must target a distinct canonical command")
+        if not entry.deprecated_since:
+            errors.append(f"{prefix} requires deprecated_since")
+        if not entry.remove_after:
+            errors.append(f"{prefix} requires remove_after")
+        if entry.deprecated_since and entry.remove_after:
+            if date.fromisoformat(entry.remove_after) <= date.fromisoformat(
+                entry.deprecated_since
+            ):
+                errors.append(f"{prefix} remove_after must follow deprecated_since")
+        if not (
+            MIN_DEPRECATION_RELEASES
+            <= entry.minimum_release_window
+            <= MAX_DEPRECATION_RELEASES
+        ):
+            errors.append(
+                f"{prefix} minimum_release_window must be between "
+                f"{MIN_DEPRECATION_RELEASES} and {MAX_DEPRECATION_RELEASES}"
+            )
+        if entry.warning_cadence not in ALLOWED_WARNING_CADENCES:
+            allowed = ", ".join(sorted(ALLOWED_WARNING_CADENCES))
+            errors.append(f"{prefix} warning_cadence must be one of: {allowed}")
+
+        alias_target = normalized_entrypoints.get(entry.normalized_alias)
+        canonical_target = normalized_entrypoints.get(normalize_alias(entry.canonical))
+        if alias_target is None:
+            errors.append(f"{prefix} has no registered entrypoint")
+        if canonical_target is None:
+            errors.append(
+                f"{prefix} canonical command {entry.canonical!r} has no entrypoint"
+            )
+        if (
+            alias_target is not None
+            and canonical_target is not None
+            and alias_target != canonical_target
+        ):
+            errors.append(
+                f"{prefix} must delegate to the same entrypoint as "
+                f"{entry.canonical!r}; alias-specific logic is forbidden"
+            )
+
+    if errors:
+        raise AliasContractError("; ".join(errors))
+    return registry
+
+
 __all__ = [
     "ALIAS_DOCUMENT_SCHEMA",
     "ALIAS_DOCUMENT_VERSION",
     "ALIAS_RECEIPT_SCHEMA",
     "ALIAS_WARNING_SCHEMA",
+    "ALLOWED_WARNING_CADENCES",
     "CLI_ALIAS_CANONICAL",
     "CLI_ALIAS_NAMES",
     "CLI_ALIAS_OWNER",
     "CLI_ALIAS_SOURCE",
+    "CLI_ALIAS_TARGETS",
     "CLI_ALIAS_WARNING_CODE",
+    "MAX_DEPRECATION_RELEASES",
+    "MIN_DEPRECATION_RELEASES",
     "AliasCollisionError",
+    "AliasContractError",
     "AliasEntry",
     "AliasLookup",
     "AliasReceipt",
@@ -367,4 +486,5 @@ __all__ = [
     "load_alias_document",
     "load_alias_registry",
     "normalize_alias",
+    "validate_alias_contract",
 ]
