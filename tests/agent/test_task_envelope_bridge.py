@@ -121,7 +121,7 @@ def test_failed_and_quarantined_both_map_to_failed_lifecycle_event():
     envelope = _new_envelope().transition(TaskState.ORIENTED)
     emitter = Emitter(session_id="s1")
 
-    failed = envelope.transition(TaskState.FAILED, block_reason="boom")
+    failed = envelope.transition(TaskState.FAILED)
     evt_failed = emit_for_transition(envelope, failed, emitter, turn_id="t1")
 
     quarantined = envelope.transition(TaskState.QUARANTINED)

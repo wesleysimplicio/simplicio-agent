@@ -114,19 +114,23 @@ def _build_allowed_transitions() -> Dict[TaskState, FrozenSet[TaskState]]:
         if i + 1 < len(CANONICAL_ORDER):
             targets.add(CANONICAL_ORDER[i + 1])
         if state not in TERMINAL_STATES:
-            targets.update({TaskState.BLOCKED, TaskState.CANCELLED, TaskState.FAILED})
-            if state is not TaskState.RECEIVED:
-                # quarantine requires having at least been oriented once.
-                targets.add(TaskState.QUARANTINED)
+            targets.update({
+                TaskState.BLOCKED,
+                TaskState.CANCELLED,
+                TaskState.FAILED,
+                TaskState.QUARANTINED,
+            })
         table[state] = frozenset(targets)
 
     # blocked/failed may resume back into the canonical chain (retry) or
     # escalate to a harder terminal state; they may not jump ahead.
     table[TaskState.BLOCKED] = frozenset(
-        {TaskState.CANCELLED, TaskState.QUARANTINED} | set(_NON_TERMINAL_CANONICAL)
+        {TaskState.CANCELLED, TaskState.FAILED, TaskState.QUARANTINED}
+        | set(_NON_TERMINAL_CANONICAL)
     )
     table[TaskState.FAILED] = frozenset(
-        {TaskState.CANCELLED, TaskState.QUARANTINED} | set(_NON_TERMINAL_CANONICAL)
+        {TaskState.BLOCKED, TaskState.CANCELLED, TaskState.QUARANTINED}
+        | set(_NON_TERMINAL_CANONICAL)
     )
     # terminal states have no outgoing transitions.
     table[TaskState.CANCELLED] = frozenset()
@@ -146,8 +150,8 @@ class InvalidTransitionError(ValueError):
     """Raised when a :class:`TaskEnvelope` transition is not allowed."""
 
     def __init__(self, from_state: TaskState, to_state: TaskState) -> None:
-        allowed = sorted(
-            s.value for s in ALLOWED_TRANSITIONS.get(from_state, frozenset())
+        allowed = tuple(
+            sorted(s.value for s in ALLOWED_TRANSITIONS.get(from_state, frozenset()))
         )
         super().__init__(
             f"invalid transition {from_state.value!r} -> {to_state.value!r}; "
@@ -155,6 +159,16 @@ class InvalidTransitionError(ValueError):
         )
         self.from_state = from_state
         self.to_state = to_state
+        self.allowed_states = allowed
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the deterministic structured error used at adapter boundaries."""
+        return {
+            "code": "invalid_task_transition",
+            "from_state": self.from_state.value,
+            "to_state": self.to_state.value,
+            "allowed_states": list(self.allowed_states),
+        }
 
 
 class CloseGateError(ValueError):
@@ -225,6 +239,16 @@ def is_transition_allowed(from_state: TaskState, to_state: TaskState) -> bool:
     return to_state in ALLOWED_TRANSITIONS.get(from_state, frozenset())
 
 
+def _string_tuple(field_name: str, value: Any) -> tuple[str, ...]:
+    """Normalize an ordered wire collection without coercing other iterables."""
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{field_name} must use lists or tuples")
+    values = tuple(value)
+    if any(not isinstance(item, str) or not item.strip() for item in values):
+        raise ValueError(f"{field_name} must contain non-empty strings")
+    return values
+
+
 # ---------------------------------------------------------------------------
 # Envelope
 # ---------------------------------------------------------------------------
@@ -284,15 +308,37 @@ class TaskEnvelope:
                 f"unsupported schema_version {self.schema_version!r}; "
                 f"expected {TASK_ENVELOPE_SCHEMA_VERSION!r}"
             )
-        if not self.task_id:
+        if not isinstance(self.task_id, str) or not self.task_id:
             raise ValueError("task_id must be non-empty")
+        if not isinstance(self.correlation_id, str) or not self.correlation_id:
+            raise ValueError("correlation_id must be a non-empty string")
+        for field_name in (
+            "repo",
+            "branch",
+            "scope",
+            "risk_policy",
+            "model",
+            "execution_policy",
+        ):
+            if not isinstance(getattr(self, field_name), str):
+                raise ValueError(f"{field_name} must be a string")
+        for field_name in (
+            "parent_id",
+            "worker",
+            "lease",
+            "block_reason",
+            "delivery_target",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{field_name} must be a non-empty string or None")
         if not isinstance(self.state, TaskState):
             raise ValueError(f"state must be a TaskState, got {self.state!r}")
-        if not isinstance(self.created_at_ns, int) or self.created_at_ns < 0:
+        if type(self.created_at_ns) is not int or self.created_at_ns < 0:
             raise ValueError(
                 f"created_at_ns must be a non-negative integer, got {self.created_at_ns!r}"
             )
-        if not isinstance(self.updated_at_ns, int) or self.updated_at_ns < 0:
+        if type(self.updated_at_ns) is not int or self.updated_at_ns < 0:
             raise ValueError(
                 f"updated_at_ns must be a non-negative integer, got {self.updated_at_ns!r}"
             )
@@ -300,7 +346,7 @@ class TaskEnvelope:
             raise ValueError(
                 "updated_at_ns must be greater than or equal to created_at_ns"
             )
-        if not isinstance(self.attempts, int) or self.attempts < 0:
+        if type(self.attempts) is not int or self.attempts < 0:
             raise ValueError(
                 f"attempts must be a non-negative integer, got {self.attempts!r}"
             )
@@ -360,8 +406,10 @@ class TaskEnvelope:
             repo=repo,
             branch=branch,
             scope=scope,
-            write_set=tuple(write_set),
-            acceptance_criteria=tuple(acceptance_criteria),
+            write_set=_string_tuple("write_set", write_set),
+            acceptance_criteria=_string_tuple(
+                "acceptance_criteria", acceptance_criteria
+            ),
             risk_policy=risk_policy,
             model=model,
             execution_policy=execution_policy,
@@ -405,7 +453,35 @@ class TaskEnvelope:
             to_state = TaskState(to_state)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"invalid state {to_state!r}") from exc
+        artifact_updates = _string_tuple(
+            "artifacts", artifacts if artifacts is not None else ()
+        )
+        receipt_updates = _string_tuple(
+            "receipts", receipts if receipts is not None else ()
+        )
+        evidence_updates = _string_tuple(
+            "evidence_refs", evidence_refs if evidence_refs is not None else ()
+        )
+        if block_reason is not None and to_state is not TaskState.BLOCKED:
+            raise ValueError("block_reason is only valid for blocked transitions")
+        if delivery_target is not None and to_state is not TaskState.DELIVERED:
+            raise ValueError("delivery_target is only valid for delivered transitions")
+
         if to_state is self.state:
+            conflicting = (
+                (worker is not None and worker != self.worker)
+                or (lease is not None and lease != self.lease)
+                or (block_reason is not None and block_reason != self.block_reason)
+                or (
+                    delivery_target is not None
+                    and delivery_target != self.delivery_target
+                )
+                or any(item not in self.artifacts for item in artifact_updates)
+                or any(item not in self.receipts for item in receipt_updates)
+                or any(item not in self.evidence_refs for item in evidence_updates)
+            )
+            if conflicting:
+                raise ValueError("same-state replay must not change envelope content")
             return self
 
         if not is_transition_allowed(self.state, to_state):
@@ -420,17 +496,9 @@ class TaskEnvelope:
         if to_state is TaskState.EXECUTING:
             attempts = attempts + 1
 
-        def _merge(
-            existing: tuple[str, ...], new: Optional[List[str] | tuple[str, ...]]
-        ) -> tuple[str, ...]:
-            if not new:
-                return existing
-            if isinstance(new, str):
-                raise ValueError("transition collections must be lists or tuples")
+        def _merge(existing: tuple[str, ...], new: tuple[str, ...]) -> tuple[str, ...]:
             merged = list(existing)
             for item in new:
-                if not isinstance(item, str) or not item.strip():
-                    raise ValueError("transition references must be non-empty strings")
                 if item not in merged:
                     merged.append(item)
             return tuple(merged)
@@ -443,9 +511,9 @@ class TaskEnvelope:
             attempts=attempts,
             updated_at_ns=ts,
             block_reason=block_reason if to_state is TaskState.BLOCKED else None,
-            artifacts=_merge(self.artifacts, artifacts),
-            receipts=_merge(self.receipts, receipts),
-            evidence_refs=_merge(self.evidence_refs, evidence_refs),
+            artifacts=_merge(self.artifacts, artifact_updates),
+            receipts=_merge(self.receipts, receipt_updates),
+            evidence_refs=_merge(self.evidence_refs, evidence_updates),
             delivery_target=delivery_target
             if delivery_target is not None
             else self.delivery_target,
@@ -510,6 +578,8 @@ class TaskEnvelope:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TaskEnvelope":
         """Rebuild an envelope from a dict; rejects an unknown ``state``."""
+        if not isinstance(data, dict):
+            raise ValueError("task envelope must be a JSON object")
         try:
             raw_state = data["state"]
             try:
@@ -525,21 +595,25 @@ class TaskEnvelope:
                 repo=data["repo"],
                 branch=data["branch"],
                 scope=data["scope"],
-                write_set=tuple(data.get("write_set", ())),
-                acceptance_criteria=tuple(data.get("acceptance_criteria", ())),
+                write_set=_string_tuple("write_set", data.get("write_set", ())),
+                acceptance_criteria=_string_tuple(
+                    "acceptance_criteria", data.get("acceptance_criteria", ())
+                ),
                 risk_policy=data["risk_policy"],
                 model=data["model"],
                 execution_policy=data["execution_policy"],
                 worker=data.get("worker"),
                 lease=data.get("lease"),
                 state=state,
-                attempts=int(data["attempts"]),
-                created_at_ns=int(data["created_at_ns"]),
-                updated_at_ns=int(data["updated_at_ns"]),
+                attempts=data["attempts"],
+                created_at_ns=data["created_at_ns"],
+                updated_at_ns=data["updated_at_ns"],
                 block_reason=data.get("block_reason"),
-                artifacts=tuple(data.get("artifacts", ())),
-                receipts=tuple(data.get("receipts", ())),
-                evidence_refs=tuple(data.get("evidence_refs", ())),
+                artifacts=_string_tuple("artifacts", data.get("artifacts", ())),
+                receipts=_string_tuple("receipts", data.get("receipts", ())),
+                evidence_refs=_string_tuple(
+                    "evidence_refs", data.get("evidence_refs", ())
+                ),
                 delivery_target=data.get("delivery_target"),
             )
         except KeyError as exc:

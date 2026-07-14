@@ -69,6 +69,21 @@ attempt counts and update timestamps are monotonic as well. Empty or duplicate
 receipt/evidence/artifact references, blocked envelopes without a reason, and
 backdated transitions are rejected at the envelope boundary.
 
+The exception matrix is explicit as well: every non-terminal canonical state
+may enter `blocked`, `failed`, `cancelled`, or `quarantined`; `blocked` may
+escalate to `failed`, and `failed` may park in `blocked` before a retry.
+`cancelled`, `quarantined`, and `closed` remain terminal. Invalid-transition
+errors expose a stable `invalid_task_transition` dictionary with source,
+target, and allowed states so adapters do not need to parse exception text.
+
+Wire decoding is strict rather than coercive. `from_dict`/`from_json` require
+an object envelope, integer counters/timestamps, and ordered list/tuple string
+collections; values such as `"1"`, `true`, sets, or scalar strings are not
+silently normalized. Transition calls likewise reject metadata that would be
+discarded (`block_reason` outside `blocked`, `delivery_target` outside
+`delivered`) and reject same-state replays that differ from the committed
+envelope while preserving exact duplicate replay as a no-op.
+
 ## Cross-repo note
 
 `simplicio-runtime#3028` owns the runtime-side mirror of this schema. This
