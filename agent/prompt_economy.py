@@ -43,8 +43,9 @@ INVARIANTS (enforced by ``tests/agent/test_prompt_economy.py``):
 from __future__ import annotations
 
 import hashlib
+import json
+import math
 import re
-import sys
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
@@ -55,12 +56,23 @@ __all__ = [
     "expand_instruction_with_receipt",
     "instruction_expansion_receipt",
     "ExpansionReceipt",
+    "PromptEconomyReceipt",
     "pin_capability_bundle",
     "instruction_index_summary_size",
     "instruction_index_full_size",
     "COMPACTABLE_HANDLES",
     "render_compact_block",
+    "compact_block_receipt",
 ]
+
+# These are local, deterministic budgets.  They are intentionally expressed
+# in characters so they do not pretend to be provider-token measurements.
+# ``compact_block_receipt`` exposes the corresponding rough token counts with
+# the same conservative four-characters-per-token estimate used by the rest
+# of the prompt diagnostics.
+INSTRUCTION_SUMMARY_MAX_CHARS = 160
+COMPACT_BLOCK_MAX_CHARS = 800
+_CHARS_PER_ROUGH_TOKEN = 4
 
 # ─────────────────────────────────────────────────────────────────────────
 # Compact instruction index
@@ -274,6 +286,56 @@ class ExpansionReceipt:
     as_dict = to_dict
 
 
+@dataclass(frozen=True)
+class PromptEconomyReceipt:
+    """Deterministic local measurement for one compacted prompt slice.
+
+    ``raw_*`` describes the full bodies that the active handles would have
+    injected, while ``compact_*`` describes the bounded block actually
+    rendered.  The token fields are explicitly *rough* estimates; provider
+    usage and cache receipts are required for claims about billed tokens.
+    There is no timestamp or mutable session state, so equal inputs produce
+    equal receipts.
+    """
+
+    active_handles: tuple[str, ...]
+    raw_chars: int
+    compact_chars: int
+    raw_tokens: int
+    compact_tokens: int
+    chars_saved: int
+    tokens_saved: int
+    raw_bytes: int
+    compact_bytes: int
+    compact_sha256: str
+    cache_stable: bool = True
+
+    @property
+    def reduction_ratio(self) -> float:
+        """Return the character reduction as a ratio in ``[0, 1]``."""
+        if self.raw_chars <= 0:
+            return 0.0
+        return self.chars_saved / self.raw_chars
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a stable JSON-friendly representation."""
+        return {
+            "active_handles": list(self.active_handles),
+            "raw_chars": self.raw_chars,
+            "compact_chars": self.compact_chars,
+            "raw_tokens": self.raw_tokens,
+            "compact_tokens": self.compact_tokens,
+            "chars_saved": self.chars_saved,
+            "tokens_saved": self.tokens_saved,
+            "raw_bytes": self.raw_bytes,
+            "compact_bytes": self.compact_bytes,
+            "compact_sha256": self.compact_sha256,
+            "cache_stable": self.cache_stable,
+        }
+
+    as_dict = to_dict
+
+
 def resolve_instruction_index() -> List[Dict[str, str]]:
     """Return the compact instruction index.
 
@@ -326,7 +388,7 @@ def _receipt_bundle(
         if isinstance(item, str):
             result.append(item)
         elif isinstance(item, Mapping):
-            result.append(str(item.get("name", "")))
+            result.append(_tool_name(item))
         else:
             result.append(str(item))
     return tuple(result)
@@ -479,6 +541,27 @@ def instruction_index_full_size() -> int:
     return total
 
 
+def _rough_tokens(text: str) -> int:
+    """Return a deterministic, intentionally rough token estimate."""
+    return math.ceil(len(text) / _CHARS_PER_ROUGH_TOKEN) if text else 0
+
+
+def _active_compactable_entries(active_handles: Sequence[str]) -> List[Dict[str, str]]:
+    """Resolve active handles in catalog order, independent of input order.
+
+    Callers often pass a set assembled from tool gates.  Iterating that set
+    directly would make the stable system-prompt bytes depend on hash
+    randomization.  Catalog order is the one canonical order for this layer.
+    Unknown and safety-sensitive handles are ignored by design.
+    """
+    active = set(active_handles)
+    return [
+        entry
+        for entry in INSTRUCTION_CATALOG
+        if entry["handle"] in active and entry["handle"] in COMPACTABLE_HANDLES
+    ]
+
+
 # Handles safe to fold into the compact block instead of shipping full text
 # every turn. Deliberately conservative (issue #196 design principle 3,
 # "safety is eager"): restricted to handles whose ``symbol`` is a real,
@@ -499,7 +582,11 @@ COMPACTABLE_HANDLES = frozenset({
 })
 
 
-def render_compact_block(active_handles: Sequence[str]) -> str:
+def render_compact_block(
+    active_handles: Sequence[str],
+    *,
+    max_chars: int = COMPACT_BLOCK_MAX_CHARS,
+) -> str:
     """Render one compact block for the subset of *active_handles* that are
     safe to compact (see :data:`COMPACTABLE_HANDLES`).
 
@@ -520,12 +607,9 @@ def render_compact_block(active_handles: Sequence[str]) -> str:
     recovery remains available via :func:`expand_instruction` for any caller
     (CLI diagnostics, a future interactive expansion path) that wants it.
     """
-    seen = set()
-    entries = []
-    for h in active_handles:
-        if h in COMPACTABLE_HANDLES and h in _HANDLE_INDEX and h not in seen:
-            seen.add(h)
-            entries.append(_HANDLE_INDEX[h])
+    if max_chars < 1:
+        raise ValueError("max_chars must be positive")
+    entries = _active_compactable_entries(active_handles)
     if not entries:
         return ""
     lines = [
@@ -535,9 +619,54 @@ def render_compact_block(active_handles: Sequence[str]) -> str:
         "is listed by handle; the one-line summary is normally sufficient "
         "given the matching tool schemas you already have."
     ]
+    if len(lines[0]) > max_chars:
+        return lines[0][:max_chars]
     for e in entries:
-        lines.append(f"- {e['handle']} ({e['title']}): {e['summary']}")
-    return "\n".join(lines)
+        summary = e["summary"][:INSTRUCTION_SUMMARY_MAX_CHARS].rstrip()
+        lines.append(f"- {e['handle']} ({e['title']}): {summary}")
+    block = "\n".join(lines)
+    if len(block) <= max_chars:
+        return block
+
+    # Keep the heading and as many complete capability lines as fit.  Never
+    # split a line: a partial summary is less useful than omitting a lower
+    # priority line, and all omitted lines remain recoverable by handle.
+    bounded = lines[:1]
+    for line in lines[1:]:
+        candidate = "\n".join((*bounded, line))
+        if len(candidate) > max_chars:
+            break
+        bounded.append(line)
+    return "\n".join(bounded)
+
+
+def compact_block_receipt(
+    active_handles: Sequence[str],
+    *,
+    max_chars: int = COMPACT_BLOCK_MAX_CHARS,
+) -> PromptEconomyReceipt:
+    """Measure the bounded compact block without claiming provider savings."""
+    entries = _active_compactable_entries(active_handles)
+    handles = tuple(entry["handle"] for entry in entries)
+    raw_text = " ".join(
+        _catalog_symbol_value(entry["symbol"]) or entry["summary"]
+        for entry in entries
+    )
+    compact_text = render_compact_block(handles, max_chars=max_chars)
+    raw_chars = len(raw_text)
+    compact_chars = len(compact_text)
+    return PromptEconomyReceipt(
+        active_handles=handles,
+        raw_chars=raw_chars,
+        compact_chars=compact_chars,
+        raw_tokens=_rough_tokens(raw_text),
+        compact_tokens=_rough_tokens(compact_text),
+        chars_saved=max(0, raw_chars - compact_chars),
+        tokens_saved=max(0, _rough_tokens(raw_text) - _rough_tokens(compact_text)),
+        raw_bytes=len(raw_text.encode("utf-8")),
+        compact_bytes=len(compact_text.encode("utf-8")),
+        compact_sha256=hashlib.sha256(compact_text.encode("utf-8")).hexdigest(),
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -577,16 +706,29 @@ def _normalize_tools(
     return normalized
 
 
-def _task_fingerprint(task: Optional[str]) -> str:
-    """Stable, order-independent digest of the task string.
+def _tool_name(tool: Mapping[str, Any]) -> str:
+    """Read names from bare definitions and OpenAI function wrappers."""
+    name = tool.get("name")
+    if name is None and isinstance(tool.get("function"), Mapping):
+        name = tool["function"].get("name")
+    return str(name or "")
 
-    Used only to make the pinned order reproducible across process restarts
-    for the same task; the digest is order-insensitive so it never introduces
-    nondeterminism from arg ordering.
-    """
-    if task is None:
-        return ""
-    return hashlib.sha1(task.encode("utf-8")).hexdigest()[:16]
+
+def _tool_description(tool: Mapping[str, Any]) -> str:
+    """Read descriptions from bare definitions and OpenAI function wrappers."""
+    description = tool.get("description")
+    if description is None and isinstance(tool.get("function"), Mapping):
+        description = tool["function"].get("description")
+    return str(description or "")
+
+
+def _tool_schema_fingerprint(tool: Mapping[str, Any]) -> str:
+    """Canonical tie-break for duplicate-name schemas."""
+    try:
+        payload = json.dumps(tool, ensure_ascii=False, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        payload = repr(sorted((str(k), repr(v)) for k, v in tool.items()))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def pin_capability_bundle(
@@ -625,13 +767,11 @@ def pin_capability_bundle(
         return []
 
     task_tokens = _tokens(task or "")
-    fp = _task_fingerprint(task)
-
     # Pre-compute a stable relevance key per tool.
     scored = []
     for tool in normalized:
-        name = str(tool.get("name", ""))
-        desc = str(tool.get("description", ""))
+        name = _tool_name(tool)
+        desc = _tool_description(tool)
         blob = f"{name} {desc}"
         tool_tokens = _tokens(blob)
         # Overlap count: how many task tokens appear in this tool's name/desc.
@@ -641,9 +781,11 @@ def pin_capability_bundle(
         name_token_hits = len(task_tokens & _tokens(name)) if task_tokens else 0
         score = overlap + 2 * name_token_hits
         # Sort key: higher score first, then lexicographic name for a stable
-        # tiebreak. ``fp`` is appended so the key is fully determined by the
-        # (tools, task) pair and nothing else.
-        scored.append(((-score, name, fp), tool))
+        # tiebreak.  The schema fingerprint only matters for malformed/duplicate tool
+        # names; normal tool registries have unique names.  It makes the
+        # ordering independent of the input list order without mutating any
+        # schema or dropping duplicates.
+        scored.append(((-score, name, _tool_schema_fingerprint(tool)), tool))
 
     scored.sort(key=lambda kv: kv[0])
     return [tool for _, tool in scored]
@@ -654,4 +796,4 @@ def pin_capability_bundle_names(
     task: Optional[str] = None,
 ) -> List[str]:
     """Convenience wrapper: return only the pinned tool-name ordering."""
-    return [t["name"] for t in pin_capability_bundle(tools, task=task)]
+    return [_tool_name(t) for t in pin_capability_bundle(tools, task=task)]
