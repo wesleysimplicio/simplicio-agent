@@ -39,10 +39,17 @@ the default (user decision 2026-07-08; wave 1 of
 
 ### Added
 
+- **`addressing_geometry`** (issue #36, Asolaria Algorithms — Addressing
+  Geometry): deterministic `REALMATHPOS` (file:line:col → monotone
+  locality-preserving coordinate), `FNV-1a64` (fast file-path hash with
+  canonical test vectors), `sha16` (canonical 16-hex module id), and a
+  fused `citizenIdentity` (`CIT-<file_id>-<tier><slot>[-tag]`) over **3
+  encoding tiers** (256 / 1024 / hyper). Includes the MEASURED / CANON /
+  UNVERIFIED **tagging discipline**: a verifier re-derives every claim and
+  refuses UNVERIFIED tokens, catching tampered file/line/col. Exposed as
+  `simplicio_agent.asolaria.{realmathpos,fnv1a64,sha16,encode_addr,
+  citizen_identity,verify_citizen}` and covered by `tests/test_asolaria_public.py`.
 - **`scripts/benchmark_vs_upstream.py`** — paired benchmark against an
-  original `hermes-agent` checkout that exits non-zero if any shared probe
-  is slower here. Measured 2026-07-08 (Linux, py3.11): JSON dumps 12.0×,
-  loads 3.1×, tool-arg canonicalize 4.5×, token estimate 1.07×, CLI cold
   import 66.4 ms vs 117.6 ms (1.77×). The cold-import win cut
   `hermes_cli.config` (~100 ms module body) out of the boot path via three
   thin-edge fixes (`get_hermes_home` import, `is_managed` moved to
