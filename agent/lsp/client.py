@@ -441,6 +441,19 @@ class LSPClient:
         if proc is None:
             return
         if proc.returncode is None:
+            # We just sent an "exit" notification and the server is expected
+            # to exit on its own. Give the event loop a brief window to
+            # actually reap the child and update ``proc.returncode`` before
+            # falling back to signalling it — without this, terminate()/kill()
+            # can race a process that already exited: the PID may already
+            # have been recycled by the OS for an unrelated process, and
+            # signalling that PID is both pointless and (correctly) blocked
+            # by any live-system-process guard watching for exactly this.
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=0.2)
+            except asyncio.TimeoutError:
+                pass
+        if proc.returncode is None:
             try:
                 proc.terminate()
                 try:

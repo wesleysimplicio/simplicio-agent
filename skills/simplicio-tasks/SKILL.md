@@ -7,6 +7,11 @@ description: Autonomously complete a body of work (tasks, issues, cards, CI fail
 
 ## Hermes-native orientation first, then Simplicio-runtime execution
 
+> Canonical source: `AGENTS.md` § "Tool routing" is the single source of
+> truth for the CLI-first/MCP-fallback hierarchy (issue #212). This section
+> is a task-specific restatement for orchestration work, not a competing
+> decision.
+
 > **Use Hermes-native tools first when the task is about reading, searching, orienting, or analyzing repo/session state.**
 >
 > Use the verified Simplicio runtime path for deterministic execution, validation, repeatable edits, and ledgered operations once the task is understood.

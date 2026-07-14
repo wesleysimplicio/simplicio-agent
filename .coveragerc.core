@@ -1,0 +1,26 @@
+[run]
+branch = true
+parallel = true
+source =
+    agent
+    gateway
+    tools
+    hermes_cli
+    cli.py
+    run_agent.py
+omit =
+    */node_modules/*
+    */.venv/*
+    */venv/*
+    */build/*
+    */dist/*
+    *_pb2.py
+    */site-packages/*
+
+[report]
+show_missing = true
+precision = 2
+fail_under = 85
+
+[html]
+directory = .coverage_core_html

@@ -12,6 +12,7 @@ criteria call out:
 """
 
 import os
+from pathlib import Path
 from unittest.mock import patch as mock_patch
 
 import pytest
@@ -30,6 +31,14 @@ def _clean_state(monkeypatch):
     for k in ("HERMES_INTERACTIVE", "HERMES_GATEWAY_SESSION", "HERMES_EXEC_ASK",
               "HERMES_YOLO_MODE", "HERMES_SESSION_KEY", "HERMES_KERNEL_BIN"):
         monkeypatch.delenv(k, raising=False)
+    # Neutralize the managed-install-dir fallback in resolve_kernel_bin(): on a
+    # dev machine that has actually run tools.runtime_manager.ensure_runtime
+    # (installing the real kernel binary under ~/.simplicio/bin), mocking
+    # shutil.which alone does not simulate "kernel absent".
+    monkeypatch.setattr(
+        "tools.runtime_manager.managed_bin_dir",
+        lambda: Path("/no-such-managed-dir-for-test"),
+    )
     yield
     approval_module._session_approved.clear()
     approval_module._pending.clear()

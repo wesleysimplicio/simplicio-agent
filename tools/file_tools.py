@@ -418,6 +418,16 @@ _SENSITIVE_PATH_PREFIXES = (
     "/etc/", "/boot/", "/usr/lib/systemd/",
     "/private/etc/", "/private/var/",
 )
+# Exceptions carved out of the broad "/private/var/" block above: these are
+# the OS-standard *user-writable ephemeral scratch space* on macOS, not
+# system configuration/state. ``/private/var/folders/...`` is where
+# ``tempfile.gettempdir()`` (and therefore ``/tmp``, a symlink to it)
+# actually resolves on macOS, and ``/private/var/tmp/`` is the traditional
+# sticky-bit world-writable temp dir. Without this carve-out the blanket
+# "/private/var/" block from the #8734 symlink-bypass fix makes the file
+# tools unable to write to the system temp directory at all on macOS —
+# a real functional break, not just a test artifact.
+_SENSITIVE_PATH_EXCEPTIONS = ("/private/var/folders/", "/private/var/tmp/")
 _SENSITIVE_EXACT_PATHS = {"/var/run/docker.sock", "/run/docker.sock"}
 
 _hermes_config_resolved: str | None = None
@@ -454,6 +464,11 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
     )
     for prefix in _SENSITIVE_PATH_PREFIXES:
         if resolved.startswith(prefix) or normalized.startswith(prefix):
+            if any(
+                resolved.startswith(exc) or normalized.startswith(exc)
+                for exc in _SENSITIVE_PATH_EXCEPTIONS
+            ):
+                break
             return _err
     if resolved in _SENSITIVE_EXACT_PATHS or normalized in _SENSITIVE_EXACT_PATHS:
         return _err

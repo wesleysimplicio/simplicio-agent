@@ -143,6 +143,13 @@ async def test_gateway_stop_systemd_service_restart_exits_cleanly(tmp_path, monk
     runner, adapter = make_restart_runner()
     adapter.disconnect = AsyncMock()
     monkeypatch.setenv("INVOCATION_ID", "systemd-test")
+    # This exercises the Linux+systemd exit-code branch specifically: exit 0
+    # so systemd's Restart=always relaunches cleanly. The code deliberately
+    # takes the launchd-style non-zero-exit branch on macOS (KeepAlive.
+    # SuccessfulExit=false needs a non-zero exit to relaunch) regardless of
+    # INVOCATION_ID, so running this test on a macOS dev host without also
+    # pinning sys.platform would always exercise the wrong branch.
+    monkeypatch.setattr(gateway_run.sys, "platform", "linux")
     runner._launch_systemd_restart_shortcut = MagicMock()
 
     with patch("gateway.status.remove_pid_file"), patch("gateway.status.write_runtime_status"):

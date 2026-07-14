@@ -32,6 +32,7 @@ class _FakeAgent:
     _skill_nudge_interval = 0
     valid_tool_names = []
     _latency_probe = None  # type: ignore[assignment]
+    _task_envelope = None  # type: ignore[assignment]
 
     def __getattr__(self, name):
         # no-op for any method finalize_turn calls that we didn't define

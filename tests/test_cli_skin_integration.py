@@ -34,7 +34,9 @@ class TestCliSkinPromptIntegration:
         cli = _make_cli_stub()
 
         set_active_skin("default")
-        assert cli._get_tui_prompt_fragments() == [("class:prompt", "❯ ")]
+        # The Simplicio rebrand (commit 2910dc713) changed the "default"
+        # skin's branding.prompt_symbol from "❯" to ">".
+        assert cli._get_tui_prompt_fragments() == [("class:prompt", "> ")]
 
     def test_ares_prompt_fragments_use_skin_symbol(self):
         cli = _make_cli_stub()
@@ -92,14 +94,18 @@ class TestCliSkinPromptIntegration:
 
 
 class TestCompactBannerSkinIntegration:
-    def test_default_compact_banner_keeps_legacy_nous_hermes_branding(self):
+    def test_default_compact_banner_uses_simplicio_agent_branding(self):
+        # The Simplicio rebrand ("Clean Simplicio Agent banner" commit)
+        # replaced the legacy "NOUS HERMES" wordmark with "Simplicio Agent"
+        # for the default skin.
         set_active_skin("default")
 
         with patch("cli.shutil.get_terminal_size", return_value=SimpleNamespace(columns=90)), \
              patch.dict(_build_compact_banner.__globals__, {"format_banner_version_label": lambda: "Hermes Agent v0.1.0 (test)"}):
             banner = _build_compact_banner()
 
-        assert "NOUS HERMES" in banner
+        assert "Simplicio Agent" in banner
+        assert "NOUS HERMES" not in banner
 
     def test_poseidon_compact_banner_uses_skin_branding_instead_of_nous_hermes(self):
         set_active_skin("poseidon")

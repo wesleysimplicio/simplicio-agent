@@ -4,6 +4,10 @@ Use this when working on the Simplicio Agent fork.
 
 ## Rule
 
+> Canonical source: `AGENTS.md` § "Tool routing" is the single source of
+> truth for the CLI-first/MCP-fallback hierarchy (issue #212). This is a
+> task-specific restatement for orientation work, not a competing decision.
+
 1. **Hermes-native tools first** for orientation, reading, searching, and analysis when the task is about understanding the current repo/session state.
 2. **Simplicio runtime second** for deterministic execution, validation, repeatable edits, and ledgered operations once the task is understood.
 3. **Native fallback last** only for gaps the runtime does not yet cover.

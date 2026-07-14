@@ -172,34 +172,15 @@ def test_recommended_update_command_docker():
     assert "docker pull" in recommended_update_command_for_method("docker")
 
 
-def test_banner_warns_on_pip_install(tmp_path):
-    """The welcome banner surfaces a warning when the install method is pip."""
-    import io
-    from rich.console import Console
-    from hermes_cli import banner
-
-    hh = tmp_path / ".hermes"
-    hh.mkdir()
-    (hh / ".install_method").write_text("pip\n")
-
-    with patch("hermes_cli.config.get_hermes_home", return_value=hh), \
-         patch("hermes_constants.get_hermes_home", return_value=hh):
-        buf = io.StringIO()
-        # Wide console so the warning isn't wrapped across lines in the panel.
-        console = Console(file=buf, width=400, force_terminal=False, color_system=None)
-        banner.build_welcome_banner(
-            console, model="m", cwd="/tmp",
-            tools=[{"function": {"name": "terminal"}}],
-            enabled_toolsets=["terminal"],
-        )
-        out = buf.getvalue()
-
-    assert "officially" in out
-    assert "instability" in out
-
-
 def test_banner_no_pip_warning_on_git_install(tmp_path):
-    """Git installs must not show the pip-install warning."""
+    """Git installs must not show the pip-install warning.
+
+    (Its positive counterpart, test_banner_warns_on_pip_install, was removed:
+    the "Clean Simplicio Agent banner" simplification dropped the pip-install
+    warning panel from build_welcome_banner entirely, so there is nothing
+    left to assert "officially"/"instability" against. detect_install_method()
+    itself is still exercised by the other tests in this file.)
+    """
     import io
     from rich.console import Console
     from hermes_cli import banner
