@@ -7,7 +7,11 @@ from pathlib import Path
 
 ADR_NAME = re.compile(r"^ADR-(?P<number>\d{4})-(?P<slug>[a-z0-9][a-z0-9-]*)\.md$")
 _HEADING = re.compile(r"^#\s+(?P<title>.+?)\s*$")
-_STATUS = re.compile(r"^(?:status|date):\s*(?P<value>.+?)\s*$", re.IGNORECASE)
+_FIELD = re.compile(
+    r"^(?:[-*]\s*)?(?:\*\*)?(?P<key>status|date):(?:\*\*)?\s*"
+    r"(?P<value>.+?)\s*$",
+    re.IGNORECASE,
+)
 
 
 def iter_adrs(root: Path) -> list[dict[str, str | int]]:
@@ -24,8 +28,8 @@ def iter_adrs(root: Path) -> list[dict[str, str | int]]:
         for raw in path.read_text(encoding="utf-8").splitlines():
             if not title and (heading := _HEADING.match(raw)):
                 title = heading.group("title")
-            if field := _STATUS.match(raw.strip()):
-                key = raw.strip().split(":", 1)[0].lower()
+            if field := _FIELD.match(raw.strip()):
+                key = field.group("key").lower()
                 if key == "status":
                     status = field.group("value")
                 elif key == "date":

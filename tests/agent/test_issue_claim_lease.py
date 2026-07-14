@@ -8,6 +8,7 @@ from agent.issue_claim_lease import (
     ClaimCoordinator,
     ClaimLeaseStore,
     GhIssueCommentSink,
+    render_claim_comment,
 )
 
 
@@ -15,9 +16,13 @@ class FakeComments:
     def __init__(self) -> None:
         self.created: list[str] = []
         self.updated: list[str] = []
+        self.failures = 0
 
     def upsert(self, issue: str, marker: str, body: str, comment_id: str | None) -> str:
         assert marker in body
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("comment service unavailable")
         if comment_id is None:
             self.created.append(body)
             return "comment-1"
@@ -62,6 +67,44 @@ def test_renewal_edits_marker_comment_and_never_posts_again(tmp_path: Path) -> N
     assert len(comments.updated) == 2
 
 
+def test_comment_failure_is_retried_on_idempotent_acquire(tmp_path: Path) -> None:
+    coordinator, comments = make_coordinator(tmp_path)
+    comments.failures = 1
+
+    failed = coordinator.acquire("315", "worker-a", now=10, ttl_s=30)
+    recovered = coordinator.acquire("315", "worker-a", now=11, ttl_s=30)
+
+    assert failed.status == "acquired"
+    assert failed.comment_error == "comment service unavailable"
+    assert recovered.status == "already_claimed"
+    assert recovered.lease.comment_id == "comment-1"
+    assert len(comments.created) == 1
+    assert comments.updated == []
+
+
+def test_same_timestamp_renewal_is_idempotent_and_does_not_edit(tmp_path: Path) -> None:
+    coordinator, comments = make_coordinator(tmp_path)
+    acquired = coordinator.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    renewed = coordinator.renew(acquired.lease, now=10)
+
+    assert renewed.status == "renewed"
+    assert renewed.changed is False
+    assert renewed.lease.heartbeat_at == 10
+    assert comments.updated == []
+
+
+def test_clock_regression_cannot_shorten_heartbeat(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    rejected = store.renew(acquired.lease, now=9)
+
+    assert rejected.status == "renew_rejected"
+    assert rejected.changed is False
+    assert store.get("315").heartbeat_at == 10
+
+
 def test_expired_takeover_increments_fence_and_edits_existing_comment(
     tmp_path: Path,
 ) -> None:
@@ -91,6 +134,20 @@ def test_stale_holder_cannot_renew_or_release_new_fence(tmp_path: Path) -> None:
     assert coordinator.release(takeover.lease).changed is False
 
 
+def test_stale_release_is_rejected_even_after_new_fence_releases(
+    tmp_path: Path,
+) -> None:
+    coordinator, _comments = make_coordinator(tmp_path)
+    acquired = coordinator.acquire("315", "worker-a", now=10, ttl_s=30)
+    takeover = coordinator.acquire("315", "worker-b", now=41, ttl_s=30)
+    coordinator.release(takeover.lease)
+
+    stale = coordinator.release(acquired.lease)
+
+    assert stale.status == "release_rejected"
+    assert stale.lease.fencing_token == takeover.lease.fencing_token
+
+
 def test_ttl_boundary_is_active_until_strictly_after_deadline(tmp_path: Path) -> None:
     store = ClaimLeaseStore(tmp_path / "claims.sqlite")
     acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
@@ -100,6 +157,23 @@ def test_ttl_boundary_is_active_until_strictly_after_deadline(tmp_path: Path) ->
 
     assert at_deadline.status == "already_claimed"
     assert after_deadline.status == "taken_over"
+
+
+def test_in_memory_store_uses_one_database_for_all_operations() -> None:
+    store = ClaimLeaseStore(":memory:")
+
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    assert store.get("315") == acquired.lease
+
+
+def test_claim_comment_receipt_is_stable_across_store_reload(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+    reloaded = store.get("315")
+
+    assert reloaded is not None
+    assert render_claim_comment(acquired.lease) == render_claim_comment(reloaded)
 
 
 def test_github_sink_finds_marker_and_patches_instead_of_posting() -> None:

@@ -1,4 +1,4 @@
-# ADR-0021: bounded SimplicioBridge lifecycle contract
+# ADR-0036: bounded SimplicioBridge lifecycle contract
 
 - Status: accepted for issue #222 bounded slice
 - Date: 2026-07-14

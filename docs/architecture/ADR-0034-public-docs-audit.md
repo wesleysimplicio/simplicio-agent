@@ -1,4 +1,4 @@
-# ADR-0018: Public docs audit for branding, commands, and unsupported claims
+# ADR-0034: Public docs audit for branding, commands, and unsupported claims
 
 - Status: accepted
 - Date: 2026-07-13

@@ -1,4 +1,4 @@
-# ADR-0024: bounded native gateway bridge
+# ADR-0041: bounded native gateway bridge
 
 The native gateway bridge is a temporary compatibility seam.  It uses the
 `simplicio.gateway-native/v1` request/receipt schema and a separate

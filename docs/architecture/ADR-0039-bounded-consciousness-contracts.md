@@ -1,4 +1,4 @@
-# ADR-0024: Bounded Consciousness Contracts
+# ADR-0039: Bounded Consciousness Contracts
 
 Status: accepted slice
 

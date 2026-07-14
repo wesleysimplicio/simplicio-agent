@@ -10,6 +10,7 @@ compare-and-swap operation across worker processes.
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import subprocess
 import uuid
@@ -45,6 +46,28 @@ class ClaimLease:
     takeover_reason: str | None = None
     comment_id: str | None = None
 
+    def __post_init__(self) -> None:
+        """Normalize and validate values used in persisted lease receipts.
+
+        SQLite returns numeric columns as floats even when a caller supplied
+        integer timestamps.  Normalizing at the boundary keeps a receipt
+        rendered before persistence byte-identical to one rendered after a
+        reload, and rejecting non-finite values prevents a lease that can
+        never expire from entering the store.
+        """
+
+        for name in ("acquired_at", "ttl_s", "heartbeat_at"):
+            value = getattr(self, name)
+            try:
+                value = float(value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"{name} must be finite") from error
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+            if name == "ttl_s" and value <= 0:
+                raise ValueError("ttl_s must be positive")
+            object.__setattr__(self, name, value)
+
     @property
     def expires_at(self) -> float:
         return self.heartbeat_at + self.ttl_s
@@ -67,11 +90,22 @@ class ClaimLeaseStore:
 
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
+        self._memory_connection: sqlite3.Connection | None = None
+        if self.path == ":memory:":
+            # ``sqlite3.connect(':memory:')`` creates a new database per
+            # connection.  Keep one connection for this explicitly in-memory
+            # store so the same API remains usable by deterministic tests.
+            self._memory_connection = sqlite3.connect(
+                ":memory:", timeout=30, isolation_level=None
+            )
+            self._memory_connection.row_factory = sqlite3.Row
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
+        if self._memory_connection is not None:
+            return self._memory_connection
         connection = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         connection.row_factory = sqlite3.Row
         return connection
@@ -125,6 +159,13 @@ class ClaimLeaseStore:
     ) -> ClaimAttempt:
         issue = self._require_text(issue, "issue")
         holder = self._require_text(holder, "holder")
+        try:
+            now = float(now)
+            ttl_s = float(ttl_s)
+        except (TypeError, ValueError) as error:
+            raise ValueError("now and ttl_s must be finite numbers") from error
+        if not math.isfinite(now) or not math.isfinite(ttl_s):
+            raise ValueError("now and ttl_s must be finite numbers")
         if ttl_s <= 0:
             raise ValueError("ttl_s must be positive")
         with self._connect() as connection:
@@ -203,6 +244,12 @@ class ClaimLeaseStore:
         *,
         now: float,
     ) -> ClaimAttempt:
+        try:
+            now = float(now)
+        except (TypeError, ValueError) as error:
+            raise ValueError("now must be a finite number") from error
+        if not math.isfinite(now):
+            raise ValueError("now must be a finite number")
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
@@ -218,9 +265,13 @@ class ClaimLeaseStore:
                     or current.holder != lease.holder
                     or current.fencing_token != lease.fencing_token
                     or not current.active_at(now)
+                    or now < current.heartbeat_at
                 ):
                     connection.commit()
                     return ClaimAttempt("renew_rejected", current, False)
+                if now == current.heartbeat_at:
+                    connection.commit()
+                    return ClaimAttempt("renewed", current, False)
                 renewed = ClaimLease(**{
                     **current.__dict__,
                     "heartbeat_at": now,
@@ -246,9 +297,6 @@ class ClaimLeaseStore:
                     connection.commit()
                     return ClaimAttempt("not_found", lease, False)
                 current = self._row_to_lease(row)
-                if current.status == "released":
-                    connection.commit()
-                    return ClaimAttempt("released", current, False)
                 if (
                     current.lease_id != lease.lease_id
                     or current.holder != lease.holder
@@ -256,6 +304,9 @@ class ClaimLeaseStore:
                 ):
                     connection.commit()
                     return ClaimAttempt("release_rejected", current, False)
+                if current.status == "released":
+                    connection.commit()
+                    return ClaimAttempt("released", current, False)
                 released = ClaimLease(**{**current.__dict__, "status": "released"})
                 connection.execute(
                     "UPDATE issue_claims SET status = 'released' WHERE issue = ?",
@@ -271,8 +322,18 @@ class ClaimLeaseStore:
         comment_id = self._require_text(comment_id, "comment_id")
         with self._connect() as connection:
             connection.execute(
-                "UPDATE issue_claims SET comment_id = ? WHERE issue = ? AND lease_id = ?",
-                (comment_id, lease.issue, lease.lease_id),
+                """
+                UPDATE issue_claims SET comment_id = ?
+                WHERE issue = ? AND lease_id = ? AND holder = ?
+                  AND fencing_token = ?
+                """,
+                (
+                    comment_id,
+                    lease.issue,
+                    lease.lease_id,
+                    lease.holder,
+                    lease.fencing_token,
+                ),
             )
         return self.get(lease.issue) or lease
 
@@ -285,7 +346,17 @@ class ClaimCoordinator:
         self.comments = comments
 
     def _sync_comment(self, attempt: ClaimAttempt) -> ClaimAttempt:
-        if attempt.status not in {"acquired", "taken_over", "renewed", "released"}:
+        if attempt.status == "already_claimed" and attempt.lease.comment_id is None:
+            # A prior process may have committed the lease but lost the
+            # comment response.  Re-enter the sink so it can discover the
+            # marker and patch it; this is the recovery path that prevents
+            # an orphaned lease without turning active retries into spam.
+            pass
+        elif attempt.status not in {"acquired", "taken_over", "renewed", "released"}:
+            return attempt
+        elif not attempt.changed and attempt.lease.comment_id is not None:
+            # Idempotent acquire/release (and a same-timestamp renewal) must
+            # not cause an unnecessary edit.  A missing id is still retried.
             return attempt
         lease = attempt.lease
         body = render_claim_comment(lease)
@@ -319,12 +390,15 @@ def render_claim_comment(lease: ClaimLease) -> str:
         "holder": lease.holder,
         "fencing_token": lease.fencing_token,
         "status": lease.status,
-        "heartbeat_at": lease.heartbeat_at,
-        "expires_at": lease.expires_at,
+        "heartbeat_at": float(lease.heartbeat_at),
+        "expires_at": float(lease.expires_at),
     }
     if lease.takeover_reason:
         state["takeover_reason"] = lease.takeover_reason
-    return f"{CLAIM_MARKER}\n```json\n{json.dumps(state, sort_keys=True)}\n```"
+    return (
+        f"{CLAIM_MARKER}\n```json\n"
+        f"{json.dumps(state, sort_keys=True, separators=((',', ':')), ensure_ascii=False)}\n```"
+    )
 
 
 class GhIssueCommentSink:

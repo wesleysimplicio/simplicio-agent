@@ -1,8 +1,8 @@
-# ADR-0024: Bounded native lifecycle and adaptive-controller slices
+# ADR-0038: Bounded native lifecycle and adaptive-controller slices
 
 - Status: bounded contract
 - Date: 2026-07-14
-- Related: issues #319 and #320, ADR-0023
+- Related: issues #319 and #320, ADR-0037
 
 ## Decision
 

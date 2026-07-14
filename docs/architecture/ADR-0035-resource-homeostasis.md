@@ -1,4 +1,4 @@
-# ADR-0019: Bounded resource homeostasis controller contract
+# ADR-0035: Bounded resource homeostasis controller contract
 
 - Status: accepted
 - Date: 2026-07-13

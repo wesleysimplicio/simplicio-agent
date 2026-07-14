@@ -1,4 +1,4 @@
-# ADR-0024: bounded live-commit attestation and manual-pull detection
+# ADR-0040: bounded live-commit attestation and manual-pull detection
 
 This bounded slice adds `tools/live_commit_attestation.py` as a pure boundary
 for the updater/supervisor.  An update succeeds only when startup and health
