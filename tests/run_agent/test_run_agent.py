@@ -2675,6 +2675,19 @@ class TestConcurrentToolExecution:
         assert starts == [("c1", "web_search", {"query": "hello"})]
         assert completes == [("c1", "web_search", {"query": "hello"}, '{"success": true}')]
 
+    def test_sequential_invocation_publishes_pipeline_trace_and_receipt(self, agent):
+        tool_call = _mock_tool_call(name="web_search", arguments='{"query":"hello"}', call_id="c-receipt")
+        mock_msg = _mock_assistant_msg(content="", tool_calls=[tool_call])
+        messages = []
+
+        with patch("run_agent.handle_function_call", return_value='{"success": true}'):
+            agent._execute_tool_calls_sequential(mock_msg, messages, "task-1")
+
+        assert agent._last_tool_invocation_trace[-2:] == ["persist", "evidence"]
+        assert agent._last_tool_invocation_receipt["tool_call_id"] == "c-receipt"
+        assert agent._last_tool_invocation_receipt["args_hash"]
+        assert agent._last_tool_invocation_receipt["result_hash"]
+
     def test_sequential_browser_type_callbacks_redact_api_key(self, agent):
         secret = "sk-proj-ABCD1234567890EFGH"
         tool_call = _mock_tool_call(

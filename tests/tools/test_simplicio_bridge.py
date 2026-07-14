@@ -4,6 +4,7 @@ Uses a stub KernelTransport so no ``simplicio`` binary is required.
 """
 
 import time
+from threading import Barrier, Event, Thread
 
 from tools.simplicio_bridge import (
     BridgeMetrics,
@@ -149,11 +150,59 @@ def test_ledger_idempotent_dedup():
     assert len(ledger_calls) == 1
 
 
+def test_idempotent_waiter_reuses_generation_qualified_receipt():
+    started = Event()
+    release = Event()
+    barrier = Barrier(2)
+
+    class _BlockingTransport(_StubTransport):
+        def ledger(self, event):
+            self.calls.append(("ledger", event))
+            started.set()
+            assert release.wait(timeout=2.0)
+            return KernelCallResult(ok=True, value=True)
+
+    transport = _BlockingTransport()
+    bridge = SimplicioBridge(transport)
+    results = []
+
+    def invoke():
+        barrier.wait()
+        results.append(bridge.ledger({"id": "same"}, causal_id="same"))
+
+    threads = [Thread(target=invoke) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    assert started.wait(timeout=2.0)
+    for _ in range(200):
+        with bridge._idempotency_lock:
+            if bridge._inflight:
+                break
+        time.sleep(0.001)
+    else:
+        raise AssertionError("idempotent owner was not observed in flight")
+    release.set()
+    for thread in threads:
+        thread.join(timeout=2.0)
+
+    assert results == [True, True]
+    assert [call for call in transport.calls if call[0] == "ledger"] == [
+        ("ledger", {"id": "same"})
+    ]
+
+
 def test_health_structure():
     b = SimplicioBridge(_StubTransport())
     h = b.health()
-    for k in ("healthy", "circuit_open", "consecutive_failures",
-             "total_calls", "failures", "last_error", "last_call_at"):
+    for k in (
+        "healthy",
+        "circuit_open",
+        "consecutive_failures",
+        "total_calls",
+        "failures",
+        "last_error",
+        "last_call_at",
+    ):
         assert k in h
 
 

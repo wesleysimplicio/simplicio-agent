@@ -1,0 +1,77 @@
+schema_version: 1
+epic_issue: 314
+children:
+  - issue: 315
+    title: "[Native 1] Kernel de auto-modificação transacional e shadow equivalence"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0024-bounded-transaction-primitives.md
+    implementation: [tools/transaction_primitives.py]
+    tests: [tests/tools/test_transaction_primitives.py]
+    program_graph_p0: [228]
+  - issue: 316
+    title: "[Native 2] Updater transacional source/release → staging → bot ativo"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0026-release-manifest-contract.md
+      - docs/architecture/ADR-0027-staging-activation-restart.md
+    implementation: [tools/transaction_primitives.py]
+    tests: [tests/hermes_cli/test_transactional_updater.py]
+    program_graph_p0: [209]
+  - issue: 317
+    title: "[Native 3] Token governor L0–L3 com orçamento e escalada por entropia"
+    adr: [docs/architecture/ADR-0023-simplicio-native-inside-out.md]
+    implementation: [agent/token_governor.py]
+    tests: [tests/agent/test_token_governor.py]
+    program_graph_p0: [220]
+  - issue: 318
+    title: "[Native 4] Prompt microkernel e cinco primitivas lazy"
+    adr: [docs/architecture/ADR-0023-simplicio-native-inside-out.md]
+    implementation: [agent/prompt_microkernel.py]
+    tests: [tests/agent/test_prompt_microkernel.py]
+    program_graph_p0: [210]
+  - issue: 319
+    title: "[Native 5] Daemon Rust sempre quente para o hot path"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0039-daemon-hot-path-contract.md
+    implementation: [tools/daemon_hot_path.py]
+    tests: [tests/tools/test_daemon_hot_path.py]
+    program_graph_p0: [210, 221, 228]
+  - issue: 320
+    title: "[Native 6] Controlador físico adaptativo de contexto e concorrência"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0038-bounded-native-lifecycle-and-controller-slices.md
+    implementation: [agent/adaptive_controller.py]
+    tests: [tests/agent/test_adaptive_controller.py]
+    program_graph_p0: []
+  - issue: 321
+    title: "[Native 7] Gateway nativo e bridge legado isolado"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0041-native-gateway-bridge-contract.md
+    implementation: [gateway/native_bridge.py]
+    tests: [tests/gateway/test_native_bridge.py]
+    program_graph_p0: [222]
+  - issue: 322
+    title: "[Native 8] Migração total para namespaces e identidade Simplicio"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0043-namespace-identity-audit.md
+    implementation: [tools/namespace_identity_audit.py]
+    tests: [tests/tools/test_namespace_identity_audit.py]
+    program_graph_p0: []
+  - issue: 323
+    title: "[Native 9] Release gate zero-legado, zero-token e atualização viva"
+    adr:
+      - docs/architecture/ADR-0023-simplicio-native-inside-out.md
+      - docs/architecture/ADR-0026-release-manifest-contract.md
+      - docs/architecture/ADR-0040-live-commit-attestation.md
+    implementation: [tools/release_gate.py]
+    tests: [tests/tools/test_release_gate.py]
+    program_graph_p0: [209, 211, 220]
+evidence:
+  live_process: "UNVERIFIED| no live process digest receipt is checked into this repository"
+  release_artifact: "UNVERIFIED| no published release digest receipt is available to this local gate"
+  rollback: "UNVERIFIED| no live rollback exercise receipt is available to this local gate"

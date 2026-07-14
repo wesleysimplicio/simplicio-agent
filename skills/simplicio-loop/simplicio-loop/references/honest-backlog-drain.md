@@ -19,7 +19,14 @@ closed 15 epics/features as "stale" — all had to be reopened.
 1. `gh issue view <n>` → read body + labels. Label must be a defect signal for a "stale/resolved" close.
 2. Repro the *exact* failing command from the report, not a command merely mentioned in the body.
 3. Evidence comment must include: `simplicio --version`, the command, `rc`, latency, and (for JSON) valid schema.
-4. Live re-query confirms `state=closed` BEFORE reporting done.
+4. A merged PR must deliver the issue's acceptance criteria, and an independent evidence receipt must be present.
+5. Live re-query confirms `state=closed` BEFORE reporting done.
+
+The reusable `issue_repro_probe.py` now emits a `close_gate` receipt for each
+result. It returns `status=quarantined` whenever any condition is missing; a
+zero exit code alone can never produce a closeable result. The probe does not
+close issues or infer merged delivery, so those two receipts remain explicit
+inputs to the final close gate.
 
 ## Repro engine (reusable probe)
 `scripts/issue_repro_probe.py` extracts `simplicio ...` commands from issue bodies, runs
