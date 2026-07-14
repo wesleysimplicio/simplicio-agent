@@ -60,6 +60,33 @@ def test_validator_rejects_bad_schema_and_source_hash() -> None:
     assert any("source_sha256 mismatch" in error for error in errors)
 
 
+def test_validator_rejects_inconsistent_stage_receipts_and_summary() -> None:
+    document = generate_manifest(REPO_ROOT)
+    axis = document["axes"][0]
+    axis["stage_results"]["PRESENT"]["status"] = "fail"
+    axis["stage_results"]["PRESENT"]["ok"] = True
+    axis["stage_status"]["PRESENT"] = "pass"
+    axis["stages"]["PRESENT"] = True
+    axis["ok"] = True
+    document["summary"]["failed"] = 1
+    document["summary"]["ok"] = False
+    errors = validate_manifest(document)
+    assert errors == sorted(set(errors))
+    assert any("status receipt disagrees" in error for error in errors)
+    assert any(".ok disagrees with stage results" in error for error in errors)
+    assert any("summary.failed disagrees" in error for error in errors)
+
+
+def test_validator_rejects_malformed_source_receipts_without_crashing() -> None:
+    document = generate_manifest(REPO_ROOT)
+    axis = document["axes"][0]
+    axis["source"] = [{"not": "a path"}]
+    axis["source_sha256"] = {}
+    errors = validate_manifest(document)
+    assert any("non-canonical path" in error for error in errors)
+    assert any("source_sha256 must hash every source path" in error for error in errors)
+
+
 def test_fast_json_invocation_receipt_exercises_selected_backend() -> None:
     ok, reason = _exercise_fast_json(REPO_ROOT)
     assert ok is True
