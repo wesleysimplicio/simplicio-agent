@@ -1,0 +1,5 @@
+[run]
+source =
+    tests/ci
+omit =
+    tests/ci/test_classify_changes.py
