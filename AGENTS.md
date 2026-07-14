@@ -111,6 +111,14 @@ the Runtime on the next equivalent interaction.
 
 Use these before inventing one-off orchestration code.
 
+## Mandatory skill stack — default for engineering
+
+Every development, issue, wave, runtime-evolution, debugging, test, release, or PR task MUST resolve and record a skill stack before dispatch. The minimum universal stack is: `simplicio-tasks`, `simplicio-loop`, `simplicio-orient`, `simplicio-review`, `simplicio-learn`, and `simplicio-compress`. Add by scope: `test-driven-development`, `systematic-debugging`, `simplicio-runtime-evolution`, `wave-loop-tokio-integration`, `github-pr-workflow`, `github-code-review`, and release-integrity skills.
+
+A worker envelope without `skill_stack`, skill provenance, journal path, watcher gate, and close-gate is invalid and MUST NOT be launched. A wave engine plan is not an implementation: execution requires `--execute`, explicit skills, evidence, focused validation, and a PR handoff.
+
+Skills are selected automatically by task scope; the operator does not need to ask for them. Missing or broken skill loading is a runtime blocker to repair, not permission to continue with an unskilled LLM-only path.
+
 Two properties shape almost every design decision and are the lens for
 reviewing any change:
 
