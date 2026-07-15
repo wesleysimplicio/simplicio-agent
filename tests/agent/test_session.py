@@ -9,7 +9,7 @@ from agent.session import (
     SessionInvariantError,
     SessionSnapshot,
 )
-from agent.self_model import SelfModelSnapshot
+from agent.self_model import SelfModelSnapshot, CapabilityState
 from agent.turn_engine import TurnContext, TurnPhase
 
 
@@ -65,7 +65,18 @@ def test_session_snapshot_from_parts():
     assert snapshot.provider_route == "route1"
 
     # Test with cognition and bridge_generation
-    capability = CapabilityState("test", "test", "test")
+    capability = CapabilityState(
+        capability_id="test",
+        modality="test",
+        installed=True,
+        configured=True,
+        healthy=True,
+        authorized=True,
+        verified=True,
+        authority_level=0,
+        authority_ceiling=0,
+        budget_remaining=0,
+    )
     cognition = SelfModelSnapshot("digest1", "tenant1", "identity1", (capability,), {})
     snapshot = SessionSnapshot.from_parts(
         identity,
@@ -181,6 +192,10 @@ def test_agent_session_error_cases():
     turn._phase = TurnPhase.COMPLETED  # type: ignore[attr-defined]
     with pytest.raises(SessionInvariantError):
         session.complete_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.fail_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.cancel_turn(turn)
     with pytest.raises(SessionInvariantError):
         session.fail_turn(turn)
     with pytest.raises(SessionInvariantError):
