@@ -119,6 +119,39 @@ A worker envelope without `skill_stack`, skill provenance, journal path, watcher
 
 Skills are selected automatically by task scope; the operator does not need to ask for them. Missing or broken skill loading is a runtime blocker to repair, not permission to continue with an unskilled LLM-only path.
 
+## Pre-Implementation Gate (MANDATORY — issue #400)
+
+Before ANY implementation (new file, new module, new PR, new wave) the agent MUST
+run the Pre-Implementation Gate. This is a hard process gate, not advisory. The
+rule lives in AGENTS.md but is now *verified* by `hooks/pre-implementation-gate.py`
+(fail-closed: no evidence == gate failed == do NOT implement, do NOT open PR).
+
+Mandatory sequence, in order:
+
+1. **Query the neural database** for the issue's domain:
+   `simplicio memory "<domain da issue>"` (or the equivalent neural recall).
+   If the result is empty for the domain, record it explicitly as
+   `UNVERIFIED| banco vazio` — never stay silent.
+2. **Load architecture skills by scope** (use `skill_view` on each):
+   - `senior-architect` — if the issue involves design / architecture
+   - `asolaria-agent-table` — if it involves agents / orchestration
+   - `real-agent-wave-engineering` — if it involves waves / multi-agent
+   - `wave-loop-tokio-integration` — if it involves Tokio / fan-out
+3. **Evaluate DoD achievability with existing infra.** If the DoD needs
+   infrastructure that does not exist (remote durable queue, real external
+   workers, physical devices, etc.), DECLARE A BLOCKER and stop — do NOT open a
+   PR. A premature PR that declares DoD covered while foundation infra is missing
+   is a process failure (see lesson `pre-impl-gate-before-any-issue`).
+4. **Write the gate receipt** to `.orchestrator/pre-impl/<issue>.json` (schema in
+   `hooks/pre-implementation-gate.py`) and verify with:
+   `python3 hooks/pre-implementation-gate.py --issue <N>`
+   Exit 0 = gate satisfied; exit 1 = BLOCKED, implementation forbidden.
+
+The gate is enforced for every engineering task, including this repo's own issues.
+Apply it to the issue itself (meta-honesty): the #400 receipt is at
+`.orchestrator/pre-impl/400.json`. Recurring lessons from gate failures are mined
+by `simplicio-learn` into `.orchestrator/learn/lessons.jsonl`.
+
 Two properties shape almost every design decision and are the lens for
 reviewing any change:
 
