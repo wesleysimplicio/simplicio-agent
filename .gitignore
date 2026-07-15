@@ -152,6 +152,8 @@ infographic/
 .orchestrator/loop/
 .orchestrator/runs/
 .orchestrator/worktrees/
+# Pre-Implementation Gate receipts (#400) — generated per-issue, not committed
+.orchestrator/pre-impl/
 .claude/worktrees/
 
 # Local hermes-achievements scan state (generated from session history)

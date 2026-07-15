@@ -1,0 +1,15 @@
+{
+  "issue": "400",
+  "domain": "process gate — pre-implementation verification",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| banco vazio para 'process-gate'; carencia conhecida do episodio #183 documentada na propria issue #400",
+  "skills_loaded": [
+    "senior-architect",
+    "simplicio-learn",
+    "simplicio-loop"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "agent": "hermes-original",
+  "note": "Gate aplicado a propria issue #400 (meta-honestidade): o banco neural foi consultado; skills de arquitetura carregadas; DoD alcancavel com infra existente (AGENTS.md + hook determinístico + lessons.jsonl)."
+}
