@@ -1,322 +1,274 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Simplicio Agent" width="100%">
+  <img src="assets/simplicio-agent-hero-2026.png" alt="Simplicio Agent — governed autonomous intelligence on your hardware" width="100%" />
 </p>
 
-# Simplicio Agent
+<h1 align="center">Simplicio Agent</h1>
 
-**Simplicio Agent = Hermes Turbo Agent core + Simplicio Runtime (Rust
-determinism kernel).** Canonical command: `simplicio-agent` (`hermes` keeps
-working as a deprecated alias). Fork of
-[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent).
+<p align="center"><strong>Hermes speed. Simplicio determinism. Verified delivery.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/wesleysimplicio/simplicio-agent">Simplicio Agent</a> | <a href="desktop/">Simplicio Desktop</a>
+  The local-first autonomous agent that reasons broadly, executes through a Rust control plane,<br>
+  gates every consequential action, and proves the work before it says “done”.
 </p>
+
 <p align="center">
-  <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
-  <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
-  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
-  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/Lang-中文-red?style=for-the-badge" alt="中文"></a>
-  <a href="README.ur-pk.md"><img src="https://img.shields.io/badge/Lang-اردو-green?style=for-the-badge" alt="اردو"></a>
-  <a href="README.es.md"><img src="https://img.shields.io/badge/Lang-Español-orange?style=for-the-badge" alt="Español"></a>
+  <a href="https://github.com/wesleysimplicio/simplicio-agent/stargazers"><img src="https://img.shields.io/github/stars/wesleysimplicio/simplicio-agent?style=for-the-badge&logo=github&color=F5C451" alt="GitHub stars"></a>
+  <a href="https://github.com/wesleysimplicio/simplicio-agent/releases"><img src="https://img.shields.io/github/v/release/wesleysimplicio/simplicio-agent?style=for-the-badge&color=7C3AED" alt="Latest release"></a>
+  <a href="https://github.com/wesleysimplicio/simplicio-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-00B894?style=for-the-badge" alt="MIT license"></a>
+  <a href="https://discord.gg/wM6tr7xVb"><img src="https://img.shields.io/badge/Discord-Join%20Simplicio-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Simplicio Discord"></a>
 </p>
 
-**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+<p align="center">
+  <a href="#why-simplicio">Why Simplicio</a> ·
+  <a href="#simplicio-vs-official-hermes-agent">vs Hermes</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#quick-install">Install</a> ·
+  <a href="#star-history">Star History</a>
+</p>
 
-Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenRouter, OpenAI, your own endpoint, and [many others](https://hermes-agent.nousresearch.com/docs/integrations/providers). Switch with `simplicio-agent model` — no code changes, no lock-in.
-
-<table>
-<tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
-<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal, and CLI — all from a single gateway process. Voice memo transcription, cross-platform conversation continuity.</td></tr>
-<tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
-<tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
-<tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
-<tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Singularity, Modal, and Daytona. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
-<tr><td><b>Research-ready</b></td><td>Batch trajectory generation, trajectory compression for training the next generation of tool-calling models.</td></tr>
-</table>
+<p align="center">
+  <strong>🌍 Languages</strong><br>
+  <a href="README.md">🇬🇧 English</a> |
+  <a href="READMEs/README.pt-BR.md">🇧🇷 Português</a> |
+  <a href="READMEs/README.es-ES.md">🇪🇸 Español</a> |
+  <a href="READMEs/README.fr-FR.md">🇫🇷 Français</a> |
+  <a href="READMEs/README.de-DE.md">🇩🇪 Deutsch</a> |
+  <a href="READMEs/README.it-IT.md">🇮🇹 Italiano</a> |
+  <a href="READMEs/README.ja-JP.md">🇯🇵 日本語</a> |
+  <a href="READMEs/README.ko-KR.md">🇰🇷 한국어</a> |
+  <a href="READMEs/README.zh-CN.md">🇨🇳 简体中文</a> |
+  <a href="READMEs/README.ru-RU.md">🇷🇺 Русский</a> |
+  <a href="READMEs/README.pl-PL.md">🇵🇱 Polski</a> |
+  <a href="READMEs/README.tr-TR.md">🇹🇷 Türkçe</a> |
+  <a href="READMEs/README.nl-NL.md">🇳🇱 Nederlands</a> |
+  <a href="READMEs/README.hi-IN.md">🇮🇳 हिन्दी</a> |
+  <a href="READMEs/README.ar-SA.md">🇸🇦 العربية</a>
+</p>
 
 ---
 
-## Performance — measured, not promised
+## Why Simplicio
 
-Every shared hot path is faster than the original `hermes-agent`, verified by
-a paired benchmark that fails CI-style (exit ≠ 0) if any probe regresses.
-Measured 2026-07-08, Linux container, Python 3.11, both checkouts on their
-default dependency posture:
+Most agents optimize the conversation. Simplicio optimizes the **entire delivery path**.
 
-| Hot path | Simplicio Agent | original hermes-agent | speedup |
-|---|---|---|---|
-| JSON encode of a tool result | 2.8 µs | 33.1 µs | **12.0×** |
-| JSON parse of tool-call args | 0.6 µs | 1.8 µs | **3.1×** |
-| Tool-arg canonicalization (parse + sorted re-encode) | 1.2 µs | 5.2 µs | **4.5×** |
-| Token estimate over a 200-message history | 634 µs | 677 µs | **1.07×** |
-| CLI cold import (`import hermes_cli.main`) | 66.4 ms | 117.6 ms | **1.77×** |
+| Pillar | What Simplicio adds | Why it matters |
+|---|---|---|
+| ⚡ **Speed** | Streaming, fast JSON/serde paths, lazy schemas, warm daemon, deterministic routing, token-aware working set | Less waiting and less context waste |
+| 🛡️ **Determinism** | Compiled Rust runtime, action gate, mechanical edits, checkpoints and undo | The model proposes; the runtime controls effects |
+| ✅ **Proof** | HBP evidence chain, watcher recomputation, receipts, progressive validation and delivery gates | “Done” becomes auditable evidence, not a sentence |
+| 🧠 **Memory** | Project guardian, runtime guardian, durable attempts, skill memory and local retrieval | The agent reuses what worked and avoids oscillation |
+| 🌐 **Reach** | CLI, MCP, desktop, messaging gateways, plugins, skills and model/provider freedom | One governed agent across the surfaces you already use |
+| 🏠 **Ownership** | Local-first execution, local model ladder and user-owned state | Your machine, your data, your rules |
 
-On top of that, modules the original simply doesn't have: a Rust hot-path
-extension (streaming tool-call parse), msgspec typed decode, uvloop
-default-on, an HTTP/2 connection pool, a DAG tool-batch executor, a warm
-daemon, and the TOON token codec — measured **60.9%** fewer prompt tokens on
-uniform tool-result arrays (14.8% on typical tool results), with
-prompt-cache marking **6.4×** faster than the legacy deepcopy path.
+```mermaid
+flowchart LR
+    A["Intent"] --> B["Map + retrieve"]
+    B --> C["Reason + plan"]
+    C --> D{"Action gate"}
+    D -->|authorized| E["Deterministic execution"]
+    D -->|blocked| C
+    E --> F["Validate"]
+    F --> G{"Watcher recomputes"}
+    G -->|mismatch| H["Checkpoint / correct"]
+    H --> C
+    G -->|verified| I["Receipt + delivery"]
+```
 
-Reproduce it yourself:
+## Hermes → Simplicio Agent
+
+<p align="center">
+  <img src="assets/hermes-to-simplicio-transformation.png" alt="Hermes evolving into Simplicio Agent" width="100%" />
+</p>
+
+Simplicio Agent is an independent, public fork of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). It keeps the upstream strengths—broad tools, provider choice, skills, messaging, learning and fast interaction—then evolves the execution model around the Simplicio Runtime.
+
+This is **inheritance plus evolution**: Hermes remains the origin and receives attribution; Simplicio is the product identity, control plane and delivery contract.
+
+```mermaid
+flowchart LR
+    H["Hermes Agent foundation<br/>tools · providers · skills · gateways"]
+    T["Turbo layer<br/>streaming · hot paths · warm daemon · token economy"]
+    R["Simplicio Runtime<br/>Rust gate · checkpoints · receipts · deterministic edit"]
+    A["Simplicio Agent<br/>fast · governed · reversible · verifiable"]
+    H --> T --> A
+    R --> A
+```
+
+## Simplicio vs official Hermes Agent
+
+Comparison snapshot: **15 July 2026**, against the public `main` branch of [official Hermes Agent](https://github.com/NousResearch/hermes-agent). “Simplicio advantage” means a capability present and documented in this repository; it does not imply that Hermes is weak or unsuitable for its own goals.
+
+### Measured shared hot paths
+
+Reproduce with `python3 scripts/benchmark_vs_upstream.py --upstream ../hermes-agent`. Methodology and limits are documented in [`docs/performance.md`](docs/performance.md).
+
+| Shared probe | Simplicio Agent | Official Hermes | Measured gain |
+|---|---:|---:|---:|
+| JSON encode, tool result | 2.8 µs | 33.1 µs | **12.0×** |
+| JSON decode, tool args | 0.6 µs | 1.8 µs | **3.1×** |
+| Canonicalize tool args | 1.2 µs | 5.2 µs | **4.5×** |
+| Token estimate, 200 messages | 634 µs | 677 µs | **1.07×** |
+| CLI cold import | 66.4 ms | 117.6 ms | **1.77×** |
+
+> These are focused microbenchmarks captured on Linux/Python 3.11, not a claim that every end-to-end task is 12× faster. Run the benchmark on your hardware.
+
+### Difference-by-difference
+
+| Area | Official Hermes Agent | Simplicio Agent advantage |
+|---|---|---|
+| Product core | Python agent runtime | Hermes-derived agent fused with the compiled Simplicio Rust control plane |
+| Canonical CLI | `hermes` | `simplicio-agent`; `hermes` remains a deprecated compatibility alias |
+| Effect control | Tool/runtime policies | Unified mutation classification and fail-closed action gate |
+| Mechanical changes | Model/tool-written operations | Zero-token deterministic edit plans when the change is mechanical |
+| Recovery | Task-specific retries | Checkpoints, undo paths and transaction-aware recovery |
+| Completion | Agent decides it is finished | Evidence-gated loop plus independent watcher recomputation |
+| Evidence | Logs and tool results | Typed receipts plus append-only HBP evidence lineage |
+| Performance posture | General-purpose defaults | Fast installers enable serde, fast JSON and uvloop by default |
+| JSON/serialization | Standard shared path | `orjson`/`msgspec` fast path with pure-Python fallback |
+| Native hot paths | Python-first | Optional PyO3 hot path plus compiled Rust execution kernel |
+| Startup | Standard CLI lifecycle | Lazy boot path plus optional warm daemon |
+| Context economy | Compression and memory | Working-set LRU, cold references, TF-IDF scoring, token cache and prefetch |
+| Tool output economy | Normal tool payloads | TOON boundary and token-saver compaction with telemetry |
+| Routing | Model/tool routing | Deterministic no-LLM route first, then local/remote escalation ladder |
+| Repository context | Agent reads tools/files | Runtime map + mapper + zero-copy orientation pack |
+| Runtime knowledge | Loaded instructions | Helo guardian ranks runtime capabilities and mutation paths |
+| Project knowledge | Conversation/project memory | Isa guardian ranks project docs, examples and local memory |
+| External discovery | Web tools when selected | Levi is explicitly gated: external lookup only after local guardians miss |
+| Parallel work | Subagents and tool concurrency | Governed fan-out, leases, worktree isolation, backpressure and receipts |
+| Orchestration | Agent loop | Bounded `simplicio-loop` with converge/drain modes and anti-oscillation journal |
+| Self-modification | General development workflow | Explicit self-mutation isolation, promotion and handoff contract |
+| Validation | Tests selected by workflow | Progressive validation, watcher gate, DoD and delivery certificate surfaces |
+| Observability | Logs, sessions and integrations | Stage timers, token savings, lane readiness, receipts and runtime status |
+| Local execution | Supports local and remote models | Local-first decision ladder with governed shared inference pool |
+| Contracts | Tool/API conventions | Versioned `simplicio.* /v1` envelopes across task, progress, effects and evidence |
+| Safety at scale | Host/tool safeguards | CPU, disk, queue, timeout, iteration and “never explode” caps |
+| Compatibility | Upstream ecosystem | Keeps upstream capabilities while migrating toward native Simplicio identity |
+
+## Verified execution, not performative autonomy
+
+<p align="center">
+  <img src="assets/simplicio-verified-execution.png" alt="Simplicio verified and reversible execution pipeline" width="100%" />
+</p>
+
+Every consequential run follows a bounded path. Authorization is separated from possibility; evidence is part of execution; rollback is designed in rather than improvised afterward.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Simplicio Agent
+    participant R as Rust Runtime
+    participant W as Watcher
+    participant E as Evidence Ledger
+    U->>A: Goal + constraints
+    A->>R: Typed task and proposed effects
+    R->>R: Gate + checkpoint
+    R-->>A: Authorized receipts
+    A->>R: Execute + validate
+    R->>W: Claimed result
+    W->>W: Recompute independently
+    alt evidence matches
+        W->>E: Append verified receipt
+        E-->>U: Auditable delivery
+    else mismatch
+        W-->>A: Correct or roll back
+    end
+```
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Interfaces["Interfaces"]
+      CLI["CLI"]
+      MCP["MCP"]
+      MSG["Messaging"]
+      DESK["Desktop / TUI"]
+    end
+    subgraph Agent["Simplicio Agent"]
+      REASON["Reasoning + provider freedom"]
+      SKILLS["Skills + plugins"]
+      MEMORY["Isa · Helo · Levi"]
+      LOOP["Evidence-gated loop"]
+    end
+    subgraph Runtime["Simplicio Runtime — Rust"]
+      MAP["Map + contracts"]
+      GATE["Action gate"]
+      EDIT["Mechanical edit"]
+      CHECK["Checkpoint / undo"]
+      VERIFY["Validate + HBP receipts"]
+    end
+    Interfaces --> Agent
+    REASON --> LOOP
+    SKILLS --> LOOP
+    MEMORY --> LOOP
+    LOOP --> Runtime
+    MAP --> GATE --> EDIT --> CHECK --> VERIFY
+```
+
+The narrow waist is intentional: the model reasons and coordinates; the runtime owns deterministic effects, evidence and recovery.
+
+## Quick install
+
+### macOS, Linux, WSL2 and Termux
 
 ```bash
-python scripts/benchmark_vs_upstream.py --upstream ../hermes-agent  # paired probes, fails if slower
-python scripts/benchmark_e2e.py                                     # per-module vs own fallbacks
+curl -fsSL https://simpleti.com.br/simplicio/install.sh | sh
+simplicio-agent setup
+simplicio-agent doctor
 ```
 
-Details, trade-offs, and what's on by default: [docs/performance.md](docs/performance.md).
-
----
-
-## Quick Install
-
-### Linux, macOS, WSL2, Termux
+### From source
 
 ```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+git clone https://github.com/wesleysimplicio/simplicio-agent.git
+cd simplicio-agent
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[fast]"
+simplicio-agent setup
 ```
 
-### Windows (native, PowerShell)
+The `hermes` command remains available temporarily for compatibility, but new automation should use `simplicio-agent`.
 
-> **Heads up:** Native Windows runs Simplicio Agent without WSL — CLI, gateway, TUI, and tools all work natively. If you'd rather use WSL2, the Linux/macOS one-liner above works there too. Found a bug? Please [file issues](https://github.com/NousResearch/hermes-agent/issues).
-
-Run this in PowerShell:
-
-```powershell
-iex (irm https://hermes-agent.nousresearch.com/install.ps1)
-```
-
-The installer handles everything: uv, Python 3.11, Node.js, ripgrep, ffmpeg, **and a portable Git Bash** (MinGit, unpacked to `%LOCALAPPDATA%\hermes\git` — no admin required, completely isolated from any system Git install). Simplicio Agent uses this bundled Git Bash to run shell commands.
-
-If you already have Git installed, the installer detects it and uses that instead. Otherwise a ~45MB MinGit download is all you need — it won't touch or interfere with any system Git.
-
-> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Simplicio Agent installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
->
-> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\hermes`; WSL2 installs under `~/.hermes` as on Linux.
-
-After installation:
+## Start here
 
 ```bash
-source ~/.bashrc    # reload shell (or: source ~/.zshrc)
-simplicio-agent     # start chatting!
+# Interactive agent
+simplicio-agent
+
+# Diagnose the fast stack and Runtime binding
+simplicio-agent doctor
+
+# Inspect the Runtime's live capability contract
+simplicio runtime map --for-llm markdown --repo .
 ```
 
-### Troubleshooting
+Useful references:
 
-#### Windows Defender or antivirus flags `uv.exe` as malware
+- [`docs/SIMPLICIO_OPERATIONAL_MANUAL.md`](docs/SIMPLICIO_OPERATIONAL_MANUAL.md) — execution and safety model
+- [`docs/performance.md`](docs/performance.md) — benchmark methods and reproducible numbers
+- [`docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md`](docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md) — capability inventory
+- [`docs/architecture/INDEX.md`](docs/architecture/INDEX.md) — architectural decisions
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution guide
+- [`SECURITY.md`](SECURITY.md) — security policy
 
-If your antivirus (Bitdefender, Windows Defender, etc.) quarantines `uv.exe` from the Simplicio Agent `bin` folder (`%LOCALAPPDATA%\hermes\bin\uv.exe`), this is a **false positive**. The file is Astral's `uv` — the Rust Python package manager Simplicio Agent bundles to manage its Python environment. ML-based antivirus engines commonly flag unsigned Rust binaries that download and install packages.
+## Star History
 
-**To verify your copy is authentic:**
+<a href="https://star-history.com/#wesleysimplicio/simplicio-agent&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=wesleysimplicio/simplicio-agent&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=wesleysimplicio/simplicio-agent&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=wesleysimplicio/simplicio-agent&type=Date" />
+  </picture>
+</a>
 
-```powershell
-# Install GitHub CLI if needed
-winget install --id GitHub.cli
+## Lineage, license and community
 
-# Login to GitHub
-gh auth login
+Simplicio Agent is licensed under the [MIT License](LICENSE) and derives from the excellent work of [Nous Research](https://nousresearch.com) and the [Hermes Agent contributors](https://github.com/NousResearch/hermes-agent/graphs/contributors). See the repository history and license notices for attribution.
 
-# Run verification
-$uv = "$env:LOCALAPPDATA\hermes\bin\uv.exe"
-$ver = (& $uv --version).Split(' ')[1]
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$zip = "$env:TEMP\uv.zip"
-Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/$ver/uv-x86_64-pc-windows-msvc.zip" -OutFile $zip -UseBasicParsing
-gh attestation verify $zip --repo astral-sh/uv
-Expand-Archive $zip "$env:TEMP\uv_x" -Force
-(Get-FileHash "$env:TEMP\uv_x\uv.exe").Hash -eq (Get-FileHash $uv).Hash
-```
+- ⭐ Star this repository if verified, local-first autonomy is the direction you want.
+- 💬 Join the [Simplicio Discord](https://discord.gg/wM6tr7xVb).
+- 🐛 Open an [issue](https://github.com/wesleysimplicio/simplicio-agent/issues) with a reproducible case.
+- 🔧 Send a focused PR with tests and evidence.
 
-If attestation says "Verification succeeded" and the last line prints `True`, you're good.
-
-**To whitelist Simplicio Agent:**
-- **Windows Defender:** Run PowerShell as Admin → `Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\hermes\bin"`
-- **Bitdefender:** Add an exception in the Bitdefender console (Protection > Antivirus > Settings > Manage Exceptions)
-- Whitelist the **folder**, not the file hash — Simplicio Agent updates `uv` and the hash changes every version
-
-For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://github.com/astral-sh/uv/issues/13553), [astral-sh/uv#15011](https://github.com/astral-sh/uv/issues/15011), [astral-sh/uv#10079](https://github.com/astral-sh/uv/issues/10079).
-
----
-
-## Getting Started
-
-```bash
-simplicio-agent              # Interactive CLI — start a conversation
-simplicio-agent model        # Choose your LLM provider and model
-simplicio-agent tools        # Configure which tools are enabled
-simplicio-agent config set   # Set individual config values
-simplicio-agent gateway      # Start the messaging gateway (Telegram, Discord, etc.)
-simplicio-agent setup        # Run the full setup wizard (configures everything at once)
-simplicio-agent claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
-simplicio-agent update       # Update to the latest version
-simplicio-agent doctor       # Diagnose any issues
-```
-
-📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
-
----
-
-## Skip the API-key collection — Nous Portal
-
-Simplicio Agent works with whatever provider you want — that's not changing. But if you'd rather not collect five separate API keys for the model, web search, image generation, TTS, and a cloud browser, **[Nous Portal](https://portal.nousresearch.com)** covers all of them under one subscription:
-
-- **300+ models** — pick any of them with `/model <name>`
-- **Tool Gateway** — web search (Firecrawl), image generation (FAL), text-to-speech (OpenAI), cloud browser (Browser Use), all routed through your sub. No extra accounts.
-
-One command from a fresh install:
-
-```bash
-simplicio-agent setup --portal
-```
-
-That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `simplicio-agent portal info`. Full details on the [Tool Gateway docs page](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
-
-You can still bring your own keys per-tool whenever you want — the gateway is per-backend, not all-or-nothing.
-
----
-
-## CLI vs Messaging Quick Reference
-
-Simplicio Agent has two entry points: start the terminal UI with `simplicio-agent`, or run the gateway and talk to it from Telegram, Discord, Slack, WhatsApp, Signal, or Email. Once you're in a conversation, many slash commands are shared across both interfaces.
-
-| Action                         | CLI                                           | Messaging platforms                                                              |
-| ------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| Start chatting                 | `simplicio-agent`                             | Run `simplicio-agent gateway setup` + `simplicio-agent gateway start`, then send the bot a message |
-| Start fresh conversation       | `/new` or `/reset`                            | `/new` or `/reset`                                                               |
-| Change model                   | `/model [provider:model]`                     | `/model [provider:model]`                                                        |
-| Set a personality              | `/personality [name]`                         | `/personality [name]`                                                            |
-| Retry or undo the last turn    | `/retry`, `/undo`                             | `/retry`, `/undo`                                                                |
-| Compress context / check usage | `/compress`, `/usage`, `/insights [--days N]` | `/compress`, `/usage`, `/insights [days]`                                        |
-| Browse skills                  | `/skills` or `/<skill-name>`                  | `/<skill-name>`                                                                  |
-| Interrupt current work         | `Ctrl+C` or send a new message                | `/stop` or send a new message                                                    |
-| Platform-specific status       | `/platforms`                                  | `/status`, `/sethome`                                                            |
-
-For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
-
-### MCP tool vs CLI fallback for the rare commands
-
-Most day-to-day work goes through MCP tools. A long tail of rarer commands
-(cron, gateway, workflow, issue-factory, agent control, desktop app
-launching, plan/decide/sprint/learn, doctor/hooks/tokio-runtime/health/
-settings) doesn't all have a dedicated MCP tool yet, and that's by design,
-not a gap:
-
-- **Read-only status checks** (`cron_status`, `gateway_status`,
-  `hooks_status`, plus the routing lookup `low_frequency_cli_fallback`) are
-  real MCP tools — see `mcp_low_freq_bridges.py`.
-- **Everything else in that long tail** is an explicit CLI fallback: call
-  `simplicio-agent` / `simplicio` directly, or ask any connected agent to
-  call the `low_frequency_cli_fallback` tool with the domain name to get
-  back the exact command to run.
-
-The full classification (which domain is MCP today, which is CLI fallback,
-and why) lives in
-[`docs/mcp-low-frequency-bridges.md`](docs/mcp-low-frequency-bridges.md).
-
----
-
-## Documentation
-
-All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes-agent.nousresearch.com/docs/)**:
-
-| Section                                                                                             | What's Covered                                             |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [Quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart)                 | Install → setup → first conversation in 2 minutes          |
-| [CLI Usage](https://hermes-agent.nousresearch.com/docs/user-guide/cli)                              | Commands, keybindings, personalities, sessions             |
-| [Configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)                | Config file, providers, models, all options                |
-| [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)                | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
-| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation          |
-| [Tools & Toolsets](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)            | 40+ tools, toolset system, terminal backends               |
-| [Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)              | Procedural memory, Skills Hub, creating skills             |
-| [Memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory)                     | Persistent memory, user profiles, best practices           |
-| [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)               | Connect any MCP server for extended capabilities           |
-| [Cron Scheduling](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron)              | Scheduled tasks with platform delivery                     |
-| [Context Files](https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files)       | Project context that shapes every conversation             |
-| [Architecture](https://hermes-agent.nousresearch.com/docs/developer-guide/architecture)             | Project structure, agent loop, key classes                 |
-| [Contributing](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing)             | Development setup, PR process, code style                  |
-| [CLI Reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)                  | All commands and flags                                     |
-| [Environment Variables](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) | Complete env var reference                                 |
-
----
-
-## Migrating from OpenClaw
-
-If you're coming from OpenClaw, Simplicio Agent can automatically import your settings, memories, skills, and API keys.
-
-**During first-time setup:** The setup wizard (`simplicio-agent setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
-
-**Anytime after install:**
-
-```bash
-simplicio-agent claw migrate              # Interactive migration (full preset)
-simplicio-agent claw migrate --dry-run    # Preview what would be migrated
-simplicio-agent claw migrate --preset user-data   # Migrate without secrets
-simplicio-agent claw migrate --overwrite  # Overwrite existing conflicts
-```
-
-What gets imported:
-
-- **SOUL.md** — persona file
-- **Memories** — MEMORY.md and USER.md entries
-- **Skills** — user-created skills → `~/.hermes/skills/openclaw-imports/`
-- **Command allowlist** — approval patterns
-- **Messaging settings** — platform configs, allowed users, working directory
-- **API keys** — allowlisted secrets (Telegram, OpenRouter, OpenAI, Anthropic, ElevenLabs)
-- **TTS assets** — workspace audio files
-- **Workspace instructions** — AGENTS.md (with `--workspace-target`)
-
-See `simplicio-agent claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
-
----
-
-## Contributing
-
-We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
-
-Quick start for contributors — use the standard installer, then work from the
-full git checkout it creates at `$HERMES_HOME/hermes-agent` (usually
-`~/.hermes/hermes-agent`). This matches the layout used by `simplicio-agent update`, the
-managed venv, lazy dependencies, gateway, and docs tooling.
-
-```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-cd "${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
-uv pip install -e ".[all,dev]"
-scripts/run_tests.sh
-```
-
-Manual clone fallback (for throwaway clones/CI where you intentionally do not
-want the managed install layout):
-
-Create the venv outside the cloned source tree — a venv inside the directory
-the agent operates from can be wiped by a relative-path command the agent runs
-against its own checkout, destroying the running runtime mid-session.
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv ~/.hermes/venvs/hermes-dev --python 3.11
-source ~/.hermes/venvs/hermes-dev/bin/activate
-uv pip install -e ".[all,dev]"
-scripts/run_tests.sh
-```
-
----
-
-## Community
-
-- 💬 [Discord](https://discord.gg/NousResearch)
-- 📚 [Skills Hub](https://agentskills.io)
-- 🐛 [Issues](https://github.com/NousResearch/hermes-agent/issues)
-- 🔌 [computer-use-linux](https://github.com/avifenesh/computer-use-linux) — Linux desktop-control MCP server for Simplicio Agent and other MCP hosts, with AT-SPI accessibility trees, Wayland/X11 input, screenshots, and compositor window targeting.
-- 🔌 [HermesClaw](https://github.com/AaronWong1999/hermesclaw) — Community WeChat bridge: Run Simplicio Agent and OpenClaw on the same WeChat account.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
-
-Built by [Nous Research](https://nousresearch.com).
+<p align="center"><strong>Simplicio Agent — possibility is cheap; action is gated; completion is proved.</strong></p>
