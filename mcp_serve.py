@@ -35,6 +35,7 @@ import json
 # with graceful stdlib fallback (agent/_fastjson.py).
 from agent._fastjson import dumps as _fast_dumps, loads as _fast_loads
 from agent.mcp_agent_gateway import invoke_agent, rank_capabilities
+from simplicio_agent.public_contract import MCP_SERVER_NAME
 import logging
 import os
 import re
@@ -755,8 +756,6 @@ def _dispatch_savings_action(
 # ---------------------------------------------------------------------------
 # MCP Server
 # ---------------------------------------------------------------------------
-
-MCP_SERVER_NAME = "Simplicio Agent"
 
 
 def _set_mcp_server_version(mcp: Any) -> None:
