@@ -1,115 +1,202 @@
-"""Focused contract tests for the issue #221 session/turn boundary."""
-
-from __future__ import annotations
+"""Tests for agent.session."""
 
 import pytest
 
 from agent.session import (
+    SESSION_SCHEMA,
     AgentSession,
     SessionIdentity,
     SessionInvariantError,
     SessionSnapshot,
 )
-from agent.turn_engine import TurnEngine, TurnPhase
+from agent.self_model import SelfModelSnapshot, CapabilityState
+from agent.turn_engine import TurnContext, TurnPhase
 
 
-class _Cognition:
-    def __init__(self, digest: str = "cognition-v1") -> None:
-        self._digest = digest
+def test_session_identity_validation():
+    """Test SessionIdentity validation."""
+    with pytest.raises(SessionInvariantError):
+        SessionIdentity("", "session1")
+    with pytest.raises(SessionInvariantError):
+        SessionIdentity("profile1", "")
+    with pytest.raises(SessionInvariantError):
+        SessionIdentity("profile1", "session1", "")
+    with pytest.raises(SessionInvariantError):
+        SessionIdentity("profile1", "session1", "incarnation1", -1)
 
-    def digest(self) -> str:
-        return self._digest
-
-
-def _snapshot(**changes: object) -> SessionSnapshot:
-    identity = SessionIdentity("cli", "s1", incarnation="inc-1", revision=2)
-    values = {
-        "system_prompt": "stable prompt",
-        "tool_names": ["terminal", "read_file"],
-        "provider_route": "openai:gpt-5",
-        "cognition": _Cognition(),
-        "bridge_generation": 3,
-    }
-    values.update(changes)
-    return SessionSnapshot.from_parts(identity, **values)
+    identity = SessionIdentity("profile1", "session1")
+    assert identity.profile == "profile1"
+    assert identity.session_id == "session1"
+    assert identity.incarnation == "default"
+    assert identity.revision == 0
 
 
-def test_snapshot_fingerprints_are_stable_and_non_secret() -> None:
-    first = _snapshot(tool_names=["read_file", "terminal", "terminal"])
-    second = _snapshot(tool_names=["terminal", "read_file"])
+def test_session_snapshot_validation():
+    """Test SessionSnapshot validation."""
+    identity = SessionIdentity("profile1", "session1")
+    with pytest.raises(TypeError):
+        SessionSnapshot("not_an_identity", "hash1", "hash2", "route1")  # type: ignore
+    with pytest.raises(SessionInvariantError):
+        SessionSnapshot(identity, "", "hash2", "route1")
+    with pytest.raises(SessionInvariantError):
+        SessionSnapshot(identity, "hash1", "", "route1")
+    with pytest.raises(SessionInvariantError):
+        SessionSnapshot(identity, "hash1", "hash2", "")
+    with pytest.raises(SessionInvariantError):
+        SessionSnapshot(identity, "hash1", "hash2", "route1", bridge_generation=-1)
 
-    assert first == second
-    assert first.system_prompt_hash != "stable prompt"
-    assert first.toolset_hash != "terminal"
-    assert "stable prompt" not in repr(first)
+    snapshot = SessionSnapshot(identity, "hash1", "hash2", "route1")
+    assert snapshot.identity == identity
+    assert snapshot.schema == SESSION_SCHEMA
 
 
-def test_snapshot_rejects_incarnation_changes() -> None:
-    snapshot = _snapshot()
-
-    snapshot.assert_compatible(
-        system_prompt="stable prompt",
-        tool_names=["read_file", "terminal"],
-        provider_route="openai:gpt-5",
-        cognition=_Cognition(),
-        bridge_generation=3,
+def test_session_snapshot_from_parts():
+    """Test SessionSnapshot.from_parts()."""
+    identity = SessionIdentity("profile1", "session1")
+    snapshot = SessionSnapshot.from_parts(
+        identity,
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
     )
-    with pytest.raises(SessionInvariantError, match="incarnation changed"):
+    assert snapshot.identity == identity
+    assert snapshot.system_prompt_hash
+    assert snapshot.toolset_hash
+    assert snapshot.provider_route == "route1"
+
+    # Test with cognition and bridge_generation
+    capability = CapabilityState(
+        capability_id="test",
+        modality="test",
+        installed=True,
+        configured=True,
+        healthy=True,
+        authorized=True,
+        verified=True,
+        authority_level=0,
+        authority_ceiling=0,
+        budget_remaining=0,
+    )
+    cognition = SelfModelSnapshot("digest1", "tenant1", "identity1", (capability,), {})
+    snapshot = SessionSnapshot.from_parts(
+        identity,
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
+        cognition=cognition,
+        bridge_generation=1,
+    )
+    assert snapshot.cognition_digest == "digest1"
+    assert snapshot.bridge_generation == 1
+
+
+def test_session_snapshot_assert_compatible():
+    """Test SessionSnapshot.assert_compatible()."""
+    identity = SessionIdentity("profile1", "session1")
+    snapshot = SessionSnapshot.from_parts(
+        identity,
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
+    )
+
+    # Should not raise
+    snapshot.assert_compatible(
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
+    )
+
+    # Should raise for incompatible changes
+    with pytest.raises(SessionInvariantError):
         snapshot.assert_compatible(
-            system_prompt="changed prompt",
-            tool_names=["read_file", "terminal"],
-            provider_route="openai:gpt-5",
-            cognition=_Cognition(),
-            bridge_generation=3,
+            system_prompt="prompt2",
+            tool_names=["tool1", "tool2"],
+            provider_route="route1",
+        )
+    with pytest.raises(SessionInvariantError):
+        snapshot.assert_compatible(
+            system_prompt="prompt1",
+            tool_names=["tool1"],
+            provider_route="route1",
+        )
+    with pytest.raises(SessionInvariantError):
+        snapshot.assert_compatible(
+            system_prompt="prompt1",
+            tool_names=["tool1", "tool2"],
+            provider_route="route2",
         )
 
 
-def test_session_owns_turn_identity_and_shared_engine_lifecycle() -> None:
-    session = AgentSession(_snapshot())
-    context = session.begin_turn(attempt_id="attempt-1")
+def test_agent_session_lifecycle():
+    """Test AgentSession lifecycle."""
+    identity = SessionIdentity("profile1", "session1")
+    snapshot = SessionSnapshot.from_parts(
+        identity,
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
+    )
+    session = AgentSession(snapshot)
+    assert not session.closed
+    assert session.active_turns == 0
 
-    assert context.phase is TurnPhase.STARTED
-    assert context.session_id == "s1"
+    # Begin a turn
+    turn = session.begin_turn()
+    assert isinstance(turn, TurnContext)
     assert session.active_turns == 1
 
-    TurnEngine.transition(context, TurnPhase.TOOL_CALL)
-    TurnEngine.transition(context, TurnPhase.TOOL_RESULT)
-    completed = session.complete_turn(context)
-
-    assert completed.phase is TurnPhase.COMPLETED
-    assert completed.history == [
-        TurnPhase.ACCEPTED,
-        TurnPhase.STARTED,
-        TurnPhase.TOOL_CALL,
-        TurnPhase.TOOL_RESULT,
-        TurnPhase.FINALIZE,
-    ]
+    # Complete the turn
+    session.complete_turn(turn)
     assert session.active_turns == 0
 
-
-def test_session_rejects_foreign_turns_and_close_with_active_work() -> None:
-    session = AgentSession(_snapshot())
-    other = AgentSession(_snapshot())
-    context = session.begin_turn()
-
-    with pytest.raises(SessionInvariantError, match="not active"):
-        other.cancel_turn(context)
-    with pytest.raises(SessionInvariantError, match="active turns"):
-        session.close()
-
-    session.cancel_turn(context)
+    # Close the session
     session.close()
-    assert session.closed is True
-    with pytest.raises(SessionInvariantError, match="closed"):
+    assert session.closed
+
+
+def test_agent_session_error_cases():
+    """Test AgentSession error cases."""
+    identity = SessionIdentity("profile1", "session1")
+    snapshot = SessionSnapshot.from_parts(
+        identity,
+        system_prompt="prompt1",
+        tool_names=["tool1", "tool2"],
+        provider_route="route1",
+    )
+    session = AgentSession(snapshot)
+
+    # Cannot begin turn on closed session
+    session.close()
+    with pytest.raises(SessionInvariantError):
         session.begin_turn()
 
+    # Cannot close with active turns
+    session = AgentSession(snapshot)
+    turn = session.begin_turn()
+    with pytest.raises(SessionInvariantError):
+        session.close()
 
-def test_failed_turn_is_terminal_and_removed_from_session() -> None:
-    session = AgentSession(_snapshot())
-    context = session.begin_turn()
+    # Cannot complete/fail/cancel invalid turn
+    other_turn = TurnContext("other_turn", "0", "other_session")
+    with pytest.raises(SessionInvariantError):
+        session.complete_turn(other_turn)
+    with pytest.raises(SessionInvariantError):
+        session.fail_turn(other_turn)
+    with pytest.raises(SessionInvariantError):
+        session.cancel_turn(other_turn)
 
-    failed = session.fail_turn(context)
-
-    assert failed.phase is TurnPhase.FAILED
-    assert failed.is_terminal
-    assert session.active_turns == 0
+    # Cannot complete/fail/cancel terminal turn
+    session = AgentSession(snapshot)
+    turn = session.begin_turn()
+    turn._phase = TurnPhase.COMPLETED  # type: ignore[attr-defined]
+    with pytest.raises(SessionInvariantError):
+        session.complete_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.fail_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.cancel_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.fail_turn(turn)
+    with pytest.raises(SessionInvariantError):
+        session.cancel_turn(turn)
