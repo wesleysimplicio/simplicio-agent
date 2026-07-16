@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from pathlib import Path
 
 from tools.identity_scan import (
     IDENTITY_MANIFEST_SCHEMA,
@@ -86,3 +87,20 @@ def test_public_install_reference_blocks_but_migration_context_is_allowed():
         today=date(2026, 7, 14),
     )
     assert report(migration)["ok"] is True
+
+
+def test_readme_upstream_comparison_is_explicitly_manifested():
+    manifest_data = json.loads(
+        (Path(__file__).resolve().parents[2] / "fixtures" / "identity" / "legacy-manifest.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert validate_manifest(manifest_data, today=date(2026, 7, 16)) == []
+    findings = scan_text(
+        "README.md",
+        "Hermes remains the upstream origin; use hermes-agent only for compatibility.\n",
+        manifest_data,
+        today=date(2026, 7, 16),
+    )
+    assert findings
+    assert report(findings)["ok"] is True

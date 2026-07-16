@@ -3,6 +3,20 @@
   "version": 1,
   "entries": [
     {
+      "term": "hermes-agent",
+      "path_glob": "README.md",
+      "classification": "compatibility",
+      "owner": "identity-migration",
+      "reason": "README documents the temporary upstream command and lineage"
+    },
+    {
+      "term": "hermes",
+      "path_glob": "README.md",
+      "classification": "legal_attribution",
+      "owner": "project",
+      "reason": "README comparison and upstream attribution are intentional public context"
+    },
+    {
       "term": "hermes",
       "path_glob": "LICENSE",
       "classification": "legal_attribution",
