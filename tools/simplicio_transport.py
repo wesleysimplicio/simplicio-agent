@@ -129,6 +129,7 @@ class SimplicioTransport:
         "orient": ("runtime", "map"),
         "recall": ("memory",),
         "ledger": ("ledger", "append"),
+        "gitram": ("gitram",),
     }
     _MCP_TOOLS = {
         "gate": "simplicio_gate",
@@ -137,6 +138,7 @@ class SimplicioTransport:
         "orient": "simplicio_map",
         "recall": "simplicio_memory",
         "ledger": "simplicio_ledger",
+        "gitram": "simplicio_gitram",
     }
 
     def __init__(
@@ -246,6 +248,15 @@ class SimplicioTransport:
 
     def ledger(self, event: dict) -> TransportReceipt:
         return self.call("ledger", event=event)
+
+    def gitram(self, subcommand: str, *args: str) -> TransportReceipt:
+        """Dispatch a GitRAM cell-fabric operation.
+
+        ``subcommand`` is one of ``dispatch`` / ``consensus`` / ``verify``; the
+        remaining positional args are forwarded verbatim to ``simplicio gitram``.
+        """
+        full = [subcommand, *args]
+        return self.call("gitram", _raw_args=full)
 
     def call(self, operation: str, **arguments: Any) -> TransportReceipt:
         """Execute one operation and return a uniform receipt."""
@@ -471,6 +482,9 @@ class SimplicioTransport:
                 base += ["--repo", str(args["repo"])]
         elif operation == "ledger":
             return base + ["--json"], json.dumps(args["event"])
+        elif operation == "gitram":
+            raw = args.get("_raw_args") or []
+            return base + [str(a) for a in raw] + ["--json"], None
         return base, None
 
     # -- MCP -----------------------------------------------------------
