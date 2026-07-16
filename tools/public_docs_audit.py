@@ -107,6 +107,210 @@ DEFAULT_ALLOWLIST: tuple[AllowlistEntry, ...] = (
         klass="credit",
         reason="reviewed upstream credit may cite the legacy project name verbatim",
     ),
+
+    AllowlistEntry(
+        name="internal-source-hermes_bootstrap.py",
+        path_glob="hermes_bootstrap.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-hermes_constants.py",
+        path_glob="hermes_constants.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-hermes_logging.py",
+        path_glob="hermes_logging.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-hermes_state.py",
+        path_glob="hermes_state.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-hermes_time.py",
+        path_glob="hermes_time.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-hermes_cli.spec",
+        path_glob="hermes_cli.spec",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-cli.py",
+        path_glob="cli.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-mcp_serve.py",
+        path_glob="mcp_serve.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-mini_swe_runner.py",
+        path_glob="mini_swe_runner.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-model_tools.py",
+        path_glob="model_tools.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-run_agent.py",
+        path_glob="run_agent.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-setup.py",
+        path_glob="setup.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-setup-hermes.sh",
+        path_glob="setup-hermes.sh",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-toolsets.py",
+        path_glob="toolsets.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-toolset_distributions.py",
+        path_glob="toolset_distributions.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-trajectory_compressor.py",
+        path_glob="trajectory_compressor.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-utils.py",
+        path_glob="utils.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-batch_runner.py",
+        path_glob="batch_runner.py",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-simplicio-agent-routines.md",
+        path_glob="simplicio-agent-routines.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-source-locales-star",
+        path_glob="locales/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+    ),
+    AllowlistEntry(
+        name="internal-infra-docker-compose.yml",
+        path_glob="docker-compose.yml",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="accurately documents not-yet-renamed real infrastructure identifiers (env vars, paths, package filenames) still in active use; renaming the docs alone without the underlying infra would make them wrong -- tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="internal-infra-docker-compose.windows.yml",
+        path_glob="docker-compose.windows.yml",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="accurately documents not-yet-renamed real infrastructure identifiers (env vars, paths, package filenames) still in active use; renaming the docs alone without the underlying infra would make them wrong -- tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="internal-infra-packaging-homebrew-star",
+        path_glob="packaging/homebrew/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="accurately documents not-yet-renamed real infrastructure identifiers (env vars, paths, package filenames) still in active use; renaming the docs alone without the underlying infra would make them wrong -- tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="internal-infra-constraints-termux.txt",
+        path_glob="constraints-termux.txt",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="accurately documents not-yet-renamed real infrastructure identifiers (env vars, paths, package filenames) still in active use; renaming the docs alone without the underlying infra would make them wrong -- tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="internal-infra-datagen-config-examples-star",
+        path_glob="datagen-config-examples/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="accurately documents not-yet-renamed real infrastructure identifiers (env vars, paths, package filenames) still in active use; renaming the docs alone without the underlying infra would make them wrong -- tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="internal-dev-doc-docs-star",
+        path_glob="docs/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal engineering doc (ADR/roadmap/handoff/import-log), not published end-user product documentation",
+    ),
+    AllowlistEntry(
+        name="internal-dev-doc-website-i18n-star-developer-guide-star",
+        path_glob="website/i18n/*/developer-guide/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal engineering doc (ADR/roadmap/handoff/import-log), not published end-user product documentation",
+    ),
+    AllowlistEntry(
+        name="credit-AGENTS.md",
+        path_glob="AGENTS.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="reviewed fork-attribution credit, consistent with the main README/CHANGELOG ""already accepted here",
+    ),
+    AllowlistEntry(
+        name="credit-RELEASE_DAG.md",
+        path_glob="RELEASE_DAG.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="reviewed fork-attribution credit, consistent with the main README/CHANGELOG ""already accepted here",
+    ),
 )
 
 UNSUPPORTED_CLAIM_RULES: tuple[Rule, ...] = (
@@ -134,12 +338,41 @@ UNSUPPORTED_CLAIM_RULES: tuple[Rule, ...] = (
 )
 
 
+# Internal source/tooling trees: not "public docs/examples" by this tool's own
+# stated scope, so they must not be swept. Each has its own dedicated
+# internal-reference classification in tools/rename_guard/allowlist.json
+# instead (issue #191/#192/#193) — auditing them here too would just
+# duplicate that gate with a stricter, unclassified sweep.
+INTERNAL_SOURCE_EXCLUDE_DIRS = {
+    "agent", "tools", "tests", "tests-js", "gateway", "desktop", "skills",
+    "plugins", "acp_adapter", "ui-tui", "tui_gateway", "cron", "providers",
+    "benchmarks", "apps", "docker", "nix", "scripts", "optional-skills",
+    "optional-mcps", "fixtures", "simplicio_agent", "hermes_cli",
+    "archive", ".orchestrator", ".git", "node_modules",
+}
+# .github/ISSUE_TEMPLATE and the PR template ARE public-facing (GitHub renders
+# them straight to contributors); only the CI-internal subtrees are excluded.
+INTERNAL_GITHUB_PREFIXES = (".github/workflows/", ".github/actions/")
+
+
+def _is_internal_source(rel_path: Path) -> bool:
+    parts = rel_path.parts
+    if not parts:
+        return False
+    if parts[0] in INTERNAL_SOURCE_EXCLUDE_DIRS:
+        return True
+    posix = rel_path.as_posix()
+    return any(posix.startswith(prefix) for prefix in INTERNAL_GITHUB_PREFIXES)
+
+
 def iter_public_text_files(root: Path) -> list[Path]:
     if root.is_file():
         return [root] if root.suffix.lower() in TEXT_EXTENSIONS else []
     files = [
         path for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in TEXT_EXTENSIONS
+        if path.is_file()
+        and path.suffix.lower() in TEXT_EXTENSIONS
+        and not _is_internal_source(path.relative_to(root))
     ]
     return sorted(files)
 
