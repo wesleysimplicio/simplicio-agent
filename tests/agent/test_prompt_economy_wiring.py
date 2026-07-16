@@ -31,7 +31,7 @@ from unittest.mock import patch
 import pytest
 
 from agent.prompt_economy import COMPACTABLE_HANDLES, render_compact_block
-from agent.system_prompt import build_system_prompt_parts
+from agent.system_prompt import build_system_prompt, build_system_prompt_parts
 
 
 def _make_agent(**overrides):
@@ -67,6 +67,16 @@ def _stable_prompt(agent):
         return build_system_prompt_parts(agent)["stable"]
 
 
+def _full_prompt(agent):
+    with (
+        patch("run_agent.load_soul_md", return_value=""),
+        patch("run_agent.build_nous_subscription_prompt", return_value=""),
+        patch("run_agent.build_environment_hints", return_value=""),
+        patch("run_agent.build_context_files_prompt", return_value=""),
+    ):
+        return build_system_prompt(agent)
+
+
 class TestPromptEconomyModes:
     def test_flag_missing_entirely_uses_compact_default(self, monkeypatch):
         """A code path that bypasses agent_init (no ``_prompt_economy_enabled``
@@ -90,6 +100,25 @@ class TestPromptEconomyModes:
         from agent.prompt_builder import MEMORY_GUIDANCE
 
         assert MEMORY_GUIDANCE.strip() in stable
+
+
+def test_production_prompt_build_records_size_receipt_without_changing_prompt():
+    agent = _make_agent(
+        _prompt_economy_enabled=True,
+        tools=[{"name": "memory", "description": "Read memory."}],
+    )
+
+    first = _full_prompt(agent)
+    first_receipt = agent._last_prompt_economy_measurement
+    second = _full_prompt(agent)
+    second_receipt = agent._last_prompt_economy_measurement
+
+    assert first == second
+    assert first_receipt.prompt_chars == len(first)
+    assert first_receipt.prompt_bytes == len(first.encode("utf-8"))
+    assert first_receipt.tool_count == 1
+    assert first_receipt == second_receipt
+    assert first_receipt.prompt_sha256 == second_receipt.prompt_sha256
 
 
 class TestPromptEconomyConfigDefault:

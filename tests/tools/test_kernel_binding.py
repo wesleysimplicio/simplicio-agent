@@ -226,6 +226,78 @@ class TestKernelBridgeTransportContract:
         assert receipt.error == "policy denied"
 
 
+class TestKernelBindingHealth:
+    """#210 readiness contract: expose CLI/MCP facts without changing routing."""
+
+    def test_reports_verified_cli_as_preferred_transport(self):
+        bridge = SimplicioBridge(
+            SimplicioTransport(
+                cli_bin="/opt/simplicio",
+                mcp_command=("/opt/simplicio", "serve", "--mcp", "--stdio"),
+            )
+        )
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value="/opt/simplicio"),
+            mock_patch.object(kb, "_kernel_verified", return_value=(True, "")),
+        ):
+            report = kb.kernel_binding_health(bridge=bridge)
+
+        assert report["schema"] == "simplicio-kernel-binding/health/v1"
+        assert report["status"] == "ready"
+        assert report["ready"] is True
+        assert report["selected_transport"] == "cli"
+        assert report["transport_order"] == ["cli", "mcp"]
+        assert report["mcp_fallback_only"] is True
+        assert report["cli"] == {
+            "available": True,
+            "verified": True,
+            "bin_path": "/opt/simplicio",
+            "detail": "",
+        }
+        assert report["mcp"]["configured"] is True
+        assert report["mcp"]["eligible"] is False
+
+    def test_reports_configured_mcp_when_cli_is_unavailable(self):
+        bridge = SimplicioBridge(
+            SimplicioTransport(
+                cli_bin=None,
+                mcp_call=lambda operation, args: {"decision": "allow"},
+            )
+        )
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value=None),
+            mock_patch.object(kb, "_kernel_verified", return_value=(False, "CLI absent")),
+        ):
+            report = kb.kernel_binding_health(bridge=bridge)
+
+        assert report["status"] == "fallback_ready"
+        assert report["ready"] is True
+        assert report["selected_transport"] == "mcp"
+        assert report["cli"]["available"] is False
+        assert report["cli"]["verified"] is False
+        assert report["mcp"] == {
+            "configured": True,
+            "eligible": True,
+            "command": None,
+        }
+
+    def test_reports_unavailable_without_verified_cli_or_mcp(self):
+        bridge = SimplicioBridge(SimplicioTransport(cli_bin=None))
+        with (
+            mock_patch.object(kb, "resolve_kernel_bin", return_value=None),
+            mock_patch.object(
+                kb, "_kernel_verified", return_value=(False, "runtime unavailable")
+            ),
+        ):
+            report = kb.kernel_binding_health(bridge=bridge)
+
+        assert report["status"] == "unavailable"
+        assert report["ready"] is False
+        assert report["selected_transport"] is None
+        assert report["mcp"]["configured"] is False
+        assert report["cli"]["detail"] == "runtime unavailable"
+
+
 # =========================================================================
 # _run_kernel
 # =========================================================================

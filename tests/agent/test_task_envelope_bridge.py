@@ -117,6 +117,43 @@ def test_bridge_rejects_forged_receipt_removal_and_attempt_count():
         emit_for_transition(before, after, Emitter(session_id="s1"), turn_id="t1")
 
 
+def test_bridge_rejects_reordered_refs_and_delivery_metadata_changes():
+    before = _new_envelope().transition(TaskState.ORIENTED, receipts=["receipt://a"])
+    before = before.transition(TaskState.PLANNED, receipts=["receipt://b"])
+    reordered = TaskEnvelope.from_dict(
+        {
+            **before.to_dict(),
+            "state": TaskState.CLAIMED.value,
+            "receipts": ["receipt://b", "receipt://a"],
+        }
+    )
+    with pytest.raises(ValueError, match="append-only"):
+        emit_for_transition(before, reordered, Emitter(session_id="s1"), turn_id="t1")
+
+    delivered = _new_envelope()
+    for state in (
+        TaskState.ORIENTED,
+        TaskState.PLANNED,
+        TaskState.CLAIMED,
+        TaskState.EXECUTING,
+        TaskState.VALIDATING,
+    ):
+        delivered = delivered.transition(state)
+    delivered = delivered.transition(
+        TaskState.EVIDENCE_READY,
+        evidence_refs=["receipt://bridge"],
+    )
+    delivered = delivered.transition(
+        TaskState.DELIVERED,
+        delivery_target="pr://original",
+    )
+    forged = TaskEnvelope.from_dict(
+        {**delivered.to_dict(), "state": TaskState.CLOSED.value, "delivery_target": "pr://forged"}
+    )
+    with pytest.raises(ValueError, match="delivery_target cannot be changed"):
+        emit_for_transition(delivered, forged, Emitter(session_id="s1"), turn_id="t1")
+
+
 def test_failed_and_quarantined_both_map_to_failed_lifecycle_event():
     envelope = _new_envelope().transition(TaskState.ORIENTED)
     emitter = Emitter(session_id="s1")

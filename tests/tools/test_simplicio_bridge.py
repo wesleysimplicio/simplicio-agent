@@ -5,14 +5,17 @@ Uses a stub KernelTransport so no ``simplicio`` binary is required.
 
 import time
 from threading import Barrier, Event, Thread
+from unittest.mock import patch
 
 from tools.simplicio_bridge import (
+    BridgeReadiness,
     BridgeMetrics,
     CircuitBreaker,
     KernelCallResult,
     KernelTransport,
     SimplicioBridge,
 )
+from tools.simplicio_transport import SimplicioTransport
 
 
 class _StubTransport(KernelTransport):
@@ -204,6 +207,64 @@ def test_health_structure():
         "last_call_at",
     ):
         assert k in h
+
+
+def test_readiness_is_typed_and_cli_primary_without_probing():
+    transport = SimplicioTransport(
+        cli_bin="simplicio",
+        mcp_call=lambda operation, args: {"operation": operation},
+    )
+    bridge = SimplicioBridge(transport)
+
+    readiness = bridge.readiness()
+
+    assert isinstance(readiness, BridgeReadiness)
+    assert readiness.ready is True
+    assert readiness.reason_code == "ready"
+    assert readiness.selected_transport == "cli"
+    assert readiness.transport_order == ("cli", "mcp")
+    assert readiness.cli_primary is True
+    assert readiness.mcp_fallback_only is True
+    assert readiness.to_dict()["schema"] == "simplicio-bridge/readiness/v1"
+    assert transport.health()["calls"] == 0
+
+
+def test_readiness_tracks_closed_lifecycle():
+    transport = _StubTransport()
+    transport.close = lambda: None  # type: ignore[attr-defined]
+    bridge = SimplicioBridge(transport)
+
+    assert bridge.is_ready() is True
+    bridge.close()
+
+    readiness = bridge.readiness()
+    assert readiness.ready is False
+    assert readiness.reason_code == "bridge_closed"
+    assert bridge.health()["healthy"] is False
+
+
+def test_readiness_fails_closed_when_cli_and_mcp_are_unavailable():
+    transport = SimplicioTransport()
+    with patch.object(transport, "_resolve_cli", return_value=None):
+        readiness = SimplicioBridge(transport).readiness()
+
+    assert readiness.ready is False
+    assert readiness.reason_code == "runtime_unavailable"
+    assert readiness.selected_transport is None
+    assert readiness.transport["cli_available"] is False
+    assert readiness.transport["mcp_configured"] is False
+
+
+def test_readiness_reports_mcp_as_explicit_fallback_when_cli_is_absent():
+    transport = SimplicioTransport(mcp_call=lambda operation, args: {"ok": True})
+    with patch.object(transport, "_resolve_cli", return_value=None):
+        readiness = SimplicioBridge(transport).readiness()
+
+    assert readiness.ready is True
+    assert readiness.reason_code == "fallback_ready"
+    assert readiness.selected_transport == "mcp"
+    assert readiness.cli_primary is True
+    assert readiness.mcp_fallback_only is True
 
 
 def test_causal_id_generated_when_absent():

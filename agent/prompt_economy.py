@@ -57,6 +57,8 @@ __all__ = [
     "instruction_expansion_receipt",
     "ExpansionReceipt",
     "PromptEconomyReceipt",
+    "PromptLayerMeasurement",
+    "measure_prompt_payload",
     "pin_capability_bundle",
     "instruction_index_summary_size",
     "instruction_index_full_size",
@@ -336,6 +338,61 @@ class PromptEconomyReceipt:
     as_dict = to_dict
 
 
+@dataclass(frozen=True)
+class PromptLayerMeasurement:
+    """Deterministic local size receipt for one assembled prompt payload.
+
+    Counts are local character/UTF-8-byte measurements and conservative
+    estimates from :func:`_rough_tokens`; they are not provider usage or
+    cache-hit claims. Hashes identify ordered payloads without persisting
+    prompt or tool-schema contents.
+    """
+
+    stable_chars: int
+    context_chars: int
+    volatile_chars: int
+    prompt_chars: int
+    stable_bytes: int
+    context_bytes: int
+    volatile_bytes: int
+    prompt_bytes: int
+    stable_tokens: int
+    context_tokens: int
+    volatile_tokens: int
+    prompt_tokens: int
+    stable_sha256: str
+    prompt_sha256: str
+    tool_count: int
+    tool_schema_bytes: int
+    tool_schema_tokens: int
+    tool_schema_sha256: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return stable JSON-friendly evidence without raw payload text."""
+        return {
+            "stable_chars": self.stable_chars,
+            "context_chars": self.context_chars,
+            "volatile_chars": self.volatile_chars,
+            "prompt_chars": self.prompt_chars,
+            "stable_bytes": self.stable_bytes,
+            "context_bytes": self.context_bytes,
+            "volatile_bytes": self.volatile_bytes,
+            "prompt_bytes": self.prompt_bytes,
+            "stable_tokens": self.stable_tokens,
+            "context_tokens": self.context_tokens,
+            "volatile_tokens": self.volatile_tokens,
+            "prompt_tokens": self.prompt_tokens,
+            "stable_sha256": self.stable_sha256,
+            "prompt_sha256": self.prompt_sha256,
+            "tool_count": self.tool_count,
+            "tool_schema_bytes": self.tool_schema_bytes,
+            "tool_schema_tokens": self.tool_schema_tokens,
+            "tool_schema_sha256": self.tool_schema_sha256,
+        }
+
+    as_dict = to_dict
+
+
 def resolve_instruction_index() -> List[Dict[str, str]]:
     """Return the compact instruction index.
 
@@ -544,6 +601,75 @@ def instruction_index_full_size() -> int:
 def _rough_tokens(text: str) -> int:
     """Return a deterministic, intentionally rough token estimate."""
     return math.ceil(len(text) / _CHARS_PER_ROUGH_TOKEN) if text else 0
+
+
+def _serialize_tool_schemas(
+    tools: Optional[Sequence[Mapping[str, Any]]],
+) -> tuple[list[Mapping[str, Any]], bytes]:
+    """Serialize ordered tool schemas for local byte accounting only."""
+    if tools is None:
+        return [], b""
+    ordered_tools = list(tools)
+    payload = json.dumps(
+        ordered_tools,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return ordered_tools, payload
+
+
+def measure_prompt_payload(
+    parts: Mapping[str, Any],
+    tools: Optional[Sequence[Mapping[str, Any]]] = None,
+) -> PromptLayerMeasurement:
+    """Measure the existing prompt assembly without changing its bytes.
+
+    ``parts`` follows the three-key contract returned by
+    :func:`agent.system_prompt.build_system_prompt_parts`.  The joined prompt
+    uses the same ``stable`` → ``context`` → ``volatile`` separator as the
+    production builder, so the receipt can be compared directly with the
+    assembled string.  Tool schemas are serialized in caller order with
+    compact JSON solely to report a deterministic local schema-size baseline;
+    this helper never selects, reorders, or removes a tool.
+    """
+    if not isinstance(parts, Mapping):
+        raise TypeError("parts must be a mapping of prompt layers")
+
+    layer_text = {
+        name: str(parts.get(name) or "")
+        for name in ("stable", "context", "volatile")
+    }
+    joined = "\n\n".join(
+        text for text in (layer_text["stable"], layer_text["context"], layer_text["volatile"])
+        if text
+    )
+    encoded_layers = {
+        name: text.encode("utf-8") for name, text in layer_text.items()
+    }
+    encoded_prompt = joined.encode("utf-8")
+    ordered_tools, encoded_tools = _serialize_tool_schemas(tools)
+
+    return PromptLayerMeasurement(
+        stable_chars=len(layer_text["stable"]),
+        context_chars=len(layer_text["context"]),
+        volatile_chars=len(layer_text["volatile"]),
+        prompt_chars=len(joined),
+        stable_bytes=len(encoded_layers["stable"]),
+        context_bytes=len(encoded_layers["context"]),
+        volatile_bytes=len(encoded_layers["volatile"]),
+        prompt_bytes=len(encoded_prompt),
+        stable_tokens=_rough_tokens(layer_text["stable"]),
+        context_tokens=_rough_tokens(layer_text["context"]),
+        volatile_tokens=_rough_tokens(layer_text["volatile"]),
+        prompt_tokens=_rough_tokens(joined),
+        stable_sha256=hashlib.sha256(encoded_layers["stable"]).hexdigest(),
+        prompt_sha256=hashlib.sha256(encoded_prompt).hexdigest(),
+        tool_count=len(ordered_tools),
+        tool_schema_bytes=len(encoded_tools),
+        tool_schema_tokens=_rough_tokens(encoded_tools.decode("utf-8")),
+        tool_schema_sha256=hashlib.sha256(encoded_tools).hexdigest(),
+    )
 
 
 def _active_compactable_entries(active_handles: Sequence[str]) -> List[Dict[str, str]]:

@@ -61,6 +61,15 @@ def test_golden_path_cli_healthy_runs_real_cli_transport(tmp_path, monkeypatch):
         "workspace/state.txt": "status=ready\nversion=2\n"
     }
     assert result.requery["matches_expected"] is True
+    assert result.close_gate == {
+        "allowed": True,
+        "status": "closed",
+        "reason_code": "verified",
+        "reason": "all required evidence references are verified",
+        "required_evidence_refs": list(result.envelope.evidence_refs),
+        "verified_evidence_refs": list(result.envelope.evidence_refs),
+        "missing_evidence_refs": [],
+    }
     assert result.transport_health["cli_calls"] == 5
     assert result.transport_health["mcp_calls"] == 0
     assert result.transport_health["fallbacks"] == 0
@@ -100,3 +109,4 @@ def test_golden_path_falls_back_when_cli_is_unavailable(tmp_path, monkeypatch):
         for event in result.fallback_events
     )
     assert result.requery["matches_expected"] is True
+    assert result.close_gate["reason_code"] == "verified"

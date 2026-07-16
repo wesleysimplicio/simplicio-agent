@@ -22,6 +22,7 @@ from agent.prompt_economy import (
     ExpansionReceipt,
     INSTRUCTION_CATALOG,
     PromptEconomyReceipt,
+    PromptLayerMeasurement,
     compact_block_receipt,
     expand_instruction_with_receipt,
     instruction_index_full_size,
@@ -29,6 +30,7 @@ from agent.prompt_economy import (
     instruction_expansion_receipt,
     pin_capability_bundle,
     pin_capability_bundle_names,
+    measure_prompt_payload,
     resolve_instruction_index,
     render_compact_block,
 )
@@ -345,6 +347,58 @@ def test_compact_render_is_catalog_ordered_and_bounded():
     assert block.index("sec:session-search") < block.index("sec:skills")
     with pytest.raises(ValueError):
         render_compact_block(handles, max_chars=0)
+
+
+def test_prompt_payload_measurement_reports_utf8_bytes_and_local_tokens():
+    parts = {"stable": "Aç", "context": "β", "volatile": "尾"}
+    tools = [{"name": "read_file", "description": "Read a file."}]
+
+    receipt = measure_prompt_payload(parts, tools=tools)
+
+    assert isinstance(receipt, PromptLayerMeasurement)
+    joined = "Aç\n\nβ\n\n尾"
+    assert receipt.prompt_chars == len(joined)
+    assert receipt.prompt_bytes == len(joined.encode("utf-8"))
+    assert receipt.prompt_tokens == (len(joined) + 3) // 4
+    assert receipt.stable_bytes == len("Aç".encode("utf-8"))
+    assert receipt.context_bytes == len("β".encode("utf-8"))
+    assert receipt.volatile_bytes == len("尾".encode("utf-8"))
+    assert receipt.tool_count == 1
+    expected_schema = '[{"name":"read_file","description":"Read a file."}]'
+    assert receipt.tool_schema_bytes == len(expected_schema.encode("utf-8"))
+    assert receipt.tool_schema_tokens == (len(expected_schema) + 3) // 4
+    assert receipt.to_dict() == receipt.as_dict()
+    assert "Aç" not in receipt.to_dict()
+    assert "Read a file." not in receipt.to_dict()
+
+
+def test_prompt_payload_measurement_hashes_ordered_tool_schemas():
+    parts = {"stable": "stable", "context": "", "volatile": ""}
+    first = measure_prompt_payload(
+        parts,
+        tools=[{"name": "a"}, {"name": "b"}],
+    )
+    second = measure_prompt_payload(
+        parts,
+        tools=[{"name": "b"}, {"name": "a"}],
+    )
+
+    assert first.tool_count == second.tool_count == 2
+    assert first.tool_schema_bytes == second.tool_schema_bytes
+    assert first.tool_schema_sha256 != second.tool_schema_sha256
+    assert first.prompt_sha256 == second.prompt_sha256
+
+
+def test_prompt_payload_measurement_handles_missing_layers_and_tools():
+    receipt = measure_prompt_payload({"stable": "safe"})
+
+    assert receipt.stable_chars == 4
+    assert receipt.context_chars == receipt.volatile_chars == 0
+    assert receipt.prompt_chars == receipt.stable_chars
+    assert receipt.prompt_bytes == receipt.stable_bytes == 4
+    assert receipt.tool_count == 0
+    assert receipt.tool_schema_bytes == 0
+    assert receipt.tool_schema_tokens == 0
 
 
 # ───────────────────────────────────────────────────────────────────────
