@@ -4531,6 +4531,13 @@ def _normalize_custom_provider_entry(
     if isinstance(extra_body, dict):
         normalized["extra_body"] = dict(extra_body)
 
+    # Per-provider headers are used by custom OpenAI-compatible gateways.
+    # Normalize here so the runtime and model discovery receive one stable
+    # dict[str, str] shape without ever logging secret values.
+    normalized_headers = normalize_extra_headers(entry.get("extra_headers"))
+    if normalized_headers:
+        normalized["extra_headers"] = normalized_headers
+
     return normalized
 
 
@@ -4558,6 +4565,7 @@ def _custom_provider_entry_to_provider_config(
         "rate_limit_delay",
         "discover_models",
         "extra_body",
+        "extra_headers",
     ):
         if field in normalized:
             provider_entry[field] = normalized[field]
@@ -4632,6 +4640,13 @@ def get_compatible_custom_providers(
         _append_if_new(entry)
 
     return compatible
+
+
+def normalize_extra_headers(extra_headers: Any) -> Dict[str, str]:
+    """Normalize custom-provider HTTP headers without retaining null values."""
+    if not isinstance(extra_headers, dict) or not extra_headers:
+        return {}
+    return {str(key): str(value) for key, value in extra_headers.items() if value is not None}
 
 
 def get_custom_provider_context_length(
@@ -6510,6 +6525,30 @@ _COMMENTED_SECTIONS = """
 #   provider: openrouter
 #   model: anthropic/claude-sonnet-4
 """
+
+
+def require_readable_config_before_write(config_path: Optional[Path] = None) -> None:
+    """Refuse to overwrite an existing configuration that cannot be read."""
+    path = config_path or get_config_path()
+    try:
+        path.stat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise RuntimeError(f"Refusing to overwrite inaccessible config file {path}: {exc}") from exc
+    try:
+        with open(path, "rb") as config_file:
+            config_file.read(1)
+    except OSError as exc:
+        raise RuntimeError(f"Refusing to overwrite unreadable config file {path}: {exc}") from exc
+
+
+def atomic_config_write(config_path: Path, data: Any, **kwargs: Any) -> None:
+    """Atomically persist config only after its existing file is readable."""
+    from utils import atomic_yaml_write
+
+    require_readable_config_before_write(config_path)
+    atomic_yaml_write(config_path, data, **kwargs)
 
 
 def save_config(

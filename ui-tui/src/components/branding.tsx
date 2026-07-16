@@ -151,6 +151,12 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
             <Text color={t.color.sessionBorder}>{sid}</Text>
           </Text>
         )}
+
+        {info.install_warning && (
+          <Text bold color={t.color.warn} wrap="wrap">
+            ! {info.install_warning}
+          </Text>
+        )}
       </Box>
     </Box>
   )

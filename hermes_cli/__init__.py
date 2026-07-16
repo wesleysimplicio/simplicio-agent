@@ -24,7 +24,7 @@ try:
 except PackageNotFoundError:
     # Source checkouts without an install still expose the current project version.
     __version__ = "0.25.0"
-__release_date__ = "2026.6.19"
+__release_date__ = "2026.7.7.2"
 
 
 def _ensure_utf8():
