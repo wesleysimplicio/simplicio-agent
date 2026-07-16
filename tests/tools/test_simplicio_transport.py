@@ -227,3 +227,29 @@ def test_transport_close_returns_typed_failure_without_fallback():
     assert receipt.error.code == "transport_closed"
     assert receipt.fallback_reason is None
     assert transport.health()["state"] == "closed"
+
+
+def test_gitram_routes_through_cli_with_json_and_parses_value():
+    """GitRAM must forward subcommand + args and parse the --json response."""
+    payload = (
+        '{"acceptable":true,"level":"PairOnly","value_count":4,'
+        '"summary":"two-tier verified"}'
+    )
+    proc = __import__("subprocess").CompletedProcess(
+        ["simplicio"], 0, stdout=payload + "\n", stderr=""
+    )
+    with patch(
+        "tools.simplicio_transport.subprocess.run", return_value=proc
+    ) as run:
+        receipt = SimplicioTransport(cli_bin="simplicio").gitram(
+            "consensus", "--values", "a,a,a,b"
+        )
+
+    assert receipt.ok is True
+    assert receipt.value["acceptable"] is True
+    assert receipt.value["value_count"] == 4
+    # argv must be: simplicio gitram consensus --values a,a,a,b --json
+    argv = run.call_args.args[0]
+    assert argv[:2] == ["simplicio", "gitram"]
+    assert "--json" in argv
+    assert argv[argv.index("--values") + 1] == "a,a,a,b"
