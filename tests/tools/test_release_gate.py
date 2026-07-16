@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
 
 from tools.release_gate import (
@@ -55,6 +56,52 @@ def _sample_matrix() -> dict[str, object]:
         ],
         "exclude": [{"when": {"os": "macos-arm64", "scenario": "rollback"}}],
     }
+
+
+def test_scan_artifact_writes_valid_receipt_without_extracting(tmp_path: Path) -> None:
+    artifact = tmp_path / "agent.whl"
+    with zipfile.ZipFile(artifact, "w") as archive:
+        archive.writestr("simplicio_agent/__init__.py", "simplicio-agent\n")
+    manifest = tmp_path / "identity.json"
+    manifest.write_text(
+        json.dumps({"schema": "simplicio.identity-legacy-manifest/v1", "version": 1, "entries": []}),
+        encoding="utf-8",
+    )
+    output = tmp_path / "receipt.json"
+
+    assert main([
+        "scan-artifact", str(artifact), "--manifest", str(manifest),
+        "--output", str(output),
+    ]) == 0
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["status"] == "pass"
+    assert receipt["schema"] == "simplicio.release-scan-receipt/v1"
+    assert receipt["surfaces"]["package"]["files"][0]["path"].endswith(
+        "!simplicio_agent/__init__.py"
+    )
+    assert artifact.exists()
+
+
+def test_scan_artifact_returns_failure_for_legacy_identity(tmp_path: Path) -> None:
+    artifact = tmp_path / "agent.whl"
+    with zipfile.ZipFile(artifact, "w") as archive:
+        archive.writestr("simplicio_agent/__init__.py", "hermes legacy identity\n")
+    manifest = tmp_path / "identity.json"
+    manifest.write_text(
+        json.dumps({
+            "schema": "simplicio.identity-legacy-manifest/v1",
+            "version": 1,
+            "entries": [{"pattern": "hermes", "classification": "legacy"}],
+        }),
+        encoding="utf-8",
+    )
+    output = tmp_path / "receipt.json"
+
+    assert main([
+        "scan-artifact", str(artifact), "--manifest", str(manifest),
+        "--output", str(output),
+    ]) == 1
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "fail"
 
 
 def test_expand_matrix_is_deterministic_and_classifies_required_cases() -> None:

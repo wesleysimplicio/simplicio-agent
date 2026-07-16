@@ -590,6 +590,74 @@ def _write_json(document: Mapping[str, Any], output: Path) -> None:
     output.write_text(_canonical_json(document), encoding="utf-8")
 
 
+def _scan_artifact(
+    artifact_path: Path,
+    *,
+    manifest_path: Path,
+    output_path: Path,
+    receipt_ref: str,
+) -> int:
+    """Scan one release artifact and write a deterministic gate receipt.
+
+    The existing scan contract intentionally has source, package, and runtime
+    surfaces.  An artifact-only invocation binds all three observations to the
+    same immutable input, while clearly keeping the operation read-only.  A
+    future clean-machine runner can replace the source/runtime paths with its
+    own produced surfaces without changing the receipt schema.
+    """
+
+    if not artifact_path.exists() or not artifact_path.is_file():
+        print(f"artifact does not exist or is not a file: {artifact_path}", file=sys.stderr)
+        return 2
+    if not receipt_ref.strip():
+        print("receipt reference must be non-empty", file=sys.stderr)
+        return 2
+
+    try:
+        identity_manifest = _read_json(manifest_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"invalid identity manifest: {exc}", file=sys.stderr)
+        return 2
+
+    relative_name = artifact_path.name
+    root = artifact_path.parent
+    manifest_digest = digest_document(identity_manifest)
+    contract = build_release_scan_contract(
+        scenario="clean-install",
+        manifest={"manifest_digest": manifest_digest},
+        surfaces={
+            "source": [relative_name],
+            "package": [relative_name],
+            "runtime": [relative_name],
+        },
+        receipts=[receipt_ref.strip()],
+    )
+    scans = {
+        kind: scan_surface(
+            root,
+            kind=kind,
+            paths=[relative_name],
+            identity_manifest=identity_manifest,
+        )
+        for kind in ("source", "package", "runtime")
+    }
+    status = "pass" if all(scan.get("ok") is True for scan in scans.values()) else "fail"
+    receipt = build_release_scan_receipt(
+        contract,
+        scans=scans,
+        status=status,
+        receipts=[receipt_ref.strip()],
+    )
+    receipt_errors = validate_scan_receipt(receipt, contract=contract)
+    if receipt_errors:
+        for error in receipt_errors:
+            print(error, file=sys.stderr)
+        return 1
+    _write_json(receipt, output_path)
+    print(_canonical_json(receipt), end="")
+    return 0 if status == "pass" else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -622,6 +690,16 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_parser.add_argument("evidence", help="path to release-evidence/v1 JSON")
     evaluate_parser.add_argument(
         "--write", metavar="PATH", help="write report JSON to PATH"
+    )
+
+    scan_artifact_parser = subparsers.add_parser(
+        "scan-artifact", help="scan one release artifact without extracting or mutating it"
+    )
+    scan_artifact_parser.add_argument("artifact", type=Path)
+    scan_artifact_parser.add_argument("--manifest", required=True, type=Path)
+    scan_artifact_parser.add_argument("--output", required=True, type=Path)
+    scan_artifact_parser.add_argument(
+        "--receipt-ref", default="release-gate-scan", help="evidence reference stored in the receipt"
     )
 
     args = parser.parse_args(argv)
@@ -665,6 +743,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(_canonical_json(report), end="")
         return 0 if report["summary"]["ok"] else 1
+
+    if args.command == "scan-artifact":
+        return _scan_artifact(
+            args.artifact,
+            manifest_path=args.manifest,
+            output_path=args.output,
+            receipt_ref=args.receipt_ref,
+        )
 
     return 2
 
