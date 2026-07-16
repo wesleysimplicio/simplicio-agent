@@ -124,7 +124,10 @@ verify_bundle "$STAGE"
 
 mv "$STAGE" "$DEST"
 STAGE=""
-"$PYBIN" -m venv --upgrade "$DEST/venv"
+rm -rf "$DEST/venv"
+"$PYBIN" -m venv "$DEST/venv"
+"$DEST/venv/bin/pip" install --quiet --upgrade pip wheel
+"$DEST/venv/bin/pip" install --quiet "$DEST/code[fast]"
 "$DEST/venv/bin/python" -c 'import hermes_cli; print("bundle venv relocation: OK")'
 python3 "$MANIFEST_TOOL" create "$DEST" --version "$VERSION" --source-commit "$COMMIT" ${SIGNING_KEY:+--signing-key "$SIGNING_KEY"}
 verify_bundle "$DEST"
