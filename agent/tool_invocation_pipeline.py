@@ -88,6 +88,7 @@ class ToolInvocationMetadata:
     requires_checkpoint: bool = False
     evidence_version: str = "tool-invocation/v1"
     extras: Mapping[str, Any] = field(default_factory=dict)
+    checkpoint_ref: str = ""
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,7 @@ class ToolInvocationReceipt:
     error_type: str = ""
     blocked_by: str = ""
     meta: Mapping[str, Any] = field(default_factory=dict)
+    checkpoint_ref: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Return the redaction-safe, serializable receipt contract."""
@@ -139,6 +141,7 @@ class ToolInvocationReceipt:
             "error_type": self.error_type,
             "blocked_by": self.blocked_by,
             "meta": dict(self.meta),
+            "checkpoint_ref": self.checkpoint_ref,
         }
 
 
@@ -170,6 +173,7 @@ class ToolInvocationAttempt:
     trace: tuple[str, ...] = field(default_factory=tuple)
     receipt: ToolInvocationReceipt | None = None
     evidence: Mapping[str, Any] = field(default_factory=dict)
+    checkpoint_ref: str = ""
 
     def with_trace(self, stage: StageName) -> "ToolInvocationAttempt":
         return replace(self, trace=self.trace + (stage,))
@@ -275,6 +279,20 @@ def _coerce_checkpoint_decision(value: Any) -> ToolDecision | None:
     return None
 
 
+def _checkpoint_provenance(value: Any, *, hook_available: bool) -> str:
+    """Return a safe checkpoint marker without retaining opaque hook values."""
+
+    if not hook_available:
+        return ""
+    if value is None:
+        return "checkpoint-completed"
+    if value is True:
+        return "checkpoint-accepted"
+    if value is False:
+        return "checkpoint-denied"
+    return f"sha256:{_sha(value)}"
+
+
 def _coerce_status(value: Any) -> str:
     if value is None or value == "":
         return "success"
@@ -354,6 +372,7 @@ class ToolInvocationPipeline:
         self._receipts_by_attempt: dict[str, ToolInvocationReceipt] = {}
         self._receipt_errors: dict[str, BaseException] = {}
         self._receipts_written: set[str] = set()
+        self._finalized_by_attempt: dict[str, ToolInvocationAttempt] = {}
 
     def _call(
         self, stage: StageName, value: Any, *, attempt: ToolInvocationAttempt
@@ -388,32 +407,52 @@ class ToolInvocationPipeline:
         if "execute" not in trace and "persist" not in trace:
             trace.append("execute")
         attempt = self._start_attempt(invocation)
-        attempt = replace(
-            attempt,
-            resolved_name=invocation.name,
-            normalized_args=dict(invocation.args),
-            trace=_canonical_trace_prefix(trace),
-            result=result,
-            status=_coerce_status(status),
-            classification=invocation.metadata.classification or "unknown",
+        finalized = self._finalized_by_attempt.get(attempt.metadata.attempt_id)
+        if finalized is not None:
+            return self._outcome(finalized)
+        canonical_trace = _canonical_trace_prefix(trace)
+        incoming_blocked = (
+            attempt.metadata.status == "blocked"
+            or bool(attempt.metadata.blocked_by)
         )
+        checkpoint_ref = attempt.metadata.checkpoint_ref
+        if not checkpoint_ref and "checkpoint" in canonical_trace:
+            checkpoint_ref = "trace:checkpoint"
+        if attempt.metadata.requires_checkpoint and "checkpoint" not in canonical_trace:
+            attempt = replace(
+                attempt,
+                trace=canonical_trace,
+                status="blocked",
+                error_type="policy",
+                error_message="required checkpoint missing from invocation trace",
+                checkpoint_ref=checkpoint_ref,
+            ).with_metadata(
+                blocked_by="checkpoint",
+                checkpoint_ref=checkpoint_ref,
+                status="blocked",
+                error_type="policy",
+                error_message="required checkpoint missing from invocation trace",
+            )
+        else:
+            terminal_status = "blocked" if incoming_blocked else _coerce_status(status)
+            attempt = replace(
+                attempt,
+                trace=canonical_trace,
+                result=None if incoming_blocked else result,
+                status=terminal_status,
+                classification=invocation.metadata.classification or "unknown",
+                checkpoint_ref=checkpoint_ref,
+            ).with_metadata(checkpoint_ref=checkpoint_ref)
+            if incoming_blocked:
+                attempt = replace(
+                    attempt,
+                    error_type=attempt.metadata.error_type or "policy",
+                    error_message=attempt.metadata.error_message
+                    or attempt.metadata.blocked_by
+                    or "blocked",
+                )
         attempt = self._persist_and_evidence(attempt)
-        final_invocation = ToolInvocation(
-            name=attempt.resolved_name,
-            args=dict(attempt.normalized_args),
-            tool_call_id=attempt.metadata.tool_call_id,
-            task_id=attempt.metadata.task_id,
-            metadata=attempt.metadata,
-        )
-        return ToolInvocationOutcome(
-            invocation=final_invocation,
-            result=attempt.result,
-            status=attempt.status,
-            error_type=attempt.error_type or None,
-            trace=list(attempt.trace),
-            evidence=dict(attempt.evidence),
-            receipt=attempt.receipt,
-        )
+        return self._outcome(attempt)
 
     def run(
         self,
@@ -428,6 +467,9 @@ class ToolInvocationPipeline:
         attempt = self._start_attempt(invocation).with_metadata(
             executor=adapter.label or "serial"
         )
+        finalized = self._finalized_by_attempt.get(attempt.metadata.attempt_id)
+        if finalized is not None:
+            return self._outcome(finalized)
         try:
             attempt = self._front_half(attempt)
             if (
@@ -508,6 +550,25 @@ class ToolInvocationPipeline:
             normalized_args=dict(materialized.args),
         )
 
+    @staticmethod
+    def _outcome(attempt: ToolInvocationAttempt) -> ToolInvocationOutcome:
+        final_invocation = ToolInvocation(
+            name=attempt.resolved_name,
+            args=dict(attempt.normalized_args),
+            tool_call_id=attempt.metadata.tool_call_id,
+            task_id=attempt.metadata.task_id,
+            metadata=attempt.metadata,
+        )
+        return ToolInvocationOutcome(
+            invocation=final_invocation,
+            result=attempt.result,
+            status=attempt.status,
+            error_type=attempt.error_type or None,
+            trace=list(attempt.trace),
+            evidence=dict(attempt.evidence),
+            receipt=attempt.receipt,
+        )
+
     def _front_half(self, attempt: ToolInvocationAttempt) -> ToolInvocationAttempt:
         attempt = attempt.with_trace("resolve")
         resolved_name = self._call("resolve", attempt.resolved_name, attempt=attempt)
@@ -564,6 +625,12 @@ class ToolInvocationPipeline:
                 ToolDecision(allow=False, reason="checkpoint required but unavailable"),
             )
         checkpoint = self._call("checkpoint", None, attempt=attempt)
+        checkpoint_ref = _checkpoint_provenance(
+            checkpoint, hook_available=checkpoint_hook is not None
+        )
+        attempt = replace(attempt, checkpoint_ref=checkpoint_ref).with_metadata(
+            checkpoint_ref=checkpoint_ref
+        )
         checkpoint_decision = _coerce_checkpoint_decision(checkpoint)
         if checkpoint_decision is not None and not checkpoint_decision.allow:
             return self._blocked_attempt(attempt, "checkpoint", checkpoint_decision)
@@ -592,6 +659,9 @@ class ToolInvocationPipeline:
     def _persist_and_evidence(
         self, attempt: ToolInvocationAttempt
     ) -> ToolInvocationAttempt:
+        finalized = self._finalized_by_attempt.get(attempt.metadata.attempt_id)
+        if finalized is not None:
+            return finalized
         if "persist" not in attempt.trace:
             attempt = attempt.with_trace("persist")
         duration_ms = max(0, int((time.monotonic() - attempt.started_monotonic) * 1000))
@@ -650,7 +720,9 @@ class ToolInvocationPipeline:
             evidence = dict(evidence)
             evidence["receipt_error_type"] = type(receipt_error).__name__
             evidence["receipt_error_message"] = _safe_text(receipt_error)
-        return replace(attempt, evidence=evidence)
+        finalized = replace(attempt, evidence=evidence)
+        self._finalized_by_attempt[attempt.metadata.attempt_id] = finalized
+        return finalized
 
     @staticmethod
     def _mark_finalization_error(
@@ -708,7 +780,9 @@ class ToolInvocationPipeline:
                 "turn_id": attempt.metadata.turn_id,
                 "api_request_id": attempt.metadata.api_request_id,
                 "requires_checkpoint": attempt.metadata.requires_checkpoint,
+                "checkpoint_ref": attempt.checkpoint_ref,
             },
+            checkpoint_ref=attempt.checkpoint_ref,
         )
         self._receipts_by_attempt[attempt_id] = receipt
         try:
@@ -743,6 +817,7 @@ class ToolInvocationPipeline:
             "receipt_id": attempt.receipt.receipt_id if attempt.receipt else "",
             "external_result": external_result,
             "requires_checkpoint": attempt.metadata.requires_checkpoint,
+            "checkpoint_ref": attempt.checkpoint_ref,
             "result": evidence_result,
             "meta": dict(attempt.metadata.extras or {}),
         }

@@ -112,6 +112,78 @@ def test_pipeline_required_checkpoint_without_hook_is_unverified_and_blocked():
     assert "unavailable" in outcome.evidence["error_message"]
 
 
+def test_pipeline_split_completion_cannot_promote_blocked_checkpoint_attempt():
+    pipeline = ToolInvocationPipeline()
+    materialized, trace = pipeline.begin(
+        ToolInvocation(
+            "write_file",
+            {"path": "README.md"},
+            metadata=ToolInvocationMetadata(requires_checkpoint=True),
+        )
+    )
+
+    outcome = pipeline.complete(materialized, {"written": True}, trace)
+
+    assert outcome.status == "blocked"
+    assert outcome.invocation.metadata.blocked_by == "checkpoint"
+    assert outcome.evidence["checkpoint_ref"] == ""
+
+
+def test_pipeline_complete_requires_checkpoint_trace_before_terminal_success():
+    outcome = ToolInvocationPipeline().complete(
+        ToolInvocation(
+            "write_file",
+            {"path": "README.md"},
+            metadata=ToolInvocationMetadata(requires_checkpoint=True),
+        ),
+        {"written": True},
+        ["resolve", "execute"],
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.invocation.metadata.blocked_by == "checkpoint"
+    assert "missing" in outcome.evidence["error_message"]
+    assert outcome.receipt is not None
+
+
+def test_pipeline_checkpoint_provenance_is_hashed_and_evidenced():
+    checkpoint_payload = {"allow": True, "checkpoint_id": "opaque-secret-handle"}
+    outcome = ToolInvocationPipeline(
+        hooks={"checkpoint": lambda value, *, attempt: checkpoint_payload}
+    ).run(
+        ToolInvocation(
+            "write_file",
+            {"path": "README.md"},
+            metadata=ToolInvocationMetadata(requires_checkpoint=True),
+        ),
+        lambda name, args: {"written": True},
+    )
+
+    assert outcome.status == "success"
+    assert outcome.evidence["checkpoint_ref"].startswith("sha256:")
+    assert "opaque-secret-handle" not in json.dumps(outcome.evidence)
+    assert outcome.receipt is not None
+    assert outcome.receipt.checkpoint_ref == outcome.evidence["checkpoint_ref"]
+
+
+def test_pipeline_finalization_hooks_run_once_per_attempt():
+    calls = []
+    pipeline = ToolInvocationPipeline(
+        hooks={
+            "persist": lambda value, *, attempt: calls.append("persist") or value,
+            "evidence": lambda value, *, attempt: calls.append("evidence") or value,
+        }
+    )
+    invocation = ToolInvocation("demo.tool", {}, tool_call_id="once")
+
+    first = pipeline.complete(invocation, {"ok": True}, ["resolve", "execute"])
+    second = pipeline.complete(invocation, {"ok": False}, ["resolve", "execute"])
+
+    assert calls == ["persist", "evidence"]
+    assert second.status == first.status == "success"
+    assert second.result == first.result == {"ok": True}
+
+
 def test_pipeline_writes_once_per_attempt_receipt_across_begin_complete_cycle():
     receipts = []
     pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
