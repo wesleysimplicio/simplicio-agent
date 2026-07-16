@@ -252,6 +252,99 @@ def _build_simplicio_bridge() -> Any:
     )
 
 
+def kernel_binding_health(*, bridge: Any = None) -> dict[str, Any]:
+    """Return the read-only readiness contract for this binding.
+
+    The transport owns routing and receipts; this adapter only makes the
+    readiness facts visible to callers that cannot inspect the private bridge
+    object. A CLI is ready only after the runtime-manager handshake passes.
+    An MCP path is reported as a fallback capability, never as a preferred
+    transport. The function is diagnostic and defensive: a broken health
+    provider must produce an unavailable report instead of breaking a caller.
+    """
+    try:
+        resolved_bin = resolve_kernel_bin()
+    except Exception as exc:
+        resolved_bin = None
+        resolve_detail = f"kernel resolution failed: {exc}"
+    else:
+        resolve_detail = ""
+
+    try:
+        cli_verified, kernel_detail = _kernel_verified()
+    except Exception as exc:  # defensive for diagnostics/test doubles
+        cli_verified = False
+        kernel_detail = f"kernel verification failed: {exc}"
+
+    bridge_obj = bridge
+    bridge_health: dict[str, Any] = {}
+    if bridge_obj is None:
+        try:
+            bridge_obj = _get_simplicio_bridge()
+        except Exception as exc:
+            bridge_obj = None
+            bridge_health = {"healthy": False, "detail": str(exc)}
+
+    if bridge_obj is not None:
+        health_fn = getattr(bridge_obj, "health", None)
+        if callable(health_fn):
+            try:
+                candidate = health_fn()
+                if isinstance(candidate, dict):
+                    bridge_health = candidate
+            except Exception as exc:
+                bridge_health = {"healthy": False, "detail": str(exc)}
+
+    transport_obj = getattr(bridge_obj, "_transport", None)
+    mcp_call = getattr(transport_obj, "mcp_call", None)
+    mcp_command = getattr(transport_obj, "mcp_command", None)
+    mcp_configured = callable(mcp_call) or bool(mcp_command)
+    cli_ready = bool(resolved_bin and cli_verified)
+    fallback_ready = bool(not resolved_bin and mcp_configured)
+
+    if cli_ready:
+        status = "ready"
+        selected_transport = "cli"
+    elif fallback_ready:
+        status = "fallback_ready"
+        selected_transport = "mcp"
+    elif resolved_bin and not cli_verified:
+        status = "degraded"
+        selected_transport = None
+    else:
+        status = "unavailable"
+        selected_transport = None
+
+    detail = kernel_detail or resolve_detail
+    if not detail and status == "unavailable":
+        detail = "no verified CLI and no configured MCP fallback"
+    return {
+        "schema": "simplicio-kernel-binding/health/v1",
+        "status": status,
+        "ready": bool(cli_ready or fallback_ready),
+        "selected_transport": selected_transport,
+        "transport_order": ["cli", "mcp"],
+        "mcp_fallback_only": True,
+        "cli": {
+            "available": bool(resolved_bin),
+            "verified": bool(cli_verified),
+            "bin_path": resolved_bin,
+            "detail": _redact_binding_text(detail),
+        },
+        "mcp": {
+            "configured": mcp_configured,
+            "eligible": not bool(resolved_bin),
+            "command": (
+                [_redact_binding_text(part) for part in mcp_command]
+                if mcp_command
+                else None
+            ),
+        },
+        "bridge": bridge_health,
+        "transport": bridge_health.get("transport", {}),
+    }
+
+
 def _bridge_gate_failure_detail(bridge: Any) -> str:
     """Best-effort diagnostics for a gate call that produced no decision.
 
