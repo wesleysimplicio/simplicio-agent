@@ -143,6 +143,25 @@ jobs:
         run: |
           ruff check .
 
+  rename-guard:
+    # Issue #194: block a new, unclassified "hermes"/"Hermes" occurrence from
+    # landing on main. tools/rename_guard/scanner.py compares the live repo
+    # against baseline.json (grandfathered debt) and allowlist.json (reviewed,
+    # reasoned exceptions) — see tools/rename_guard/allowlist.json for the
+    # classification convention. A failure here means either a real branding
+    # leak, or a legitimate new internal reference that needs a reviewed
+    # allowlist entry (not a baseline bump, which would just hide the count).
+    name: rename guard (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: rename_guard scan
+        run: |
+          python3 -m tools.rename_guard.scanner --root .
+
   windows-footguns:
     # Static guardrails on Windows-unsafe Python primitives — os.kill(pid, 0),
     # os.killpg, os.setsid, signal.SIGKILL without getattr fallback,
