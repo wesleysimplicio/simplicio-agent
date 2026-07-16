@@ -178,7 +178,7 @@ class TestApply:
         assert r.new_value == "codex_app_server"
         assert r.old_value == "auto"
         assert r.requires_new_session is True
-        assert "via MCP" in r.message  # simplicio-tools callback message
+        assert "via MCP" in r.message  # hermes-tools callback message
         assert cfg["model"]["openai_runtime"] == "codex_app_server"
         assert persisted["model"]["openai_runtime"] == "codex_app_server"
 
