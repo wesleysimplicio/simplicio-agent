@@ -1,6 +1,6 @@
-# Política de Seguridad de Hermes Agent
+# Política de Seguridad de Simplicio Agent
 
-Este documento describe el modelo de confianza de Hermes Agent, identifica el
+Este documento describe el modelo de confianza de Simplicio Agent, identifica el
 único límite de seguridad que el proyecto trata como estructural y define el
 alcance para los informes de vulnerabilidades.
 

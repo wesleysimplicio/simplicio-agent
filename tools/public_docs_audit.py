@@ -311,6 +311,72 @@ DEFAULT_ALLOWLIST: tuple[AllowlistEntry, ...] = (
         klass="internal",
         reason="reviewed fork-attribution credit, consistent with the main README/CHANGELOG ""already accepted here",
     ),
+    AllowlistEntry(
+        name="internal-dev-doc-.plans",
+        path_glob=".plans/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="internal",
+        reason="internal engineering planning notes, not published end-user documentation",
+    ),
+    AllowlistEntry(
+        name="internal-real-command-issue-templates",
+        path_glob=".github/ISSUE_TEMPLATE/*.yml",
+        pattern=re.compile(
+            r"hermes debug share|id:\s*hermes-version|~/\.hermes/",
+        ),
+        klass="internal",
+        reason="'hermes debug share' is still the real, accurate CLI command name; "
+        "'hermes-version'/'.hermes/' are internal form-field ids and the real "
+        "not-yet-renamed config dir, not rendered branding",
+    ),
+    AllowlistEntry(
+        name="internal-infra-hadolint-dockerfile-path",
+        path_glob=".hadolint.yaml",
+        pattern=re.compile(r"/opt/hermes|hermes user"),
+        klass="internal",
+        reason="accurately documents the not-yet-renamed real /opt/hermes path and "
+        "hermes system user in the actual Dockerfile, tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="credit-doc-CHANGELOG.md",
+        path_glob="CHANGELOG.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="credit",
+        reason="historical changelog entries describe what was true at the time they were written",
+    ),
+    AllowlistEntry(
+        name="credit-doc-CONTRIBUTING",
+        path_glob="CONTRIBUTING*.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="credit",
+        reason="gives literal shell commands against not-yet-renamed real infra (~/.hermes paths, "
+        "the hermes binary name) tracked under #118/#127 -- rewriting the docs alone would make "
+        "the instructions wrong",
+    ),
+    AllowlistEntry(
+        name="credit-doc-SECURITY",
+        path_glob="SECURITY*.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="credit",
+        reason="gives literal shell commands/paths against not-yet-renamed real infra, "
+        "tracked under #118/#127",
+    ),
+    AllowlistEntry(
+        name="credit-doc-README.md",
+        path_glob="README.md",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="credit",
+        reason="the main README's own fork-attribution tagline/history section, already "
+        "grandfathered in tools/rename_guard's baseline",
+    ),
+    AllowlistEntry(
+        name="credit-doc-READMEs",
+        path_glob="READMEs/*",
+        pattern=re.compile(r".*", re.DOTALL),
+        klass="credit",
+        reason="localized translation of the accepted main README fork-attribution credit "
+        "(see README.md, already grandfathered)",
+    ),
 )
 
 UNSUPPORTED_CLAIM_RULES: tuple[Rule, ...] = (

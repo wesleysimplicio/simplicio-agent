@@ -1,6 +1,6 @@
-# Contribuir a Hermes Agent
+# Contribuir a Simplicio Agent
 
-¡Gracias por contribuir a Hermes Agent! Esta guía cubre todo lo que necesitas: configurar tu entorno de desarrollo, entender la arquitectura, decidir qué construir y conseguir que tu PR sea aceptado.
+¡Gracias por contribuir a Simplicio Agent! Esta guía cubre todo lo que necesitas: configurar tu entorno de desarrollo, entender la arquitectura, decidir qué construir y conseguir que tu PR sea aceptado.
 
 ---
 
