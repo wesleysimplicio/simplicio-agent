@@ -141,6 +141,36 @@ class BridgeLifecycle:
 
 
 @dataclass(frozen=True)
+class BridgeReadiness:
+    """Typed, JSON-safe readiness snapshot for one bridge instance."""
+
+    ready: bool
+    state: str
+    generation: int
+    reason_code: str
+    selected_transport: Optional[str] = None
+    transport_order: tuple[str, ...] = ("cli", "mcp")
+    cli_primary: bool = True
+    mcp_fallback_only: bool = True
+    transport: dict[str, Any] = field(default_factory=dict)
+    schema: str = "simplicio-bridge/readiness/v1"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "ready": self.ready,
+            "state": self.state,
+            "generation": self.generation,
+            "reason_code": self.reason_code,
+            "selected_transport": self.selected_transport,
+            "transport_order": list(self.transport_order),
+            "cli_primary": self.cli_primary,
+            "mcp_fallback_only": self.mcp_fallback_only,
+            "transport": dict(self.transport),
+        }
+
+
+@dataclass(frozen=True)
 class BridgeReceipt:
     """Typed evidence for a bridge dispatch, including deduplication."""
 
@@ -311,6 +341,92 @@ class SimplicioBridge:
         with self._lock:
             return self._last_receipt
 
+    def readiness(self) -> BridgeReadiness:
+        """Return the current lifecycle and transport readiness.
+
+        The snapshot is read-only and does not spawn a process or switch
+        transports.  The default transport remains CLI-primary; MCP is
+        reported only as an explicit fallback capability.
+        """
+        lifecycle = self.lifecycle()
+        cli_primary = isinstance(self._transport, SimplicioTransport) and hasattr(
+            self._transport, "cli_bin"
+        )
+        compatibility_transport = isinstance(
+            self._transport, SimplicioTransport
+        ) and not cli_primary
+        transport_health: dict[str, Any] = {}
+        health_fn = getattr(self._transport, "health", None)
+        if callable(health_fn) and not compatibility_transport:
+            try:
+                candidate = health_fn()
+            except Exception as exc:  # defensive for injected transports
+                transport_health = {"healthy": False, "detail": str(exc)}
+            else:
+                if isinstance(candidate, dict):
+                    transport_health = dict(candidate)
+                else:
+                    transport_health = {
+                        "healthy": False,
+                        "detail": "transport health must be a mapping",
+                    }
+
+        # Compatibility doubles may subclass KernelTransport without calling
+        # SimplicioTransport.__init__; only a fully initialized transport can
+        # make a CLI-primary readiness claim.
+        cli_available: Optional[bool] = None
+        mcp_configured = False
+        if cli_primary:
+            cli_bin = getattr(self._transport, "cli_bin", None)
+            if not cli_bin:
+                resolve_cli = getattr(self._transport, "_resolve_cli", None)
+                if callable(resolve_cli):
+                    try:
+                        cli_bin = resolve_cli()
+                    except Exception as exc:  # defensive for custom transports
+                        transport_health.setdefault("detail", str(exc))
+            cli_available = bool(cli_bin)
+            mcp_configured = bool(
+                callable(getattr(self._transport, "mcp_call", None))
+                or getattr(self._transport, "mcp_command", None)
+            )
+            transport_health.setdefault("cli_available", cli_available)
+            transport_health.setdefault("mcp_configured", mcp_configured)
+
+        selected_transport = transport_health.get("last_transport")
+        if selected_transport is None and cli_available:
+            selected_transport = "cli"
+        elif selected_transport is None and mcp_configured:
+            selected_transport = "mcp"
+
+        if lifecycle.state == "closed":
+            reason_code = "bridge_closed"
+        elif transport_health.get("state") not in (None, "ready"):
+            reason_code = "transport_not_ready"
+        elif cli_primary and not cli_available and not mcp_configured:
+            reason_code = "runtime_unavailable"
+        elif transport_health.get("healthy") is False:
+            reason_code = "transport_unhealthy"
+        elif cli_primary and not cli_available and mcp_configured:
+            reason_code = "fallback_ready"
+        else:
+            reason_code = "ready"
+
+        return BridgeReadiness(
+            ready=reason_code in {"ready", "fallback_ready"},
+            state=lifecycle.state,
+            generation=lifecycle.generation,
+            reason_code=reason_code,
+            selected_transport=selected_transport,
+            cli_primary=cli_primary,
+            mcp_fallback_only=cli_primary,
+            transport=transport_health,
+        )
+
+    def is_ready(self) -> bool:
+        """Return whether the bridge can accept a new dispatch."""
+        return self.readiness().ready
+
     # -- causal id -------------------------------------------------------
     def _next_causal_id(self, op: str) -> str:
         with self._lock:
@@ -380,6 +496,9 @@ class SimplicioBridge:
                 Exception
             ) as exc:  # test doubles/third-party transports may not expose state
                 result["transport"] = {"healthy": True, "detail": str(exc)}
+        readiness = self.readiness()
+        result["readiness"] = readiness.to_dict()
+        result["healthy"] = bool(result["healthy"] and readiness.ready)
         return result
 
     def reset_circuit(self) -> None:
