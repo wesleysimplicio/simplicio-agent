@@ -52,6 +52,7 @@ _DISCORD_COMMAND_SYNC_MAX_RATE_LIMIT_SLEEP_SECONDS = 30.0
 # every slash command — not just the overflow ones. We keep the desired set
 # at or below this limit at registration time.
 _DISCORD_MAX_APP_COMMANDS = 100
+_DISCORD_SELECT_FIELD_LIMIT = 100
 _DISCORD_NONCONVERSATIONAL_METADATA_KEYS = frozenset({
     "non_conversational",
     "non_conversational_history",
@@ -117,9 +118,15 @@ from gateway.platforms.base import (
     cache_document_from_bytes,
     SUPPORTED_DOCUMENT_TYPES,
     _TEXT_INJECT_EXTENSIONS,
+    _prefix_within_utf16_limit,
     validate_inbound_media_size,
 )
 from tools.url_safety import is_safe_url
+
+
+def _truncate_discord_component_text(text: str, limit: int) -> str:
+    """Return text within Discord's UTF-16 component field budget."""
+    return _prefix_within_utf16_limit(str(text or ""), max(0, limit))
 
 
 async def _wait_for_ready_or_bot_exit(
@@ -1553,6 +1560,30 @@ class DiscordAdapter(BasePlatformAdapter):
         if status == 429:
             return True
         return False
+
+    @staticmethod
+    def _is_discord_unknown_interaction(exc: BaseException) -> bool:
+        """True for Discord's expired interaction token error."""
+        code = getattr(exc, "code", None)
+        if code is None:
+            data = getattr(exc, "data", None)
+            if isinstance(data, dict):
+                code = data.get("code")
+        try:
+            code = int(code)
+        except (TypeError, ValueError):
+            code = None
+
+        status = getattr(exc, "status", None)
+        response = getattr(exc, "response", None)
+        if status is None and response is not None:
+            status = getattr(response, "status", None) or getattr(response, "status_code", None)
+        try:
+            status = int(status)
+        except (TypeError, ValueError):
+            status = None
+
+        return code == 10062 or (status == 404 and "unknown interaction" in str(exc).lower())
 
     def _command_sync_mutation_interval_seconds(self) -> float:
         return _DISCORD_COMMAND_SYNC_MUTATION_INTERVAL_SECONDS
@@ -3879,9 +3910,22 @@ class DiscordAdapter(BasePlatformAdapter):
         if not await self._check_slash_authorization(interaction, command_text):
             return
 
-        await interaction.response.defer(ephemeral=True)
+        deferred_response = False
+        try:
+            await interaction.response.defer(ephemeral=True)
+            deferred_response = True
+        except Exception as e:
+            if not self._is_discord_unknown_interaction(e):
+                raise
+            logger.warning(
+                "[Discord] slash %s: interaction expired before defer. "
+                "Executing command anyway, skipping interaction followup.",
+                command_text,
+            )
         event = self._build_slash_event(interaction, command_text)
         await self.handle_message(event)
+        if not deferred_response:
+            return
         try:
             if followup_msg:
                 await interaction.edit_original_response(content=followup_msg)
@@ -5082,6 +5126,10 @@ class DiscordAdapter(BasePlatformAdapter):
 
         try:
             thread = await message.create_thread(name=thread_name, auto_archive_duration=1440)
+            try:
+                setattr(thread, "_hermes_auto_thread_initial_name", thread_name)
+            except Exception:
+                pass
             return thread
         except Exception as direct_error:
             display_name = getattr(getattr(message, "author", None), "display_name", None) or "unknown user"
@@ -5093,6 +5141,10 @@ class DiscordAdapter(BasePlatformAdapter):
                     auto_archive_duration=1440,
                     reason=reason,
                 )
+                try:
+                    setattr(thread, "_hermes_auto_thread_initial_name", thread_name)
+                except Exception:
+                    pass
                 return thread
             except Exception as fallback_error:
                 logger.warning(
@@ -5102,6 +5154,50 @@ class DiscordAdapter(BasePlatformAdapter):
                     fallback_error,
                 )
                 return None
+
+    async def rename_thread(
+        self,
+        thread_id: str,
+        name: str,
+        *,
+        only_if_current_name: Optional[str] = None,
+    ) -> bool:
+        """Best-effort Discord thread rename with a human-change safeguard."""
+        if not self._client or not DISCORD_AVAILABLE:
+            return False
+        try:
+            thread_id_int = int(str(thread_id))
+        except (TypeError, ValueError):
+            return False
+
+        cleaned = re.sub(r"\s+", " ", str(name or "")).strip()
+        if not cleaned:
+            return False
+        from gateway.platforms.base import utf16_len, _prefix_within_utf16_limit
+        if utf16_len(cleaned) > 80:
+            cleaned = _prefix_within_utf16_limit(cleaned, 77).rstrip() + "..."
+
+        try:
+            thread = self._client.get_channel(thread_id_int)
+            if thread is None:
+                thread = await self._client.fetch_channel(thread_id_int)
+        except Exception:
+            logger.debug("[%s] Failed to resolve Discord thread %s for rename", self.name, thread_id, exc_info=True)
+            return False
+        current_name = getattr(thread, "name", None)
+        if only_if_current_name is not None and current_name != only_if_current_name:
+            return False
+        if current_name == cleaned:
+            return True
+        edit = getattr(thread, "edit", None)
+        if edit is None:
+            return False
+        try:
+            await edit(name=cleaned, reason="Hermes semantic session title")
+            return True
+        except Exception:
+            logger.debug("[%s] Failed to rename Discord thread %s", self.name, thread_id, exc_info=True)
+            return False
 
     async def create_handoff_thread(
         self,
@@ -5861,6 +5957,11 @@ class DiscordAdapter(BasePlatformAdapter):
             parent_chat_id=parent_channel_id,
             message_id=str(message.id),
             role_authorized=role_authorized,
+            auto_thread_created=auto_threaded_channel is not None,
+            auto_thread_initial_name=(
+                getattr(auto_threaded_channel, "_hermes_auto_thread_initial_name", None)
+                or getattr(auto_threaded_channel, "name", None)
+            ) if auto_threaded_channel is not None else None,
         )
 
         # Build media URLs -- download image attachments to local cache so the
@@ -6672,7 +6773,7 @@ def _define_discord_view_classes() -> None:
                 desc = "current" if p.get("is_current") else None
                 options.append(
                     discord.SelectOption(
-                        label=label[:100],
+                        label=_truncate_discord_component_text(label, _DISCORD_SELECT_FIELD_LIMIT),
                         value=p["slug"],
                         description=desc,
                     )
@@ -6709,8 +6810,8 @@ def _define_discord_view_classes() -> None:
                 short = model_id.split("/")[-1] if "/" in model_id else model_id
                 options.append(
                     discord.SelectOption(
-                        label=short[:100],
-                        value=model_id[:100],
+                        label=_truncate_discord_component_text(short, _DISCORD_SELECT_FIELD_LIMIT),
+                        value=_truncate_discord_component_text(model_id, _DISCORD_SELECT_FIELD_LIMIT),
                     )
                 )
             if not options:
@@ -7551,6 +7652,10 @@ def _apply_yaml_config(yaml_cfg: dict, discord_cfg: dict) -> dict | None:
         os.environ["DISCORD_REQUIRE_MENTION"] = str(discord_cfg["require_mention"]).lower()
     if "thread_require_mention" in discord_cfg and not os.getenv("DISCORD_THREAD_REQUIRE_MENTION"):
         os.environ["DISCORD_THREAD_REQUIRE_MENTION"] = str(discord_cfg["thread_require_mention"]).lower()
+    if "bots_require_inline_mention" in discord_cfg and not os.getenv("DISCORD_BOTS_REQUIRE_INLINE_MENTION"):
+        os.environ["DISCORD_BOTS_REQUIRE_INLINE_MENTION"] = str(
+            discord_cfg["bots_require_inline_mention"]
+        ).lower()
     platforms_cfg = yaml_cfg.get("platforms")
     platform_extra_cfg = {}
     if isinstance(platforms_cfg, dict):
