@@ -617,6 +617,20 @@ def build_system_prompt(agent: Any, system_message: Optional[str] = None) -> str
     parts = build_system_prompt_parts(agent, system_message=system_message)
     joined = "\n\n".join(p for p in (parts["stable"], parts["context"], parts["volatile"]) if p)
 
+    # Issue #196: keep a local, deterministic size receipt beside the cached
+    # prompt.  This is observational only: the prompt bytes and message
+    # sequence remain unchanged, and the receipt makes no provider-cache claim.
+    try:
+        from agent.prompt_economy import measure_prompt_payload
+
+        agent._last_prompt_economy_measurement = measure_prompt_payload(
+            parts,
+            tools=getattr(agent, "tools", None),
+        )
+    except Exception:
+        # Measurement must never make a valid prompt unavailable.
+        pass
+
     # Surface context-file truncation warnings through the normal agent status
     # channel so gateway/CLI users see them in chat instead of only in logs.
     for warning in drain_truncation_warnings():
