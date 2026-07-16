@@ -101,6 +101,18 @@ class TestLoadRuntimeLock:
         _write_lock(tmp_path, monkeypatch, min_version="7.1.2")
         assert rm.load_runtime_lock()["min_version"] == "7.1.2"
 
+
+    def test_reads_pin_from_installed_data_file(self, tmp_path, monkeypatch):
+        source_root = tmp_path / "source"
+        source_root.mkdir()
+        prefix = tmp_path / "prefix"
+        installed_lock = prefix / "runtime" / "runtime.lock"
+        installed_lock.parent.mkdir(parents=True)
+        installed_lock.write_text(json.dumps({"schema": "runtime-lock/v2", "min_version": "8.2.1"}), encoding="utf-8")
+        monkeypatch.setattr(rm, "repo_root", lambda: source_root)
+        monkeypatch.setattr(rm.sys, "prefix", str(prefix))
+
+        assert rm.load_runtime_lock()["min_version"] == "8.2.1"
     def test_missing_lock_degrades_to_defaults(self, tmp_path, monkeypatch):
         monkeypatch.setattr(rm, "repo_root", lambda: tmp_path)
         lock = rm.load_runtime_lock()
