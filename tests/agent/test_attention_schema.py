@@ -1,8 +1,12 @@
+import pytest
+
 from agent.attention_schema import (
     AcknowledgementState,
     AttentionItem,
     AttentionQueue,
     AttentionReason,
+    GlobalAttentionWorkspace,
+    WorkspaceSnapshot,
 )
 
 
@@ -106,3 +110,80 @@ def test_workspace_selection_is_goal_scoped_and_emits_a_stable_receipt() -> None
         "used": 1,
         "item_ids": ["goal-a-item"],
     }
+
+
+def test_global_workspace_has_fixed_budget_and_safe_prompt_delta() -> None:
+    workspace = GlobalAttentionWorkspace(budget=2)
+    workspace.publish(
+        _item(
+            "approval",
+            AttentionReason.APPROVAL,
+            cause_receipts=("receipt", "private reasoning must not leak"),
+            profile_id="profile-a",
+        )
+    )
+
+    first = workspace.prompt_delta(goal_id="goal-a", now=10)
+    second = workspace.prompt_delta(goal_id="goal-a", now=10)
+
+    assert first == second
+    assert first == {
+        "schema": "simplicio.attention-prompt-delta/v1",
+        "goal_id": "goal-a",
+        "degraded": False,
+        "items": [{
+            "item_id": "approval",
+            "source": "approval",
+            "reason": "approval",
+            "run": "run-a",
+            "profile": "profile-a",
+            "status": "open",
+        }],
+    }
+    assert "private reasoning" not in str(first)
+
+
+def test_expired_items_are_ignored_and_old_work_cannot_starve() -> None:
+    queue = AttentionQueue((
+        _item("expired", AttentionReason.SAFETY, expires_at=5),
+        _item("normal", AttentionReason.NORMAL_PROGRESS, created_at=90),
+        _item(
+            "old-learning",
+            AttentionReason.OPTIONAL_LEARNING,
+            created_at=-1000,
+            run_id="run-b",
+        ),
+    ))
+
+    snapshot = queue.select_workspace(goal_id="goal-a", budget=1, now=100)
+
+    assert [item.item_id for item in snapshot.items] == ["old-learning"]
+
+
+def test_global_workspace_degrades_to_preemptive_safe_queue() -> None:
+    workspace = GlobalAttentionWorkspace(budget=3)
+    workspace.publish(_item("approval", AttentionReason.APPROVAL))
+    workspace.publish(_item("normal", AttentionReason.NORMAL_PROGRESS))
+
+    def fail_selection(**_: object) -> WorkspaceSnapshot:
+        raise RuntimeError("workspace unavailable")
+
+    workspace.queue.select_workspace = fail_selection  # type: ignore[method-assign]
+    snapshot = workspace.select(goal_id="goal-a", now=10)
+
+    assert snapshot.degraded is True
+    assert [item.item_id for item in snapshot.items] == ["approval"]
+
+
+def test_priority_is_policy_derived_and_not_an_untrusted_constructor_field() -> None:
+    with pytest.raises(TypeError):
+        AttentionItem(  # type: ignore[call-arg]
+            item_id="x",
+            source="x",
+            reason=AttentionReason.NORMAL_PROGRESS,
+            expires_at=10,
+            run_id="run-a",
+            goal_id="goal-a",
+            created_at=0,
+            priority=0,
+        )
