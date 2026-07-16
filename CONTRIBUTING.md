@@ -760,7 +760,7 @@ that touches the OS, assume *any* platform can hit your code path.
    ```
 
    **Preferred:** for killing a process AND its children (what `os.killpg`
-   does on POSIX), use `psutil` — it works on every platform:
+   does on POSIX), use `psutil` — it's cross-platform:
    ```python
    import psutil
    try:
