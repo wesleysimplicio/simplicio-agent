@@ -42,23 +42,24 @@ class AttentionSchema:
         self.items: List[AttentionItem] = []
 
     def add_item(self, item: AttentionItem) -> None:
-        if len(self.items) >= self.max_items:
-            self._compact()
         self.items.append(item)
+        if len(self.items) > self.max_items:
+            self._compact()
 
     def _compact(self) -> None:
         # Remove expired and acknowledged items first
         self.items = [item for item in self.items if not (item.is_expired() or item.acknowledged)]
-        
-        # If still over limit, remove lower priority items
+
+        # If still over limit, keep the highest-priority items. Lower
+        # Priority.value means higher priority (SAFETY_KILLSWITCH=1 first).
         if len(self.items) > self.max_items:
-            self.items.sort(key=lambda x: x.priority.value, reverse=True)
+            self.items.sort(key=lambda x: x.priority.value)
             self.items = self.items[:self.max_items]
 
     def get_highest_priority(self) -> Optional[AttentionItem]:
         if not self.items:
             return None
-        return max(self.items, key=lambda x: x.priority.value)
+        return min(self.items, key=lambda x: x.priority.value)
 
     def acknowledge(self, source: str) -> None:
         for item in self.items:
