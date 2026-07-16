@@ -467,16 +467,21 @@ class OperationalNowStore:
     """Receipt store plus materialized snapshot file with replay recovery."""
 
     def __init__(
-        self, *, event_log_path: str | Path, snapshot_path: str | Path
+        self,
+        *,
+        event_log_path: str | Path,
+        snapshot_path: str | Path,
+        source_reliability: Mapping[str, SourceReliability] | None = None,
     ) -> None:
         self.event_store = OperationalEventStore(event_log_path)
         self.snapshot_path = Path(snapshot_path)
+        self.source_reliability = dict(source_reliability or {})
 
     def append(self, receipt: AwarenessReceipt) -> AwarenessReceipt:
         return self.event_store.append(receipt)
 
     def project(self) -> OperationalNowSnapshot:
-        projector = OperationalNowProjector()
+        projector = OperationalNowProjector(source_reliability=self.source_reliability)
         snapshot = projector.project(list(self.event_store.iter_receipts()))
         self._write_snapshot(snapshot)
         return snapshot
