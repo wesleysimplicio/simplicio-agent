@@ -78,6 +78,11 @@ _DISCORD_NONCONVERSATIONAL_HISTORY_MESSAGE_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"^\s*(?:✅|❌|⏳)\s+Processo em segundo plano\s+"
+        r"(?:concluído com sucesso|falhou|ainda está em execução)\.[\s\S]*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"^\s*(?:✅|❌)\s+Hermes update\s+"
         r"(?:finished|failed|timed out)[\s\S]*$",
         re.IGNORECASE,

@@ -232,6 +232,37 @@ def _non_conversational_metadata(
     return merged
 
 
+def _format_background_process_notification(
+    session_id: str,
+    exit_code: Optional[int],
+    output: str,
+    *,
+    running: bool = False,
+) -> str:
+    """Format a concise, user-facing background-process status message.
+
+    Process completions are operational status, not agent failures.  Keep the
+    output visible for auditability but fence it as data so a successful
+    command is never presented as a bracketed error/instruction blob.
+    """
+    safe_id = str(session_id or "processo")
+    safe_output = str(output or "").replace("```", "``\u200b`").rstrip()
+    if running:
+        title = "⏳ Processo em segundo plano ainda está em execução."
+        detail = "Nova saída"
+    elif exit_code == 0:
+        title = "✅ Processo em segundo plano concluído com sucesso."
+        detail = "Saída final"
+    else:
+        title = f"❌ Processo em segundo plano falhou (código de saída {exit_code})."
+        detail = "Saída final"
+
+    message = f"{title}\nID: `{safe_id}`"
+    if safe_output:
+        message += f"\n\n{detail}:\n```text\n{safe_output}\n```"
+    return message
+
+
 def _is_transient_network_error(exc: BaseException) -> bool:
     """Return True for transient network errors safe to log + swallow.
 
@@ -16076,9 +16107,10 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         new_output = redact_terminal_output(
                             new_output, getattr(session, "command", "") or ""
                         )
-                    message_text = (
-                        f"[Background process {session_id} finished with exit code {session.exit_code}~ "
-                        f"Here's the final output:\n{new_output}]"
+                    message_text = _format_background_process_notification(
+                        session_id,
+                        session.exit_code,
+                        new_output,
                     )
                     adapter = None
                     for p, a in self.adapters.items():
@@ -16106,9 +16138,11 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     new_output = redact_terminal_output(
                         new_output, getattr(session, "command", "") or ""
                     )
-                message_text = (
-                    f"[Background process {session_id} is still running~ "
-                    f"New output:\n{new_output}]"
+                message_text = _format_background_process_notification(
+                    session_id,
+                    None,
+                    new_output,
+                    running=True,
                 )
                 adapter = None
                 for p, a in self.adapters.items():
