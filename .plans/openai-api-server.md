@@ -1,11 +1,11 @@
-# OpenAI-Compatible API Server for Hermes Agent
+# OpenAI-Compatible API Server for Simplicio Agent
 
 ## Motivation
 
 Every major chat frontend (Open WebUI 126k★, LobeChat 73k★, LibreChat 34k★,
 AnythingLLM 56k★, NextChat 87k★, ChatBox 39k★, Jan 26k★, HF Chat-UI 8k★,
 big-AGI 7k★) connects to backends via the OpenAI-compatible REST API with
-SSE streaming. By exposing this endpoint, hermes-agent becomes instantly
+SSE streaming. By exposing this endpoint, simplicio-agent becomes instantly
 usable as a backend for all of them — no custom adapters needed.
 
 ## What It Enables
