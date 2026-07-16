@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import sys
 from dataclasses import dataclass, field
@@ -92,6 +93,12 @@ class StageResult:
 class ToolAxisResult:
     name: str
     toolset: str
+    source_path: str = ""
+    symbol: str = ""
+    registry: str = "tools.registry"
+    is_async: bool = False
+    requires_env: tuple[str, ...] = ()
+    has_authorization_gate: bool = False
     stages: dict[str, StageResult] = field(default_factory=dict)
 
     def mark(self, stage: str, status: str, reason: str = "") -> None:
@@ -113,6 +120,12 @@ class ToolAxisResult:
             "name": self.name,
             "class": CLASS_NAME,
             "toolset": self.toolset,
+            "source_path": self.source_path,
+            "symbol": self.symbol,
+            "registry": self.registry,
+            "is_async": self.is_async,
+            "requires_env": list(self.requires_env),
+            "has_authorization_gate": self.has_authorization_gate,
             "classified_ok": classified_ok,
             "stage_status": {
                 stage: stage_results[stage]["status"] for stage in STAGES
@@ -132,6 +145,20 @@ def _classify_tool(name: str) -> ToolAxisResult:
         for stage in CLASSIFIED_STAGES[1:]:
             result.mark(stage, "fail", reason="tool is not registered")
         return result
+
+    source = inspect.getsourcefile(entry.handler)
+    if source:
+        source_path = Path(source).resolve()
+        try:
+            result.source_path = source_path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            # Keep external/plugin inventory useful without leaking an
+            # operator-specific absolute path into a receipt.
+            result.source_path = f"external:{entry.handler.__module__}"
+    result.symbol = f"{entry.handler.__module__}.{entry.handler.__qualname__}"
+    result.is_async = entry.is_async
+    result.requires_env = tuple(sorted(str(value) for value in entry.requires_env))
+    result.has_authorization_gate = entry.check_fn is not None
 
     schema = registry.get_schema(name)
     result.mark(

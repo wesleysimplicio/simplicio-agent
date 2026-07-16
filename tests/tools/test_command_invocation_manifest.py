@@ -40,6 +40,11 @@ def test_manifest_covers_the_live_registry() -> None:
     for axis in document["axes"]:
         if axis["stage_status"]["REGISTERED"] == "pass":
             assert axis["toolset"]
+            assert axis["source_path"]
+            assert axis["symbol"]
+            assert axis["registry"] == "tools.registry"
+            assert isinstance(axis["requires_env"], list)
+            assert isinstance(axis["has_authorization_gate"], bool)
 
 
 def test_every_axis_classifies_all_stages_but_only_asserts_the_classified_ones() -> None:
