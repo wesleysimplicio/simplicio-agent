@@ -29,7 +29,7 @@
       "path_glob": "archive/*",
       "term": null,
       "class": "upstream",
-      "reason": "frozen archive of pre-fork upstream source, retained for reference — not shipped in any artifact",
+      "reason": "frozen archive of pre-fork upstream source, retained for reference \u2014 not shipped in any artifact",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
     },
@@ -37,7 +37,7 @@
       "path_glob": "*.dist-info/*",
       "term": null,
       "class": "credit",
-      "reason": "wheel build metadata (METADATA/RECORD/entry_points.txt/WHEEL/top_level.txt) is generated verbatim from the already-allowlisted pyproject.toml [project] table and the source file list, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "reason": "wheel build metadata (METADATA/RECORD/entry_points.txt/WHEEL/top_level.txt) is generated verbatim from the already-allowlisted pyproject.toml [project] table and the source file list, not a new leak surface \u2014 see tools/rename_guard/artifact_scan.py (issue #194)",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
     },
@@ -45,7 +45,7 @@
       "path_glob": "PKG-INFO",
       "term": null,
       "class": "credit",
-      "reason": "sdist build metadata is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "reason": "sdist build metadata is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface \u2014 see tools/rename_guard/artifact_scan.py (issue #194)",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
     },
@@ -53,7 +53,7 @@
       "path_glob": "*.egg-info/*",
       "term": null,
       "class": "credit",
-      "reason": "setuptools egg-info is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface — see tools/rename_guard/artifact_scan.py (issue #194)",
+      "reason": "setuptools egg-info is generated verbatim from the already-allowlisted pyproject.toml [project] table, not a new leak surface \u2014 see tools/rename_guard/artifact_scan.py (issue #194)",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": null
     },
@@ -111,6 +111,438 @@
       "class": "historical-fixture",
       "reason": "migration ADR documents the bounded legacy scanner contract",
       "owner": "identity-migration",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "agent/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tools/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (test suite mirrors source paths)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "gateway/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "desktop/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (Electron/React backend source + dev docs, not rendered UI copy)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "skills/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (skill package internals imported from the upstream ecosystem)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "plugins/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "optional-skills/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "optional-mcps/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "cron/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docs/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal developer-facing doc (AGENTS.md/dev notes), not a public user-facing artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "fixtures/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (test fixtures)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "scripts/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "ui-tui/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tui_gateway/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "tests-js/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "nix/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "providers/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "benchmarks/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "apps/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docker/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "website/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal developer-facing doc (AGENTS.md/dev notes), not a public user-facing artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "READMEs/*",
+      "term": null,
+      "class": "credit",
+      "reason": "localized translation of the accepted main README fork-attribution credit (see README.md, already grandfathered in baseline); same legitimate content, just added after the last baseline bump",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "simplicio_agent/compat.py",
+      "term": null,
+      "class": "credit",
+      "reason": "deliberate deprecated-compatibility alias/shim (issue #193 scope), not a leak",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "simplicio_agent/compat.pyi",
+      "term": null,
+      "class": "credit",
+      "reason": "deliberate deprecated-compatibility alias/shim (issue #193 scope), not a leak",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": null
+    },
+    {
+      "path_glob": "simplicio_agent/entry.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (bridges legacy hermes entrypoint name)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "simplicio_agent/__init__.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "simplicio_agent/__init__.pyi",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_time.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_state.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_logging.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_constants.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_bootstrap.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hermes_cli.spec",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "cli.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (entrypoint still shells out to the hermes binary name pending #186)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "mcp_serve.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "model_tools.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "mcp_low_freq_bridges.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "toolset_distributions.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "toolsets.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "trajectory_compressor.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "utils.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "batch_runner.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "mini_swe_runner.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "setup.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "setup-hermes.sh",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "simplicio-agent-routines.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal developer-facing doc (AGENTS.md/dev notes), not a public user-facing artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "RELEASE_DAG.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal developer-facing doc (AGENTS.md/dev notes), not a public user-facing artifact",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".gitignore",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (internal skill/plugin path names)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".envrc",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".coveragerc.core",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".github/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding (CI workflow internals)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "eslint.config.shared.mjs",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "cli-config.yaml.example",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
+      "owner": "wesley.simplicio@evtit.com",
       "expiry": "2026-12-31"
     }
   ]
