@@ -81,7 +81,11 @@ def fnv1a64(path: str | Path) -> int:
     Tag: CANON — deterministic, collision-resistant for path keys.
     """
     if isinstance(path, Path):
-        path = str(path)
+        # Path.as_posix() always uses '/', so the same logical path hashes
+        # identically on Windows and POSIX -- str(Path(...)) would silently
+        # switch to '\\' on Windows and break the CANON cross-platform
+        # guarantee this function exists to provide.
+        path = path.as_posix()
     data = path.encode("utf-8")
     h = _FNV1A64_OFFSET
     for byte in data:
