@@ -2155,6 +2155,28 @@ def get_model_context_length(
     return DEFAULT_FALLBACK_CONTEXT
 
 
+async def get_model_context_length_async(
+    model: str,
+    base_url: str = "",
+    api_key: str = "",
+    config_context_length: int | None = None,
+    provider: str = "",
+    custom_providers: list | None = None,
+) -> int:
+    """Resolve context length off the event loop to protect gateway heartbeats."""
+    import asyncio
+
+    return await asyncio.to_thread(
+        get_model_context_length,
+        model,
+        base_url=base_url,
+        api_key=api_key,
+        config_context_length=config_context_length,
+        provider=provider,
+        custom_providers=custom_providers,
+    )
+
+
 def estimate_tokens_rough(text: str) -> int:
     """Rough token estimate (~4 chars/token) for pre-flight checks.
 
