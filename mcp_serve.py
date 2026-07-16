@@ -336,6 +336,7 @@ class EventBridge:
         self._pending_approvals: Dict[str, dict] = {}
         # mtime cache — skip expensive work when state.db hasn't changed
         self._state_db_mtime: float = 0.0
+        self._sessions_json_mtime: float = 0.0
         self._cached_sessions_index: dict = {}
 
     def start(self):
