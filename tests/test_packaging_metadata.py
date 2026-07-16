@@ -117,6 +117,17 @@ def test_manifest_includes_bundled_skills():
     assert "graft optional-skills" in manifest
 
 
+def test_runtime_lock_ships_in_wheel_and_sdist():
+    """The pinned Runtime contract is present on both package channels."""
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    data_files = data["tool"]["setuptools"]["data-files"]
+    assert data_files.get("runtime") == ["runtime.lock"]
+
+    manifest = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^include runtime\.lock$", manifest)
+    assert (REPO_ROOT / "runtime.lock").is_file()
+
+
 def test_bundled_plugin_manifests_ship_in_both_wheel_and_sdist():
     """Regression test for #34034 / #28149.
 

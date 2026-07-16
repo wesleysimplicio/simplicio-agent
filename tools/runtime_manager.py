@@ -113,6 +113,21 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def runtime_lock_path() -> Path:
+    """Locate the lock in source and installed data-file layouts.
+
+    Wheels install ``[tool.setuptools.data-files] runtime`` below the active
+    Python prefix, while source checkouts keep the lock at repository root.
+    Source wins so development and packaged runs use the same contract.
+    """
+    candidates = (
+        repo_root() / _LOCK_FILENAME,
+        Path(sys.prefix) / "runtime" / _LOCK_FILENAME,
+        Path(sys.executable).resolve().parent / "runtime" / _LOCK_FILENAME,
+    )
+    return next((candidate for candidate in candidates if candidate.is_file()), candidates[0])
+
+
 def load_runtime_lock() -> dict:
     """Read ``runtime.lock`` from the repo root.
 
@@ -121,7 +136,7 @@ def load_runtime_lock() -> dict:
     validates the result and fails closed instead of treating a missing lock
     as permission to run any kernel.
     """
-    lock_path = repo_root() / _LOCK_FILENAME
+    lock_path = runtime_lock_path()
     merged = dict(_DEFAULT_LOCK)
     try:
         raw = json.loads(lock_path.read_text(encoding="utf-8"))
