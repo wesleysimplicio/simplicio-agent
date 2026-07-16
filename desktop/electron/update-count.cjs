@@ -1,3 +1,5 @@
+'use strict'
+
 // Whether `git rev-list HEAD..origin/<branch> --count` produces a meaningful
 // number worth computing. On a SHALLOW checkout (installer clones with
 // --depth 1) the local history often shares no merge-base with the freshly
@@ -17,14 +19,10 @@ function shouldCountCommits({ isShallow, hasMergeBase }) {
 // (developers / Docker dev images) keep the exact count path unchanged.
 function resolveBehindCount({ countStr, currentSha, targetSha, isShallow, hasMergeBase }) {
   if (!shouldCountCommits({ isShallow, hasMergeBase })) {
-    if (currentSha && targetSha && currentSha === targetSha) {
-      return 0
-    }
-
+    if (currentSha && targetSha && currentSha === targetSha) return 0
     return 1 // behind by an unknown amount — show a generic "update available"
   }
-
   return Number.parseInt(countStr, 10) || 0
 }
 
-export { resolveBehindCount, shouldCountCommits }
+module.exports = { resolveBehindCount, shouldCountCommits }

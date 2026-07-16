@@ -1,7 +1,7 @@
 /**
- * Tests for electron/connection-config.ts.
+ * Tests for electron/connection-config.cjs.
  *
- * Run with: node --test electron/connection-config.test.ts
+ * Run with: node --test electron/connection-config.test.cjs
  * (Wire into npm test:desktop:platforms in package.json.)
  *
  * These are the pure helpers behind the remote-gateway connection settings:
@@ -10,29 +10,26 @@
  * and the OAuth session-cookie detector.
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test } from 'vitest'
-
-import {
+const {
   AT_COOKIE_VARIANTS,
+  RT_COOKIE_VARIANTS,
   authModeFromStatus,
   buildGatewayWsUrl,
   buildGatewayWsUrlWithTicket,
   connectionScopeKey,
-  cookiesHaveLiveSession,
-  cookiesHavePrivySession,
   cookiesHaveSession,
-  modeIsRemoteLike,
-  normalizeRemoteBaseUrl,
+  cookiesHaveLiveSession,
   normAuthMode,
+  normalizeRemoteBaseUrl,
   pathWithGlobalRemoteProfile,
   profileRemoteOverride,
   resolveAuthMode,
   resolveTestWsUrl,
-  RT_COOKIE_VARIANTS,
   tokenPreview
-} from './connection-config'
+} = require('./connection-config.cjs')
 
 // --- connectionScopeKey / normAuthMode ---
 
@@ -48,19 +45,6 @@ test('normAuthMode coerces to token unless explicitly oauth', () => {
   assert.equal(normAuthMode('token'), 'token')
   assert.equal(normAuthMode(undefined), 'token')
   assert.equal(normAuthMode('weird'), 'token')
-})
-
-// --- modeIsRemoteLike ---
-
-test('modeIsRemoteLike is true for remote and cloud, false otherwise', () => {
-  // cloud resolves to a remote backend under the hood (Q6), so every resolution
-  // site treats it like remote.
-  assert.equal(modeIsRemoteLike('remote'), true)
-  assert.equal(modeIsRemoteLike('cloud'), true)
-  assert.equal(modeIsRemoteLike('local'), false)
-  assert.equal(modeIsRemoteLike(undefined), false)
-  assert.equal(modeIsRemoteLike(null), false)
-  assert.equal(modeIsRemoteLike('weird'), false)
 })
 
 // --- profileRemoteOverride ---
@@ -89,7 +73,6 @@ test('profileRemoteOverride returns the per-profile remote with defaulted auth m
       coder: { mode: 'remote', url: '  https://coder.example.com/hermes  ', token: { value: 'sek' } }
     }
   }
-
   assert.deepEqual(profileRemoteOverride(config, 'coder'), {
     url: 'https://coder.example.com/hermes',
     authMode: 'token',
@@ -100,22 +83,6 @@ test('profileRemoteOverride returns the per-profile remote with defaulted auth m
 test('profileRemoteOverride preserves an explicit oauth auth mode', () => {
   const config = { profiles: { coder: { mode: 'remote', url: 'https://x', authMode: 'oauth' } } }
   assert.equal(profileRemoteOverride(config, 'coder').authMode, 'oauth')
-})
-
-test('profileRemoteOverride treats a cloud entry as a remote override', () => {
-  // A 'cloud' per-profile entry resolves to the same remote backend a 'remote'
-  // entry would (Q6) — the override must be returned, not dropped.
-  const config = {
-    profiles: {
-      coder: { mode: 'cloud', url: 'https://agent-1.agents.nousresearch.com', authMode: 'oauth' }
-    }
-  }
-
-  assert.deepEqual(profileRemoteOverride(config, 'coder'), {
-    url: 'https://agent-1.agents.nousresearch.com',
-    authMode: 'oauth',
-    token: undefined
-  })
 })
 
 test('profileRemoteOverride tolerates a missing/!object profiles map', () => {
@@ -364,35 +331,6 @@ test('cookiesHaveLiveSession is false for unrelated cookies and non-arrays', () 
   assert.equal(cookiesHaveLiveSession([]), false)
 })
 
-// --- cookiesHavePrivySession (Nous portal / Privy auth, NOT gateway cookies) ---
-
-test('cookiesHavePrivySession detects the privy-token access cookie', () => {
-  assert.equal(cookiesHavePrivySession([{ name: 'privy-token', value: 'jwt' }]), true)
-})
-
-test('cookiesHavePrivySession detects __Host-/__Secure- prefixes and the legacy privy-session name', () => {
-  assert.equal(cookiesHavePrivySession([{ name: '__Host-privy-token', value: 'x' }]), true)
-  assert.equal(cookiesHavePrivySession([{ name: '__Secure-privy-token', value: 'x' }]), true)
-  assert.equal(cookiesHavePrivySession([{ name: 'privy-session', value: 'x' }]), true)
-})
-
-test('cookiesHavePrivySession is false for an empty value', () => {
-  assert.equal(cookiesHavePrivySession([{ name: 'privy-token', value: '' }]), false)
-})
-
-test('cookiesHavePrivySession does NOT treat hermes gateway cookies as a portal session', () => {
-  // The whole point of Q7: a gateway session cookie is NOT a portal sign-in.
-  assert.equal(cookiesHavePrivySession([{ name: 'hermes_session_at', value: 'x' }]), false)
-  assert.equal(cookiesHavePrivySession([{ name: '__Host-hermes_session_rt', value: 'x' }]), false)
-})
-
-test('cookiesHavePrivySession is false for unrelated cookies and non-arrays', () => {
-  assert.equal(cookiesHavePrivySession([{ name: 'other', value: 'x' }]), false)
-  assert.equal(cookiesHavePrivySession(null), false)
-  assert.equal(cookiesHavePrivySession(undefined), false)
-  assert.equal(cookiesHavePrivySession([]), false)
-})
-
 // --- tokenPreview ---
 
 test('tokenPreview returns null for empty', () => {
@@ -427,7 +365,6 @@ test('resolveTestWsUrl (oauth, mint ok) builds a ?ticket= URL', async () => {
   const url = await resolveTestWsUrl('https://gw.example.com', 'oauth', null, {
     mintTicket: async () => 'tkt-9'
   })
-
   assert.equal(url, 'wss://gw.example.com/api/ws?ticket=tkt-9')
 })
 
@@ -439,14 +376,13 @@ test('resolveTestWsUrl (oauth, mint FAILS) throws — must NOT skip WS validatio
           throw new Error('401 ticket mint failed')
         }
       }),
-    (err: any) => {
+    err => {
       // Actionable, points the user at re-auth, and preserves the cause + flag
       // the boot overlay uses to offer a sign-in prompt.
       assert.match(err.message, /WebSocket ticket/i)
       assert.match(err.message, /sign in again/i)
       assert.equal(err.needsOauthLogin, true)
       assert.ok(err.cause instanceof Error)
-
       return true
     }
   )

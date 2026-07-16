@@ -1,14 +1,16 @@
+'use strict'
+
 /**
- * bootstrap-runner.ts
+ * bootstrap-runner.cjs
  *
  * Drives apps/desktop's first-launch install of Simplicio Agente by spawning
  * scripts/install.ps1 stage-by-stage and streaming progress events back to
  * the renderer.
  *
- * Wired from electron/main.ts:
- *   import { runBootstrap }from './bootstrap-runner'
+ * Wired from electron/main.cjs:
+ *   const { runBootstrap } = require('./bootstrap-runner.cjs')
  *   const result = await runBootstrap({
- *     installStamp,        // INSTALL_STAMP from main.ts (may be null in dev)
+ *     installStamp,        // INSTALL_STAMP from main.cjs (may be null in dev)
  *     activeRoot,          // ACTIVE_HERMES_ROOT
  *     sourceRepoRoot,      // SOURCE_REPO_ROOT (for dev install.ps1 lookup)
  *     hermesHome,          // HERMES_HOME
@@ -32,15 +34,20 @@
  *     no UI consumes them yet)
  */
 
-import { spawn } from 'node:child_process'
-import fs from 'node:fs'
-import fsp from 'node:fs/promises'
-import https from 'node:https'
-import path from 'node:path'
-
-import { hiddenWindowsChildOptions } from './windows-child-options'
+const fs = require('node:fs')
+const fsp = require('node:fs/promises')
+const path = require('node:path')
+const https = require('node:https')
+const { spawn } = require('node:child_process')
 
 const IS_WINDOWS = process.platform === 'win32'
+
+function hiddenWindowsChildOptions(options = {}) {
+  if (!IS_WINDOWS || Object.prototype.hasOwnProperty.call(options, 'windowsHide')) {
+    return options
+  }
+  return { ...options, windowsHide: true }
+}
 
 const STAMP_COMMIT_RE = /^[0-9a-f]{7,40}$/i
 
@@ -64,15 +71,10 @@ function installScriptKind() {
 }
 
 function resolveLocalInstallScript(sourceRepoRoot) {
-  if (!sourceRepoRoot) {
-    return null
-  }
-
+  if (!sourceRepoRoot) return null
   const candidate = path.join(sourceRepoRoot, 'scripts', installScriptName())
-
   try {
     fs.accessSync(candidate, fs.constants.R_OK)
-
     return candidate
   } catch {
     return null
@@ -88,30 +90,13 @@ function bootstrapCacheDir(hermesHome) {
 // the pinned commit can't be fetched from GitHub (e.g. a locally-built desktop
 // app stamped to an unpushed HEAD).
 function installedAgentInstallScript(hermesHome) {
-  if (!hermesHome) {
-    return null
-  }
-
+  if (!hermesHome) return null
   const candidate = path.join(hermesHome, 'hermes-agent', 'scripts', installScriptName())
-
   try {
     fs.accessSync(candidate, fs.constants.R_OK)
-
     return candidate
   } catch {
     return null
-  }
-}
-
-function hasExistingGitCheckout(activeRoot) {
-  if (!activeRoot) {
-    return false
-  }
-
-  try {
-    return fs.existsSync(path.join(activeRoot, '.git'))
-  } catch {
-    return false
   }
 }
 
@@ -125,7 +110,6 @@ function downloadInstallScript(commit, destPath) {
   // verification beyond "did the file we wrote pass a syntax probe."
   const scriptName = installScriptName()
   const url = `https://raw.githubusercontent.com/NousResearch/hermes-agent/${commit}/scripts/${scriptName}`
-
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
     const tmpPath = destPath + '.tmp'
@@ -145,10 +129,8 @@ function downloadInstallScript(commit, destPath) {
                     `Failed to download ${scriptName}: HTTP ${res2.statusCode} from redirect ${res.headers.location}`
                   )
                 )
-
                 return
               }
-
               const out2 = fs.createWriteStream(tmpPath)
               res2.pipe(out2)
               out2.on('finish', () => {
@@ -159,24 +141,18 @@ function downloadInstallScript(commit, destPath) {
               out2.on('error', reject)
             })
             .on('error', reject)
-
           return
         }
-
         if (res.statusCode !== 200) {
           out.close()
-
           try {
             fs.unlinkSync(tmpPath)
           } catch {
             void 0
           }
-
           reject(new Error(`Failed to download ${scriptName}: HTTP ${res.statusCode} from ${url}`))
-
           return
         }
-
         res.pipe(out)
         out.on('finish', () => {
           out.close()
@@ -189,7 +165,6 @@ function downloadInstallScript(commit, destPath) {
           } catch {
             void 0
           }
-
           reject(err)
         })
       })
@@ -199,7 +174,6 @@ function downloadInstallScript(commit, destPath) {
         } catch {
           void 0
         }
-
         reject(err)
       })
   })
@@ -213,13 +187,11 @@ async function resolveInstallScript({
   _download = downloadInstallScript
 }) {
   // 1. Dev shortcut: prefer a local checkout's installer so we can iterate
-  //    without pushing. SOURCE_REPO_ROOT comes from main.ts (path.resolve
+  //    without pushing. SOURCE_REPO_ROOT comes from main.cjs (path.resolve
   //    of APP_ROOT/../..).
   const localScript = resolveLocalInstallScript(sourceRepoRoot)
-
   if (localScript) {
     emit({ type: 'log', line: `[bootstrap] using local ${installScriptName()} at ${localScript}` })
-
     return { path: localScript, source: 'local', kind: installScriptKind() }
   }
 
@@ -232,14 +204,12 @@ async function resolveInstallScript({
   }
 
   const cached = cachedScriptPath(hermesHome, installStamp.commit)
-
   try {
     await fsp.access(cached, fs.constants.R_OK)
     emit({
       type: 'log',
       line: `[bootstrap] using cached ${installScriptName()} for ${installStamp.commit.slice(0, 12)}`
     })
-
     return { path: cached, source: 'cache', commit: installStamp.commit, kind: installScriptKind() }
   } catch {
     // not cached; download
@@ -249,20 +219,17 @@ async function resolveInstallScript({
     type: 'log',
     line: `[bootstrap] fetching ${installScriptName()} for ${installStamp.commit.slice(0, 12)} from GitHub`
   })
-
   try {
     await _download(installStamp.commit, cached)
     emit({ type: 'log', line: `[bootstrap] saved to ${cached}` })
-
     return { path: cached, source: 'download', commit: installStamp.commit, kind: installScriptKind() }
   } catch (err) {
     // The pinned commit may not be fetchable from GitHub -- most commonly a
     // locally-built desktop app stamped to an unpushed HEAD (see
-    // write-build-stamp.mjs fromLocalGit). Fall back to the installer that
+    // write-build-stamp.cjs fromLocalGit). Fall back to the installer that
     // ships inside the already-installed agent checkout so dev/self-builds can
     // still bootstrap instead of dying with a fatal 404.
     const installed = installedAgentInstallScript(hermesHome)
-
     if (installed) {
       emit({
         type: 'log',
@@ -270,18 +237,15 @@ async function resolveInstallScript({
           `[bootstrap] GitHub fetch failed (${err.message}); ` +
           `falling back to installed agent ${installScriptName()} at ${installed}`
       })
-
       try {
         fs.mkdirSync(path.dirname(cached), { recursive: true })
         fs.copyFileSync(installed, cached)
-
         return { path: cached, source: 'installed-agent', commit: installStamp.commit, kind: installScriptKind() }
       } catch {
         // Cache copy failed (read-only FS, etc.) -- use the source path directly.
         return { path: installed, source: 'installed-agent', commit: installStamp.commit, kind: installScriptKind() }
       }
     }
-
     throw err
   }
 }
@@ -307,41 +271,31 @@ function powershellUnderRoot(root) {
 function resolveWindowsPowerShell() {
   for (const v of ['SystemRoot', 'windir']) {
     const root = process.env[v]
-
     if (root) {
       const candidate = powershellUnderRoot(root)
-
       try {
-        if (fs.statSync(candidate).isFile()) {
-          return candidate
-        }
+        if (fs.statSync(candidate).isFile()) return candidate
       } catch {
         void 0
       }
     }
   }
-
   const pathDirs = (process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean)
-
   for (const exe of ['powershell.exe', 'pwsh.exe']) {
     for (const dir of pathDirs) {
       const candidate = path.join(dir, exe)
-
       try {
-        if (fs.statSync(candidate).isFile()) {
-          return candidate
-        }
+        if (fs.statSync(candidate).isFile()) return candidate
       } catch {
         void 0
       }
     }
   }
-
   return 'powershell.exe'
 }
 
-function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, hermesHome }: any = {}) {
-  return new Promise<any>((resolve, reject) => {
+function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, hermesHome } = {}) {
+  return new Promise((resolve, reject) => {
     const ps = process.platform === 'win32' ? resolveWindowsPowerShell() : 'pwsh'
     const fullArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, ...args]
 
@@ -365,14 +319,12 @@ function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, herme
 
     const onAbort = () => {
       killed = true
-
       try {
         child.kill('SIGTERM')
       } catch {
         void 0
       }
     }
-
     if (abortSignal) {
       if (abortSignal.aborted) {
         onAbort()
@@ -390,14 +342,10 @@ function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, herme
       stdout += chunk
       stdoutBuf += chunk
       let nl
-
       while ((nl = stdoutBuf.indexOf('\n')) !== -1) {
         const line = stdoutBuf.slice(0, nl).replace(/\r$/, '')
         stdoutBuf = stdoutBuf.slice(nl + 1)
-
-        if (line) {
-          emit && emit({ type: 'log', stage: stageName, line, stream: 'stdout' })
-        }
+        if (line) emit && emit({ type: 'log', stage: stageName, line, stream: 'stdout' })
       }
     })
 
@@ -406,46 +354,30 @@ function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, herme
       stderr += chunk
       stderrBuf += chunk
       let nl
-
       while ((nl = stderrBuf.indexOf('\n')) !== -1) {
         const line = stderrBuf.slice(0, nl).replace(/\r$/, '')
         stderrBuf = stderrBuf.slice(nl + 1)
-
-        if (line) {
-          emit && emit({ type: 'log', stage: stageName, line, stream: 'stderr' })
-        }
+        if (line) emit && emit({ type: 'log', stage: stageName, line, stream: 'stderr' })
       }
     })
 
     child.on('error', err => {
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', onAbort)
-      }
-
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort)
       reject(err)
     })
 
     child.on('close', (code, signal) => {
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', onAbort)
-      }
-
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort)
       // Flush any trailing bytes
-      if (stdoutBuf) {
-        emit && emit({ type: 'log', stage: stageName, line: stdoutBuf, stream: 'stdout' } as any)
-      }
-
-      if (stderrBuf) {
-        emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' } as any)
-      }
-
-      resolve({ stdout, stderr, code, signal, killed } as any)
+      if (stdoutBuf) emit && emit({ type: 'log', stage: stageName, line: stdoutBuf, stream: 'stdout' })
+      if (stderrBuf) emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' })
+      resolve({ stdout, stderr, code, signal, killed })
     })
   })
 }
 
-function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome }: any = {}) {
-  return new Promise<any>((resolve, reject) => {
+function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome } = {}) {
+  return new Promise((resolve, reject) => {
     const child = spawn('bash', [scriptPath, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
@@ -460,14 +392,12 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
 
     const onAbort = () => {
       killed = true
-
       try {
         child.kill('SIGTERM')
       } catch {
         void 0
       }
     }
-
     if (abortSignal) {
       if (abortSignal.aborted) {
         onAbort()
@@ -484,14 +414,10 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
       stdout += chunk
       stdoutBuf += chunk
       let nl
-
       while ((nl = stdoutBuf.indexOf('\n')) !== -1) {
         const line = stdoutBuf.slice(0, nl).replace(/\r$/, '')
         stdoutBuf = stdoutBuf.slice(nl + 1)
-
-        if (line) {
-          emit && emit({ type: 'log', stage: stageName, line, stream: 'stdout' })
-        }
+        if (line) emit && emit({ type: 'log', stage: stageName, line, stream: 'stdout' })
       }
     })
 
@@ -500,38 +426,22 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
       stderr += chunk
       stderrBuf += chunk
       let nl
-
       while ((nl = stderrBuf.indexOf('\n')) !== -1) {
         const line = stderrBuf.slice(0, nl).replace(/\r$/, '')
         stderrBuf = stderrBuf.slice(nl + 1)
-
-        if (line) {
-          emit && emit({ type: 'log', stage: stageName, line, stream: 'stderr' })
-        }
+        if (line) emit && emit({ type: 'log', stage: stageName, line, stream: 'stderr' })
       }
     })
 
     child.on('error', err => {
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', onAbort)
-      }
-
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort)
       reject(err)
     })
 
     child.on('close', (code, signal) => {
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', onAbort)
-      }
-
-      if (stdoutBuf) {
-        emit && emit({ type: 'log', stage: stageName, line: stdoutBuf, stream: 'stdout' })
-      }
-
-      if (stderrBuf) {
-        emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' })
-      }
-
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort)
+      if (stdoutBuf) emit && emit({ type: 'log', stage: stageName, line: stdoutBuf, stream: 'stdout' })
+      if (stderrBuf) emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' })
       resolve({ stdout, stderr, code, signal, killed })
     })
   })
@@ -541,66 +451,53 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
 // Manifest + stage dispatch
 // ---------------------------------------------------------------------------
 
-// Build the installer branch/pin args from the install stamp. The commit pin
-// is fresh-install only: once a managed checkout already exists, bootstrap is
-// a repair/update path and must not let an old packaged app detach the checkout
-// back to the commit baked into that app.
-function buildPinArgs(installStamp, { pinCommit = true } = {}) {
+// Build the install.ps1 pin args (-Commit / -Branch) from the install-stamp
+// so the repository stage clones the exact SHA the .exe was tested with
+// instead of falling back to install.ps1's default ($Branch = "main").
+function buildPinArgs(installStamp) {
   const args = []
-
-  if (pinCommit && installStamp && installStamp.commit) {
+  if (installStamp && installStamp.commit) {
     args.push('-Commit', installStamp.commit)
   }
-
   if (installStamp && installStamp.branch) {
     args.push('-Branch', installStamp.branch)
   }
-
   return args
 }
 
-function buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit = true }) {
+function buildPosixPinArgs({ installStamp, activeRoot, hermesHome }) {
   const args = ['--dir', activeRoot, '--hermes-home', hermesHome]
-
   if (installStamp && installStamp.branch) {
     args.push('--branch', installStamp.branch)
   }
-
-  if (pinCommit && installStamp && installStamp.commit) {
+  if (installStamp && installStamp.commit) {
     args.push('--commit', installStamp.commit)
   }
-
   return args
 }
 
-async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, activeRoot, installStamp, pinCommit }) {
+async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, activeRoot, installStamp }) {
   const isPosix = installerKind === 'posix'
-
   const args = isPosix
-    ? ['--manifest', ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit })]
-    : ['-Manifest', ...buildPinArgs(installStamp, { pinCommit })]
-
+    ? ['--manifest', ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome })]
+    : ['-Manifest', ...buildPinArgs(installStamp)]
   const result = await (isPosix ? spawnBash : spawnPowerShell)(scriptPath, args, {
     emit,
     stageName: '__manifest__',
     hermesHome
   })
-
   if (result.code !== 0) {
     throw new Error(
       `${isPosix ? 'install.sh --manifest' : 'install.ps1 -Manifest'} failed: exit ${result.code}\n${result.stderr || result.stdout}`
     )
   }
-
   // The manifest is the LAST JSON line on stdout (install.ps1 may print
   // banner / info lines first depending on Console.OutputEncoding effects).
   // Find the last line that parses as JSON with a `stages` field.
   const lines = result.stdout.split(/\r?\n/).filter(Boolean)
-
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const parsed = JSON.parse(lines[i])
-
       if (parsed && Array.isArray(parsed.stages)) {
         return parsed
       }
@@ -608,7 +505,6 @@ async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, acti
       void 0
     }
   }
-
   throw new Error(
     `${isPosix ? 'install.sh --manifest' : 'install.ps1 -Manifest'} produced no parseable JSON payload\n${result.stdout}`
   )
@@ -619,11 +515,9 @@ async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, acti
 // for the double-emit bug we addressed in the install.ps1 PR).
 function parseStageResult(stdout) {
   const lines = stdout.split(/\r?\n/).filter(Boolean)
-
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const parsed = JSON.parse(lines[i])
-
       if (parsed && typeof parsed.ok === 'boolean' && typeof parsed.stage === 'string') {
         return parsed
       }
@@ -631,36 +525,23 @@ function parseStageResult(stdout) {
       void 0
     }
   }
-
   return null
 }
 
-async function runStage({
-  scriptPath,
-  installerKind,
-  stage,
-  emit,
-  hermesHome,
-  activeRoot,
-  abortSignal,
-  installStamp,
-  pinCommit
-}) {
+async function runStage({ scriptPath, installerKind, stage, emit, hermesHome, activeRoot, abortSignal, installStamp }) {
   const startedAt = Date.now()
   emit({ type: 'stage', name: stage.name, state: 'running' })
 
   const isPosix = installerKind === 'posix'
-
   const args = isPosix
     ? [
         '--stage',
         stage.name,
         '--non-interactive',
         '--json',
-        ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit })
+        ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome })
       ]
-    : ['-Stage', stage.name, '-NonInteractive', '-Json', ...buildPinArgs(installStamp, { pinCommit })]
-
+    : ['-Stage', stage.name, '-NonInteractive', '-Json', ...buildPinArgs(installStamp)]
   const result = await (isPosix ? spawnBash : spawnPowerShell)(scriptPath, args, {
     emit,
     stageName: stage.name,
@@ -673,7 +554,6 @@ async function runStage({
   if (result.killed) {
     const ev = { type: 'stage', name: stage.name, state: 'failed', durationMs, error: 'cancelled by user' }
     emit(ev)
-
     return ev
   }
 
@@ -688,26 +568,20 @@ async function runStage({
       error: `${isPosix ? 'install.sh --stage' : 'install.ps1 -Stage'} ${stage.name} produced no JSON result frame (exit=${result.code})`,
       json: null
     }
-
     emit(ev)
-
     return ev
   }
 
   if (json.ok && json.skipped) {
     const ev = { type: 'stage', name: stage.name, state: 'skipped', durationMs, json }
     emit(ev)
-
     return ev
   }
-
   if (json.ok) {
     const ev = { type: 'stage', name: stage.name, state: 'succeeded', durationMs, json }
     emit(ev)
-
     return ev
   }
-
   const ev = {
     type: 'stage',
     name: stage.name,
@@ -716,9 +590,7 @@ async function runStage({
     json,
     error: json.reason || `exit code ${result.code}`
   }
-
   emit(ev)
-
   return ev
 }
 
@@ -731,7 +603,6 @@ function openRunLog(logRoot) {
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
   const logPath = path.join(logRoot, `bootstrap-${ts}.log`)
   const stream = fs.createWriteStream(logPath, { flags: 'a' })
-
   return { path: logPath, stream }
 }
 
@@ -748,7 +619,7 @@ async function runBootstrap(opts) {
     logRoot,
     onEvent,
     abortSignal,
-    writeMarker // callback to write the bootstrap-complete marker; main.ts provides
+    writeMarker // callback to write the bootstrap-complete marker; main.cjs provides
   } = opts
 
   // Bail before spawning anything if the user already cancelled — otherwise an
@@ -762,7 +633,6 @@ async function runBootstrap(opts) {
         void 0
       }
     }
-
     return { ok: false, cancelled: true }
   }
 
@@ -776,11 +646,8 @@ async function runBootstrap(opts) {
     } catch {
       void 0
     }
-
     try {
-      if (typeof onEvent === 'function') {
-        onEvent(ev)
-      }
+      if (typeof onEvent === 'function') onEvent(ev)
     } catch (err) {
       // Don't let a subscriber bug crash the bootstrap
       runLog.stream.write(`emit error: ${err && err.message}\n`)
@@ -797,18 +664,6 @@ async function runBootstrap(opts) {
   })
 
   try {
-    const existingCheckout = hasExistingGitCheckout(activeRoot)
-    const pinCommit = !existingCheckout
-
-    if (existingCheckout && installStamp && installStamp.commit) {
-      emit({
-        type: 'log',
-        line:
-          `[bootstrap] existing checkout detected at ${activeRoot}; ` +
-          `not pinning to packaged install stamp ${installStamp.commit.slice(0, 12)}`
-      })
-    }
-
     // 1. Resolve the platform installer.
     const scriptInfo = await resolveInstallScript({ installStamp, sourceRepoRoot, hermesHome, emit })
     const installerKind = scriptInfo.kind || 'powershell'
@@ -820,10 +675,8 @@ async function runBootstrap(opts) {
       emit,
       hermesHome,
       activeRoot,
-      installStamp,
-      pinCommit
+      installStamp
     })
-
     emit({
       type: 'manifest',
       stages: manifest.stages,
@@ -837,10 +690,8 @@ async function runBootstrap(opts) {
     for (const stage of manifest.stages) {
       if (abortSignal && abortSignal.aborted) {
         emit({ type: 'failed', error: 'bootstrap cancelled by user' })
-
         return { ok: false, cancelled: true }
       }
-
       const ev = await runStage({
         scriptPath: scriptInfo.path,
         installerKind,
@@ -849,14 +700,11 @@ async function runBootstrap(opts) {
         hermesHome,
         activeRoot,
         abortSignal,
-        installStamp,
-        pinCommit
+        installStamp
       })
-
       if (ev.state === 'failed') {
-        emit({ type: 'failed', stage: stage.name, error: (ev as any).error || 'stage failed' })
-
-        return { ok: false, failedStage: stage.name, error: (ev as any).error }
+        emit({ type: 'failed', stage: stage.name, error: ev.error || 'stage failed' })
+        return { ok: false, failedStage: stage.name, error: ev.error }
       }
     }
 
@@ -865,14 +713,11 @@ async function runBootstrap(opts) {
       pinnedCommit: installStamp ? installStamp.commit : null,
       pinnedBranch: installStamp ? installStamp.branch : null
     }
-
     const marker = typeof writeMarker === 'function' ? writeMarker(markerPayload) : markerPayload
     emit({ type: 'complete', marker })
-
     return { ok: true, marker }
   } catch (err) {
     emit({ type: 'failed', error: err.message || String(err) })
-
     return { ok: false, error: err.message || String(err) }
   } finally {
     try {
@@ -883,15 +728,12 @@ async function runBootstrap(opts) {
   }
 }
 
-export {
-  buildPinArgs,
-  buildPosixPinArgs,
-  cachedScriptPath,
-  hasExistingGitCheckout,
-  installedAgentInstallScript,
+module.exports = {
+  runBootstrap,
   // Exposed for testability
   parseStageResult,
-  resolveInstallScript,
   resolveLocalInstallScript,
-  runBootstrap
+  resolveInstallScript,
+  installedAgentInstallScript,
+  cachedScriptPath
 }

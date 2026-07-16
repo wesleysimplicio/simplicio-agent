@@ -1,7 +1,7 @@
 /**
- * Tests for electron/desktop-uninstall.ts.
+ * Tests for electron/desktop-uninstall.cjs.
  *
- * Run with: node --test electron/desktop-uninstall.test.ts
+ * Run with: node --test electron/desktop-uninstall.test.cjs
  * (Wired into npm test:desktop:platforms in package.json.)
  *
  * These are the pure helpers behind the desktop Chat GUI uninstaller: the
@@ -9,20 +9,19 @@
  * cleanup-script builders (POSIX + Windows).
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test } from 'vitest'
-
-import {
+const {
+  UNINSTALL_MODES,
   buildPosixCleanupScript,
   buildWindowsCleanupScript,
   modeRemovesAgent,
   modeRemovesUserData,
   resolveRemovableAppPath,
   shouldRemoveAppBundle,
-  UNINSTALL_MODES,
   uninstallArgsForMode
-} from './desktop-uninstall'
+} = require('./desktop-uninstall.cjs')
 
 // --- uninstallArgsForMode ---
 
@@ -133,7 +132,6 @@ test('buildPosixCleanupScript waits for the PID, runs the uninstall module, remo
     appPath: '/opt/hermes/linux-unpacked',
     hermesHome: '/home/x/.hermes'
   })
-
   assert.match(script, /^#!\/bin\/bash/)
   assert.match(script, /pid=4321/)
   assert.match(script, /kill -0 "\$pid"/)
@@ -154,7 +152,6 @@ test('buildPosixCleanupScript exports PYTHONPATH when pythonPath is set (lite/fu
     appPath: null,
     hermesHome: '/home/x/.hermes'
   })
-
   // System python + source on PYTHONPATH so import hermes_cli works while the
   // venv is torn down.
   assert.match(script, /export PYTHONPATH='\/home\/x\/\.hermes\/hermes-agent'/)
@@ -171,7 +168,6 @@ test('buildPosixCleanupScript omits PYTHONPATH when pythonPath is null (gui)', (
     appPath: null,
     hermesHome: '/h'
   })
-
   assert.doesNotMatch(script, /export PYTHONPATH/)
 })
 
@@ -185,7 +181,6 @@ test('buildPosixCleanupScript omits the bundle rm when appPath is null', () => {
     appPath: null,
     hermesHome: '/h'
   })
-
   assert.doesNotMatch(script, /rm -rf '\//)
   // Still runs the uninstall.
   assert.match(script, /'-m' 'hermes_cli\.uninstall' '--mode' 'lite'/)
@@ -201,7 +196,6 @@ test('buildPosixCleanupScript single-quote-escapes paths with apostrophes', () =
     appPath: null,
     hermesHome: '/h'
   })
-
   // The apostrophe is closed-escaped-reopened so the shell sees the literal.
   assert.match(script, /'\/home\/o'\\''brien\/python'/)
 })
@@ -218,7 +212,6 @@ test('buildWindowsCleanupScript waits (bounded) for PID, runs uninstall, rmdir b
     appPath: 'C:\\Users\\x\\AppData\\Local\\Programs\\Hermes',
     hermesHome: 'C:\\Users\\x\\AppData\\Local\\hermes'
   })
-
   assert.match(script, /@echo off/)
   assert.match(script, /set "PID=9988"/)
   // PYTHONPATH set so a system python can import hermes_cli from source.
@@ -245,7 +238,6 @@ test('buildWindowsCleanupScript omits PYTHONPATH + rmdir when not needed (gui, n
     appPath: null,
     hermesHome: 'C:\\h'
   })
-
   assert.doesNotMatch(script, /rmdir/)
   assert.doesNotMatch(script, /set "PYTHONPATH=/)
 })

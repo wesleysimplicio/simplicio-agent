@@ -1,12 +1,14 @@
+'use strict'
+
 // Repo-first discovery: walk bounded roots for git repos using only Node's `fs`
 // — no native addon, so it just works for anyone who pulls main (no
 // electron-rebuild). Mirrors how GitHub Desktop scans: stop at the first `.git`
 // (don't descend into a repo), cap depth, and skip heavy non-repo trees so the
 // first scan stays fast. Results are cached by the backend after the first run.
 
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
 const fsp = fs.promises
 
@@ -34,14 +36,14 @@ async function mapLimit(items, limit, fn) {
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) } as any, worker))
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
 /**
  * Scan `roots` (default: the home dir) for git repositories. Returns deduped
  * `{ root, label }` entries. `options.maxDepth` caps recursion (default 3).
  */
-async function scanGitRepos(roots, options: any = {}) {
+async function scanGitRepos(roots, options = {}) {
   const maxDepth = Number(options.maxDepth) || DEFAULT_MAX_DEPTH
   const searchRoots = Array.isArray(roots) && roots.length > 0 ? roots : [os.homedir()]
   const found = new Map()
@@ -52,7 +54,6 @@ async function scanGitRepos(roots, options: any = {}) {
     }
 
     let entries
-
     try {
       entries = await fsp.readdir(dir, { withFileTypes: true })
     } catch {
@@ -72,7 +73,6 @@ async function scanGitRepos(roots, options: any = {}) {
     }
 
     const subdirs = []
-
     for (const entry of entries) {
       // Real directories only (skip symlinks to avoid loops), no hidden dirs, no
       // known heavy trees.
@@ -93,4 +93,4 @@ async function scanGitRepos(roots, options: any = {}) {
   return [...found.entries()].map(([root, label]) => ({ label, root }))
 }
 
-export { scanGitRepos }
+module.exports = { scanGitRepos }

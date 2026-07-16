@@ -1,13 +1,12 @@
-import assert from 'node:assert/strict'
+const assert = require('node:assert/strict')
+const test = require('node:test')
 
-import { test } from 'vitest'
-
-import {
+const {
   decodeClipboardImageBase64,
   encodePowerShellCommand,
   powershellCandidates,
   readWslWindowsClipboardImage
-} from './wsl-clipboard-image'
+} = require('./wsl-clipboard-image.cjs')
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
@@ -50,12 +49,10 @@ test('decodeClipboardImageBase64 rejects base64 without a PNG signature', () => 
 test('readWslWindowsClipboardImage decodes the first candidate that returns a PNG', () => {
   const png = fakePngBuffer()
   const calls = []
-
-  const exec = ((cmd, args) => {
+  const exec = (cmd, args) => {
     calls.push({ cmd, args })
-
     return png.toString('base64')
-  }) as any
+  }
 
   const result = readWslWindowsClipboardImage({ exec, candidates: ['powershell.exe'] })
   assert.ok(result && result.equals(png))
@@ -68,18 +65,15 @@ test('readWslWindowsClipboardImage decodes the first candidate that returns a PN
 
 test('readWslWindowsClipboardImage returns null and stops when stdout is empty (no image)', () => {
   let count = 0
-
-  const exec = (() => {
+  const exec = () => {
     count += 1
-
     return ''
-  }) as any
+  }
 
   const result = readWslWindowsClipboardImage({
     exec,
     candidates: ['powershell.exe', '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe']
   })
-
   assert.equal(result, null)
   // Empty stdout means "no image on the clipboard" — don't probe further candidates.
   assert.equal(count, 1)
@@ -88,22 +82,18 @@ test('readWslWindowsClipboardImage returns null and stops when stdout is empty (
 test('readWslWindowsClipboardImage falls through to the next candidate when one throws', () => {
   const png = fakePngBuffer()
   const seen = []
-
   const exec = cmd => {
     seen.push(cmd)
-
     if (cmd === 'powershell.exe') {
       throw Object.assign(new Error('not found'), { code: 'ENOENT' })
     }
-
-    return png.toString('base64') as any
+    return png.toString('base64')
   }
 
   const result = readWslWindowsClipboardImage({
     exec,
     candidates: ['powershell.exe', '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe']
   })
-
   assert.ok(result && result.equals(png))
   assert.deepEqual(seen, ['powershell.exe', '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe'])
 })

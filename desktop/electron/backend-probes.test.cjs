@@ -1,18 +1,17 @@
 /**
- * Tests for electron/backend-probes.ts.
+ * Tests for electron/backend-probes.cjs.
  *
- * Run with: node --test electron/backend-probes.test.ts
+ * Run with: node --test electron/backend-probes.test.cjs
  * (Wired into npm test:desktop:platforms in package.json.)
  */
 
-import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
-import { test } from 'vitest'
-
-import { canImportHermesCli, hermesRuntimeImportProbe, verifyHermesCli } from './backend-probes'
+const { canImportHermesCli, hermesRuntimeImportProbe, verifyHermesCli } = require('./backend-probes.cjs')
 
 // Resolve the host's own Node binary -- guaranteed to be on disk and
 // runnable. We use it as both a stand-in for "a python that doesn't
@@ -44,10 +43,6 @@ test('canImportHermesCli returns false when binary does not exist', () => {
 test('hermes runtime import probe checks config dependencies', () => {
   const probe = hermesRuntimeImportProbe()
   assert.match(probe, /\bimport yaml\b/)
-  // dotenv is the first third-party import on the CLI boot path
-  // (hermes_cli/env_loader.py); a mid-update venv missing python-dotenv
-  // passed the old probe and produced an unrecoverable boot loop.
-  assert.match(probe, /\bimport dotenv\b/)
   assert.match(probe, /\bimport hermes_cli\.config\b/)
 })
 
@@ -68,7 +63,6 @@ test('verifyHermesCli returns true when --version exits 0', () => {
   // verifyHermesCli only cares about the exit code.
   const scriptPath = path.join(os.tmpdir(), `hermes-probes-ok-${Date.now()}-${process.pid}.cjs`)
   fs.writeFileSync(scriptPath, 'process.exit(0)\n')
-
   try {
     // Use node as the launcher and our script as the "command". Pass
     // shell:false (default) -- node is a real binary, no shim.

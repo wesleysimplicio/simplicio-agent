@@ -1,14 +1,13 @@
 /**
  * Tests for OAuth-session Electron net.request helpers.
  *
- * Run with: node --test electron/oauth-net-request.test.ts
+ * Run with: node --test electron/oauth-net-request.test.cjs
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test } from 'vitest'
-
-import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
+const { serializeJsonBody, setJsonRequestHeaders } = require('./oauth-net-request.cjs')
 
 test('serializeJsonBody returns undefined for absent bodies', () => {
   assert.equal(serializeJsonBody(undefined), undefined)
@@ -22,7 +21,6 @@ test('serializeJsonBody JSON-encodes request bodies', () => {
 
 test('setJsonRequestHeaders does not set Electron-restricted Content-Length', () => {
   const headers = []
-
   const request = {
     setHeader(name, value) {
       headers.push([name, value])

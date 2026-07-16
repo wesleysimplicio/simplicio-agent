@@ -1,8 +1,7 @@
-import assert from 'node:assert/strict'
+const assert = require('node:assert/strict')
+const { test } = require('node:test')
 
-import { test } from 'vitest'
-
-import { expandWindowsEnvRefs, parseRegQueryValue, readWindowsUserEnvVar } from './windows-user-env'
+const { expandWindowsEnvRefs, parseRegQueryValue, readWindowsUserEnvVar } = require('./windows-user-env.cjs')
 
 // ── parseRegQueryValue ─────────────────────────────────────────────────────
 
@@ -43,32 +42,25 @@ test('expandWindowsEnvRefs leaves literal paths and unknown refs intact', () => 
 
 test('readWindowsUserEnvVar returns null off Windows without spawning', () => {
   let spawned = false
-
   const exec = () => {
     spawned = true
-
     return ''
   }
-
   assert.equal(readWindowsUserEnvVar('HERMES_HOME', { platform: 'linux', exec }), null)
   assert.equal(spawned, false)
 })
 
 test('readWindowsUserEnvVar queries HKCU\\Environment and expands the value', () => {
   const calls = []
-
   const exec = (cmd, args) => {
     calls.push([cmd, args])
-
     return 'HKEY_CURRENT_USER\\Environment\r\n    HERMES_HOME    REG_EXPAND_SZ    %DRIVE%\\Hermes\r\n'
   }
-
   const value = readWindowsUserEnvVar('HERMES_HOME', {
     platform: 'win32',
     env: { DRIVE: 'F:' },
     exec
   })
-
   assert.equal(value, 'F:\\Hermes')
   assert.deepEqual(calls, [['reg', ['query', 'HKCU\\Environment', '/v', 'HERMES_HOME']]])
 })
@@ -77,7 +69,6 @@ test('readWindowsUserEnvVar returns null when reg exits non-zero (value missing)
   const exec = () => {
     throw new Error('reg exited 1')
   }
-
   assert.equal(readWindowsUserEnvVar('HERMES_HOME', { platform: 'win32', exec }), null)
 })
 

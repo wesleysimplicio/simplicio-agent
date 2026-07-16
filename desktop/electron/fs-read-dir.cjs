@@ -1,8 +1,8 @@
-import fs from 'node:fs'
-import path from 'node:path'
+'use strict'
 
-import { resolveDirectoryForIpc } from './hardening'
-import { resolveLocalReadPath } from './wsl-path-bridge'
+const fs = require('node:fs')
+const path = require('node:path')
+const { resolveDirectoryForIpc } = require('./hardening.cjs')
 
 const FS_READDIR_STAT_CONCURRENCY = 16
 
@@ -37,9 +37,7 @@ function direntIsSymbolicLink(dirent) {
 }
 
 function shouldStatDirent(dirent) {
-  if (direntIsDirectory(dirent)) {
-    return false
-  }
+  if (direntIsDirectory(dirent)) return false
 
   return direntIsSymbolicLink(dirent) || !direntIsFile(dirent)
 }
@@ -72,22 +70,18 @@ async function mapWithStatConcurrency(items, mapper) {
   }
 
   const workerCount = Math.min(FS_READDIR_STAT_CONCURRENCY, items.length)
-  const workers = Array.from({ length: workerCount } as any, () => runWorker())
+  const workers = Array.from({ length: workerCount }, () => runWorker())
   await Promise.all(workers)
 
   return results
 }
 
-async function readDirForIpc(dirPath, options: any = {}) {
+async function readDirForIpc(dirPath, options = {}) {
   const fsImpl = options.fs || fs
   let resolved
 
-  // On a Windows host with a WSL backend, a WSL/POSIX cwd (`/home/...`,
-  // `/mnt/c/...`) isn't readable as-is; bridge it to a UNC/drive form first.
-  const readPath = resolveLocalReadPath(String(dirPath ?? ''))
-
   try {
-    ;({ resolvedPath: resolved } = await resolveDirectoryForIpc(readPath, {
+    ;({ resolvedPath: resolved } = await resolveDirectoryForIpc(dirPath, {
       fs: fsImpl,
       purpose: 'Directory read'
     }))
@@ -108,4 +102,6 @@ async function readDirForIpc(dirPath, options: any = {}) {
   }
 }
 
-export { readDirForIpc }
+module.exports = {
+  readDirForIpc
+}

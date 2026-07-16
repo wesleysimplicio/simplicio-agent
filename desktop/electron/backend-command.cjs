@@ -1,3 +1,5 @@
+'use strict'
+
 // Backend subcommand routing for the desktop-managed Hermes process.
 //
 // The desktop app launches its own headless backend via `hermes serve` — it
@@ -15,9 +17,8 @@
  * Build the canonical headless backend argv (always `serve`).
  * @param {string} [profile] optional Hermes profile to pin via `--profile`.
  */
-export function serveBackendArgs(profile?: string) {
+function serveBackendArgs(profile) {
   const head = profile ? ['--profile', profile] : []
-
   return [...head, 'serve', '--host', '127.0.0.1', '--port', '0']
 }
 
@@ -27,13 +28,9 @@ export function serveBackendArgs(profile?: string) {
  * `-m hermes_cli.main` and any `--profile <name>`). Returns a copy; if there is
  * no `serve` token the argv is returned unchanged.
  */
-export function dashboardFallbackArgs(args) {
+function dashboardFallbackArgs(args) {
   const i = args.indexOf('serve')
-
-  if (i === -1) {
-    return args.slice()
-  }
-
+  if (i === -1) return args.slice()
   return [...args.slice(0, i), 'dashboard', '--no-open', ...args.slice(i + 1)]
 }
 
@@ -43,6 +40,12 @@ export function dashboardFallbackArgs(args) {
  * specifically so the substring "server" (e.g. "start_server", "web server")
  * never produces a false positive.
  */
-export function sourceDeclaresServe(dashboardPySource) {
+function sourceDeclaresServe(dashboardPySource) {
   return /add_parser\(\s*["']serve["']/.test(String(dashboardPySource || ''))
+}
+
+module.exports = {
+  serveBackendArgs,
+  dashboardFallbackArgs,
+  sourceDeclaresServe,
 }

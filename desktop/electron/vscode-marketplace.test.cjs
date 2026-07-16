@@ -1,8 +1,9 @@
-import assert from 'node:assert'
+'use strict'
 
-import { test } from 'vitest'
+const assert = require('node:assert')
+const test = require('node:test')
 
-import { __testing, extractThemes, readCentralDirectory } from './vscode-marketplace'
+const { __testing, extractThemes, readCentralDirectory } = require('./vscode-marketplace.cjs')
 
 // Build a minimal zip with stored (uncompressed) entries so the test controls
 // the bytes exactly — exercises the central-directory reader + theme extraction
@@ -71,7 +72,6 @@ test('extractThemes reads contributed color themes (resolving ./ paths)', () => 
       themes: [{ label: 'Dracula', uiTheme: 'vs-dark', path: './themes/dracula.json' }]
     }
   })
-
   const themeJson = JSON.stringify({ name: 'Dracula', type: 'dark', colors: { 'editor.background': '#282a36' } })
 
   const zip = makeZip([

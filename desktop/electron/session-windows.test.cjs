@@ -1,8 +1,11 @@
-import assert from 'node:assert/strict'
+const assert = require('node:assert/strict')
+const test = require('node:test')
 
-import { test } from 'vitest'
-
-import { buildSessionWindowUrl, chatWindowWebPreferences, createSessionWindowRegistry } from './session-windows'
+const {
+  buildSessionWindowUrl,
+  chatWindowWebPreferences,
+  createSessionWindowRegistry
+} = require('./session-windows.cjs')
 
 // A minimal fake BrowserWindow: tracks listeners + destroyed state and lets a
 // test fire the 'closed' event, mirroring the slice of the Electron API the
@@ -93,7 +96,6 @@ test('registry opens one window per session and focuses on re-open', () => {
   const registry = createSessionWindowRegistry()
   let built = 0
   const win = makeFakeWindow()
-
   const factory = () => {
     built += 1
 
@@ -143,7 +145,6 @@ test('registry rebuilds a fresh window after the previous one was destroyed', ()
 
   let built = 0
   const second = makeFakeWindow()
-
   const result = registry.openOrFocus('s1', () => {
     built += 1
 
@@ -157,7 +158,6 @@ test('registry rebuilds a fresh window after the previous one was destroyed', ()
 test('registry ignores empty / non-string session ids', () => {
   const registry = createSessionWindowRegistry()
   let built = 0
-
   const factory = () => {
     built += 1
 
