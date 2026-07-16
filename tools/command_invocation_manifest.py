@@ -25,6 +25,7 @@ Gateway/ACP/MCP/skills/plugin surfaces.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from dataclasses import dataclass, field
@@ -32,6 +33,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+# Keep the documented ``python tools/command_invocation_manifest.py`` entrypoint
+# importable when Python seeds sys.path with ``tools/`` instead of the repo root.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 SCHEMA = "simplicio.command-invocation-manifest/v1"
 VERSION = 1
 GENERATOR = "tools/command_invocation_manifest.py"
@@ -55,6 +60,9 @@ STAGES = (
 # Stages this slice can mechanically classify today. The rest are always
 # "unknown" until a later slice adds turn-level runtime evidence.
 CLASSIFIED_STAGES = ("DECLARED", "REGISTERED", "DISCOVERABLE", "AUTHORIZED")
+RUNTIME_EVIDENCE_STAGES = ("ROUTED", "INVOKED", "RESULT_NORMALIZED", "EVIDENCED")
+RUNTIME_UNKNOWN_STAGES = ("E2E_PROVEN", "PACKAGE_PROVEN", "REGRESSION_GATED")
+REACHABILITY_PROBE_TOOL = "skills_list"
 UNCLASSIFIED_REASON = (
     "requires turn-level runtime evidence (TurnEngine/ToolInvocationPipeline "
     "execution trace) not yet wired by the agent_tool manifest slice"
@@ -158,6 +166,116 @@ def _classify_tool(name: str) -> ToolAxisResult:
     return result
 
 
+def _runtime_stage_results(reason: str) -> dict[str, dict[str, Any]]:
+    return {
+        stage: {"status": "unknown", "ok": False, "reason": reason}
+        for stage in RUNTIME_EVIDENCE_STAGES + RUNTIME_UNKNOWN_STAGES
+    }
+
+
+def _failed_reachability_probe(tool_name: str, reason: str) -> dict[str, Any]:
+    stage_results = _runtime_stage_results(reason)
+    stage_results["ROUTED"] = {"status": "fail", "ok": False, "reason": reason}
+    return {
+        "tool": tool_name,
+        "status": "fail",
+        "invocation_count": 0,
+        "result_type": None,
+        "result_sha256": None,
+        "receipt_written": False,
+        "stage_status": {
+            stage: result["status"] for stage, result in stage_results.items()
+        },
+        "stage_results": stage_results,
+    }
+
+
+def probe_runtime_reachability(
+    tool_name: str = REACHABILITY_PROBE_TOOL,
+) -> dict[str, Any]:
+    """Exercise one safe registry tool through the real invocation pipeline.
+
+    This is deliberately a bounded probe, not a claim that every tool has
+    passed the full issue #398 lifecycle. The selected tool is read-only and
+    its receipt is kept in memory so manifest generation cannot write agent
+    state or expose a live result. Unknown or unavailable tools fail closed.
+    """
+
+    from agent.tool_invocation_pipeline import ToolInvocation, ToolInvocationPipeline
+    from tools.registry import _check_fn_cached, discover_builtin_tools, registry
+
+    discover_builtin_tools()
+    entry = registry.get_entry(tool_name)
+    if entry is None:
+        return _failed_reachability_probe(tool_name, "tool is not registered")
+    if entry.check_fn is not None and not _check_fn_cached(entry.check_fn):
+        return _failed_reachability_probe(
+            tool_name, "tool authorization check denied the read-only probe"
+        )
+
+    invocations: list[tuple[str, dict[str, Any]]] = []
+    receipts: list[Any] = []
+    pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
+    outcome = pipeline.run(
+        ToolInvocation(tool_name, {}, "398-reachability-probe", "398-manifest"),
+        lambda name, args: (
+            invocations.append((name, dict(args)))
+            or registry.dispatch(
+                name,
+                args,
+                task_id="398-manifest",
+                session_id="",
+            )
+        ),
+    )
+    normalized = isinstance(outcome.result, str) or (
+        isinstance(outcome.result, dict)
+        and outcome.result.get("_multimodal") is True
+        and isinstance(outcome.result.get("content"), list)
+    )
+    receipt_written = bool(outcome.receipt is not None and len(receipts) == 1)
+    stage_results = _runtime_stage_results(
+        "full TurnEngine/AgentHost/package proof is outside this bounded probe"
+    )
+    stage_results["ROUTED"] = {
+        "status": "pass" if invocations == [(tool_name, {})] else "fail",
+        "ok": invocations == [(tool_name, {})],
+        "reason": "registry dispatch reached the pipeline adapter",
+    }
+    stage_results["INVOKED"] = {
+        "status": "pass" if len(invocations) == 1 else "fail",
+        "ok": len(invocations) == 1,
+        "reason": f"executor call count={len(invocations)}",
+    }
+    stage_results["RESULT_NORMALIZED"] = {
+        "status": "pass" if normalized and outcome.status == "success" else "fail",
+        "ok": normalized and outcome.status == "success",
+        "reason": f"pipeline outcome={outcome.status}; result_type={type(outcome.result).__name__}",
+    }
+    stage_results["EVIDENCED"] = {
+        "status": "pass" if receipt_written else "fail",
+        "ok": receipt_written,
+        "reason": "in-memory invocation receipt and evidence were produced",
+    }
+    result_text = outcome.result if isinstance(outcome.result, str) else ""
+    return {
+        "tool": tool_name,
+        "status": "pass"
+        if all(item["ok"] for item in stage_results.values() if item["status"] != "unknown")
+        else "fail",
+        "invocation_count": len(invocations),
+        "result_type": type(outcome.result).__name__,
+        "result_sha256": hashlib.sha256(result_text.encode("utf-8")).hexdigest()
+        if result_text
+        else None,
+        "receipt_written": receipt_written,
+        "stage_status": {
+            stage: result["status"] for stage, result in stage_results.items()
+        },
+        "stage_results": stage_results,
+    }
+
+
 def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Generate the agent_tool slice of the v1 manifest from the live registry.
 
@@ -172,7 +290,16 @@ def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
     discover_builtin_tools()
     names = registry.get_all_tool_names()
-    axes = [_classify_tool(name).as_dict() for name in names]
+    tool_axes = [_classify_tool(name) for name in names]
+    runtime_reachability = probe_runtime_reachability()
+    probe_axis = next(
+        (axis for axis in tool_axes if axis.name == runtime_reachability["tool"]),
+        None,
+    )
+    if probe_axis is not None:
+        for stage, result in runtime_reachability["stage_results"].items():
+            probe_axis.mark(stage, result["status"], result.get("reason", ""))
+    axes = [axis.as_dict() for axis in tool_axes]
     failed = sum(not axis["classified_ok"] for axis in axes)
     return {
         "schema": SCHEMA,
@@ -183,6 +310,8 @@ def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "class": CLASS_NAME,
             "classified_stages": list(CLASSIFIED_STAGES),
             "unclassified_stages": [s for s in STAGES if s not in CLASSIFIED_STAGES],
+            "runtime_evidence_stages": list(RUNTIME_EVIDENCE_STAGES),
+            "runtime_unknown_stages": list(RUNTIME_UNKNOWN_STAGES),
             "note": (
                 "Partial slice of issue #398's full command-invocation-manifest. "
                 "Only the agent_tool class is inventoried here, and only the four "
@@ -192,6 +321,7 @@ def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             ),
         },
         "axes": axes,
+        "runtime_reachability": runtime_reachability,
         "summary": {
             "axis_count": len(axes),
             "failed": failed,
@@ -235,6 +365,22 @@ def validate_manifest(document: Mapping[str, Any]) -> list[str]:
         errors.append("summary must be an object")
     elif summary.get("axis_count") != len(axes):
         errors.append("summary.axis_count disagrees with axes")
+    runtime = document.get("runtime_reachability")
+    if not isinstance(runtime, Mapping):
+        errors.append("runtime_reachability must be an object")
+    else:
+        runtime_statuses = runtime.get("stage_status")
+        if not isinstance(runtime_statuses, Mapping) or set(runtime_statuses) != set(
+            RUNTIME_EVIDENCE_STAGES + RUNTIME_UNKNOWN_STAGES
+        ):
+            errors.append("runtime_reachability.stage_status has an invalid shape")
+        elif any(
+            runtime_statuses[stage] not in VALID_STATUSES
+            for stage in RUNTIME_EVIDENCE_STAGES + RUNTIME_UNKNOWN_STAGES
+        ):
+            errors.append("runtime_reachability.stage_status has an invalid status value")
+        if not isinstance(runtime.get("tool"), str) or not runtime["tool"]:
+            errors.append("runtime_reachability.tool must be a non-empty string")
     return sorted(set(errors))
 
 

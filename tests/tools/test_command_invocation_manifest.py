@@ -9,10 +9,14 @@ from tools.command_invocation_manifest import (
     CLASS_NAME,
     CLASSIFIED_STAGES,
     REPO_ROOT,
+    REACHABILITY_PROBE_TOOL,
+    RUNTIME_EVIDENCE_STAGES,
+    RUNTIME_UNKNOWN_STAGES,
     SCHEMA,
     STAGES,
     generate_manifest,
     main,
+    probe_runtime_reachability,
     validate_manifest,
 )
 
@@ -40,12 +44,19 @@ def test_manifest_covers_the_live_registry() -> None:
 
 def test_every_axis_classifies_all_stages_but_only_asserts_the_classified_ones() -> None:
     document = generate_manifest(REPO_ROOT)
+    runtime_probe = document["runtime_reachability"]
     for axis in document["axes"]:
         assert set(axis["stage_status"]) == set(STAGES)
         assert axis["class"] == CLASS_NAME
         for stage in STAGES:
             if stage not in CLASSIFIED_STAGES:
-                assert axis["stage_status"][stage] == "unknown"
+                if (
+                    axis["name"] == runtime_probe["tool"]
+                    and stage in RUNTIME_EVIDENCE_STAGES
+                ):
+                    assert axis["stage_status"][stage] == runtime_probe["stage_status"][stage]
+                else:
+                    assert axis["stage_status"][stage] == "unknown"
         expected_ok = all(
             axis["stage_status"][s] == "pass" for s in CLASSIFIED_STAGES
         )
@@ -71,6 +82,88 @@ def test_validator_rejects_bad_schema() -> None:
 def test_validator_accepts_generated_manifest() -> None:
     document = generate_manifest(REPO_ROOT)
     assert validate_manifest(document) == []
+
+
+def test_validator_reports_structural_manifest_errors() -> None:
+    invalid_axis_statuses = {stage: "invalid" for stage in STAGES}
+    invalid_runtime_statuses = {
+        stage: "invalid"
+        for stage in RUNTIME_EVIDENCE_STAGES + RUNTIME_UNKNOWN_STAGES
+    }
+    errors = validate_manifest(
+        {
+            "schema": "wrong/v0",
+            "version": 0,
+            "generator": "wrong.py",
+            "axes": [
+                {"class": "wrong", "stage_status": invalid_axis_statuses},
+                {"class": "wrong", "stage_status": invalid_axis_statuses},
+                "not-an-object",
+            ],
+            "summary": {"axis_count": 99},
+            "runtime_reachability": {
+                "tool": "",
+                "stage_status": invalid_runtime_statuses,
+            },
+        }
+    )
+
+    assert any("schema" in error for error in errors)
+    assert any("axis names must be unique" in error for error in errors)
+    assert any("invalid status value" in error for error in errors)
+    assert any("tool must be a non-empty string" in error for error in errors)
+    assert validate_manifest({"axes": "not-a-list"})
+    missing_runtime_errors = validate_manifest({"axes": [], "summary": {"axis_count": 0}})
+    assert any("runtime_reachability must be an object" in error for error in missing_runtime_errors)
+
+
+def test_cli_validate_reports_missing_and_invalid_files(tmp_path: Path, capsys) -> None:
+    missing = tmp_path / "missing.json"
+    assert main(["--validate", str(missing)]) == 2
+    assert "invalid manifest" in capsys.readouterr().err
+
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("{}", encoding="utf-8")
+    assert main(["--validate", str(invalid)]) == 1
+    assert "schema must" in capsys.readouterr().err
+
+
+def test_runtime_reachability_probe_uses_live_registry_and_pipeline() -> None:
+    probe = probe_runtime_reachability()
+
+    assert probe["tool"] == REACHABILITY_PROBE_TOOL
+    assert probe["status"] == "pass"
+    assert probe["invocation_count"] == 1
+    assert probe["receipt_written"] is True
+    assert probe["stage_status"]["ROUTED"] == "pass"
+    assert probe["stage_status"]["INVOKED"] == "pass"
+    assert probe["stage_status"]["RESULT_NORMALIZED"] == "pass"
+    assert probe["stage_status"]["EVIDENCED"] == "pass"
+    assert probe["stage_status"]["E2E_PROVEN"] == "unknown"
+    assert probe["result_sha256"]
+
+
+def test_runtime_reachability_fails_closed_for_unknown_tool() -> None:
+    probe = probe_runtime_reachability("__definitely_not_a_registered_tool__")
+
+    assert probe["status"] == "fail"
+    assert probe["invocation_count"] == 0
+    assert probe["stage_status"]["ROUTED"] == "fail"
+    assert all(
+        status != "pass" for status in probe["stage_status"].values()
+    )
+
+
+def test_generated_manifest_attaches_probe_evidence_only_to_probed_axis() -> None:
+    document = generate_manifest(REPO_ROOT)
+    probe = document["runtime_reachability"]
+    axis = next(axis for axis in document["axes"] if axis["name"] == probe["tool"])
+
+    assert axis["stage_status"]["INVOKED"] == probe["stage_status"]["INVOKED"]
+    assert axis["stage_status"]["EVIDENCED"] == probe["stage_status"]["EVIDENCED"]
+    other_axes = [axis for axis in document["axes"] if axis["name"] != probe["tool"]]
+    assert other_axes
+    assert all(axis["stage_status"]["INVOKED"] == "unknown" for axis in other_axes)
 
 
 def test_cli_json_output_round_trips(tmp_path: Path) -> None:
