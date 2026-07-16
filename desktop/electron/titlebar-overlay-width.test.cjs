@@ -1,13 +1,7 @@
-import assert from 'node:assert/strict'
+const assert = require('node:assert/strict')
+const test = require('node:test')
 
-import { test } from 'vitest'
-
-import {
-  MACOS_TAHOE_DARWIN_MAJOR,
-  macTitleBarOverlayHeight,
-  nativeOverlayWidth,
-  OVERLAY_FALLBACK_WIDTH
-} from './titlebar-overlay-width'
+const { OVERLAY_FALLBACK_WIDTH, nativeOverlayWidth } = require('./titlebar-overlay-width.cjs')
 
 // This static reservation is only the pre-layout FALLBACK. Once laid out the
 // renderer reads the exact width from navigator.windowControlsOverlay
@@ -39,17 +33,4 @@ test('macOS uses traffic lights, not a WCO overlay, so it reserves nothing', () 
 
 test('the fallback width is a sane positive pixel value', () => {
   assert.ok(Number.isInteger(OVERLAY_FALLBACK_WIDTH) && OVERLAY_FALLBACK_WIDTH > 0)
-})
-
-test('pre-Tahoe keeps the full titlebar overlay height', () => {
-  assert.equal(macTitleBarOverlayHeight({ darwinMajor: MACOS_TAHOE_DARWIN_MAJOR - 1, titlebarHeight: 34 }), 34)
-})
-
-test('Tahoe (Darwin 25+) drops the overlay height to 0 to avoid electron#49183', () => {
-  assert.equal(macTitleBarOverlayHeight({ darwinMajor: MACOS_TAHOE_DARWIN_MAJOR, titlebarHeight: 34 }), 0)
-  assert.equal(macTitleBarOverlayHeight({ darwinMajor: MACOS_TAHOE_DARWIN_MAJOR + 1, titlebarHeight: 34 }), 0)
-})
-
-test('macTitleBarOverlayHeight tolerates missing args (unknown platform → 0)', () => {
-  assert.equal(macTitleBarOverlayHeight(), 0)
 })

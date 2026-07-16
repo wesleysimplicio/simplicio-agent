@@ -1,15 +1,14 @@
 /**
- * Tests for electron/workspace-cwd.ts.
+ * Tests for electron/workspace-cwd.cjs.
  *
- * Run with: node --test electron/workspace-cwd.test.ts
+ * Run with: node --test electron/workspace-cwd.test.cjs
  */
 
-import assert from 'node:assert/strict'
-import path from 'node:path'
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const path = require('node:path')
 
-import { test } from 'vitest'
-
-import { isPackagedInstallPath } from './workspace-cwd'
+const { isPackagedInstallPath } = require('./workspace-cwd.cjs')
 
 const installRoot = path.resolve('/opt/Hermes')
 

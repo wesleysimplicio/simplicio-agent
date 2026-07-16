@@ -1,14 +1,14 @@
 /**
- * desktop-uninstall.ts
+ * desktop-uninstall.cjs
  *
  * Pure, electron-free helpers for the desktop Chat GUI uninstaller. These map
  * the three user-facing uninstall modes to the `hermes uninstall` CLI flags,
  * resolve the running app bundle/exe so a detached cleanup script can remove
  * it after the app quits, and build that cleanup script for each OS.
  *
- * Kept standalone (no ` import 'electron'`) so it can be unit-tested with
- * `node --test` — same pattern as connection-config.ts / backend-probes.ts.
- * main.ts requires these and wires them into the electron-coupled IPC layer.
+ * Kept standalone (no `require('electron')`) so it can be unit-tested with
+ * `node --test` — same pattern as connection-config.cjs / backend-probes.cjs.
+ * main.cjs requires these and wires them into the electron-coupled IPC layer.
  *
  * The three modes mirror the CLI's options exactly:
  *   - 'gui'  → remove ONLY the Chat GUI, keep the agent + all user data.
@@ -23,10 +23,10 @@
  * app bundle (locked on macOS/Windows while the process is alive). So we hand
  * the work to a detached child that waits for this app's PID to exit, runs the
  * Python uninstall, then removes the app bundle — then the app quits. Same
- * shape as the self-update swap-and-relaunch flow already in main.ts.
+ * shape as the self-update swap-and-relaunch flow already in main.cjs.
  */
 
-import path from 'node:path'
+const path = require('node:path')
 
 const UNINSTALL_MODES = ['gui', 'lite', 'full']
 
@@ -41,7 +41,6 @@ function uninstallArgsForMode(mode) {
   if (!UNINSTALL_MODES.includes(mode)) {
     throw new Error(`Unknown uninstall mode: ${mode}`)
   }
-
   return ['-m', 'hermes_cli.uninstall', '--mode', mode]
 }
 
@@ -66,12 +65,9 @@ function modeRemovesUserData(mode) {
  * Returns null when we can't confidently identify a removable bundle (e.g.
  * running from a dev checkout, or a system-package install we must not rmtree).
  */
-function resolveRemovableAppPath(execPath, platform, env: any = {}) {
+function resolveRemovableAppPath(execPath, platform, env = {}) {
   const exe = String(execPath || '')
-
-  if (!exe) {
-    return null
-  }
+  if (!exe) return null
 
   // Use the path flavor that matches the TARGET platform, not the host running
   // this code — so the Windows branch parses backslash paths correctly even
@@ -83,37 +79,22 @@ function resolveRemovableAppPath(execPath, platform, env: any = {}) {
     const macOsDir = p.dirname(exe) // …/Contents/MacOS
     const contents = p.dirname(macOsDir) // …/Contents
     const appBundle = p.dirname(contents) // …/Hermes.app
-
-    if (appBundle.endsWith('.app')) {
-      return appBundle
-    }
-
+    if (appBundle.endsWith('.app')) return appBundle
     return null
   }
 
   if (platform === 'win32') {
     // NSIS per-user installs Hermes.exe directly in the install dir.
     const dir = p.dirname(exe)
-
-    if (/[\\/]Hermes$/i.test(dir) || /[\\/]hermes-desktop$/i.test(dir)) {
-      return dir
-    }
-
+    if (/[\\/]Hermes$/i.test(dir) || /[\\/]hermes-desktop$/i.test(dir)) return dir
     return null
   }
 
   // Linux: an AppImage exposes its own path via the APPIMAGE env var.
-  if (env.APPIMAGE) {
-    return env.APPIMAGE
-  }
-
+  if (env.APPIMAGE) return env.APPIMAGE
   // Unpacked electron-builder tree: …/linux-unpacked/hermes
   const dir = p.dirname(exe)
-
-  if (/-unpacked$/.test(dir)) {
-    return dir
-  }
-
+  if (/-unpacked$/.test(dir)) return dir
   return null
 }
 
@@ -140,7 +121,6 @@ function shouldRemoveAppBundle(isPackaged, appPath) {
  */
 function buildPosixCleanupScript({ desktopPid, pythonExe, pythonPath, agentRoot, uninstallArgs, appPath, hermesHome }) {
   const q = s => `'${String(s).replace(/'/g, `'\\''`)}'`
-
   const lines = [
     '#!/bin/bash',
     'set -u',
@@ -155,21 +135,16 @@ function buildPosixCleanupScript({ desktopPid, pythonExe, pythonPath, agentRoot,
     'fi',
     `export HERMES_HOME=${q(hermesHome)}`
   ]
-
   if (pythonPath) {
     lines.push(`export PYTHONPATH=${q(pythonPath)}\${PYTHONPATH:+:$PYTHONPATH}`)
   }
-
   lines.push(`cd ${q(agentRoot)} 2>/dev/null || true`, `${q(pythonExe)} ${uninstallArgs.map(q).join(' ')} || true`)
-
   if (appPath) {
     lines.push(`rm -rf ${q(appPath)} || true`)
   }
-
   // Self-delete the script.
   lines.push('rm -f "$0" 2>/dev/null || true')
   lines.push('')
-
   return lines.join('\n')
 }
 
@@ -205,18 +180,15 @@ function buildWindowsCleanupScript({
   // under %LOCALAPPDATA% never contain them). `&`/`^` in a path would still be
   // a problem, but Hermes install paths don't use them.
   const q = s => `"${String(s).replace(/"/g, '')}"`
-
   const lines = [
     '@echo off',
     'setlocal enableextensions',
     `set "HERMES_HOME=${String(hermesHome).replace(/"/g, '')}"`,
     `set "PID=${pid}"`
   ]
-
   if (pythonPath) {
     lines.push(`set "PYTHONPATH=${String(pythonPath).replace(/"/g, '')};%PYTHONPATH%"`)
   }
-
   lines.push(
     'set /a waited=0',
     ':waitloop',
@@ -234,7 +206,6 @@ function buildWindowsCleanupScript({
     `cd /d ${q(agentRoot)}`,
     `${q(pythonExe)} ${uninstallArgs.map(q).join(' ')}`
   )
-
   if (appPath) {
     lines.push(
       'set /a tries=0',
@@ -249,20 +220,18 @@ function buildWindowsCleanupScript({
       ':rmdone'
     )
   }
-
   lines.push('del "%~f0"')
   lines.push('')
-
   return lines.join('\r\n')
 }
 
-export {
+module.exports = {
+  UNINSTALL_MODES,
   buildPosixCleanupScript,
   buildWindowsCleanupScript,
   modeRemovesAgent,
   modeRemovesUserData,
   resolveRemovableAppPath,
   shouldRemoveAppBundle,
-  UNINSTALL_MODES,
   uninstallArgsForMode
 }

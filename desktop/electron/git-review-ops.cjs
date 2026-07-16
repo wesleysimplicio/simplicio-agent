@@ -1,16 +1,37 @@
+'use strict'
+
 // Git ops backing the coding rail + Codex-style review pane. Built on `simple-git`
 // (a maintained wrapper around the system git binary — same git the rest of the
 // app shells to, no native build) so we read structured status()/diffSummary()
 // results instead of hand-parsing porcelain. Reads degrade to null/empty on a
 // non-repo / remote backend; mutations reject so the renderer can toast.
 
-import { execFile } from 'node:child_process'
-import fs from 'node:fs/promises'
-import path from 'node:path'
+const { execFile } = require('node:child_process')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 
-import simpleGit from 'simple-git'
+// `simple-git` is a pure-JS runtime dep that workspace dedup hoists into the
+// repo-root node_modules.  Packaged builds set `files:` in package.json, which
+// excludes node_modules from the asar, so the normal require() fails at launch
+// (issue #52735: "Cannot find module 'simple-git'").  We ship the dep's
+// closure under resources/native-deps/vendor/node_modules/ via extraResources
+// + scripts/stage-native-deps.cjs, and resolve from there when the hoisted
+// require() isn't reachable.  The `vendor/` nesting matters: electron-builder
+// drops a node_modules dir at the root of an extraResources copy but keeps a
+// nested one.  Dev mode never hits the fallback -- Node's normal lookup finds
+// the hoisted copy.
+let simpleGit
+try {
+  simpleGit = require('simple-git')
+} catch {
+  const resourcesPath = process.resourcesPath
+  if (!resourcesPath) {
+    throw new Error("git-review IPC: 'simple-git' not found and no resourcesPath to fall back to")
+  }
+  simpleGit = require(path.join(resourcesPath, 'native-deps', 'vendor', 'node_modules', 'simple-git'))
+}
 
-import { resolveRequestedPathForIpc } from './hardening'
+const { resolveRequestedPathForIpc } = require('./hardening.cjs')
 
 const COMMIT_CONTEXT_DIFF_MAX_CHARS = 120_000
 const COMMIT_CONTEXT_UNTRACKED_MAX = 80
@@ -31,7 +52,7 @@ function ghEnv(ghBin) {
 
 // Run the `gh` CLI in a repo. Resolves { ok, stdout } so callers branch on
 // availability/auth without a throw. gh missing/unauthed → ok:false.
-function runGh(args, cwd, ghBin): Promise<{ ok: boolean; stdout: string }> {
+function runGh(args, cwd, ghBin) {
   return new Promise(resolve => {
     execFile(
       ghBin || 'gh',
@@ -239,11 +260,10 @@ async function reviewList(repoPath, scope, baseRef, gitBin) {
 
       const range = scope === 'branch' ? `${base}...HEAD` : base
       const summary = await git.diffSummary([range])
-
       const files = summary.files.map(file => ({
         path: resolveRenamePath(file.file),
-        added: 'insertions' in file ? file.insertions : 0,
-        removed: 'deletions' in file ? file.deletions : 0,
+        added: file.binary ? 0 : file.insertions,
+        removed: file.binary ? 0 : file.deletions,
         status: 'M',
         staged: false
       }))
@@ -271,7 +291,6 @@ async function reviewList(repoPath, scope, baseRef, gitBin) {
       git.diffSummary(['--cached']),
       git.diffSummary([])
     ])
-
     const stagedCounts = countsByPath(staged)
     const unstagedCounts = countsByPath(unstaged)
 
@@ -476,7 +495,6 @@ async function reviewCommitContext(repoPath, gitBin) {
   const safe = args => git.diff(args).catch(() => '')
 
   let status
-
   try {
     status = await git.status()
   } catch {
@@ -492,11 +510,9 @@ async function reviewCommitContext(repoPath, gitBin) {
 
   // Untracked files have no diff — list them so new files aren't invisible.
   const untracked = status.not_added || []
-
   if (untracked.length > 0) {
     const visible = untracked.slice(0, COMMIT_CONTEXT_UNTRACKED_MAX)
     const omitted = untracked.length - visible.length
-
     const note =
       `\n# New (untracked) files:\n${visible.map(p => `#   ${p}`).join('\n')}\n` +
       (omitted > 0 ? `#   ... ${omitted} more omitted\n` : '')
@@ -591,7 +607,6 @@ async function repoStatus(repoPath, gitBin) {
   // fail soft and hide the coding rail instead of spamming IPC handler errors.
   try {
     const stat = await fs.stat(cwd)
-
     if (!stat.isDirectory()) {
       return null
     }
@@ -600,13 +615,11 @@ async function repoStatus(repoPath, gitBin) {
   }
 
   let git
-
   try {
     git = gitFor(cwd, gitBin)
   } catch {
     return null
   }
-
   let status
 
   try {
@@ -617,7 +630,6 @@ async function repoStatus(repoPath, gitBin) {
   }
 
   const detached = typeof status.detached === 'boolean' ? status.detached : !status.current
-
   const files = status.files.map(file => ({
     path: file.path,
     staged: isStaged(file),
@@ -659,12 +671,10 @@ async function repoStatus(repoPath, gitBin) {
   // can't stall the probe.
   try {
     const untracked = status.not_added.slice(0, 500)
-
     for (let i = 0; i < untracked.length; i += UNTRACKED_LINE_COUNT_CONCURRENCY) {
       const batch = await Promise.all(
         untracked.slice(i, i + UNTRACKED_LINE_COUNT_CONCURRENCY).map(path => untrackedInsertions(cwd, path))
       )
-
       result.added += batch.reduce((sum, n) => sum + n, 0)
     }
   } catch {
@@ -674,7 +684,7 @@ async function repoStatus(repoPath, gitBin) {
   return result
 }
 
-export {
+module.exports = {
   branchBase,
   fileDiffVsHead,
   repoStatus,
@@ -685,8 +695,8 @@ export {
   reviewDiff,
   reviewList,
   reviewPush,
-  reviewRevert,
   reviewRevParse,
+  reviewRevert,
   reviewShipInfo,
   reviewStage,
   reviewUnstage

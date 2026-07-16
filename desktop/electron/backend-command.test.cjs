@@ -1,15 +1,34 @@
-import assert from 'node:assert/strict'
+'use strict'
 
-import { test } from 'vitest'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { dashboardFallbackArgs, serveBackendArgs, sourceDeclaresServe } from './backend-command'
+const {
+  serveBackendArgs,
+  dashboardFallbackArgs,
+  sourceDeclaresServe,
+} = require('./backend-command.cjs')
 
 test('serveBackendArgs builds a headless serve invocation', () => {
-  assert.deepEqual(serveBackendArgs(), ['serve', '--host', '127.0.0.1', '--port', '0'])
+  assert.deepEqual(serveBackendArgs(), [
+    'serve',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    '0',
+  ])
 })
 
 test('serveBackendArgs pins a profile when provided', () => {
-  assert.deepEqual(serveBackendArgs('worker'), ['--profile', 'worker', 'serve', '--host', '127.0.0.1', '--port', '0'])
+  assert.deepEqual(serveBackendArgs('worker'), [
+    '--profile',
+    'worker',
+    'serve',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    '0',
+  ])
 })
 
 test('dashboardFallbackArgs rewrites serve -> dashboard --no-open, keeping the -m prefix', () => {
@@ -22,7 +41,7 @@ test('dashboardFallbackArgs rewrites serve -> dashboard --no-open, keeping the -
     '--host',
     '127.0.0.1',
     '--port',
-    '0'
+    '0',
   ])
 })
 
@@ -38,7 +57,7 @@ test('dashboardFallbackArgs preserves a --profile flag ahead of serve', () => {
     '--host',
     '127.0.0.1',
     '--port',
-    '0'
+    '0',
   ])
 })
 
@@ -60,6 +79,5 @@ test('sourceDeclaresServe does not false-positive on the substring "server"', ()
     dashboard_parser = subparsers.add_parser("dashboard", help="Start the web UI dashboard")
     from hermes_cli.web_server import start_server  # web server
   `
-
   assert.equal(sourceDeclaresServe(oldSource), false)
 })

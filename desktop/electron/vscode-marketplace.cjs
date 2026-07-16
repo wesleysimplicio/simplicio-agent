@@ -1,3 +1,5 @@
+'use strict'
+
 /**
  * VS Code Marketplace color-theme fetcher (main process).
  *
@@ -12,8 +14,8 @@
  * zip library into the desktop bundle for a feature this small.
  */
 
-import https from 'node:https'
-import zlib from 'node:zlib'
+const https = require('node:https')
+const zlib = require('node:zlib')
 
 const GALLERY_QUERY_URL = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery'
 const VSIX_ASSET_TYPE = 'Microsoft.VisualStudio.Services.VSIXPackage'
@@ -28,7 +30,7 @@ function request(
   url,
   { method = 'GET', headers = {}, body = null, maxBytes = MAX_VSIX_BYTES } = {},
   redirectsLeft = MAX_REDIRECTS
-): Promise<Buffer<ArrayBuffer>> {
+) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, { method, headers }, res => {
       const status = res.statusCode ?? 0
@@ -100,7 +102,6 @@ async function resolveExtension(id) {
     // IncludeCategoryAndTags | IncludeLatestVersionOnly = 914.
     flags: 914
   })
-
   const extension = json?.results?.[0]?.extensions?.[0]
 
   if (!extension) {
@@ -126,7 +127,6 @@ async function resolveExtension(id) {
 /** POST an ExtensionQuery payload and return the parsed gallery response. */
 async function queryGallery(payload, { maxBytes = 4 * 1024 * 1024 } = {}) {
   const body = JSON.stringify(payload)
-
   const raw = await request(GALLERY_QUERY_URL, {
     method: 'POST',
     headers: {
@@ -332,6 +332,10 @@ async function fetchMarketplaceThemes(id) {
   return { extensionId: trimmed, displayName, themes }
 }
 
-const __testing = { themeEntryName, looksLikeIconTheme }
-
-export { __testing, extractThemes, fetchMarketplaceThemes, readCentralDirectory, searchMarketplaceThemes }
+module.exports = {
+  fetchMarketplaceThemes,
+  searchMarketplaceThemes,
+  extractThemes,
+  readCentralDirectory,
+  __testing: { themeEntryName, looksLikeIconTheme }
+}

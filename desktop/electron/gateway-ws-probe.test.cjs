@@ -1,7 +1,7 @@
 /**
- * Tests for electron/gateway-ws-probe.ts.
+ * Tests for electron/gateway-ws-probe.cjs.
  *
- * Run with: node --test electron/gateway-ws-probe.test.ts
+ * Run with: node --test electron/gateway-ws-probe.test.cjs
  * (Wired into npm test:desktop:platforms in package.json.)
  *
  * The probe drives a real WebSocket handshake for the "Test remote" button.
@@ -9,21 +9,16 @@
  * outcome (open, frame, error, early close, never-opens) without a network.
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test } from 'vitest'
-
-import { probeGatewayWebSocket } from './gateway-ws-probe'
+const { probeGatewayWebSocket } = require('./gateway-ws-probe.cjs')
 
 // Minimal WebSocket double: records listeners synchronously (the probe attaches
 // them in its executor) and exposes emit() so the test can replay events.
-function makeFakeWs(): { FakeWs: new (url: string) => any; instances: any[] } {
+function makeFakeWs() {
   const instances = []
-
   class FakeWs {
-    url: string
-    closed = false
-    listeners: Record<string, any[]> = {}
     constructor(url) {
       this.url = url
       this.listeners = {}
@@ -37,12 +32,9 @@ function makeFakeWs(): { FakeWs: new (url: string) => any; instances: any[] } {
       this.closed = true
     }
     emit(type, event) {
-      for (const fn of this.listeners[type] || []) {
-        fn(event)
-      }
+      for (const fn of this.listeners[type] || []) fn(event)
     }
   }
-
   return { FakeWs, instances }
 }
 
@@ -59,13 +51,11 @@ test('probe resolves ok when the socket opens and stays open', async () => {
 
 test('probe resolves ok immediately when a frame arrives', async () => {
   const { FakeWs, instances } = makeFakeWs()
-
   const promise = probeGatewayWebSocket('ws://host/api/ws?token=t', {
     WebSocketImpl: FakeWs,
     connectTimeoutMs: 1_000,
     readyGraceMs: 10_000 // long grace: success must come from the frame, not the timer
   })
-
   instances[0].emit('open')
   instances[0].emit('message', { data: '{"jsonrpc":"2.0"}' })
   const result = await promise
@@ -105,13 +95,11 @@ test('probe fails when the gateway accepts then immediately closes (auth rejecte
 
 test('probe times out when the socket never opens', async () => {
   const { FakeWs } = makeFakeWs()
-
   const result = await probeGatewayWebSocket('ws://host/api/ws?token=t', {
     WebSocketImpl: FakeWs,
     connectTimeoutMs: 20,
     readyGraceMs: 10
   })
-
   assert.equal(result.ok, false)
   assert.match(result.reason, /Timed out/)
 })

@@ -1,8 +1,9 @@
-import assert from 'node:assert/strict'
+'use strict'
 
-import { test } from 'vitest'
+const assert = require('node:assert/strict')
+const test = require('node:test')
 
-import { resolveRenamePath } from './git-review-ops'
+const { resolveRenamePath } = require('./git-review-ops.cjs')
 
 test('resolveRenamePath: plain path is unchanged', () => {
   assert.equal(resolveRenamePath('src/a.ts'), 'src/a.ts')

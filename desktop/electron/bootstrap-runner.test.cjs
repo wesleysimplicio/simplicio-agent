@@ -1,19 +1,15 @@
-import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+const assert = require('node:assert/strict')
+const test = require('node:test')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 
-import { test } from 'vitest'
-
-import {
-  buildPinArgs,
-  buildPosixPinArgs,
-  cachedScriptPath,
-  hasExistingGitCheckout,
-  installedAgentInstallScript,
+const {
+  runBootstrap,
   resolveInstallScript,
-  runBootstrap
-} from './bootstrap-runner'
+  installedAgentInstallScript,
+  cachedScriptPath
+} = require('./bootstrap-runner.cjs')
 
 const SCRIPT_NAME = process.platform === 'win32' ? 'install.ps1' : 'install.sh'
 
@@ -26,7 +22,6 @@ test('runBootstrap bails immediately when the signal is already aborted', async 
   controller.abort()
 
   const events = []
-
   const result = await runBootstrap({
     installStamp: null,
     activeRoot: '/tmp/hermes-runner-test',
@@ -47,7 +42,6 @@ test('runBootstrap bails immediately when the signal is already aborted', async 
 
 test('installedAgentInstallScript resolves the installer in the agent checkout', () => {
   const home = mkTmpHome()
-
   try {
     assert.equal(installedAgentInstallScript(home), null, 'absent before the checkout exists')
 
@@ -63,52 +57,8 @@ test('installedAgentInstallScript resolves the installer in the agent checkout',
   }
 })
 
-test('existing checkout detection requires git metadata', () => {
-  const home = mkTmpHome()
-
-  try {
-    const activeRoot = path.join(home, 'hermes-agent')
-    assert.equal(hasExistingGitCheckout(activeRoot), false)
-
-    fs.mkdirSync(path.join(activeRoot, '.git'), { recursive: true })
-    assert.equal(hasExistingGitCheckout(activeRoot), true)
-  } finally {
-    fs.rmSync(home, { recursive: true, force: true })
-  }
-})
-
-test('fresh bootstrap args include the packaged commit pin', () => {
-  const installStamp = { commit: 'a'.repeat(40), branch: 'main' }
-
-  assert.deepEqual(buildPinArgs(installStamp), ['-Commit', installStamp.commit, '-Branch', 'main'])
-  assert.deepEqual(
-    buildPosixPinArgs({
-      installStamp,
-      activeRoot: '/tmp/hermes-agent',
-      hermesHome: '/tmp/hermes'
-    }),
-    ['--dir', '/tmp/hermes-agent', '--hermes-home', '/tmp/hermes', '--branch', 'main', '--commit', installStamp.commit]
-  )
-})
-
-test('existing-checkout bootstrap args keep branch but skip the packaged commit pin', () => {
-  const installStamp = { commit: 'a'.repeat(40), branch: 'main' }
-
-  assert.deepEqual(buildPinArgs(installStamp, { pinCommit: false }), ['-Branch', 'main'])
-  assert.deepEqual(
-    buildPosixPinArgs({
-      installStamp,
-      activeRoot: '/tmp/hermes-agent',
-      hermesHome: '/tmp/hermes',
-      pinCommit: false
-    }),
-    ['--dir', '/tmp/hermes-agent', '--hermes-home', '/tmp/hermes', '--branch', 'main']
-  )
-})
-
 test('resolveInstallScript prefers a cached script without touching the network', async () => {
   const home = mkTmpHome()
-
   try {
     const commit = 'a'.repeat(40)
     const cached = cachedScriptPath(home, commit)
@@ -116,7 +66,6 @@ test('resolveInstallScript prefers a cached script without touching the network'
     fs.writeFileSync(cached, '#!/bin/sh\necho cached\n')
 
     const logs = []
-
     const result = await resolveInstallScript({
       installStamp: { commit },
       sourceRepoRoot: null,
@@ -133,7 +82,6 @@ test('resolveInstallScript prefers a cached script without touching the network'
 
 test('resolveInstallScript falls back to the installed agent checkout on a 404', async () => {
   const home = mkTmpHome()
-
   try {
     const commit = 'a'.repeat(40)
     // Seed the installed agent checkout so the fallback has something to resolve.
@@ -143,7 +91,6 @@ test('resolveInstallScript falls back to the installed agent checkout on a 404',
     fs.writeFileSync(installed, '#!/bin/sh\necho fallback\n')
 
     const logs = []
-
     const result = await resolveInstallScript({
       installStamp: { commit },
       sourceRepoRoot: null,
@@ -170,7 +117,6 @@ test('resolveInstallScript falls back to the installed agent checkout on a 404',
 
 test('resolveInstallScript rethrows when the 404 fallback is unavailable', async () => {
   const home = mkTmpHome()
-
   try {
     const commit = 'a'.repeat(40)
     // No installed agent checkout seeded -> nothing to fall back to.

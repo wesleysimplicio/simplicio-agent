@@ -1,7 +1,7 @@
 // Pull a Windows-host clipboard image from inside WSL2 via PowerShell (WSLg
 // bridges text but not images). Returns PNG bytes or null; exec injectable.
 
-import { execFileSync } from 'node:child_process'
+const { execFileSync } = require('node:child_process')
 
 // STA is mandatory: System.Windows.Forms.Clipboard throws ThreadStateException
 // off a single-threaded apartment. We emit base64 (not raw bytes) so the PNG
@@ -33,13 +33,9 @@ function powershellCandidates() {
 
 function decodeClipboardImageBase64(stdout) {
   const b64 = String(stdout || '').trim()
-
-  if (!b64) {
-    return null
-  }
+  if (!b64) return null
 
   let buffer
-
   try {
     buffer = Buffer.from(b64, 'base64')
   } catch {
@@ -48,7 +44,6 @@ function decodeClipboardImageBase64(stdout) {
 
   // Guard against partial / garbage output: require a real PNG signature.
   const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-
   if (buffer.length < PNG_SIGNATURE.length || !buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
     return null
   }
@@ -59,10 +54,7 @@ function decodeClipboardImageBase64(stdout) {
 // Read the Windows clipboard image from inside WSL. Returns a PNG Buffer, or
 // null when there's no image, PowerShell is unreachable, or output is invalid.
 // Linux-only by contract (caller gates on IS_WSL); never throws.
-function readWslWindowsClipboardImage({
-  exec = execFileSync,
-  candidates = powershellCandidates()
-}: { exec?: typeof execFileSync; candidates?: string[] } = {}) {
+function readWslWindowsClipboardImage({ exec = execFileSync, candidates = powershellCandidates() } = {}) {
   const encoded = encodePowerShellCommand(PS_SCRIPT)
 
   for (const ps of candidates) {
@@ -80,17 +72,10 @@ function readWslWindowsClipboardImage({
           stdio: ['ignore', 'pipe', 'ignore']
         }
       )
-
       const decoded = decodeClipboardImageBase64(stdout)
-
-      if (decoded) {
-        return decoded
-      }
-
+      if (decoded) return decoded
       // Empty stdout = no image on the clipboard; stop, don't try fallbacks.
-      if (String(stdout || '').trim() === '') {
-        return null
-      }
+      if (String(stdout || '').trim() === '') return null
     } catch {
       // This powershell.exe candidate is missing/failed — try the next one.
     }
@@ -99,4 +84,9 @@ function readWslWindowsClipboardImage({
   return null
 }
 
-export { decodeClipboardImageBase64, encodePowerShellCommand, powershellCandidates, readWslWindowsClipboardImage }
+module.exports = {
+  decodeClipboardImageBase64,
+  encodePowerShellCommand,
+  powershellCandidates,
+  readWslWindowsClipboardImage
+}

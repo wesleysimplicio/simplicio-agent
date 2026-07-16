@@ -1,10 +1,12 @@
+'use strict'
+
 /**
- * update-relaunch.ts — pure decision + script-generation helpers for the
+ * update-relaunch.cjs — pure decision + script-generation helpers for the
  * Linux in-app update relaunch (#45205).
  *
- * Extracted from main.ts's `applyUpdatesPosixInApp` so the security- and
+ * Extracted from main.cjs's `applyUpdatesPosixInApp` so the security- and
  * correctness-critical "do we relaunch, or land on a manual terminal state?"
- * decision is unit-testable without booting Electron (main.ts
+ * decision is unit-testable without booting Electron (main.cjs
  * `require('electron')` at load).
  *
  * Background
@@ -35,18 +37,12 @@
  * the closeable manual-restart terminal state instead.
  */
 
-import path from 'node:path'
+const path = require('node:path')
 
 // Map process.platform → electron-builder's `release/<dir>-unpacked` name.
 function unpackedDirName(platform) {
-  if (platform === 'darwin') {
-    return 'mac-unpacked'
-  } // not used (mac swaps bundles)
-
-  if (platform === 'win32') {
-    return 'win-unpacked'
-  }
-
+  if (platform === 'darwin') return 'mac-unpacked' // not used (mac swaps bundles)
+  if (platform === 'win32') return 'win-unpacked'
   return 'linux-unpacked'
 }
 
@@ -60,20 +56,15 @@ function unpackedDirName(platform) {
  * `.../release/linux-unpacked-evil` can't masquerade as `.../release/linux-unpacked`.
  */
 function resolveUnpackedRelease(execPath, updateRoot, platform) {
-  if (!execPath || !updateRoot) {
-    return null
-  }
-
+  if (!execPath || !updateRoot) return null
   const releaseDir = path.join(updateRoot, 'apps', 'desktop', 'release')
   const unpacked = path.join(releaseDir, unpackedDirName(platform))
   const normalizedExec = path.resolve(String(execPath))
   // execPath must be the unpacked dir itself or a descendant of it.
   const withSep = unpacked.endsWith(path.sep) ? unpacked : unpacked + path.sep
-
   if (normalizedExec === unpacked || normalizedExec.startsWith(withSep)) {
     return unpacked
   }
-
   return null
 }
 
@@ -90,14 +81,8 @@ function resolveUnpackedRelease(execPath, updateRoot, platform) {
  *                app. Closeable manual-restart terminal state.
  */
 function decideRelaunchOutcome({ underUnpacked, sandboxOk }) {
-  if (!underUnpacked) {
-    return 'guiSkew'
-  }
-
-  if (!sandboxOk) {
-    return 'manual'
-  }
-
+  if (!underUnpacked) return 'guiSkew'
+  if (!sandboxOk) return 'manual'
   return 'relaunch'
 }
 
@@ -114,13 +99,9 @@ function decideRelaunchOutcome({ underUnpacked, sandboxOk }) {
  * `statSync` is injectable so this is testable without a real setuid file.
  */
 function sandboxPreflight(unpackedDir, statSync) {
-  if (!unpackedDir) {
-    return { ok: false, reason: 'no-unpacked-dir', path: null }
-  }
-
+  if (!unpackedDir) return { ok: false, reason: 'no-unpacked-dir', path: null }
   const sandboxPath = path.join(unpackedDir, 'chrome-sandbox')
   let st
-
   try {
     st = statSync(sandboxPath)
   } catch {
@@ -128,22 +109,15 @@ function sandboxPreflight(unpackedDir, statSync) {
     // sandbox; nothing to block the relaunch.
     return { ok: true, reason: 'no-sandbox-helper', path: sandboxPath }
   }
-
   const ownedByRoot = st.uid === 0
   const hasSetuid = (st.mode & 0o4000) !== 0
-
   if (ownedByRoot && hasSetuid) {
     return { ok: true, reason: 'launchable', path: sandboxPath }
   }
-
   if (!ownedByRoot && !hasSetuid) {
     return { ok: false, reason: 'not-root-not-setuid', path: sandboxPath }
   }
-
-  if (!ownedByRoot) {
-    return { ok: false, reason: 'not-root', path: sandboxPath }
-  }
-
+  if (!ownedByRoot) return { ok: false, reason: 'not-root', path: sandboxPath }
   return { ok: false, reason: 'not-setuid', path: sandboxPath }
 }
 
@@ -152,7 +126,7 @@ function sandboxPreflight(unpackedDir, statSync) {
  * environment. The reviewer asked us to integrate with any existing
  * `--no-sandbox` / chrome-sandbox handling. A repo grep found NO existing
  * non-interactive sandbox fallback in the desktop app (the only chrome-sandbox
- * reference is documentation in scripts/before-pack.ts). The one signal that
+ * reference is documentation in scripts/before-pack.cjs). The one signal that
  * DOES exist is the standard Electron escape hatch: ELECTRON_DISABLE_SANDBOX=1
  * (and the equivalent `--no-sandbox` already present in the launch args). If
  * the user has set that, the rebuilt binary will start even with a broken
@@ -163,15 +137,8 @@ function sandboxPreflight(unpackedDir, statSync) {
  */
 function sandboxFallbackFromEnv(env, launchArgs) {
   const disable = String((env && env.ELECTRON_DISABLE_SANDBOX) || '').trim()
-
-  if (disable === '1' || disable.toLowerCase() === 'true') {
-    return true
-  }
-
-  if (Array.isArray(launchArgs) && launchArgs.some(a => a === '--no-sandbox')) {
-    return true
-  }
-
+  if (disable === '1' || disable.toLowerCase() === 'true') return true
+  if (Array.isArray(launchArgs) && launchArgs.some(a => a === '--no-sandbox')) return true
   return false
 }
 
@@ -209,15 +176,9 @@ const INTERNAL_ARG_PREFIXES = [
  * the exec path itself; there is no entry-script arg as in a dev run).
  */
 function collectRelaunchArgs(argv) {
-  if (!Array.isArray(argv)) {
-    return []
-  }
-
+  if (!Array.isArray(argv)) return []
   return argv.filter(arg => {
-    if (typeof arg !== 'string' || arg.length === 0) {
-      return false
-    }
-
+    if (typeof arg !== 'string' || arg.length === 0) return false
     return !INTERNAL_ARG_PREFIXES.some(prefix =>
       prefix.endsWith('=') ? arg.startsWith(prefix) : arg === prefix || arg.startsWith(prefix + '=')
     )
@@ -236,21 +197,13 @@ const PRESERVED_ENV_PREFIXES = ['HERMES_DESKTOP_']
 
 function collectRelaunchEnv(env) {
   const out = {}
-
-  if (!env || typeof env !== 'object') {
-    return out
-  }
-
+  if (!env || typeof env !== 'object') return out
   for (const [key, value] of Object.entries(env)) {
-    if (value == null) {
-      continue
-    }
-
+    if (value == null) continue
     if (PRESERVED_ENV_KEYS.includes(key) || PRESERVED_ENV_PREFIXES.some(p => key.startsWith(p))) {
       out[key] = String(value)
     }
   }
-
   return out
 }
 
@@ -270,10 +223,8 @@ function buildRelaunchScript({ pid, execPath, args, env, cwd }) {
   const exports = Object.entries(env || {})
     .map(([k, v]) => `export ${k}=${shellQuote(v)}`)
     .join('\n')
-
   const quotedArgs = (args || []).map(shellQuote).join(' ')
   const cwdLine = cwd ? `cd ${shellQuote(cwd)} 2>/dev/null || true` : ''
-
   // NOTE: `exec` replaces the watcher process with the relaunched app, so the
   // re-exec inherits exactly the env/cwd we set above.
   return `#!/bin/bash
@@ -298,17 +249,17 @@ exec ${shellQuote(execPath)}${quotedArgs ? ' ' + quotedArgs : ''}
 `
 }
 
-export {
-  buildRelaunchScript,
+module.exports = {
+  unpackedDirName,
+  resolveUnpackedRelease,
+  decideRelaunchOutcome,
+  sandboxPreflight,
+  sandboxFallbackFromEnv,
   collectRelaunchArgs,
   collectRelaunchEnv,
-  decideRelaunchOutcome,
+  buildRelaunchScript,
+  shellQuote,
   INTERNAL_ARG_PREFIXES,
   PRESERVED_ENV_KEYS,
-  PRESERVED_ENV_PREFIXES,
-  resolveUnpackedRelease,
-  sandboxFallbackFromEnv,
-  sandboxPreflight,
-  shellQuote,
-  unpackedDirName
+  PRESERVED_ENV_PREFIXES
 }

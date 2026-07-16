@@ -1,8 +1,8 @@
 /**
- * backend-probes.ts
+ * backend-probes.cjs
  *
  * Cheap "does this candidate backend actually work" checks used by
- * resolveHermesBackend (main.ts). The resolver walks a ladder of
+ * resolveHermesBackend (main.cjs). The resolver walks a ladder of
  * candidates -- bootstrap marker, `hermes` on PATH, system Python with
  * hermes_cli installed -- and historically returned the first candidate
  * whose binary existed on disk. That assumption breaks when a user has
@@ -27,12 +27,12 @@
  *     via the caller's catch block if it chooses)
  *   - any throw -> false (never propagate -- resolver wants a boolean)
  *
- * Kept in a standalone ts module so it can be unit-tested with
+ * Kept in a standalone cjs module so it can be unit-tested with
  * `node --test` without dragging in the electron runtime (same pattern
- * as bootstrap-platform.ts and hardening.ts).
+ * as bootstrap-platform.cjs and hardening.cjs).
  */
 
-import { execFileSync } from 'node:child_process'
+const { execFileSync } = require('node:child_process')
 
 const PROBE_TIMEOUT_MS = 5000
 
@@ -44,7 +44,7 @@ const PROBE_TIMEOUT_MS = 5000
  * @returns {string}
  */
 function hermesRuntimeImportProbe() {
-  return 'import yaml; import dotenv; import hermes_cli.config'
+  return 'import yaml; import hermes_cli.config'
 }
 
 /**
@@ -62,14 +62,12 @@ function hermesRuntimeImportProbe() {
  * through PYTHONPATH but lack PyYAML, then die on the first real CLI import.
  *
  * @param {string} pythonPath - Absolute path to a python.exe / python.
+ * @param {object} [opts]
  * @param {object} [opts.env] - Additional environment for the probe.
  * @returns {boolean}
  */
-function canImportHermesCli(pythonPath: string, opts: { env?: Record<string, string> } = {}) {
-  if (!pythonPath) {
-    return false
-  }
-
+function canImportHermesCli(pythonPath, opts = {}) {
+  if (!pythonPath) return false
   try {
     execFileSync(pythonPath, ['-c', hermesRuntimeImportProbe()], {
       env: { ...process.env, ...(opts.env || {}) },
@@ -77,7 +75,6 @@ function canImportHermesCli(pythonPath: string, opts: { env?: Record<string, str
       timeout: PROBE_TIMEOUT_MS,
       windowsHide: true
     })
-
     return true
   } catch {
     return false
@@ -98,29 +95,31 @@ function canImportHermesCli(pythonPath: string, opts: { env?: Record<string, str
  *
  * @param {string} hermesCommand - Resolved absolute path to a hermes
  *   executable (or an interpreter+script wrapper).
+ * @param {object} [opts]
  * @param {boolean} [opts.shell] - Whether to run through a shell. For
  *   .cmd/.bat shims on Windows execFileSync needs shell:true to find
  *   the cmd interpreter; mirrors the same flag isCommandScript() drives
  *   in resolveHermesBackend.
  * @returns {boolean}
  */
-function verifyHermesCli(hermesCommand: string, opts?: { shell?: boolean }) {
-  if (!hermesCommand) {
-    return false
-  }
-
+function verifyHermesCli(hermesCommand, opts = {}) {
+  if (!hermesCommand) return false
   try {
     execFileSync(hermesCommand, ['--version'], {
       stdio: 'ignore',
       timeout: PROBE_TIMEOUT_MS,
-      shell: Boolean(opts?.shell),
+      shell: Boolean(opts.shell),
       windowsHide: true
     })
-
     return true
   } catch {
     return false
   }
 }
 
-export { canImportHermesCli, hermesRuntimeImportProbe, PROBE_TIMEOUT_MS, verifyHermesCli }
+module.exports = {
+  canImportHermesCli,
+  hermesRuntimeImportProbe,
+  verifyHermesCli,
+  PROBE_TIMEOUT_MS
+}

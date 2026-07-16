@@ -1,3 +1,5 @@
+'use strict'
+
 /**
  * Retry-once policy for the desktop `--build-only` rebuild during self-update.
  *
@@ -18,12 +20,10 @@ function shouldRetryRebuild(code) {
  */
 async function runRebuildWithRetry(rebuild) {
   let result = await rebuild(0)
-
   if (shouldRetryRebuild(result.code)) {
     result = await rebuild(1)
   }
-
   return result
 }
 
-export { runRebuildWithRetry, shouldRetryRebuild }
+module.exports = { shouldRetryRebuild, runRebuildWithRetry }

@@ -1,9 +1,9 @@
 /**
- * Tests for electron/update-marker.ts — the in-app update mutual-exclusion
+ * Tests for electron/update-marker.cjs — the in-app update mutual-exclusion
  * marker that prevents a desktop relaunched mid-update from spawning a backend
  * the updater then kills in a loop (#50238).
  *
- * Run with: node --test electron/update-marker.test.ts
+ * Run with: node --test electron/update-marker.test.cjs
  * (Wired into npm test:desktop:platforms in package.json.)
  *
  * Why this matters: the gate must (a) report a live update only when the
@@ -12,24 +12,16 @@
  * strand future launches, and (c) self-heal by deleting a stale marker file.
  */
 
-import fs from 'fs'
-import assert from 'node:assert/strict'
-import os from 'os'
-import path from 'path'
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 
-import { test } from 'vitest'
-
-import {
-  isPidAlive,
-  markerPath,
-  readLiveUpdateMarker,
-  UPDATE_MARKER_MAX_AGE_MS,
-  writeUpdateMarker
-} from './update-marker'
+const { markerPath, isPidAlive, readLiveUpdateMarker, UPDATE_MARKER_MAX_AGE_MS } = require('./update-marker.cjs')
 
 function tmpHome(tag) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `hermes-marker-${tag}-`))
-
   return dir
 }
 
@@ -37,12 +29,10 @@ function writeMarker(home, pid, startedAtSec) {
   fs.writeFileSync(markerPath(home), `${pid}\n${startedAtSec}`)
 }
 
-const ALIVE: typeof process.kill = () => true // injected kill that "succeeds" => pid alive
-
-const DEAD: typeof process.kill = () => {
+const ALIVE = () => true // injected kill that "succeeds" => pid alive
+const DEAD = () => {
   const err = new Error('no such process')
-
-  ;(err as any).code = 'ESRCH'
+  err.code = 'ESRCH'
   throw err
 }
 
@@ -95,36 +85,8 @@ test('isPidAlive: own pid is alive, impossible pid is dead', () => {
 test('isPidAlive: EPERM counts as alive (process owned by another user)', () => {
   const eperm = () => {
     const err = new Error('operation not permitted')
-
-    ;(err as any).code = 'EPERM'
+    err.code = 'EPERM'
     throw err
   }
-
   assert.equal(isPidAlive(4242, eperm), true)
-})
-
-test('writeUpdateMarker writes a marker that readLiveUpdateMarker accepts', () => {
-  const home = tmpHome('write')
-  const now = 1_000_000_000_000
-  writeUpdateMarker(home, 4242, { now: () => now })
-  // The marker should be readable and report the same pid.
-  const res = readLiveUpdateMarker(home, { kill: ALIVE, now: () => now })
-  assert.ok(res, 'marker written by writeUpdateMarker should be detected as live')
-  assert.equal(res.pid, 4242)
-  assert.ok(fs.existsSync(markerPath(home)), 'marker file should exist after write')
-})
-
-test('writeUpdateMarker is best-effort (no throw on bad path)', () => {
-  // A non-existent directory should not throw.
-  const badHome = path.join(os.tmpdir(), 'hermes-marker-nonexistent-' + Date.now())
-  assert.doesNotThrow(() => writeUpdateMarker(badHome, 4242))
-})
-
-test('writeUpdateMarker + dead pid => self-heals on read', () => {
-  const home = tmpHome('write-dead')
-  writeUpdateMarker(home, 999999, { now: () => Date.now() })
-  // PID 999999 is almost certainly not alive.
-  const res = readLiveUpdateMarker(home, { kill: DEAD })
-  assert.equal(res, null, 'a dead-pid marker from writeUpdateMarker self-heals')
-  assert.ok(!fs.existsSync(markerPath(home)), 'marker file is pruned')
 })

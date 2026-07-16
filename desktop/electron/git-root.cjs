@@ -1,7 +1,8 @@
-import fs from 'node:fs'
-import path from 'node:path'
+'use strict'
 
-import { resolveRequestedPathForIpc } from './hardening'
+const fs = require('node:fs')
+const path = require('node:path')
+const { resolveRequestedPathForIpc } = require('./hardening.cjs')
 
 function findGitRoot(start, fsImpl = fs) {
   let dir = start
@@ -27,7 +28,7 @@ function findGitRoot(start, fsImpl = fs) {
   return null
 }
 
-async function gitRootForIpc(startPath, options: { fs?: typeof fs } = {}) {
+async function gitRootForIpc(startPath, options = {}) {
   const fsImpl = options.fs || fs
   let resolved
 
@@ -47,4 +48,7 @@ async function gitRootForIpc(startPath, options: { fs?: typeof fs } = {}) {
   }
 }
 
-export { findGitRoot, gitRootForIpc }
+module.exports = {
+  findGitRoot,
+  gitRootForIpc
+}

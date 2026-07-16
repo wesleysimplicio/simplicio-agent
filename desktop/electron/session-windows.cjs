@@ -1,9 +1,9 @@
 // Secondary "session windows" — one extra OS window per chat so a user can
 // work with multiple chats side by side. The pure, Electron-free pieces live
 // here so they can be unit-tested with node --test (mirroring how the rest of
-// electron/*.ts splits testable logic out of the main.ts monolith).
+// electron/*.cjs splits testable logic out of the main.cjs monolith).
 
-import { pathToFileURL } from 'node:url'
+const { pathToFileURL } = require('node:url')
 
 // Secondary windows open at the minimum usable size — a compact side panel for
 // subagent watch / cmd-click session pop-out, not a second full desktop.
@@ -12,7 +12,7 @@ const SESSION_WINDOW_MIN_HEIGHT = 620
 
 // Shared webPreferences for every window that renders the chat transcript — the
 // primary window AND the secondary session windows. Keeping it in one place is
-// the whole point: the two BrowserWindow definitions in main.ts used to be
+// the whole point: the two BrowserWindow definitions in main.cjs used to be
 // hand-copied, and the secondary windows silently lost `backgroundThrottling:
 // false`, so a streamed answer stalled until the window regained focus.
 //
@@ -21,7 +21,7 @@ const SESSION_WINDOW_MIN_HEIGHT = 620
 // blurred/occluded windows. A streaming chat app must keep painting in the
 // background, so every chat window opts out. The preload path is injected
 // because it depends on the Electron entry's __dirname.
-function chatWindowWebPreferences(preloadPath: string) {
+function chatWindowWebPreferences(preloadPath) {
   return {
     preload: preloadPath,
     contextIsolation: true,
@@ -42,7 +42,7 @@ function chatWindowWebPreferences(preloadPath: string) {
 // scratch window; `watch=1` marks a spectator window (e.g. a running subagent's
 // session): the renderer resumes it lazily so the gateway never builds an agent
 // just to stream into it.
-function buildSessionWindowUrl(sessionId: string, { devServer, rendererIndexPath, watch, newSession }: any = {}) {
+function buildSessionWindowUrl(sessionId, { devServer, rendererIndexPath, watch, newSession } = {}) {
   const query = `?win=secondary${newSession ? '&new=1' : ''}${watch ? '&watch=1' : ''}`
   const route = newSession ? '#/' : `#/${encodeURIComponent(sessionId)}`
 
@@ -115,7 +115,7 @@ function createSessionWindowRegistry() {
   }
 }
 
-export {
+module.exports = {
   buildSessionWindowUrl,
   chatWindowWebPreferences,
   createSessionWindowRegistry,

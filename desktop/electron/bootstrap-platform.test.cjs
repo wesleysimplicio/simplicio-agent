@@ -1,13 +1,14 @@
-import assert from 'node:assert/strict'
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const test = require('node:test')
 
-import { test } from 'vitest'
-
-import {
+const {
   bundledRuntimeImportCheck,
   detectRemoteDisplay,
   isWindowsBinaryPathInWsl,
   isWslEnvironment
-} from './bootstrap-platform'
+} = require('./bootstrap-platform.cjs')
 
 test('isWslEnvironment detects WSL2 env vars on linux', () => {
   assert.equal(isWslEnvironment({ WSL_DISTRO_NAME: 'Ubuntu' }, 'linux'), true)
@@ -83,4 +84,28 @@ test('detectRemoteDisplay honors the HERMES_DESKTOP_DISABLE_GPU override both wa
     }),
     null
   )
+})
+
+test('packaged electron entrypoints do not require unpackaged npm modules', () => {
+  const electronDir = __dirname
+  const entrypoints = ['main.cjs', 'preload.cjs', 'bootstrap-platform.cjs']
+  // - electron: provided by the electron runtime, always resolvable in packaged builds.
+  // - node-pty: hoisted by workspace dedup AND shipped via extraResources to
+  //   resources/native-deps/node-pty (see scripts/stage-native-deps.cjs). main.cjs
+  //   has a try/catch fallback at line ~38 that resolves the staged copy when the
+  //   bare require fails in the packaged asar, so the bare require itself is by
+  //   design rather than an oversight.
+  const allowedBareRequires = new Set(['electron', 'node-pty'])
+  const requirePattern = /require\(['"]([^'"]+)['"]\)/g
+
+  for (const entrypoint of entrypoints) {
+    const source = fs.readFileSync(path.join(electronDir, entrypoint), 'utf8')
+    const bareRequires = Array.from(source.matchAll(requirePattern))
+      .map(match => match[1])
+      .filter(specifier => !specifier.startsWith('node:'))
+      .filter(specifier => !specifier.startsWith('.'))
+      .filter(specifier => !allowedBareRequires.has(specifier))
+
+    assert.deepEqual(bareRequires, [], `${entrypoint} has unpackaged runtime requires`)
+  }
 })

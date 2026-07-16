@@ -1,8 +1,8 @@
 /**
- * Tests for electron/update-remote.ts — the remote-detection helpers that
+ * Tests for electron/update-remote.cjs — the remote-detection helpers that
  * keep passive update checks off the SSH origin for official installs.
  *
- * Run with: node --test electron/update-remote.test.ts
+ * Run with: node --test electron/update-remote.test.cjs
  * (Wired into npm test:desktop:platforms in package.json.)
  *
  * Why this matters: a public install can carry
@@ -15,17 +15,16 @@
  * never prompts and should keep the normal fetch path).
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test } from 'vitest'
-
-import {
-  canonicalGitHubRemote,
-  isOfficialSshRemote,
-  isSshRemote,
+const {
+  OFFICIAL_REPO_HTTPS_URL,
   OFFICIAL_REPO_CANONICAL,
-  OFFICIAL_REPO_HTTPS_URL
-} from './update-remote'
+  canonicalGitHubRemote,
+  isSshRemote,
+  isOfficialSshRemote
+} = require('./update-remote.cjs')
 
 test('canonicalGitHubRemote normalizes SSH and HTTPS forms to the same value', () => {
   assert.equal(canonicalGitHubRemote('git@github.com:NousResearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)

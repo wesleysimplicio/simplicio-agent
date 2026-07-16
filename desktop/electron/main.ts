@@ -1,7 +1,3 @@
-<<<<<<<< HEAD:desktop/electron/main.cjs
-const { createTray, destroyTray } = require('./tray.cjs')
-const {
-========
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -12,7 +8,6 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import {
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
   app,
   BrowserWindow,
   clipboard,
@@ -101,54 +96,6 @@ import {
   encryptDesktopSecret as encryptDesktopSecretStrict,
   resolveReadableFileForIpc,
   resolveRequestedPathForIpc,
-<<<<<<<< HEAD:desktop/electron/main.cjs
-  resolveTimeoutMs
-} = require('./hardening.cjs')
-const { registerSimplicioIpc } = require('./simplicio-ipc.cjs')
-
-// Registers ipcMain handlers immediately (no need to wait for app.whenReady)
-// and owns the one supervised "simplicio serve --mcp --stdio" daemon (plus,
-// attached as .dashboardDaemon, the "simplicio dashboard start" daemon, and
-// as .cuaMcpDaemon, the Python "hermes_cli.main mcp serve" daemon) for this
-// process's lifetime; all three are started below in app.whenReady() and
-// stopped in before-quit so they're always active while the app runs, never
-// orphaned. resolveCuaMcpCommand is a hoisted function declaration (defined
-// further down, beside createActiveBackend()) — safe to reference here
-// because it's only ever CALLED later, once the cua-mcp daemon actually
-// (re)spawns, by which point every module-level const it reads is already
-// initialized.
-const simplicioMcpDaemon = registerSimplicioIpc(ipcMain, { resolveCuaMcpCommand })
-const simplicioDashboardDaemon = simplicioMcpDaemon.dashboardDaemon
-const simplicioCuaMcpDaemon = simplicioMcpDaemon.cuaMcpDaemon
-
-let nodePty = null
-let nodePtyDir = null
-
-try {
-  nodePty = require('node-pty')
-  nodePtyDir = path.dirname(require.resolve('node-pty/package.json'))
-} catch {
-  // Packaged builds set `files:` in package.json, which excludes node_modules
-  // from the asar.  Workspace dedup also hoists this native dep to the repo
-  // root's node_modules, out of reach of electron-builder's collector.  We
-  // ship a minimal copy under resources/native-deps/ via extraResources +
-  // scripts/stage-native-deps.cjs; resolve from there when the normal
-  // require() fails.  Dev mode never reaches this branch -- the hoisted
-  // resolve succeeds via Node's normal module lookup.
-  try {
-    const path = require('node:path')
-    const resourcesPath = process.resourcesPath
-    if (resourcesPath) {
-      nodePtyDir = path.join(resourcesPath, 'native-deps', 'node-pty')
-      nodePty = require(nodePtyDir)
-    }
-  } catch {
-    console.log(`[terminal] failed to load node-pty from path ${nodePtyDir}`)
-    nodePty = null
-    nodePtyDir = null
-  }
-}
-========
   resolveTimeoutMs,
   TEXT_PREVIEW_SOURCE_MAX_BYTES
 } from './hardening'
@@ -195,38 +142,6 @@ import { readWindowsUserEnvVar } from './windows-user-env'
 import { isPackagedInstallPath as isPackagedInstallPathUnderRoots } from './workspace-cwd'
 import { readWslWindowsClipboardImage } from './wsl-clipboard-image'
 import { resolvePickerDefaultPath } from './wsl-path-bridge'
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
-
-// Resolve the simplicio (Rust kernel) binary bundled into the packaged app,
-// if present. Staged per-platform/arch by scripts/stage-runtime-bin.cjs and
-// shipped via the `bin` extraResources entry; tools/kernel_binding.py picks
-// it up through HERMES_KERNEL_BIN (see buildDesktopBackendEnv's `kernelBin`
-// param). Dev mode has no process.resourcesPath / no staged binary, so this
-// returns null there and the backend falls back to today's PATH-only lookup
-// — zero behavior change for developer checkouts or hosts without a bundle.
-function resolveBundledKernelBin() {
-  const resourcesPath = process.resourcesPath
-  if (!resourcesPath) return null
-  const binName = IS_WINDOWS ? 'simplicio.exe' : 'simplicio'
-  const candidate = path.join(resourcesPath, 'bin', `${process.platform}-${process.arch}`, binName)
-  return fileExists(candidate) ? candidate : null
-}
-
-// Resolve the cua-driver (computer-use) binary bundled into the packaged app,
-// if present. Staged per-platform/arch by scripts/stage-cua-driver.cjs into
-// the SAME directory as the simplicio kernel above and shipped via the same
-// `bin` extraResources entry; tools/computer_use/cua_backend.py picks it up
-// through HERMES_CUA_DRIVER_CMD (see buildDesktopBackendEnv's `cuaDriverBin`
-// param). Dev mode has no process.resourcesPath / no staged binary, so this
-// returns null there and computer-use falls back to today's PATH-only lookup
-// — zero behavior change for developer checkouts or hosts without a bundle.
-function resolveBundledCuaDriverBin() {
-  const resourcesPath = process.resourcesPath
-  if (!resourcesPath) return null
-  const binName = IS_WINDOWS ? 'cua-driver.exe' : 'cua-driver'
-  const candidate = path.join(resourcesPath, 'bin', `${process.platform}-${process.arch}`, binName)
-  return fileExists(candidate) ? candidate : null
-}
 
 const USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
 
@@ -515,12 +430,8 @@ const BOOT_FAKE_STEP_MS = (() => {
 
   return Math.max(120, raw)
 })()
-<<<<<<<< HEAD:desktop/electron/main.cjs
-const APP_NAME = 'Simplicio'
-========
 
 const APP_NAME = process.env.HERMES_DESKTOP_APP_NAME || 'Hermes'
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
 
@@ -951,7 +862,7 @@ let nativeThemeListenerInstalled = false
 let bootProgressState = {
   error: null,
   fakeMode: BOOT_FAKE_MODE,
-  message: 'Waiting to start Simplicio backend',
+  message: 'Waiting to start Hermes backend',
   phase: 'idle',
   progress: 0,
   running: false,
@@ -1478,7 +1389,7 @@ async function waitForUpdateToFinish() {
   while (marker && Date.now() < deadline) {
     await advanceBootProgress(
       'backend.update-wait',
-      'An update is finishing — Simplicio will start automatically when it completes…',
+      'An update is finishing — Hermes will start automatically when it completes…',
       12
     )
     await new Promise(r => setTimeout(r, UPDATE_WAIT_POLL_MS))
@@ -1545,39 +1456,6 @@ function isCommandScript(command) {
 }
 
 function unwrapWindowsVenvHermesCommand(command, backendArgs) {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-  if (!IS_WINDOWS || !command || isCommandScript(command)) return null
-
-  const resolved = path.resolve(String(command))
-  if (!/^hermes(?:\.exe)?$/i.test(path.basename(resolved))) return null
-
-  const scriptsDir = path.dirname(resolved)
-  if (path.basename(scriptsDir).toLowerCase() !== 'scripts') return null
-
-  const venvRoot = path.dirname(scriptsDir)
-  const python = getVenvPython(venvRoot)
-  if (!fileExists(python)) return null
-
-  const root = path.dirname(venvRoot)
-  return {
-    label: `existing Simplicio Python at ${python}`,
-    command: python,
-    args: ['-m', 'hermes_cli.main', ...backendArgs],
-    bootstrap: false,
-    env: buildDesktopBackendEnv({
-      hermesHome: HERMES_HOME,
-      pythonPathEntries: [...(directoryExists(root) ? [root] : []), ...getVenvSitePackagesEntries(venvRoot)],
-      venvRoot,
-      kernelBin: resolveBundledKernelBin(),
-      cuaDriverBin: resolveBundledCuaDriverBin()
-    }),
-    kind: 'python',
-    // Surfaced so backendSupportsServe() can read this runtime's source for the
-    // `serve` capability check instead of falling back to a heavyweight probe.
-    root,
-    shell: false
-  }
-========
   return resolveVenvHermesCommand(command, backendArgs, {
     isWindows: IS_WINDOWS,
     isCommandScript,
@@ -1593,7 +1471,6 @@ function unwrapWindowsVenvHermesCommand(command, backendArgs) {
     basename: p => path.basename(p),
     rememberLog
   })
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
 }
 
 // Does the resolved runtime understand the `serve` subcommand? The desktop
@@ -2597,7 +2474,7 @@ async function applyUpdates(opts = {}) {
     emitUpdateProgress({
       stage: 'restart',
       message:
-        'Updating Simplicio — this window will close and the updater will open. Don’t reopen Simplicio yourself; it restarts automatically when the update finishes.',
+        'Updating Hermes — this window will close and the updater will open. Don’t reopen Hermes yourself; it restarts automatically when the update finishes.',
       percent: 100
     })
     repairMacUpdaterHelper(updater)
@@ -2885,14 +2762,9 @@ async function applyUpdatesPosixInApp(opts: any) {
     // best effort
   }
 
-<<<<<<<< HEAD:desktop/electron/main.cjs
-  emitUpdateProgress({ stage: 'update', message: 'Updating Simplicio (git + dependencies)…', percent: 10 })
-  const updated = await runStreamedUpdate(hermes, ['update', '--yes', ...branchArgs], {
-========
   emitUpdateProgress({ stage: 'update', message: 'Updating Hermes (git + dependencies)…', percent: 10 })
 
   const updated = (await runStreamedUpdate(hermes, ['update', '--yes', ...branchArgs], {
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
     cwd: updateRoot,
     env,
     stage: 'update'
@@ -2920,7 +2792,7 @@ async function applyUpdatesPosixInApp(opts: any) {
   if (rebuilt.code !== 0) {
     emitUpdateProgress({
       stage: 'error',
-      message: 'Backend updated, but the desktop rebuild failed. Restart Simplicio to retry.',
+      message: 'Backend updated, but the desktop rebuild failed. Restart Hermes to retry.',
       error: rebuilt.error || 'rebuild-failed'
     })
 
@@ -2967,7 +2839,7 @@ async function applyUpdatesPosixInApp(opts: any) {
     const outcome = decideRelaunchOutcome({ underUnpacked, sandboxOk })
 
     if (outcome === 'relaunch') {
-      emitUpdateProgress({ stage: 'restart', message: 'Restarting Simplicio…', percent: 100 })
+      emitUpdateProgress({ stage: 'restart', message: 'Restarting Hermes…', percent: 100 })
       // Preserve launch context across the re-exec: replay the original args
       // (filtered of Electron internals) and the env/cwd that define which
       // backend/profile/root this instance talks to. Without this the
@@ -3005,7 +2877,7 @@ async function applyUpdatesPosixInApp(opts: any) {
           backendUpdated: true,
           guiUpdated: false,
           manualRestart: true,
-          message: 'Backend updated. Quit and reopen Simplicio to load the new version.'
+          message: 'Backend updated. Quit and reopen Hermes to load the new version.'
         }
       }
     }
@@ -3015,7 +2887,7 @@ async function applyUpdatesPosixInApp(opts: any) {
         stage: 'guiSkew',
         message:
           'Backend updated, but the desktop app package was not changed. ' +
-          'Update or reinstall the Simplicio desktop app to match.',
+          'Update or reinstall the Hermes desktop app to match.',
         percent: 100
       })
       rememberLog(
@@ -3041,7 +2913,7 @@ async function applyUpdatesPosixInApp(opts: any) {
       sandboxBlocked: true,
       message:
         'Backend updated. The rebuilt app can’t relaunch automatically ' +
-        '(sandbox helper needs root). Quit and reopen Simplicio to finish.'
+        '(sandbox helper needs root). Quit and reopen Hermes to finish.'
     }
   }
 
@@ -3057,7 +2929,7 @@ async function applyUpdatesPosixInApp(opts: any) {
   if (!rebuiltApp || !targetApp) {
     emitUpdateProgress({
       stage: 'done',
-      message: 'Backend updated. Restart Simplicio to load the new version.',
+      message: 'Backend updated. Restart Hermes to load the new version.',
       percent: 100
     })
 
@@ -3096,7 +2968,7 @@ fi
   } catch (err) {
     emitUpdateProgress({
       stage: 'done',
-      message: 'Backend + app updated. Restart Simplicio to load the new version.',
+      message: 'Backend + app updated. Restart Hermes to load the new version.',
       percent: 100
     })
     rememberLog(`[updates] could not write swap script: ${err.message}; rebuilt app at ${rebuiltApp}`)
@@ -3384,9 +3256,7 @@ function createPythonBackend(root, label, backendArgs, options: any = {}) {
     env: buildDesktopBackendEnv({
       hermesHome: HERMES_HOME,
       pythonPathEntries: [root, ...getVenvSitePackagesEntries(venvRoot)],
-      venvRoot,
-      kernelBin: resolveBundledKernelBin(),
-      cuaDriverBin: resolveBundledCuaDriverBin()
+      venvRoot
     }),
     root,
     bootstrap: Boolean(options.bootstrap),
@@ -3404,51 +3274,17 @@ function createActiveBackend(backendArgs) {
 
   return {
     kind: 'python',
-    label: `Simplicio at ${ACTIVE_HERMES_ROOT}`,
+    label: `Hermes at ${ACTIVE_HERMES_ROOT}`,
     command,
     args: ['-m', 'hermes_cli.main', ...backendArgs],
     env: buildDesktopBackendEnv({
       hermesHome: HERMES_HOME,
       pythonPathEntries: [ACTIVE_HERMES_ROOT, ...getVenvSitePackagesEntries(VENV_ROOT)],
-      venvRoot: VENV_ROOT,
-      kernelBin: resolveBundledKernelBin(),
-      cuaDriverBin: resolveBundledCuaDriverBin()
+      venvRoot: VENV_ROOT
     }),
     root: ACTIVE_HERMES_ROOT,
     bootstrap: true,
     shell: false
-  }
-}
-
-// Command/env for the supervised cua-mcp daemon (electron/cua-mcp-daemon.cjs):
-// exposes the computer-use toolset over MCP stdio via
-// `python -m hermes_cli.main mcp serve`. Deliberately mirrors
-// createActiveBackend() above (same VENV_ROOT/ACTIVE_HERMES_ROOT python +
-// venvRoot + pythonPathEntries resolution, same env merge shape used at every
-// backend spawn site in this file) rather than the full resolveHermesBackend()
-// branch tree -- the MCP child always runs the canonical active install so it
-// stays in lockstep with buildDesktopBackendEnv's PATH/PYTHONPATH/
-// HERMES_KERNEL_BIN/HERMES_CUA_DRIVER_CMD wiring, without simplicio-ipc.cjs
-// (which owns the daemon) needing to duplicate any of main.cjs's backend
-// resolution. Passed into registerSimplicioIpc() as `resolveCuaMcpCommand`;
-// only actually invoked when the daemon (re)spawns, so it safely reads
-// HERMES_HOME/VENV_ROOT/ACTIVE_HERMES_ROOT even though they're declared later
-// in module-eval order than this function's own hoisted declaration.
-function resolveCuaMcpCommand() {
-  const venvPython = getVenvPython(VENV_ROOT)
-  const command = fileExists(venvPython) ? venvPython : findSystemPython()
-  const backendEnv = buildDesktopBackendEnv({
-    hermesHome: HERMES_HOME,
-    pythonPathEntries: [ACTIVE_HERMES_ROOT, ...getVenvSitePackagesEntries(VENV_ROOT)],
-    venvRoot: VENV_ROOT,
-    kernelBin: resolveBundledKernelBin(),
-    cuaDriverBin: resolveBundledCuaDriverBin()
-  })
-
-  return {
-    command,
-    args: ['-m', 'hermes_cli.main', 'mcp', 'serve'],
-    env: { ...process.env, HERMES_HOME, ...backendEnv }
   }
 }
 
@@ -3458,16 +3294,11 @@ function resolveHermesBackend(backendArgs) {
   const overrideRoot = process.env.HERMES_DESKTOP_HERMES_ROOT && path.resolve(process.env.HERMES_DESKTOP_HERMES_ROOT)
 
   if (overrideRoot && isHermesSourceRoot(overrideRoot)) {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-    const backend = createPythonBackend(overrideRoot, `Simplicio source at ${overrideRoot}`, backendArgs)
-    if (backend) return backend
-========
     const backend = createPythonBackend(overrideRoot, `Hermes source at ${overrideRoot}`, backendArgs)
 
     if (backend) {
       return backend
     }
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
   }
 
   // 2. Development source -- when running `npm run dev` from a checkout, the
@@ -3475,16 +3306,11 @@ function resolveHermesBackend(backendArgs) {
   //    installed `hermes` on PATH so local Python edits are actually exercised.
   //    (In dev with no checkout, SOURCE_REPO_ROOT won't pass isHermesSourceRoot.)
   if (!IS_PACKAGED && isHermesSourceRoot(SOURCE_REPO_ROOT)) {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-    const backend = createPythonBackend(SOURCE_REPO_ROOT, `Simplicio source at ${SOURCE_REPO_ROOT}`, backendArgs)
-    if (backend) return backend
-========
     const backend = createPythonBackend(SOURCE_REPO_ROOT, `Hermes source at ${SOURCE_REPO_ROOT}`, backendArgs)
 
     if (backend) {
       return backend
     }
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
   }
 
   // 3. Bootstrap-complete ACTIVE_HERMES_ROOT -- the canonical install at
@@ -3514,7 +3340,7 @@ function resolveHermesBackend(backendArgs) {
       } else if (!isWindowsBinaryPathInWsl(hermesOverride, { isWsl: IS_WSL })) {
         hermesCommand = hermesOverride
       } else {
-        rememberLog(`Ignoring Windows Simplicio override under WSL: ${hermesOverride}`)
+        rememberLog(`Ignoring Windows Hermes override under WSL: ${hermesOverride}`)
       }
     } else {
       hermesCommand = findOnPath('hermes')
@@ -3522,7 +3348,7 @@ function resolveHermesBackend(backendArgs) {
 
     if (hermesCommand) {
       if (looksLikeDesktopAppBinary(hermesCommand)) {
-        rememberLog(`Ignoring desktop app executable on PATH while resolving Simplicio CLI: ${hermesCommand}`)
+        rememberLog(`Ignoring desktop app executable on PATH while resolving Hermes CLI: ${hermesCommand}`)
         hermesCommand = null
       }
     }
@@ -3546,7 +3372,7 @@ function resolveHermesBackend(backendArgs) {
       if (verifyHermesCli(hermesCommand, { shell: shellForProbe })) {
         return (
           unwrapWindowsVenvHermesCommand(hermesCommand, backendArgs) || {
-            label: `existing Simplicio CLI at ${hermesCommand}`,
+            label: `existing Hermes CLI at ${hermesCommand}`,
             command: hermesCommand,
             args: backendArgs,
             bootstrap: false,
@@ -3558,7 +3384,7 @@ function resolveHermesBackend(backendArgs) {
       }
 
       rememberLog(
-        `Ignoring existing Simplicio CLI at ${hermesCommand}: --version probe failed; falling through to bootstrap.`
+        `Ignoring existing Hermes CLI at ${hermesCommand}: --version probe failed; falling through to bootstrap.`
       )
     }
   }
@@ -3604,7 +3430,7 @@ function resolveHermesBackend(backendArgs) {
   //    is a recoverable state the GUI can drive through.
   return {
     kind: 'bootstrap-needed',
-    label: 'Simplicio Agente not installed yet; bootstrap required',
+    label: 'Hermes Agent not installed yet; bootstrap required',
     command: null,
     args: backendArgs,
     bootstrap: true,
@@ -3635,16 +3461,11 @@ async function ensureRuntime(backend) {
   // will rewire startup to spawn the window first and route bootstrap events
   // to a renderer-side install overlay.
   if (backend.kind === 'bootstrap-needed') {
-    rememberLog('[bootstrap] no Simplicio install found; starting first-launch bootstrap')
+    rememberLog('[bootstrap] no Hermes install found; starting first-launch bootstrap')
 
     if (await handOffWindowsBootstrapRecovery('bootstrap-needed')) {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      const handoffError = new Error(
-        'Simplicio recovery was handed off to Simplicio Setup. The desktop will restart when recovery completes.'
-========
       const handoffError: Error & { isBootstrapFailure?: boolean; bootstrapHandedOff?: boolean } = new Error(
         'Hermes recovery was handed off to Hermes Setup. The desktop will restart when recovery completes.'
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
       )
 
       handoffError.isBootstrapFailure = true
@@ -3701,11 +3522,7 @@ async function ensureRuntime(backend) {
     bootstrapAbortController = null
 
     if (bootstrapResult.cancelled) {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      const cancelledError = new Error('Simplicio install was cancelled.')
-========
       const cancelledError = new Error('Hermes install was cancelled.') as any
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
       cancelledError.isBootstrapFailure = true
       cancelledError.bootstrapCancelled = true
       bootstrapFailure = cancelledError
@@ -3714,7 +3531,7 @@ async function ensureRuntime(backend) {
 
     if (!bootstrapResult.ok) {
       const bootstrapError = new Error(
-        `Simplicio bootstrap failed${bootstrapResult.failedStage ? ` at stage '${bootstrapResult.failedStage}'` : ''}: ` +
+        `Hermes bootstrap failed${bootstrapResult.failedStage ? ` at stage '${bootstrapResult.failedStage}'` : ''}: ` +
           `${bootstrapResult.error || 'unknown error'}. ` +
           `Check ${path.join(HERMES_HOME, 'logs', 'desktop.log')} for the full transcript.`
       ) as any
@@ -3743,7 +3560,7 @@ async function ensureRuntime(backend) {
   // attests they ran successfully).
   if (!isHermesSourceRoot(ACTIVE_HERMES_ROOT)) {
     throw new Error(
-      `Simplicio install at ${ACTIVE_HERMES_ROOT} is missing or incomplete. ` +
+      `Hermes install at ${ACTIVE_HERMES_ROOT} is missing or incomplete. ` +
         'Reinstall via the desktop installer or scripts/install.ps1.'
     )
   }
@@ -3756,10 +3573,10 @@ async function ensureRuntime(backend) {
   // here via an external `hermes` on PATH, this check still helps.
   if (IS_WINDOWS && !findGitBash()) {
     throw new Error(
-      'Git for Windows is required for Simplicio on Windows (provides Git Bash, ' +
+      'Git for Windows is required for Hermes on Windows (provides Git Bash, ' +
         "which the agent's terminal tool uses). Install it from " +
         'https://git-scm.com/download/win or run `winget install -e --id Git.Git`, ' +
-        'then relaunch Simplicio.'
+        'then relaunch Hermes.'
     )
   }
 
@@ -3774,15 +3591,15 @@ async function ensureRuntime(backend) {
     // install.ps1 succeeds. If we hit this, the user (or a deleted venv)
     // broke the invariant; tell them to re-run the install.
     throw new Error(
-      `Simplicio venv missing at ${VENV_ROOT}. Re-run the desktop installer or ` + '`scripts/install.ps1` to rebuild it.'
+      `Hermes venv missing at ${VENV_ROOT}. Re-run the desktop installer or ` + '`scripts/install.ps1` to rebuild it.'
     )
   }
 
   backend.command = getVenvPython(VENV_ROOT)
-  backend.label = `Simplicio at ${ACTIVE_HERMES_ROOT} (venv: ${VENV_ROOT})`
+  backend.label = `Hermes at ${ACTIVE_HERMES_ROOT} (venv: ${VENV_ROOT})`
   updateBootProgress({
     phase: 'runtime.ready',
-    message: 'Simplicio runtime is ready',
+    message: 'Hermes runtime is ready',
     progress: 82,
     running: true,
     error: null
@@ -3825,12 +3642,8 @@ function fetchJson(url, token, options: any = {}) {
     const timeoutMs = resolveTimeoutMs(options.timeoutMs, DEFAULT_FETCH_TIMEOUT_MS)
 
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      reject(new Error(`Unsupported Simplicio backend URL protocol: ${parsed.protocol}`))
-========
       reject(new Error(`Unsupported Hermes backend URL protocol: ${parsed.protocol}`))
 
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
       return
     }
 
@@ -3874,7 +3687,7 @@ function fetchJson(url, token, options: any = {}) {
             reject(
               new Error(
                 `Expected JSON from ${url} but got HTML (status ${res.statusCode}). ` +
-                  'The endpoint is likely missing on the Simplicio backend.'
+                  'The endpoint is likely missing on the Hermes backend.'
               )
             )
 
@@ -3892,7 +3705,7 @@ function fetchJson(url, token, options: any = {}) {
 
     req.on('error', reject)
     req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error(`Timed out connecting to Simplicio backend after ${timeoutMs}ms`))
+      req.destroy(new Error(`Timed out connecting to Hermes backend after ${timeoutMs}ms`))
     })
 
     if (body) {
@@ -3925,12 +3738,8 @@ function fetchPublicJson(url, options: any = {}) {
     const timeoutMs = resolveTimeoutMs(options.timeoutMs, DEFAULT_FETCH_TIMEOUT_MS)
 
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      reject(new Error(`Unsupported Simplicio backend URL protocol: ${parsed.protocol}`))
-========
       reject(new Error(`Unsupported Hermes backend URL protocol: ${parsed.protocol}`))
 
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
       return
     }
 
@@ -3968,7 +3777,7 @@ function fetchPublicJson(url, options: any = {}) {
             reject(
               new Error(
                 `Expected JSON from ${url} but got HTML (status ${res.statusCode}). ` +
-                  'The endpoint is likely missing on the Simplicio backend.'
+                  'The endpoint is likely missing on the Hermes backend.'
               )
             )
 
@@ -3986,7 +3795,7 @@ function fetchPublicJson(url, options: any = {}) {
 
     req.on('error', reject)
     req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error(`Timed out connecting to Simplicio backend after ${timeoutMs}ms`))
+      req.destroy(new Error(`Timed out connecting to Hermes backend after ${timeoutMs}ms`))
     })
 
     if (body) {
@@ -4635,7 +4444,7 @@ async function waitForHermes(baseUrl, token) {
     }
   }
 
-  throw new Error(`Simplicio backend did not become ready: ${lastError?.message || 'timeout'}`)
+  throw new Error(`Hermes backend did not become ready: ${lastError?.message || 'timeout'}`)
 }
 
 function getWindowButtonPosition() {
@@ -5375,11 +5184,7 @@ function openOauthLoginWindow(baseUrl, { silent = false } = {}) {
       win = new BrowserWindow({
         width: 520,
         height: 720,
-<<<<<<<< HEAD:desktop/electron/main.cjs
-        title: 'Sign in to Simplicio gateway',
-========
         title: silent ? 'Connecting to Hermes Cloud agent…' : 'Sign in to Hermes gateway',
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
         autoHideMenuBar: true,
         // Silent cascade: start HIDDEN. The auto-SSO 302 chain completes in
         // well under a second, so the window normally never needs to show. We
@@ -5470,12 +5275,8 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
     }
 
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      reject(new Error(`Unsupported Simplicio backend URL protocol: ${parsed.protocol}`))
-========
       reject(new Error(`Unsupported Hermes backend URL protocol: ${parsed.protocol}`))
 
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
       return
     }
 
@@ -5502,12 +5303,8 @@ function fetchJsonViaOauthSession(url, options: any = {}) {
       } catch {
         // already finished
       }
-<<<<<<<< HEAD:desktop/electron/main.cjs
-      reject(new Error(`Timed out connecting to Simplicio backend after ${timeoutMs}ms`))
-========
 
       reject(new Error(`Timed out connecting to Hermes backend after ${timeoutMs}ms`))
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
     }, timeoutMs)
 
     request.on('response', res => {
@@ -6246,7 +6043,7 @@ async function buildRemoteConnection(rawUrl, authMode, token, source) {
     // the authoritative liveness check.
     if (!(await hasLiveOauthSession(baseUrl))) {
       const err = new Error(
-        'Remote Simplicio gateway uses OAuth, but you are not signed in. ' +
+        'Remote Hermes gateway uses OAuth, but you are not signed in. ' +
           'Open Settings → Gateway and click "Sign in", or switch back to Local.'
       ) as any
 
@@ -6281,7 +6078,7 @@ async function buildRemoteConnection(rawUrl, authMode, token, source) {
 
   if (!token) {
     throw new Error(
-      'Remote Simplicio gateway is selected, but no session token is saved. ' +
+      'Remote Hermes gateway is selected, but no session token is saved. ' +
         'Open Settings → Gateway and save a token, or switch back to Local.'
     )
   }
@@ -6325,7 +6122,7 @@ async function resolveRemoteBackend(profile) {
     if (!rawEnvToken) {
       throw new Error(
         'HERMES_DESKTOP_REMOTE_URL is set but HERMES_DESKTOP_REMOTE_TOKEN is not. ' +
-          'Both must be provided to connect to a remote Simplicio backend.'
+          'Both must be provided to connect to a remote Hermes backend.'
       )
     }
 
@@ -6760,7 +6557,7 @@ async function spawnPoolBackend(profile, entry) {
   const webDist = resolveWebDist()
   const readyFile = backend.readyFile ? makeDashboardReadyFile() : null
 
-  rememberLog(`Starting Simplicio backend for profile "${profile}" via ${backend.label}`)
+  rememberLog(`Starting Hermes backend for profile "${profile}" via ${backend.label}`)
 
   const child = spawn(
     backend.command,
@@ -6801,17 +6598,17 @@ async function spawnPoolBackend(profile, entry) {
   })
 
   child.once('error', error => {
-    rememberLog(`Simplicio backend for profile "${profile}" failed to start: ${error.message}`)
+    rememberLog(`Hermes backend for profile "${profile}" failed to start: ${error.message}`)
     backendPool.delete(profile)
     rejectStart?.(error)
   })
   child.once('exit', (code, signal) => {
-    rememberLog(`Simplicio backend for profile "${profile}" exited (${signal || code})`)
+    rememberLog(`Hermes backend for profile "${profile}" exited (${signal || code})`)
     backendPool.delete(profile)
 
     if (!ready) {
       rejectStart?.(
-        new Error(`Simplicio backend for profile "${profile}" exited before it became ready (${signal || code}).`)
+        new Error(`Hermes backend for profile "${profile}" exited before it became ready (${signal || code}).`)
       )
     }
   })
@@ -6831,7 +6628,7 @@ async function spawnPoolBackend(profile, entry) {
 
   const authToken = await adoptServedDashboardToken(baseUrl, token, {
     childAlive: () => child.exitCode === null && !child.killed,
-    label: `Simplicio backend for profile "${profile}"`,
+    label: `Hermes backend for profile "${profile}"`,
     rememberLog
   })
 
@@ -6935,17 +6732,17 @@ async function startHermes() {
   }
 
   connectionPromise = (async () => {
-    await advanceBootProgress('backend.resolve', 'Resolving Simplicio backend', 8)
+    await advanceBootProgress('backend.resolve', 'Resolving Hermes backend', 8)
     // Resolve for the desktop's primary profile so a per-profile remote
     // override on the active profile is honored (falls back to env / global).
     const remote = await resolveRemoteBackend(primaryProfileKey())
 
     if (remote) {
-      await advanceBootProgress('backend.remote', `Connecting to remote Simplicio backend at ${remote.baseUrl}`, 24)
+      await advanceBootProgress('backend.remote', `Connecting to remote Hermes backend at ${remote.baseUrl}`, 24)
       await waitForHermes(remote.baseUrl, remote.token)
       updateBootProgress({
         phase: 'backend.ready',
-        message: 'Remote Simplicio backend is ready',
+        message: 'Remote Hermes backend is ready',
         progress: 94,
         running: true,
         error: null
@@ -6984,12 +6781,8 @@ async function startHermes() {
     if (activeProfile) {
       backendArgs.unshift('--profile', activeProfile)
     }
-<<<<<<<< HEAD:desktop/electron/main.cjs
-    await advanceBootProgress('backend.runtime', 'Resolving Simplicio runtime', 28)
-========
 
     await advanceBootProgress('backend.runtime', 'Resolving Hermes runtime', 28)
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
     const backend = await ensureRuntime(resolveHermesBackend(backendArgs))
     // Route old runtimes (no `serve`) through the legacy `dashboard --no-open`.
     backend.args = getBackendArgsForRuntime(backend)
@@ -6997,8 +6790,8 @@ async function startHermes() {
     const webDist = resolveWebDist()
     const readyFile = backend.readyFile ? makeDashboardReadyFile() : null
 
-    await advanceBootProgress('backend.spawn', `Starting Simplicio backend via ${backend.label}`, 84)
-    rememberLog(`Starting Simplicio backend via ${backend.label}`)
+    await advanceBootProgress('backend.spawn', `Starting Hermes backend via ${backend.label}`, 84)
+    rememberLog(`Starting Hermes backend via ${backend.label}`)
 
     hermesProcess = spawn(
       backend.command,
@@ -7040,11 +6833,11 @@ async function startHermes() {
     })
 
     hermesProcess.once('error', error => {
-      rememberLog(`Simplicio backend failed to start: ${error.message}`)
+      rememberLog(`Hermes backend failed to start: ${error.message}`)
       updateBootProgress(
         {
           error: error.message,
-          message: `Simplicio backend failed to start: ${error.message}`,
+          message: `Hermes backend failed to start: ${error.message}`,
           phase: 'backend.error',
           running: false
         },
@@ -7056,13 +6849,13 @@ async function startHermes() {
       rejectBackendStart?.(error)
     })
     hermesProcess.once('exit', (code, signal) => {
-      rememberLog(`Simplicio backend exited (${signal || code})`)
+      rememberLog(`Hermes backend exited (${signal || code})`)
       hermesProcess = null
       connectionPromise = null
       sendBackendExit({ code, signal })
 
       if (!backendReady) {
-        const message = `Simplicio backend exited before it became ready (${signal || code}).`
+        const message = `Hermes backend exited before it became ready (${signal || code}).`
         updateBootProgress(
           {
             error: message,
@@ -7074,18 +6867,14 @@ async function startHermes() {
         )
         rejectBackendStart?.(
           new Error(
-            `Simplicio backend exited before it became ready (${signal || code}). Log: ${DESKTOP_LOG_PATH}\n${recentHermesLog()}`
+            `Hermes backend exited before it became ready (${signal || code}). Log: ${DESKTOP_LOG_PATH}\n${recentHermesLog()}`
           )
         )
       }
     })
 
-<<<<<<<< HEAD:desktop/electron/main.cjs
-    await advanceBootProgress('backend.port', 'Waiting for Simplicio backend to launch', 86)
-========
     await advanceBootProgress('backend.port', 'Waiting for Hermes backend to launch', 86)
 
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
     // Discover the ephemeral port the child bound to
     const port = await Promise.race([
       waitForDashboardPortAnnouncement(hermesProcess, { readyFile }),
@@ -7097,7 +6886,7 @@ async function startHermes() {
     }
 
     const baseUrl = `http://127.0.0.1:${port}`
-    await advanceBootProgress('backend.wait', 'Waiting for Simplicio backend to become ready', 90)
+    await advanceBootProgress('backend.wait', 'Waiting for Hermes backend to become ready', 90)
     await Promise.race([waitForHermes(baseUrl, token), backendStartFailed])
     backendReady = true
     backendStartFailure = null
@@ -7110,7 +6899,7 @@ async function startHermes() {
 
     updateBootProgress({
       phase: 'backend.ready',
-      message: 'Simplicio backend is ready. Finalizing desktop startup',
+      message: 'Hermes backend is ready. Finalizing desktop startup',
       progress: 94,
       running: true,
       error: null
@@ -7219,7 +7008,7 @@ function spawnSecondaryWindow({
     height: SESSION_WINDOW_MIN_HEIGHT,
     minWidth: SESSION_WINDOW_MIN_WIDTH,
     minHeight: SESSION_WINDOW_MIN_HEIGHT,
-    title: 'Simplicio',
+    title: 'Hermes',
     titleBarStyle: 'hidden',
     titleBarOverlay: getTitleBarOverlayOptions(),
     trafficLightPosition: IS_MAC ? WINDOW_BUTTON_POSITION : undefined,
@@ -7424,7 +7213,7 @@ function createWindow() {
     ...computeWindowOptions(savedWindowState, screen.getAllDisplays()),
     minWidth: WINDOW_MIN_WIDTH,
     minHeight: WINDOW_MIN_HEIGHT,
-    title: 'Simplicio',
+    title: 'Hermes',
     // Frameless title bar on every platform so the renderer can paint the
     // "hide sidebar" button (and other left-side titlebar tools) flush with
     // the top edge — matching the macOS layout where the traffic lights sit
@@ -7471,16 +7260,9 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
-    // Initialize Simplicio tray icon
-    createTray(mainWindow)
-
-========
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show()
     }
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
   })
 
   mainWindow.on('will-enter-full-screen', () => sendWindowStateChanged(true))
@@ -7606,7 +7388,7 @@ ipcMain.handle('hermes:connection:revalidate', async () => {
     // Unreachable remote: drop the stale cache so the renderer's next reconnect
     // tick rebuilds a fresh, reachable descriptor. resetHermesConnection only
     // nulls connectionPromise for a remote (no child to SIGTERM).
-    rememberLog('Cached remote Simplicio backend failed liveness probe; dropping stale connection.')
+    rememberLog('Cached remote Hermes backend failed liveness probe; dropping stale connection.')
     resetHermesConnection()
 
     return { ok: true, rebuilt: true }
@@ -8163,7 +7945,7 @@ ipcMain.handle('hermes:notify', (_event, payload) => {
   const actions = Array.isArray(payload?.actions) ? payload.actions : []
 
   const notification = new Notification({
-    title: payload?.title || 'Simplicio',
+    title: payload?.title || 'Hermes',
     body: payload?.body || '',
     silent: Boolean(payload?.silent),
     actions: actions.map(action => ({ type: 'button', text: String(action?.text || '') }))
@@ -8812,15 +8594,6 @@ ipcMain.handle('hermes:git:scanRepos', async (_event, roots, options) => {
 })
 
 ipcMain.handle('hermes:terminal:start', async (event, payload = {}) => {
-<<<<<<<< HEAD:desktop/electron/main.cjs
-  if (!nodePty) {
-    throw new Error('PTY support is unavailable. Reinstall desktop dependencies and restart Simplicio.')
-  }
-
-  ensureSpawnHelperExecutable()
-
-========
->>>>>>>> hermes-upstream/main:desktop/electron/main.ts
   const id = crypto.randomUUID()
   const { args, command, name } = terminalShellCommand()
   const cwd = safeTerminalCwd(payload?.cwd)
@@ -9074,7 +8847,7 @@ async function runDesktopUninstall(mode) {
     return {
       ok: false,
       error: 'agent-missing',
-      message: `Can't run the uninstaller: no Simplicio agent venv at ${VENV_ROOT}.`
+      message: `Can't run the uninstaller: no Hermes agent venv at ${VENV_ROOT}.`
     }
   }
 
@@ -9324,9 +9097,6 @@ app.whenReady().then(() => {
   ensureWslWindowsFonts()
   configureSpellChecker()
   registerPowerResumeListeners()
-  simplicioMcpDaemon.start()
-  simplicioDashboardDaemon.start()
-  simplicioCuaMcpDaemon.start()
   createWindow()
 
   // Win/Linux cold start: the launching hermes:// URL is in our own argv.
@@ -9401,17 +9171,6 @@ app.on('before-quit', () => {
 
   stopBackendChild(hermesProcess)
   stopAllPoolBackends()
-
-  // Stop the supervised MCP daemon so its child (and any restart timer) don't
-  // outlive the app.
-  simplicioMcpDaemon.stop()
-  // Same for the dashboard daemon -- an orphaned dashboard process would keep
-  // its ephemeral port bound after the app quits.
-  simplicioDashboardDaemon.stop()
-  // Same for the cua-mcp daemon -- an orphaned Python MCP server would keep
-  // holding stdin/stdout pipes (and any computer-use driver it spawned) open
-  // after the app quits.
-  simplicioCuaMcpDaemon.stop()
 })
 
 app.on('window-all-closed', () => {

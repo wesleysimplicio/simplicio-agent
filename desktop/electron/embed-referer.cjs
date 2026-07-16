@@ -1,8 +1,9 @@
-import { session } from 'electron'
+'use strict'
+
+const { session } = require('electron')
 
 const EMBED_SESSION_PARTITION = 'persist:hermes-embed'
 const EMBED_REFERER = 'https://www.youtube.com/'
-
 const YOUTUBE_REFERER_HOST_RE =
   /(^|\.)(youtube\.com|youtube-nocookie\.com|googlevideo\.com|ytimg\.com|youtubei\.googleapis\.com)$/i
 
@@ -22,7 +23,6 @@ function installEmbedRefererForSession(embedSession) {
 
     if (!YOUTUBE_REFERER_HOST_RE.test(host)) {
       callback({ requestHeaders: details.requestHeaders })
-
       return
     }
 
@@ -45,4 +45,4 @@ function installEmbedReferer() {
   }
 }
 
-export { installEmbedReferer }
+module.exports = { installEmbedReferer }

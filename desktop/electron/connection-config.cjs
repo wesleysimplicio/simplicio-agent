@@ -1,13 +1,13 @@
 /**
- * connection-config.ts
+ * connection-config.cjs
  *
  * Pure, electron-free helpers for the desktop's remote-gateway connection
  * config: URL normalization, WS-URL construction (token vs OAuth ticket),
  * auth-mode classification, and the auth-mode coercion rules.
  *
- * Kept standalone (no `import 'electron'`) so it can be unit-tested with
- * `node --test` — same pattern as backend-probes.ts / bootstrap-platform.ts.
- * main.ts requires these and wires them into the electron-coupled IPC layer.
+ * Kept standalone (no `require('electron')`) so it can be unit-tested with
+ * `node --test` — same pattern as backend-probes.cjs / bootstrap-platform.cjs.
+ * main.cjs requires these and wires them into the electron-coupled IPC layer.
  *
  * Background on the two auth models a remote gateway can use:
  *   - 'token': legacy static dashboard session token. REST uses an
@@ -37,15 +37,6 @@
 const AT_COOKIE_VARIANTS = ['__Host-hermes_session_at', '__Secure-hermes_session_at', 'hermes_session_at']
 const RT_COOKIE_VARIANTS = ['__Host-hermes_session_rt', '__Secure-hermes_session_rt', 'hermes_session_rt']
 
-// The Nous portal (NAS) does NOT use Hermes gateway session cookies — it is a
-// Privy-authed Next.js app. NAS `auth()` (src/server/auth/session.ts) reads the
-// `privy-token` access-token cookie (with `privy-id-token` alongside), which is
-// also exactly what the `/api/agents` cookie-auth path validates. So portal
-// sign-in / discovery liveness must look for the Privy cookie, NOT the gateway
-// cookies above. `privy-token` is the access token (the required signal);
-// variants cover the secured-prefix forms and the older `privy-session` name.
-const PRIVY_SESSION_COOKIE_VARIANTS = ['__Host-privy-token', '__Secure-privy-token', 'privy-token', 'privy-session']
-
 function normalizeRemoteBaseUrl(rawUrl) {
   const value = String(rawUrl || '').trim()
 
@@ -54,7 +45,6 @@ function normalizeRemoteBaseUrl(rawUrl) {
   }
 
   let parsed
-
   try {
     parsed = new URL(value)
   } catch (error) {
@@ -93,7 +83,7 @@ function buildGatewayWsUrlWithTicket(baseUrl, ticket) {
  * exercise the same transport the app actually uses.
  *
  * The OAuth ticket-minter is injected (`mintTicket(baseUrl) -> Promise<ticket>`)
- * so this stays electron-free and unit-testable; main.ts passes the real
+ * so this stays electron-free and unit-testable; main.cjs passes the real
  * `mintGatewayWsTicket`.
  *
  * Return semantics:
@@ -103,7 +93,7 @@ function buildGatewayWsUrlWithTicket(baseUrl, ticket) {
  *   - oauth, mint fails    → THROWS  (NOT a skip)
  *
  * The oauth-mint-failure throw is the important case: the real boot path
- * (resolveRemoteBackend in main.ts) treats a mint failure as a hard
+ * (resolveRemoteBackend in main.cjs) treats a mint failure as a hard
  * "session expired" auth error and refuses to connect. Swallowing it here
  * would re-introduce the exact false-positive this test exists to catch —
  * HTTP /api/status passes, the test reports "reachable", then the renderer
@@ -115,16 +105,13 @@ function buildGatewayWsUrlWithTicket(baseUrl, ticket) {
  * @param {{ mintTicket: (baseUrl: string) => Promise<string> }} deps
  * @returns {Promise<string|null>}
  */
-async function resolveTestWsUrl(baseUrl, authMode, token, deps: any = {}) {
+async function resolveTestWsUrl(baseUrl, authMode, token, deps = {}) {
   if (authMode === 'oauth') {
     const mintTicket = deps.mintTicket
-
     if (typeof mintTicket !== 'function') {
       throw new Error('resolveTestWsUrl: a mintTicket function is required in OAuth mode.')
     }
-
     let ticket
-
     try {
       ticket = await mintTicket(baseUrl)
     } catch (error) {
@@ -132,19 +119,15 @@ async function resolveTestWsUrl(baseUrl, authMode, token, deps: any = {}) {
         'Reached the gateway over HTTP, but could not mint a WebSocket ticket for the OAuth session ' +
           '(it may have expired). Open Settings → Gateway and sign in again.'
       )
-
-      ;(err as any).needsOauthLogin = true
+      err.needsOauthLogin = true
       err.cause = error
       throw err
     }
-
     return buildGatewayWsUrlWithTicket(baseUrl, ticket)
   }
-
   if (!token) {
     return null
   }
-
   return buildGatewayWsUrl(baseUrl, token)
 }
 
@@ -159,36 +142,23 @@ function normAuthMode(mode) {
   return mode === 'oauth' ? 'oauth' : 'token'
 }
 
-// True for connection modes that resolve to a REMOTE backend. 'cloud' is a
-// Hermes Cloud connection (cloud-auto-discovery Q3/Q6): it carries a
-// remote-shaped block and reuses the entire remote connect/probe/reconnect
-// path, so every resolution site treats it exactly like 'remote'. The only
-// places that distinguish cloud from remote are the settings UI (which card to
-// show) and config persistence (remembering the provenance). Centralized here
-// so no resolution site forgets the third arm.
-function modeIsRemoteLike(mode) {
-  return mode === 'remote' || mode === 'cloud'
-}
-
 /**
  * Select a profile's explicit remote override from a connection config, or null
  * when it has none (so the caller falls back to env → global remote → local).
  *
  * The config may carry a `profiles` map keyed by name; an entry counts as an
- * override only with a remote-like `mode` (remote or cloud) and a non-empty
- * `url`. Pure: `token` is the raw stored secret; main.ts decrypts it. Returns
+ * override only with `mode === 'remote'` and a non-empty `url`. Pure: `token`
+ * is the raw stored secret; main.cjs decrypts it. Returns
  * `{ url, authMode, token } | null`.
  */
 function profileRemoteOverride(config, profile) {
   const key = connectionScopeKey(profile)
   const entry = key ? config?.profiles?.[key] : null
-
-  if (!entry || typeof entry !== 'object' || !modeIsRemoteLike(entry.mode)) {
+  if (!entry || typeof entry !== 'object' || entry.mode !== 'remote') {
     return null
   }
 
   const url = String(entry.url || '').trim()
-
   if (!url) {
     return null
   }
@@ -202,21 +172,18 @@ function profileRemoteOverride(config, profile) {
  * query parameter. Local pooled backends and per-profile remote overrides do not
  * need this: they already run against a backend scoped to the target profile.
  */
-function pathWithGlobalRemoteProfile(path, profile, opts: any = {}) {
+function pathWithGlobalRemoteProfile(path, profile, opts = {}) {
   const scopedProfile = connectionScopeKey(profile)
-
   if (!scopedProfile || !opts.globalRemote || opts.profileRemoteOverride) {
     return path
   }
 
   const rawPath = String(path || '')
-
   if (!rawPath) {
     return path
   }
 
   let parsed
-
   try {
     parsed = new URL(rawPath, 'http://hermes.local')
   } catch {
@@ -257,18 +224,9 @@ function authModeFromStatus(statusBody) {
  * Returns 'oauth' | 'token'.
  */
 function resolveAuthMode(inputAuthMode, existingAuthMode) {
-  if (inputAuthMode === 'oauth') {
-    return 'oauth'
-  }
-
-  if (inputAuthMode === 'token') {
-    return 'token'
-  }
-
-  if (existingAuthMode === 'oauth') {
-    return 'oauth'
-  }
-
+  if (inputAuthMode === 'oauth') return 'oauth'
+  if (inputAuthMode === 'token') return 'token'
+  if (existingAuthMode === 'oauth') return 'oauth'
   return 'token'
 }
 
@@ -284,10 +242,7 @@ function resolveAuthMode(inputAuthMode, existingAuthMode) {
  * need to know whether an unexpired access token is present right now.
  */
 function cookiesHaveSession(cookies) {
-  if (!Array.isArray(cookies)) {
-    return false
-  }
-
+  if (!Array.isArray(cookies)) return false
   return cookies.some(c => c && AT_COOKIE_VARIANTS.includes(c.name) && c.value)
 }
 
@@ -305,46 +260,24 @@ function cookiesHaveSession(cookies) {
  * the RT is also dead/revoked).
  */
 function cookiesHaveLiveSession(cookies) {
-  if (!Array.isArray(cookies)) {
-    return false
-  }
-
+  if (!Array.isArray(cookies)) return false
   return cookies.some(c => c && c.value && (AT_COOKIE_VARIANTS.includes(c.name) || RT_COOKIE_VARIANTS.includes(c.name)))
 }
 
-/**
- * True if the cookie jar holds a live Nous PORTAL (Privy) session — a non-empty
- * `privy-token` (access-token) cookie, or a variant. This is the portal
- * analogue of `cookiesHaveLiveSession`: the portal authenticates via Privy, not
- * the Hermes gateway session cookies, so cloud sign-in / discovery liveness
- * must check THIS, not the gateway helpers. (NAS `auth()` and the `/api/agents`
- * cookie path both key off `privy-token`.)
- */
-function cookiesHavePrivySession(cookies) {
-  if (!Array.isArray(cookies)) {
-    return false
-  }
-
-  return cookies.some(c => c && c.value && PRIVY_SESSION_COOKIE_VARIANTS.includes(c.name))
-}
-
-export {
+module.exports = {
   AT_COOKIE_VARIANTS,
+  RT_COOKIE_VARIANTS,
   authModeFromStatus,
   buildGatewayWsUrl,
   buildGatewayWsUrlWithTicket,
   connectionScopeKey,
-  cookiesHaveLiveSession,
-  cookiesHavePrivySession,
   cookiesHaveSession,
-  modeIsRemoteLike,
-  normalizeRemoteBaseUrl,
+  cookiesHaveLiveSession,
   normAuthMode,
+  normalizeRemoteBaseUrl,
   pathWithGlobalRemoteProfile,
-  PRIVY_SESSION_COOKIE_VARIANTS,
   profileRemoteOverride,
   resolveAuthMode,
   resolveTestWsUrl,
-  RT_COOKIE_VARIANTS,
   tokenPreview
 }

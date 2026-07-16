@@ -36,16 +36,13 @@ const DEFAULT_READY_GRACE_MS = 750
  * Attempt a live WebSocket connection and classify the outcome.
  *
  * @param {string} wsUrl - Fully-formed ws(s):// URL including the credential.
+ * @param {object} [options]
+ * @param {new (url: string) => any} [options.WebSocketImpl] - WebSocket ctor.
+ * @param {number} [options.connectTimeoutMs]
+ * @param {number} [options.readyGraceMs]
  * @returns {Promise<{ ok: boolean, reason?: string }>}
  */
-function probeGatewayWebSocket<T>(
-  wsUrl: string,
-  options: {
-    WebSocketImpl?: any
-    connectTimeoutMs?: number
-    readyGraceMs?: number
-  } = {}
-) {
+function probeGatewayWebSocket(wsUrl, options = {}) {
   const WebSocketImpl = options.WebSocketImpl
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
   const readyGraceMs = options.readyGraceMs ?? DEFAULT_READY_GRACE_MS
@@ -57,7 +54,7 @@ function probeGatewayWebSocket<T>(
     })
   }
 
-  return new Promise<any>(resolve => {
+  return new Promise(resolve => {
     let settled = false
     let opened = false
     let connectTimer = null
@@ -69,7 +66,6 @@ function probeGatewayWebSocket<T>(
         clearTimeout(connectTimer)
         connectTimer = null
       }
-
       if (graceTimer !== null) {
         clearTimeout(graceTimer)
         graceTimer = null
@@ -77,19 +73,14 @@ function probeGatewayWebSocket<T>(
     }
 
     const finish = result => {
-      if (settled) {
-        return
-      }
-
+      if (settled) return
       settled = true
       clearTimers()
-
       try {
         socket?.close?.()
       } catch {
         // ignore — best effort teardown
       }
-
       resolve(result)
     }
 
@@ -100,15 +91,11 @@ function probeGatewayWebSocket<T>(
         ok: false,
         reason: error instanceof Error ? error.message : String(error)
       })
-
       return
     }
 
     const onOpen = () => {
-      if (settled) {
-        return
-      }
-
+      if (settled) return
       opened = true
       // Upgrade accepted. Give the server a brief window to reject the
       // credential post-handshake (early close) before declaring success.
@@ -131,10 +118,7 @@ function probeGatewayWebSocket<T>(
     }
 
     const onClose = event => {
-      if (settled) {
-        return
-      }
-
+      if (settled) return
       if (opened) {
         // Opened, then closed inside the grace window: the upgrade was accepted
         // but the session was refused (e.g. ws-ticket/token rejected, or a
@@ -143,10 +127,8 @@ function probeGatewayWebSocket<T>(
           ok: false,
           reason: closeReason(event, 'The gateway accepted the connection then closed it (credential rejected?).')
         })
-
         return
       }
-
       finish({
         ok: false,
         reason: closeReason(event, 'The gateway closed the WebSocket before it opened.')
@@ -172,10 +154,8 @@ function probeGatewayWebSocket<T>(
 function addListener(socket, type, handler) {
   if (typeof socket.addEventListener === 'function') {
     socket.addEventListener(type, handler)
-
     return
   }
-
   // Node's global WebSocket implements addEventListener; this fallback keeps the
   // helper usable with the `ws` package's EventEmitter shape too.
   if (typeof socket.on === 'function') {
@@ -184,44 +164,25 @@ function addListener(socket, type, handler) {
 }
 
 function extractErrorReason(event) {
-  if (!event) {
-    return ''
-  }
-
-  if (event instanceof Error) {
-    return event.message
-  }
-
+  if (!event) return ''
+  if (event instanceof Error) return event.message
   const err = event.error || event.message
-
-  if (err instanceof Error) {
-    return err.message
-  }
-
-  if (typeof err === 'string') {
-    return err
-  }
-
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
   return ''
 }
 
 function closeReason(event, fallback) {
   const code = event && typeof event.code === 'number' ? event.code : null
   const reason = event && typeof event.reason === 'string' ? event.reason.trim() : ''
-
-  if (code && reason) {
-    return `${fallback} (code ${code}: ${reason})`
-  }
-
-  if (code) {
-    return `${fallback} (code ${code})`
-  }
-
-  if (reason) {
-    return `${fallback} (${reason})`
-  }
-
+  if (code && reason) return `${fallback} (code ${code}: ${reason})`
+  if (code) return `${fallback} (code ${code})`
+  if (reason) return `${fallback} (${reason})`
   return fallback
 }
 
-export { DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READY_GRACE_MS, probeGatewayWebSocket }
+module.exports = {
+  DEFAULT_CONNECT_TIMEOUT_MS,
+  DEFAULT_READY_GRACE_MS,
+  probeGatewayWebSocket
+}

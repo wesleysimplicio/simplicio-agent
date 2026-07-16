@@ -4,20 +4,19 @@
  * clamping, and the debounce that collapses mid-drag write storms.
  */
 
-import assert from 'node:assert/strict'
+const test = require('node:test')
+const assert = require('node:assert/strict')
 
-import { test, vi } from 'vitest'
-
-import {
-  computeWindowOptions,
-  debounce,
-  DEFAULT_HEIGHT,
+const {
   DEFAULT_WIDTH,
-  MIN_HEIGHT,
+  DEFAULT_HEIGHT,
   MIN_WIDTH,
+  MIN_HEIGHT,
+  sanitizeWindowState,
   onScreen,
-  sanitizeWindowState
-} from './window-state'
+  computeWindowOptions,
+  debounce
+} = require('./window-state.cjs')
 
 // A single 1920×1080 monitor (work area trimmed for the taskbar).
 const PRIMARY = [{ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }]
@@ -119,10 +118,9 @@ test('computeWindowOptions does not clamp when displays are unknown', () => {
 
 // ─── debounce ──────────────────────────────────────────────────────────────
 
-test('debounce coalesces a burst into one trailing run', () => {
-  vi.useFakeTimers()
+test('debounce coalesces a burst into one trailing run', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   let calls = 0
-
   const d = debounce(() => {
     calls += 1
   }, 250)
@@ -131,18 +129,15 @@ test('debounce coalesces a burst into one trailing run', () => {
   d()
   d()
   assert.equal(calls, 0)
-  vi.advanceTimersByTime(249)
+  t.mock.timers.tick(249)
   assert.equal(calls, 0)
-  vi.advanceTimersByTime(1)
+  t.mock.timers.tick(1)
   assert.equal(calls, 1)
-
-  vi.useRealTimers()
 })
 
-test('debounce.flush runs now and cancels the pending timer', () => {
-  vi.useFakeTimers()
+test('debounce.flush runs now and cancels the pending timer', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
   let calls = 0
-
   const d = debounce(() => {
     calls += 1
   }, 250)
@@ -150,8 +145,6 @@ test('debounce.flush runs now and cancels the pending timer', () => {
   d()
   d.flush()
   assert.equal(calls, 1)
-  vi.advanceTimersByTime(1000)
+  t.mock.timers.tick(1000)
   assert.equal(calls, 1)
-
-  vi.useRealTimers()
 })

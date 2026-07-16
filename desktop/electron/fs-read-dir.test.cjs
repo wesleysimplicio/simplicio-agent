@@ -1,18 +1,19 @@
-import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+'use strict'
 
-import { test } from 'vitest'
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const test = require('node:test')
+const { pathToFileURL } = require('node:url')
 
-import { readDirForIpc } from './fs-read-dir'
+const { readDirForIpc } = require('./fs-read-dir.cjs')
 
 function mkTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-fs-read-dir-'))
 }
 
-function fakeDirent(name, flags: any = {}) {
+function fakeDirent(name, flags = {}) {
   return {
     name,
     isDirectory: () => Boolean(flags.directory),
@@ -108,12 +109,10 @@ test('readDirForIpc accepts file URLs for directories', async () => {
 
 test('readDirForIpc returns invalid-path for blank or non-string input', async () => {
   let readdirCalls = 0
-
   const fsImpl = {
     promises: {
       readdir: async () => {
         readdirCalls += 1
-
         return []
       }
     }
@@ -127,12 +126,10 @@ test('readDirForIpc returns invalid-path for blank or non-string input', async (
 
 test('readDirForIpc rejects Windows device paths before readdir', async () => {
   let readdirCalls = 0
-
   const fsImpl = {
     promises: {
       readdir: async () => {
         readdirCalls += 1
-
         return []
       }
     }
@@ -227,7 +224,6 @@ test('readDirForIpc allows expanding symlink or junction directories outside the
     fs.writeFileSync(path.join(outside, 'outside.txt'), 'ok')
 
     const linkPath = path.join(root, 'outside-link')
-
     try {
       fs.symlinkSync(outside, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
     } catch (error) {
@@ -256,7 +252,6 @@ test('readDirForIpc stats symbolic links and unknown entries without dropping th
   const input = path.join('virtual-root')
   const resolved = path.resolve(input)
   const statCalls = []
-
   const fsImpl = {
     promises: {
       readdir: async () => [
@@ -271,11 +266,9 @@ test('readDirForIpc stats symbolic links and unknown entries without dropping th
         }
 
         statCalls.push(fullPath)
-
         if (fullPath.endsWith(`${path.sep}linked-dir`)) {
           return { isDirectory: () => true }
         }
-
         throw Object.assign(new Error('gone'), { code: 'ENOENT' })
       }
     }
@@ -308,15 +301,12 @@ test('readDirForIpc bounds concurrent stats while preserving complete sorted out
   let peak = 0
   let releaseStats
   let markFirstStatStarted
-
   const statsReleased = new Promise(resolve => {
     releaseStats = resolve
   })
-
   const firstStatStarted = new Promise(resolve => {
     markFirstStatStarted = resolve
   })
-
   const fsImpl = {
     promises: {
       readdir: async () => [
@@ -336,7 +326,6 @@ test('readDirForIpc bounds concurrent stats while preserving complete sorted out
         active -= 1
 
         const name = path.basename(fullPath)
-
         if (name === failedName) {
           throw Object.assign(new Error('gone'), { code: 'ENOENT' })
         }
