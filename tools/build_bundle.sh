@@ -124,6 +124,10 @@ verify_bundle "$STAGE"
 
 mv "$STAGE" "$DEST"
 STAGE=""
+"$PYBIN" -m venv --upgrade "$DEST/venv"
+"$DEST/venv/bin/python" -c 'import hermes_cli; print("bundle venv relocation: OK")'
+python3 "$MANIFEST_TOOL" create "$DEST" --version "$VERSION" --source-commit "$COMMIT" ${SIGNING_KEY:+--signing-key "$SIGNING_KEY"}
+verify_bundle "$DEST"
 atomic_promote "$DEST"
 trap - EXIT
 log "bundle $VERSION ready; unsigned=${SIGNING_KEY:+no}${SIGNING_KEY:-yes} (sha256 verification enforced)"
