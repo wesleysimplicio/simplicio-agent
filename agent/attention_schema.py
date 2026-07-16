@@ -84,6 +84,11 @@ class AttentionItem:
     def is_open(self) -> bool:
         return self.acknowledgement is AcknowledgementState.OPEN
 
+    def is_expired(self, now: int) -> bool:
+        """Return whether the item is stale at the supplied logical time."""
+
+        return now > self.expires_at
+
     def close(self, state: AcknowledgementState, receipt: str) -> "AttentionItem":
         if state is AcknowledgementState.OPEN:
             raise ValueError("closing an attention item requires a terminal state")
@@ -152,6 +157,7 @@ class WorkspaceSnapshot:
     budget: int
     used: int
     receipt: WorkspaceReceipt
+    degraded: bool = False
 
     def explain(self) -> tuple[str, ...]:
         return tuple(
@@ -215,7 +221,9 @@ class AttentionQueue:
         candidates = [
             item
             for item in self._items.values()
-            if item.is_open and item.goal_id == goal_id
+            if item.is_open
+            and item.goal_id == goal_id
+            and not item.is_expired(now)
         ]
         candidates.sort(key=lambda item: self._sort_key(item, now))
 
@@ -260,4 +268,103 @@ class AttentionQueue:
         urgency = max(0, now - item.expires_at) + max(0, 20 - (item.expires_at - now))
         provenance = 10 if item.provenance in {"runtime", "human", "ledger"} else 0
         score = item.relevance + min(age, 100) + min(urgency, 100) + provenance
-        return item.priority, -score, item.run_id, item.item_id
+        # Aging promotes non-preemptive work after deterministic intervals so a
+        # steady stream of normal progress cannot starve learning or cleanup.
+        # Safety and approval remain in the dedicated preemption phase.
+        starvation_promotion = age // 100
+        effective_priority = (
+            item.priority
+            if item.reason in _PREEMPTIVE
+            else max(2, item.priority - starvation_promotion)
+        )
+        return effective_priority, -score, item.run_id, item.item_id
+
+
+class GlobalAttentionWorkspace:
+    """Goal-scoped global attention surface with a safe degradation path.
+
+    The workspace is intentionally mechanical: it owns a fixed budget, exposes
+    only compact turn deltas, and never turns an attention item into an action.
+    """
+
+    PROMPT_DELTA_SCHEMA = "simplicio.attention-prompt-delta/v1"
+
+    def __init__(self, *, budget: int = 32, queue: AttentionQueue | None = None) -> None:
+        if budget < 1:
+            raise ValueError("workspace budget must be positive")
+        self.budget = budget
+        self.queue = queue or AttentionQueue()
+
+    def publish(self, item: AttentionItem) -> AttentionItem:
+        return self.queue.publish(item)
+
+    def acknowledge(
+        self, item_id: str, state: AcknowledgementState, receipt: str
+    ) -> AttentionItem:
+        return self.queue.acknowledge(item_id, state, receipt)
+
+    def select(self, *, goal_id: str, now: int) -> WorkspaceSnapshot:
+        """Select a workspace, preserving safety attention if normal selection fails."""
+
+        try:
+            return self.queue.select_workspace(
+                goal_id=goal_id, budget=self.budget, now=now
+            )
+        except Exception:
+            return self._safe_snapshot(goal_id=goal_id, now=now)
+
+    snapshot = select
+
+    def prompt_delta(self, *, goal_id: str, now: int) -> dict[str, object]:
+        """Return a stable, non-private turn context delta for the model."""
+
+        snapshot = self.select(goal_id=goal_id, now=now)
+        return {
+            "schema": self.PROMPT_DELTA_SCHEMA,
+            "goal_id": goal_id.strip(),
+            "degraded": snapshot.degraded,
+            "items": [
+                {
+                    "item_id": item.item_id,
+                    "source": item.source,
+                    "reason": item.reason.value,
+                    "run": item.run_id,
+                    "profile": item.profile_id,
+                    "status": item.acknowledgement.value,
+                }
+                for item in snapshot.items
+            ],
+        }
+
+    def _safe_snapshot(self, *, goal_id: str, now: int) -> WorkspaceSnapshot:
+        """Keep only open preemptive items when normal selection is unavailable."""
+
+        safe_items: list[AttentionItem] = []
+        used = 0
+        for item in sorted(
+            self.queue.items, key=lambda value: (value.priority, value.item_id)
+        ):
+            if (
+                item.is_open
+                and item.goal_id == goal_id.strip()
+                and item.reason in _PREEMPTIVE
+                and not item.is_expired(now)
+                and used + item.cost <= self.budget
+            ):
+                safe_items.append(item)
+                used += item.cost
+        safe_items = tuple(safe_items)
+        receipt = WorkspaceReceipt(
+            goal_id=goal_id,
+            selected_at=now,
+            budget=self.budget,
+            used=used,
+            item_ids=tuple(item.item_id for item in safe_items),
+        )
+        return WorkspaceSnapshot(
+            items=safe_items,
+            budget=self.budget,
+            used=used,
+            receipt=receipt,
+            degraded=True,
+        )

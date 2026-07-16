@@ -16,6 +16,7 @@ resolved through :func:`_ra` so those patches keep working.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 import functools
 import json
 import logging
@@ -36,6 +37,12 @@ from agent.error_classifier import FailoverReason, classify_api_error
 from agent.iteration_budget import IterationBudget
 from agent.turn_context import build_turn_context
 from agent.turn_retry_state import TurnRetryState
+from agent.turn_engine import (
+    TurnContext as EngineTurnContext,
+    TurnEngine,
+    TurnPhase,
+    TurnTransitionError,
+)
 from agent.memory_manager import build_memory_context_block
 from agent.message_sanitization import (
     close_interrupted_tool_sequence,
@@ -509,18 +516,79 @@ def _sync_failover_system_message(agent, api_messages, active_system_prompt):
     return sp
 
 
+_ACTIVE_TURN_ENGINE_CONTEXT: ContextVar[Optional[EngineTurnContext]] = ContextVar(
+    "active_turn_engine_context", default=None
+)
+_ACTIVE_TURN_ENGINE_TOKEN: ContextVar = ContextVar(
+    "active_turn_engine_token", default=None
+)
+
+
+def _start_turn_engine(*, turn_id: str, session_id: str, attempt_id: str = "0") -> EngineTurnContext:
+    """Enter the real conversation path through the TurnEngine boundary."""
+
+    context = EngineTurnContext(
+        turn_id=turn_id,
+        attempt_id=attempt_id,
+        session_id=session_id,
+    )
+    token = _ACTIVE_TURN_ENGINE_CONTEXT.set(context)
+    _ACTIVE_TURN_ENGINE_TOKEN.set(token)
+    try:
+        TurnEngine.transition(context, TurnPhase.STARTED)
+    except Exception:
+        _ACTIVE_TURN_ENGINE_CONTEXT.reset(token)
+        _ACTIVE_TURN_ENGINE_TOKEN.set(None)
+        raise
+    return context
+
+
+def _finish_turn_engine(agent, result: Any, *, failed: bool) -> None:
+    """Terminalize the shadow lifecycle without changing turn semantics."""
+
+    context = _ACTIVE_TURN_ENGINE_CONTEXT.get()
+    if context is None:
+        return
+    try:
+        if context.is_terminal:
+            return
+        interrupted = bool(getattr(agent, "_interrupt_requested", False))
+        if isinstance(result, dict):
+            interrupted = interrupted or bool(
+                result.get("interrupted") or result.get("cancelled")
+            )
+            failed = failed or bool(result.get("failed"))
+        if interrupted:
+            TurnEngine.cancel(context)
+        elif failed:
+            TurnEngine.fail(context)
+        else:
+            TurnEngine.transition(context, TurnPhase.FINALIZE)
+            TurnEngine.transition(context, TurnPhase.COMPLETED)
+    except TurnTransitionError:
+        logger.exception("TurnEngine terminalization failed")
+    finally:
+        token = _ACTIVE_TURN_ENGINE_TOKEN.get()
+        if token is not None:
+            _ACTIVE_TURN_ENGINE_CONTEXT.reset(token)
+        _ACTIVE_TURN_ENGINE_TOKEN.set(None)
+
+
 def _record_turn_metrics(func):
-    """Guarantee the per-turn latency probe (issue #244/#119) is finished
-    and persisted on every exit path of ``run_conversation`` — normal
-    return, an early return in one of its many branches, or an exception —
-    without touching the wrapped function's body. Instrumentation only:
-    never changes control flow or swallows an exception."""
+    """Guarantee latency recording and TurnEngine terminalization on every exit."""
 
     @functools.wraps(func)
     def _wrapper(agent, *args, **kwargs):
+        result = None
+        raised = False
         try:
-            return func(agent, *args, **kwargs)
+            result = func(agent, *args, **kwargs)
+            return result
+        except BaseException:
+            raised = True
+            raise
         finally:
+            _finish_turn_engine(agent, result, failed=raised)
             from agent.telemetry.turn_metrics import finalize_and_record_turn
 
             finalize_and_record_turn(agent)
@@ -616,6 +684,15 @@ def run_conversation(
     _should_review_memory = _ctx.should_review_memory
     _plugin_user_context = _ctx.plugin_user_context
     _ext_prefetch_cache = _ctx.ext_prefetch_cache
+
+    # The real production turn now enters the explicit lifecycle boundary.
+    # This is shadow bookkeeping only: provider, tool, persistence, and public
+    # AIAgent behavior remain owned by the existing conversation loop.
+    _start_turn_engine(
+        turn_id=turn_id,
+        session_id=str(getattr(agent, "session_id", "") or ""),
+        attempt_id=str(getattr(agent, "_turn_attempt_id", "0") or "0"),
+    )
 
     # Main conversation loop counters (pure locals consumed by the loop below).
     api_call_count = 0

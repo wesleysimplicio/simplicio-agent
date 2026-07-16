@@ -16,6 +16,8 @@ import pytest
 from agent.providers.runtime import (
     ProviderRuntime,
     ProviderRuntimeRegistry,
+    ProviderIsolationKey,
+    StreamEvent,
     UsageAccounting,
 )
 
@@ -165,3 +167,124 @@ def test_usage_accounting_add() -> None:
     assert a.requests == 1 and a.total_tokens == 15 and a.retries == 2
     a.add(error=True)
     assert a.errors == 1 and a.requests == 2
+
+
+def test_registry_isolates_model_and_endpoint() -> None:
+    reg = ProviderRuntimeRegistry()
+    rt_a = reg.get_or_build(
+        "openai", "route", "tenant", "chat", _FakeClient("a"),
+        lambda prompt: asyncio.sleep(0, "a"),
+        model="model-a", base_url="https://one.example",
+    )
+    rt_b = reg.get_or_build(
+        "openai", "route", "tenant", "chat", _FakeClient("b"),
+        lambda prompt: asyncio.sleep(0, "b"),
+        model="model-b", base_url="https://two.example",
+    )
+    assert rt_a is not rt_b
+    assert reg.get("route", "tenant") is None
+    assert reg.get("route", "tenant", profile_name="openai", model="model-a", base_url="https://one.example") is rt_a
+    assert rt_a.isolation_key == ProviderIsolationKey(
+        provider="route", profile="openai", model="model-a",
+        base_url="https://one.example", credential_slot="tenant",
+    )
+    reg.shutdown_all()
+
+
+def test_stream_normalizes_chunks_closes_and_accounts_usage() -> None:
+    async def _run() -> None:
+        closed = {"value": False}
+
+        async def source():
+            try:
+                yield {"type": "delta", "text": "hello", "usage": {"prompt_tokens": 4}}
+                yield " world"
+            finally:
+                closed["value"] = True
+
+        async def open_stream(prompt: str):
+            assert prompt == "p"
+            return source()
+
+        rt = ProviderRuntime(
+            "openai", "route", "tenant", "chat", _FakeClient("stream"),
+            lambda prompt: asyncio.sleep(0, "unused"),
+            supports_streaming=True,
+            stream_call=open_stream,
+        )
+        events = [event async for event in rt.stream("p")]
+        assert events == [
+            StreamEvent(event_type="delta", data="hello", usage={"prompt_tokens": 4}),
+            StreamEvent(data=" world"),
+        ]
+        assert closed["value"] is True
+        accounting = rt.telemetry().accounting
+        assert accounting.requests == 1
+        assert accounting.prompt_tokens == 4
+
+    asyncio.run(_run())
+
+
+def test_stream_cancellation_closes_underlying_iterator() -> None:
+    async def _run() -> None:
+        started = asyncio.Event()
+        closed = {"value": False}
+
+        async def source():
+            try:
+                started.set()
+                await asyncio.Event().wait()
+                yield "never"
+            finally:
+                closed["value"] = True
+
+        async def open_stream(prompt: str):
+            return source()
+
+        rt = ProviderRuntime(
+            "openai", "route", "tenant", "chat", _FakeClient("stream"),
+            lambda prompt: asyncio.sleep(0, "unused"),
+            supports_streaming=True,
+            stream_call=open_stream,
+        )
+
+        async def consume() -> None:
+            async for _event in rt.stream("p"):
+                pass
+
+        task = asyncio.create_task(consume())
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert closed["value"] is True
+
+    asyncio.run(_run())
+
+
+def test_run_extracts_provider_usage_without_retaining_response_text() -> None:
+    async def _run() -> None:
+        async def call(prompt: str):
+            return {
+                "text": "secret response should not enter telemetry",
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 7,
+                    "total_tokens": 12,
+                    "reasoning_tokens": 2,
+                    "cache_read_input_tokens": 3,
+                },
+            }
+
+        rt = ProviderRuntime("openai", "route", "tenant", "chat", _FakeClient("c"), call)
+        result = await rt.run("secret prompt", retries=0)
+        accounting = rt.telemetry().accounting
+        assert result.response["text"].startswith("secret")
+        assert accounting.prompt_tokens == 5
+        assert accounting.completion_tokens == 7
+        assert accounting.total_tokens == 12
+        assert accounting.reasoning_tokens == 2
+        assert accounting.cache_read_tokens == 3
+        assert not hasattr(accounting, "text")
+
+    asyncio.run(_run())
