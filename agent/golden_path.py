@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from agent.task_envelope import TaskEnvelope, TaskState
+from agent.task_envelope import TaskEnvelope, TaskLedger, TaskState
 from agent.telemetry.receipts import Receipt, receipt_path, record_receipt
 from tools.simplicio_transport import SimplicioTransport, TransportReceipt
 
@@ -126,6 +126,7 @@ class GoldenPathResult:
     final_state: dict[str, str]
     requery: dict[str, Any]
     fallback_events: tuple[dict[str, Any], ...]
+    close_gate: dict[str, Any]
 
 
 def _receipt_ref(receipt: Receipt) -> str:
@@ -212,6 +213,7 @@ class GoldenPathHarness:
         self._receipt_refs: dict[str, str] = {}
         self._receipt_files: dict[str, str] = {}
         self._transport_receipts: dict[str, TransportReceipt] = {}
+        self._ledger = TaskLedger()
 
     @classmethod
     def from_fixture(
@@ -354,7 +356,22 @@ class GoldenPathHarness:
             receipts=[delivery_ref],
             delivery_target=self.scenario.delivery_target,
         )
-        envelope = envelope.transition(TaskState.CLOSED)
+        close_decision = TaskLedger.evaluate_close_gate(
+            envelope,
+            verified_evidence_refs=(
+                self._receipt_refs["validation"],
+                requery_ref,
+                evidence_ref,
+            ),
+        )
+        if not close_decision.allowed:
+            raise GoldenPathError(
+                f"golden path close gate denied: {close_decision.reason_code.value}"
+            )
+        envelope = self._ledger.close_if_verified(
+            envelope,
+            verified_evidence_refs=close_decision.verified_evidence_refs,
+        )
 
         return GoldenPathResult(
             scenario=self.scenario,
@@ -366,6 +383,7 @@ class GoldenPathHarness:
             final_state=requery["observed"],
             requery=requery,
             fallback_events=self.transport.fallback_events,
+            close_gate=close_decision.to_dict(),
         )
 
     def _record_step(self, step: str, payload: dict[str, Any]) -> str:
