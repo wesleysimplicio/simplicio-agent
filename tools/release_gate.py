@@ -11,8 +11,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import subprocess
 import sys
+import tempfile
+import time
 from itertools import product
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -658,6 +662,126 @@ def _scan_artifact(
     return 0 if status == "pass" else 1
 
 
+def _run_artifact_smoke(
+    artifact_path: Path,
+    *,
+    output_path: Path,
+    timeout_seconds: float,
+) -> int:
+    """Install a wheel into an isolated, offline venv and exercise its entrypoint.
+
+    This is intentionally a smoke gate, not a claim of full clean-machine or
+    upgrade/rollback coverage.  The receipt makes that boundary explicit.
+    """
+
+    artifact_path = artifact_path.resolve()
+    artifact_digest = _digest_bytes(artifact_path.read_bytes()) if artifact_path.is_file() else ""
+    receipt: dict[str, Any] = {
+        "schema": "simplicio.release-artifact-smoke/v1",
+        "status": "blocked",
+        "scope": "wheel-install-version-help",
+        "artifact": {
+            "name": artifact_path.name,
+            "path": str(artifact_path),
+            "digest": artifact_digest,
+        },
+        "commands": [],
+        "notes": [
+            "This receipt proves only isolated wheel installation and public entrypoint smoke.",
+            "It does not prove upgrade, rollback, migration, desktop, Docker, or cross-OS coverage.",
+        ],
+    }
+
+    def write(status: str) -> int:
+        receipt["status"] = status
+        _write_json(receipt, output_path)
+        print(_canonical_json(receipt), end="")
+        return 0 if status == "pass" else 1
+
+    if not artifact_path.is_file():
+        receipt["reason"] = "artifact does not exist or is not a file"
+        return write("blocked")
+    if artifact_path.suffix.lower() != ".whl":
+        receipt["reason"] = "smoke gate currently requires a wheel; source archives need a build-isolation gate"
+        return write("blocked")
+
+    with tempfile.TemporaryDirectory(prefix="simplicio-release-smoke-") as temp_root:
+        root = Path(temp_root)
+        venv_dir = root / "venv"
+        home_dir = root / "home"
+        home_dir.mkdir()
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(home_dir),
+                "USERPROFILE": str(home_dir),
+                "PYTHONNOUSERSITE": "1",
+                "PIP_NO_INDEX": "1",
+                "PIP_NO_CACHE_DIR": "1",
+                "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            }
+        )
+        env.pop("PYTHONPATH", None)
+
+        def run(label: str, argv: list[str]) -> bool:
+            started = time.perf_counter()
+            try:
+                completed = subprocess.run(
+                    argv,
+                    cwd=root,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                    check=False,
+                )
+                timed_out = False
+            except subprocess.TimeoutExpired as exc:
+                completed = None
+                timed_out = True
+                stdout = str(exc.stdout or "")
+                stderr = str(exc.stderr or "")
+            else:
+                stdout = completed.stdout or ""
+                stderr = completed.stderr or ""
+            receipt["commands"].append(
+                {
+                    "label": label,
+                    "argv": argv,
+                    "returncode": None if completed is None else completed.returncode,
+                    "status": "timeout" if timed_out else ("pass" if completed and completed.returncode == 0 else "fail"),
+                    "stdout": stdout[-12000:],
+                    "stderr": stderr[-12000:],
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                }
+            )
+            return bool(completed and completed.returncode == 0)
+
+        if not run("create-venv", [sys.executable, "-m", "venv", str(venv_dir)]):
+            receipt["reason"] = "python venv creation failed"
+            return write("blocked")
+        python_bin = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        entrypoint = venv_dir / ("Scripts/simplicio-agent.exe" if os.name == "nt" else "bin/simplicio-agent")
+        if not run("install-wheel", [str(python_bin), "-m", "pip", "install", "--no-index", "--no-cache-dir", "--no-deps", str(artifact_path)]):
+            receipt["reason"] = "offline wheel installation failed"
+            return write("fail")
+        if not run("public-version", [str(entrypoint), "--version"]):
+            receipt["reason"] = "public simplicio-agent --version failed"
+            return write("fail")
+        if not run("public-help", [str(entrypoint), "--help"]):
+            receipt["reason"] = "public simplicio-agent --help failed"
+            return write("fail")
+
+    receipt["environment"] = {
+        "clean_room": True,
+        "cache_scope": "disabled",
+        "python": sys.version.split()[0],
+        "platform": sys.platform,
+        "pip_no_index": True,
+    }
+    return write("pass")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -701,6 +825,13 @@ def main(argv: list[str] | None = None) -> int:
     scan_artifact_parser.add_argument(
         "--receipt-ref", default="release-gate-scan", help="evidence reference stored in the receipt"
     )
+
+    smoke_parser = subparsers.add_parser(
+        "smoke-artifact", help="install a wheel in an offline venv and smoke its public entrypoint"
+    )
+    smoke_parser.add_argument("artifact", type=Path)
+    smoke_parser.add_argument("--output", required=True, type=Path)
+    smoke_parser.add_argument("--timeout", type=float, default=60.0)
 
     args = parser.parse_args(argv)
 
@@ -750,6 +881,13 @@ def main(argv: list[str] | None = None) -> int:
             manifest_path=args.manifest,
             output_path=args.output,
             receipt_ref=args.receipt_ref,
+        )
+
+    if args.command == "smoke-artifact":
+        return _run_artifact_smoke(
+            args.artifact,
+            output_path=args.output,
+            timeout_seconds=args.timeout,
         )
 
     return 2

@@ -104,6 +104,24 @@ def test_scan_artifact_returns_failure_for_legacy_identity(tmp_path: Path) -> No
     assert json.loads(output.read_text(encoding="utf-8"))["status"] == "fail"
 
 
+def test_smoke_artifact_blocks_non_wheels_and_writes_boundary_receipt(tmp_path: Path) -> None:
+    artifact = tmp_path / "agent.tar.gz"
+    artifact.write_bytes(b"source archive")
+    output = tmp_path / "smoke.json"
+
+    assert main(["smoke-artifact", str(artifact), "--output", str(output)]) == 1
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["schema"] == "simplicio.release-artifact-smoke/v1"
+    assert receipt["status"] == "blocked"
+    assert "source archives" in receipt["reason"]
+
+
+def test_smoke_artifact_blocks_missing_artifact(tmp_path: Path) -> None:
+    output = tmp_path / "smoke.json"
+    assert main(["smoke-artifact", str(tmp_path / "missing.whl"), "--output", str(output)]) == 1
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "blocked"
+
+
 def test_expand_matrix_is_deterministic_and_classifies_required_cases() -> None:
     matrix = _sample_matrix()
     first = expand_matrix(matrix)
