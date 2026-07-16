@@ -301,6 +301,57 @@ def test_ledger_append_is_idempotent_for_duplicate_content():
     assert len(ledger.history(env.task_id)) == 1
 
 
+def test_ledger_rejects_disconnected_or_out_of_order_transitions():
+    ledger = TaskLedger()
+    received = _make(now_ns=1)
+    oriented = received.transition(TaskState.ORIENTED, now_ns=2)
+    planned = oriented.transition(TaskState.PLANNED, now_ns=3)
+
+    ledger.append(received)
+    ledger.append(oriented)
+    ledger.append(planned)
+
+    backwards = TaskEnvelope.from_dict(
+        {
+            **planned.to_dict(),
+            "state": TaskState.ORIENTED.value,
+            "updated_at_ns": 4,
+        }
+    )
+    with pytest.raises(InvalidTransitionError):
+        ledger.append(backwards)
+    with pytest.raises(ValueError, match="already recorded out of order"):
+        ledger.append(oriented)
+
+
+def test_ledger_rejects_backdated_and_inconsistent_attempt_records():
+    ledger = TaskLedger()
+    received = _make(now_ns=10)
+    ledger.append(received)
+
+    oriented = received.transition(TaskState.ORIENTED, now_ns=11)
+    ledger.append(oriented)
+    backdated = TaskEnvelope.from_dict(
+        {
+            **oriented.to_dict(),
+            "state": TaskState.PLANNED.value,
+            "updated_at_ns": 10,
+        }
+    )
+    with pytest.raises(ValueError, match="timestamp moved backwards"):
+        ledger.append(backdated)
+
+    ledger = TaskLedger()
+    planned = oriented.transition(TaskState.PLANNED, now_ns=12)
+    claimed = planned.transition(TaskState.CLAIMED, now_ns=13)
+    executing = claimed.transition(TaskState.EXECUTING, now_ns=14)
+    forged = TaskEnvelope.from_dict({**executing.to_dict(), "attempts": 0})
+    for snapshot in (received, oriented, planned, claimed):
+        ledger.append(snapshot)
+    with pytest.raises(ValueError, match="invalid attempt count"):
+        ledger.append(forged)
+
+
 def _delivered_with_evidence(*refs):
     env = _make()
     for state in (

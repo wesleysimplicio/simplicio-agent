@@ -112,6 +112,15 @@ def emit_for_transition(
 
     if after.updated_at_ns < before.updated_at_ns:
         raise ValueError("transition timestamp moved backwards")
+    if before.worker is not None and after.worker is None:
+        raise ValueError("worker cannot be removed by a transition")
+    if before.lease is not None and after.lease is None:
+        raise ValueError("lease cannot be removed by a transition")
+    if (
+        before.delivery_target is not None
+        and after.delivery_target != before.delivery_target
+    ):
+        raise ValueError("delivery_target cannot be changed by a transition")
     expected_attempts = before.attempts + (after.state is TaskState.EXECUTING)
     if after.attempts != expected_attempts:
         raise ValueError(
@@ -123,6 +132,10 @@ def emit_for_transition(
         after_values = set(getattr(after, field_name))
         if not before_values.issubset(after_values):
             raise ValueError(f"{field_name} cannot be removed by a transition")
+        before_order = getattr(before, field_name)
+        after_order = getattr(after, field_name)
+        if after_order[: len(before_order)] != before_order:
+            raise ValueError(f"{field_name} must be append-only")
 
     event_type = STATE_TO_EVENT_TYPE[after.state]
     return emitter.emit(event_type, turn_id=turn_id, attempt_id=attempt_id)

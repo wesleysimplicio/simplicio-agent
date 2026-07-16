@@ -239,6 +239,23 @@ def is_transition_allowed(from_state: TaskState, to_state: TaskState) -> bool:
     return to_state in ALLOWED_TRANSITIONS.get(from_state, frozenset())
 
 
+def _ledger_progression_allowed(from_state: TaskState, to_state: TaskState) -> bool:
+    """Allow persisted snapshots to skip unrecorded forward states.
+
+    The envelope transition API remains edge-strict.  A ledger may receive a
+    recovered snapshot after an intermediate append was lost, so it accepts
+    only forward canonical progress (or an explicit exception transition),
+    never a backward or same-state replay with different content.
+    """
+    if from_state is to_state:
+        return False
+    if is_transition_allowed(from_state, to_state):
+        return True
+    if from_state in CANONICAL_ORDER and to_state in CANONICAL_ORDER:
+        return CANONICAL_ORDER.index(to_state) > CANONICAL_ORDER.index(from_state)
+    return from_state in (TaskState.BLOCKED, TaskState.FAILED) and to_state in CANONICAL_ORDER
+
+
 def _string_tuple(field_name: str, value: Any) -> tuple[str, ...]:
     """Normalize an ordered wire collection without coercing other iterables."""
     if not isinstance(value, (list, tuple)):
@@ -655,6 +672,30 @@ class TaskLedger:
         if history and history[-1]["envelope_hash"] == record["envelope_hash"]:
             # idempotent: the same envelope content was already recorded.
             return history[-1]
+        if any(
+            existing["envelope_hash"] == record["envelope_hash"]
+            for existing in history
+        ):
+            raise ValueError("ledger transition was already recorded out of order")
+        if history:
+            previous = history[-1]
+            previous_state = TaskState(previous["state"])
+            if not _ledger_progression_allowed(previous_state, envelope.state):
+                raise InvalidTransitionError(previous_state, envelope.state)
+            if envelope.updated_at_ns < previous["updated_at_ns"]:
+                raise ValueError("ledger transition timestamp moved backwards")
+            if previous_state in CANONICAL_ORDER and envelope.state in CANONICAL_ORDER:
+                start = CANONICAL_ORDER.index(previous_state) + 1
+                end = CANONICAL_ORDER.index(envelope.state) + 1
+                executing_entries = CANONICAL_ORDER[start:end].count(TaskState.EXECUTING)
+            else:
+                executing_entries = int(envelope.state is TaskState.EXECUTING)
+            expected_attempts = previous["attempts"] + executing_entries
+            if envelope.attempts != expected_attempts:
+                raise ValueError(
+                    "ledger transition has an invalid attempt count: "
+                    f"{previous['attempts']} -> {envelope.attempts}"
+                )
         history.append(record)
         return record
 
