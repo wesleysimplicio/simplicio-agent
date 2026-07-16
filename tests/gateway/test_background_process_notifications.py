@@ -130,7 +130,7 @@ class TestLoadBackgroundNotificationsMode:
                 None,  # process disappears → watcher exits
             ],
             1,
-            "is still running",
+            "ainda está em execução",
         ),
         # result mode: running output → no update
         (
@@ -154,7 +154,7 @@ class TestLoadBackgroundNotificationsMode:
             "result",
             [SimpleNamespace(output_buffer="done\n", exited=True, exit_code=0)],
             1,
-            "finished with exit code 0",
+            "Processo em segundo plano concluído com sucesso",
         ),
         # error mode: exit 0 → no notification
         (
@@ -168,14 +168,14 @@ class TestLoadBackgroundNotificationsMode:
             "error",
             [SimpleNamespace(output_buffer="traceback\n", exited=True, exit_code=1)],
             1,
-            "finished with exit code 1",
+            "Processo em segundo plano falhou (código de saída 1)",
         ),
         # all mode: exited → notifies
         (
             "all",
             [SimpleNamespace(output_buffer="ok\n", exited=True, exit_code=0)],
             1,
-            "finished with exit code 0",
+            "Processo em segundo plano concluído com sucesso",
         ),
     ],
 )
@@ -202,6 +202,33 @@ async def test_run_process_watcher_respects_notification_mode(
     if expected_fragment is not None:
         sent_message = adapter.send.await_args.args[1]
         assert expected_fragment in sent_message
+
+
+@pytest.mark.asyncio
+async def test_completed_background_process_notification_is_clear_and_non_conversational(monkeypatch, tmp_path):
+    """Successful completion must not be rendered as a bracketed error blob."""
+    import tools.process_registry as pr_module
+
+    monkeypatch.setattr(
+        pr_module,
+        "process_registry",
+        _FakeRegistry([SimpleNamespace(output_buffer="hello b world\n", exited=True, exit_code=0)]),
+    )
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "result")
+    adapter = runner.adapters[Platform.TELEGRAM]
+    await runner._run_process_watcher(_watcher_dict(session_id="proc_ok"))
+
+    message = adapter.send.await_args.args[1]
+    assert message.startswith("✅ Processo em segundo plano concluído com sucesso.")
+    assert "`proc_ok`" in message
+    assert "```text\nhello b world\n```" in message
+    assert "[Background process" not in message
+    assert "~" not in message
 
 
 @pytest.mark.asyncio
