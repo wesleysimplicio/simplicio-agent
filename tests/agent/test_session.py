@@ -9,7 +9,12 @@ from agent.session import (
     SessionInvariantError,
     SessionSnapshot,
 )
-from agent.self_model import SelfModelSnapshot, CapabilityState
+from agent.self_model import (
+    CapabilityState,
+    EvidenceClass,
+    SelfModelSnapshot,
+    SourceReceipt,
+)
 from agent.turn_engine import TurnContext, TurnPhase
 
 
@@ -76,6 +81,12 @@ def test_session_snapshot_from_parts():
         authority_level=0,
         authority_ceiling=0,
         budget_remaining=0,
+        verifier_ref="test-verifier",
+        rollback_ref="test-rollback",
+        owner_scope="test",
+        source_receipts=(
+            SourceReceipt("test-receipt", EvidenceClass.CANON, "test-source"),
+        ),
     )
     cognition = SelfModelSnapshot("digest1", "tenant1", "identity1", (capability,), {})
     snapshot = SessionSnapshot.from_parts(
@@ -86,7 +97,7 @@ def test_session_snapshot_from_parts():
         cognition=cognition,
         bridge_generation=1,
     )
-    assert snapshot.cognition_digest == "digest1"
+    assert snapshot.cognition_digest == cognition.digest()
     assert snapshot.bridge_generation == 1
 
 

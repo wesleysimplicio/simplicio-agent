@@ -17,13 +17,11 @@ from typing import Any, Callable, Optional, overload
 from .protocol import (
     AgentConversationResult,
     AgentProtocol,
+    AgentSessionProtocol,
     HostStatusSnapshot,
     HostTurnRequest,
     SessionSnapshot,
 )
-
-from .protocol import AgentProtocol
-
 
 class HostBackpressure(RuntimeError):
     """The host cannot admit another leased session or queued turn."""
@@ -47,6 +45,7 @@ class SessionIdentity:
 class _SessionEntry:
     identity: SessionIdentity
     agent: AgentProtocol
+    session: AgentSessionProtocol | None = None
     turn_lock: Lock = field(default_factory=Lock)
     active_leases: int = 0
     last_used: float = field(default_factory=time.monotonic)
@@ -99,12 +98,14 @@ class SessionPool:
         *,
         max_sessions: int = 32,
         idle_ttl: Optional[float] = None,
+        session_factory: Optional[Callable[[SessionIdentity], AgentSessionProtocol]] = None,
     ) -> None:
         if max_sessions < 1:
             raise ValueError("max_sessions must be positive")
         self._factory = agent_factory
         self.max_sessions = max_sessions
         self.idle_ttl = idle_ttl
+        self._session_factory = session_factory
         self._entries: "OrderedDict[SessionIdentity, _SessionEntry]" = OrderedDict()
         self._lock = Lock()
 
@@ -115,7 +116,12 @@ class SessionPool:
                 self._evict_locked()
                 if len(self._entries) >= self.max_sessions:
                     raise HostBackpressure("session pool is saturated; retry later")
-                entry = _SessionEntry(identity, self._factory(identity))
+                session = (
+                    self._session_factory(identity)
+                    if self._session_factory is not None
+                    else None
+                )
+                entry = _SessionEntry(identity, self._factory(identity), session)
                 self._entries[identity] = entry
             entry.active_leases += 1
             entry.last_used = time.monotonic()
@@ -138,6 +144,8 @@ class SessionPool:
             if entry.active_leases == 0 and (
                 expired or len(self._entries) >= self.max_sessions
             ):
+                if entry.session is not None:
+                    entry.session.close()
                 self._entries.pop(identity)
                 if len(self._entries) < self.max_sessions:
                     break
@@ -169,6 +177,8 @@ class SessionPool:
                 return False
             if entry.active_leases:
                 raise HostBackpressure("cannot recover a leased session")
+            if entry.session is not None:
+                entry.session.close()
             self._entries.pop(identity)
             return True
 
@@ -233,9 +243,14 @@ class AgentHost:
         max_workers: int = 4,
         max_pending: int = 64,
         directory: Optional[SessionDirectory] = None,
+        session_factory: Optional[Callable[[SessionIdentity], AgentSessionProtocol]] = None,
     ) -> None:
         self.directory = directory or SessionDirectory()
-        self.pool = SessionPool(agent_factory, max_sessions=max_sessions)
+        self.pool = SessionPool(
+            agent_factory,
+            max_sessions=max_sessions,
+            session_factory=session_factory,
+        )
         self.scheduler = TurnScheduler(max_workers=max_workers, max_pending=max_pending)
         self._lock = Lock()
         self._stopping = False
@@ -248,6 +263,8 @@ class AgentHost:
         user_message: str | None = None,
         *,
         idempotency_key: Optional[str] = None,
+        turn_id: Optional[str] = None,
+        attempt_id: str = "0",
         incarnation: str = "default",
         revision: int = 0,
         **conversation_kwargs: Any,
@@ -261,6 +278,8 @@ class AgentHost:
             session_id=session_id,
             user_message=user_message,
             idempotency_key=idempotency_key,
+            turn_id=turn_id,
+            attempt_id=attempt_id,
             incarnation=incarnation,
             revision=revision,
             conversation_kwargs=conversation_kwargs,
@@ -280,6 +299,8 @@ class AgentHost:
         user_message: str,
         *,
         idempotency_key: Optional[str] = None,
+        turn_id: Optional[str] = None,
+        attempt_id: str = "0",
         incarnation: str = "default",
         revision: int = 0,
         **conversation_kwargs: Any,
@@ -292,6 +313,8 @@ class AgentHost:
         user_message: str | None = None,
         *,
         idempotency_key: Optional[str] = None,
+        turn_id: Optional[str] = None,
+        attempt_id: str = "0",
         incarnation: str = "default",
         revision: int = 0,
         **conversation_kwargs: Any,
@@ -301,6 +324,8 @@ class AgentHost:
             session_id,
             user_message,
             idempotency_key=idempotency_key,
+            turn_id=turn_id,
+            attempt_id=attempt_id,
             incarnation=incarnation,
             revision=revision,
             **conversation_kwargs,
@@ -322,10 +347,7 @@ class AgentHost:
         try:
             future = self.scheduler.submit(
                 lease.entry,
-                lambda: lease.agent.run_conversation(
-                    request.user_message,
-                    **dict(request.conversation_kwargs),
-                ),
+                lambda: self._run_turn(lease.entry, request),
             )
         except BaseException:
             lease.release()
@@ -339,6 +361,34 @@ class AgentHost:
             with self._lock:
                 self._idempotent[key] = future
         return future
+
+    @staticmethod
+    def _run_turn(
+        entry: _SessionEntry, request: HostTurnRequest
+    ) -> AgentConversationResult:
+        """Run one turn while making the optional session lifecycle authoritative."""
+
+        session = entry.session
+        context = (
+            session.begin_turn(
+                turn_id=request.turn_id,
+                attempt_id=request.attempt_id,
+            )
+            if session is not None
+            else None
+        )
+        try:
+            result = entry.agent.run_conversation(
+                request.user_message,
+                **dict(request.conversation_kwargs),
+            )
+        except BaseException:
+            if session is not None and context is not None:
+                session.fail_turn(context)
+            raise
+        if session is not None and context is not None:
+            session.complete_turn(context)
+        return result
 
     @overload
     def run_turn(self, profile: HostTurnRequest) -> AgentConversationResult: ...

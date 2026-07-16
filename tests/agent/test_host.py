@@ -7,6 +7,32 @@ import pytest
 
 from agent.host import AgentHost, HostBackpressure, SessionIdentity
 from agent.protocol import HostTurnRequest
+from agent.session import (
+    AgentSession,
+    SessionIdentity as SessionBoundaryIdentity,
+    SessionSnapshot,
+)
+
+
+class RecordingSession:
+    def __init__(self, events):
+        self.events = events
+        self.closed = False
+
+    def begin_turn(self, *, turn_id=None, attempt_id="0"):
+        context = (turn_id, attempt_id)
+        self.events.append(("begin", context))
+        return context
+
+    def complete_turn(self, context):
+        self.events.append(("complete", context))
+
+    def fail_turn(self, context):
+        self.events.append(("fail", context))
+
+    def close(self):
+        self.closed = True
+        self.events.append(("close", None))
 
 
 class FakeAgent:
@@ -138,5 +164,96 @@ def test_typed_host_turn_request_preserves_existing_host_behavior():
         assert result["final_response"] == "s:hello"
         assert duplicate.result(timeout=2)["final_response"] == "s:hello"
         assert created[0].calls == [("hello", {"task_id": "task-1"})]
+    finally:
+        host.shutdown()
+
+
+def test_session_lifecycle_wraps_turn_with_correlation_ids_and_closes_on_eviction():
+    events = []
+    sessions = []
+
+    def make_session(_identity):
+        session = RecordingSession(events)
+        sessions.append(session)
+        return session
+
+    host = AgentHost(
+        lambda identity: FakeAgent(identity.session_id, Event()),
+        max_sessions=1,
+        session_factory=make_session,
+    )
+    try:
+        result = host.run_turn(
+            "p",
+            "s",
+            "hello",
+            turn_id="turn-7",
+            attempt_id="attempt-3",
+        )
+        assert result["final_response"] == "s:hello"
+        assert events[:2] == [
+            ("begin", ("turn-7", "attempt-3")),
+            ("complete", ("turn-7", "attempt-3")),
+        ]
+        assert host.recover("p", "s") is True
+        assert events[-1] == ("close", None)
+        assert sessions[0].closed
+    finally:
+        host.shutdown()
+
+
+def test_session_lifecycle_marks_failed_turn_and_releases_it():
+    events = []
+
+    class FailingAgent(FakeAgent):
+        def run_conversation(self, message, **kwargs):
+            raise RuntimeError("boom")
+
+    host = AgentHost(
+        lambda identity: FailingAgent(identity.session_id, Event()),
+        session_factory=lambda _identity: RecordingSession(events),
+    )
+    try:
+        with pytest.raises(RuntimeError, match="boom"):
+            host.run_turn(
+                "p",
+                "s",
+                "hello",
+                turn_id="turn-fail",
+                attempt_id="attempt-1",
+            )
+        assert [event[0] for event in events] == ["begin", "fail"]
+        assert host.pool.is_leased(SessionIdentity("p", "s")) is False
+    finally:
+        host.shutdown()
+
+
+def test_agent_session_is_a_real_host_lifecycle_boundary():
+    sessions = []
+
+    def make_session(identity):
+        snapshot = SessionSnapshot(
+            SessionBoundaryIdentity(
+                identity.profile,
+                identity.session_id,
+                identity.incarnation,
+                identity.revision,
+            ),
+            "prompt-hash",
+            "toolset-hash",
+            "provider-route",
+        )
+        session = AgentSession(snapshot)
+        sessions.append(session)
+        return session
+
+    host = AgentHost(
+        lambda identity: FakeAgent(identity.session_id, Event()),
+        session_factory=make_session,
+    )
+    try:
+        host.run_turn("p", "s", "hello", turn_id="turn-real")
+        assert sessions[0].active_turns == 0
+        assert not sessions[0].closed
     finally:
         host.shutdown()

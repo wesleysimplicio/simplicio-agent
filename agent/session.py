@@ -168,7 +168,15 @@ class AgentSession:
         current = self._active.get(context.turn_id)
         if current is not context:
             raise SessionInvariantError("turn is not active in this session")
-        if context.is_terminal:
+        # ``_phase`` was used by an early lifecycle adapter.  Treat it as a
+        # read-only compatibility alias so stale callers cannot mutate a
+        # terminal turn back through the host boundary.
+        phase = getattr(context, "_phase", context.phase)
+        if context.is_terminal or phase in {
+            TurnPhase.COMPLETED,
+            TurnPhase.FAILED,
+            TurnPhase.CANCELLED,
+        }:
             raise SessionInvariantError("turn is already terminal")
         return context
 

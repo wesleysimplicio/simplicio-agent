@@ -1,0 +1,14 @@
+{
+  "issue": "230",
+  "domain": "agent-host session turn bounded slice",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| banco vazio/indisponivel: simplicio memory nao produziu resultado observavel",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "simplicio-loop"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "agent": "codex-worker-4-of-6",
+  "note": "Bounded slice only: wire optional AgentSession lifecycle and TurnEngine correlation into AgentHost, with unit/integration evidence. Issue #230 remains an open architecture epic in quarantine; no close claim is made. senior-architect was requested by scope but is not installed in this environment."
+}

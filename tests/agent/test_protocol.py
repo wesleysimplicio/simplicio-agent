@@ -50,6 +50,8 @@ def test_host_turn_request_normalizes_daemon_payload_shape() -> None:
             "session_id": "session-1",
             "message": "hello",
             "idempotency_key": "turn-1",
+            "turn_id": "turn-1",
+            "attempt_id": "attempt-2",
             "revision": "7",
             "conversation_history": [{"role": "user", "content": "before"}],
             "timeout": 30,
@@ -62,6 +64,8 @@ def test_host_turn_request_normalizes_daemon_payload_shape() -> None:
         session_id="session-1",
         user_message="hello",
         idempotency_key="turn-1",
+        turn_id="turn-1",
+        attempt_id="attempt-2",
         revision=7,
         conversation_kwargs={
             "conversation_history": [{"role": "user", "content": "before"}],
