@@ -6,6 +6,7 @@ from agent.attention_schema import (
     AttentionQueue,
     AttentionReason,
     GlobalAttentionWorkspace,
+    WorkspaceReceipt,
     WorkspaceSnapshot,
 )
 
@@ -187,3 +188,115 @@ def test_priority_is_policy_derived_and_not_an_untrusted_constructor_field() -> 
             created_at=0,
             priority=0,
         )
+
+
+@pytest.mark.parametrize("field_name", ["item_id", "source", "run_id", "goal_id", "provenance", "profile_id"])
+def test_attention_item_rejects_blank_identity_fields(field_name: str) -> None:
+    values = {
+        "item_id": "x",
+        "source": "x",
+        "reason": AttentionReason.NORMAL_PROGRESS,
+        "expires_at": 10,
+        "run_id": "run-a",
+        "goal_id": "goal-a",
+        "created_at": 0,
+    }
+    values[field_name] = "   "
+    with pytest.raises(ValueError, match=f"{field_name} must be non-empty"):
+        AttentionItem(**values)  # type: ignore[arg-type]
+
+
+def test_attention_item_rejects_expiry_before_creation() -> None:
+    with pytest.raises(ValueError, match="expires_at cannot precede created_at"):
+        _item("x", AttentionReason.NORMAL_PROGRESS, expires_at=0, created_at=10)
+
+
+def test_attention_item_rejects_out_of_range_relevance() -> None:
+    with pytest.raises(ValueError, match="relevance must be between 0 and 100"):
+        _item("x", AttentionReason.NORMAL_PROGRESS, relevance=101)
+
+
+def test_attention_item_rejects_non_positive_cost() -> None:
+    with pytest.raises(ValueError, match="cost must be positive"):
+        _item("x", AttentionReason.NORMAL_PROGRESS, cost=0)
+
+
+def test_close_rejects_open_as_terminal_state() -> None:
+    item = _item("x", AttentionReason.NORMAL_PROGRESS)
+    with pytest.raises(ValueError, match="terminal state"):
+        item.close(AcknowledgementState.OPEN, "receipt")
+
+
+def test_close_rejects_blank_receipt() -> None:
+    item = _item("x", AttentionReason.NORMAL_PROGRESS)
+    with pytest.raises(ValueError, match="requires a receipt"):
+        item.close(AcknowledgementState.COMPLETED, "   ")
+
+
+def test_workspace_receipt_rejects_blank_goal_id() -> None:
+    with pytest.raises(ValueError, match="goal_id must be non-empty"):
+        WorkspaceReceipt(goal_id="  ", selected_at=0, budget=1, used=0, item_ids=())
+
+
+def test_workspace_receipt_rejects_non_positive_budget() -> None:
+    with pytest.raises(ValueError, match="workspace budget must be positive"):
+        WorkspaceReceipt(goal_id="g", selected_at=0, budget=0, used=0, item_ids=())
+
+
+def test_workspace_receipt_rejects_used_outside_budget() -> None:
+    with pytest.raises(ValueError, match="workspace used cost must fit within budget"):
+        WorkspaceReceipt(goal_id="g", selected_at=0, budget=1, used=2, item_ids=())
+
+
+def test_workspace_receipt_rejects_blank_item_id() -> None:
+    with pytest.raises(ValueError, match="item_ids must be non-empty"):
+        WorkspaceReceipt(goal_id="g", selected_at=0, budget=1, used=1, item_ids=("  ",))
+
+
+def test_workspace_receipt_rejects_duplicate_item_ids() -> None:
+    with pytest.raises(ValueError, match="item_ids must be unique"):
+        WorkspaceReceipt(
+            goal_id="g", selected_at=0, budget=2, used=2, item_ids=("a", "a")
+        )
+
+
+def test_publish_of_closed_item_does_not_populate_dedupe_key() -> None:
+    queue = AttentionQueue()
+    closed_item = _item(
+        "closed", AttentionReason.NORMAL_PROGRESS, acknowledgement=AcknowledgementState.COMPLETED
+    )
+    queue.publish(closed_item)
+    # A second, distinct item with the same dedupe key must NOT be merged,
+    # since the first one was never open and therefore never registered.
+    reopened = queue.publish(
+        _item("closed-again", AttentionReason.NORMAL_PROGRESS, source="closed")
+    )
+    assert reopened.item_id == "closed-again"
+    assert len(queue.items) == 2
+
+
+def test_select_workspace_rejects_blank_goal_id() -> None:
+    queue = AttentionQueue()
+    with pytest.raises(ValueError, match="goal_id must be non-empty"):
+        queue.select_workspace(goal_id="   ", budget=1, now=0)
+
+
+def test_select_workspace_rejects_non_positive_budget() -> None:
+    queue = AttentionQueue()
+    with pytest.raises(ValueError, match="workspace budget must be positive"):
+        queue.select_workspace(goal_id="goal-a", budget=0, now=0)
+
+
+def test_global_attention_workspace_rejects_non_positive_budget() -> None:
+    with pytest.raises(ValueError, match="workspace budget must be positive"):
+        GlobalAttentionWorkspace(budget=0)
+
+
+def test_global_attention_workspace_acknowledge_delegates_to_queue() -> None:
+    workspace = GlobalAttentionWorkspace(budget=2)
+    workspace.publish(_item("normal", AttentionReason.NORMAL_PROGRESS))
+    closed = workspace.acknowledge(
+        "normal", AcknowledgementState.COMPLETED, "receipt-1"
+    )
+    assert closed.acknowledgement is AcknowledgementState.COMPLETED
+    assert not closed.is_open
