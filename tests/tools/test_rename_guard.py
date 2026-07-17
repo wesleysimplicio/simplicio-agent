@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.rename_guard.scanner import scan, to_report
+from tools.rename_guard.scanner import scan, to_report, tracked_files
 
 
 def _init_repo(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -30,6 +30,19 @@ def test_new_unclassified_occurrence_fails(tmp_path):
     report = to_report(occurrences)
     assert report["new_count"] == 1
     assert report["occurrences"][0]["class"] == "new"
+
+
+@pytest.mark.live_system_guard_bypass
+def test_unicode_git_paths_are_decoded_without_host_codec_failure(tmp_path):
+    """Git paths are UTF-8 even when Windows Python uses cp1252 by default."""
+    repo = _init_repo(tmp_path, {"src/café.py": "hermes = True\n"})
+
+    assert "src/café.py" in tracked_files(repo)
+    report = to_report(scan(repo, {"exclude_globs": []}, [], {}, date(2026, 1, 1)))
+
+    assert report["schema"] == "simplicio.rename-guard/v1"
+    assert report["new_count"] == 1
+    assert report["occurrences"][0]["path"] == "src/café.py"
 
 
 def test_allowlisted_license_header_passes(tmp_path):

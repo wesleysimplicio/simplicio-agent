@@ -60,7 +60,13 @@ def load_json(path: Path, default: dict) -> dict:
 
 def tracked_files(root: Path) -> list[str]:
     out = subprocess.run(
-        ["git", "ls-files"], cwd=root, check=True, capture_output=True, text=True
+        ["git", "-c", "core.quotePath=false", "ls-files"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="surrogateescape",
     ).stdout
     return [line for line in out.splitlines() if line]
 
