@@ -207,6 +207,7 @@ def test_daemon_start_status_stop_round_trip():
                 pass
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX sockets used by the daemon")
 def test_daemon_status_reports_idle_ttl_fields():
     """AC (#110): the daemon self-reports its idle-TTL state, which
     ``simplicio-agent doctor`` surfaces (``hermes_cli/doctor.py::_check_warm_daemon``).
