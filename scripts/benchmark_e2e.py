@@ -389,6 +389,147 @@ def bench_dag_vs_serial(report: Report, iterations: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario: message-history token estimator backends (issue #111)
+# ---------------------------------------------------------------------------
+
+def _synthetic_message_history(n: int, with_images: bool) -> list:
+    """Build a representative OpenAI-style message history for the token
+    estimator bench: alternating user/assistant text turns, with every 7th
+    user turn carrying a base64-ish "image" content part when
+    ``with_images`` is set (roughly one screenshot per compression-relevant
+    burst of turns, not one per message)."""
+    text_block = (
+        "Let's look at the failing test output and figure out what changed. "
+        "The traceback points at line 42 of the config loader. "
+    ) * 6
+    fake_b64 = "A" * 200_000  # ~1MB base64 stand-in, same order of magnitude the issue's docstring warns about
+    messages = []
+    for i in range(n):
+        role = "user" if i % 2 == 0 else "assistant"
+        if with_images and role == "user" and i % 14 == 0:
+            content = [
+                {"type": "text", "text": text_block},
+                {"type": "image", "image": fake_b64},
+            ]
+        else:
+            content = text_block
+        messages.append({"role": role, "content": content})
+    return messages
+
+
+def _message_shadow_strings(messages: list) -> tuple[list, int]:
+    """Reproduce agent.model_metadata._estimate_message_chars/_count_image_tokens'
+    exact text-vs-image split, but return the actual shadow strings (not just
+    their lengths) so a token-estimator BACKEND swap can be benched fairly —
+    every variant below counts tokens for the identical text, so only the
+    chars-to-tokens step differs, and image-token semantics (flat 1500/image,
+    see agent.model_metadata._count_image_tokens) are untouched by all three."""
+    from agent.model_metadata import _count_image_tokens
+
+    _IMAGE_TOKEN_COST = 1500
+    shadows: list = []
+    image_tokens = 0
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, list):
+            cleaned = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") in {"image", "image_url", "input_image"}:
+                    cleaned.append({"type": part.get("type"), "image": "[stripped]"})
+                else:
+                    cleaned.append(part)
+            shadow = {**msg, "content": cleaned}
+        else:
+            shadow = msg
+        shadows.append(str(shadow))
+        image_tokens += _count_image_tokens(msg, _IMAGE_TOKEN_COST)
+    return shadows, image_tokens
+
+
+def bench_message_tokens_backends(report: Report, iterations: int) -> None:
+    """Issue #111: bench the message-history token estimator's text-to-token
+    backend (current Python len//4 arithmetic vs tiktoken vs the Rust
+    extension) across the exact history sizes and image/no-image split the
+    issue's acceptance criteria name (20/200/1000 messages). Image-token
+    accounting is identical across all three (see ``_message_shadow_strings``)
+    -- only the chars-to-tokens step for plain text changes, so this isolates
+    the backend decision without touching the image-cost contract.
+
+    tiktoken is NOT a declared project dependency (checked: absent from
+    pyproject.toml) -- when it isn't installed, that variant is reported as
+    unavailable rather than skipped silently, so the gap is visible in every
+    report instead of only in code comments.
+    """
+    import agent._hermes_fast as hf
+    from agent.model_metadata import estimate_messages_tokens_rough
+
+    try:
+        import tiktoken  # type: ignore[import-not-found]
+        _enc = tiktoken.get_encoding("cl100k_base")
+    except ImportError:
+        tiktoken = None
+        _enc = None
+
+    # Scale repetitions down for larger histories -- this scenario builds an
+    # n-message history per rep, so the global --iterations default (2000)
+    # would mean up to 2M message-dict builds for n=1000. 20/n keeps total
+    # work roughly constant across sizes while still giving a stable median.
+    for n in (20, 200, 1000):
+        reps = max(3, min(iterations, 400 // max(1, n // 20)))
+        for with_images in (False, True):
+            messages = _synthetic_message_history(n, with_images)
+            label = f"n={n}{'+img' if with_images else ''}"
+
+            # Every variant rebuilds the shadow strings from `messages` INSIDE
+            # its own timed closure -- production code estimates a fresh
+            # history every turn, so a variant that gets pre-built shadows for
+            # free would be an unfair (and wrong) comparison.
+            def run_current():
+                estimate_messages_tokens_rough(messages)
+
+            report.add(Result(
+                "tokens.message_history (#111)",
+                f"current Python len//4 ({label})",
+                reps,
+                _timeit(run_current, reps),
+            ))
+
+            if hf.HAVE_RUST:
+                def run_rust():
+                    shadows, image_tokens = _message_shadow_strings(messages)
+                    return sum(hf._rust.estimate_tokens_many(shadows)) + image_tokens  # type: ignore[attr-defined]
+
+                report.add(Result(
+                    "tokens.message_history (#111)",
+                    f"rust_ext estimate_tokens_many ({label})",
+                    reps,
+                    _timeit(run_rust, reps),
+                ))
+            else:
+                report.add(Result(
+                    "tokens.message_history (#111)", f"rust_ext ({label})", 0, 0.0,
+                    notes="rust_ext not built in this environment (maturin develop not run)",
+                ))
+
+            if _enc is not None:
+                def run_tiktoken():
+                    shadows, image_tokens = _message_shadow_strings(messages)
+                    return sum(len(_enc.encode(s)) for s in shadows) + image_tokens
+
+                report.add(Result(
+                    "tokens.message_history (#111)",
+                    f"tiktoken cl100k_base ({label})",
+                    reps,
+                    _timeit(run_tiktoken, reps),
+                ))
+            else:
+                report.add(Result(
+                    "tokens.message_history (#111)", f"tiktoken ({label})", 0, 0.0,
+                    notes="tiktoken not installed -- not a declared project dependency (pyproject.toml has no tiktoken entry)",
+                ))
+
+
+# ---------------------------------------------------------------------------
 # Scenario: warm daemon vs cold CLI start (issue #110 AC)
 # ---------------------------------------------------------------------------
 
@@ -537,6 +678,7 @@ SCENARIOS: dict[str, Callable[[Report, int], None]] = {
     "prompt_caching": bench_prompt_caching,
     "router": bench_router,
     "dag_vs_serial": bench_dag_vs_serial,
+    "message_tokens_backends": bench_message_tokens_backends,
 }
 
 
