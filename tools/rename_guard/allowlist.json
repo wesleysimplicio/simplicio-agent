@@ -18,6 +18,62 @@
       "expiry": "2026-12-31"
     },
     {
+      "path_glob": "acp_adapter/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal ACP adapter module importing from hermes_cli/hermes_constants and using the frozen HERMES_* env contract (e.g. hermes-setup auth method id); same module-rename scope as hermes_cli/*, tracked under epic #186 (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "run_agent.py",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "core entry point importing hermes_cli/hermes_constants/hermes_state internals and using the frozen HERMES_* env contract; not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "Dockerfile",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "container build paths (/opt/hermes, HERMES_UID, the `hermes` unix user/process name) mirror the frozen HERMES_HOME/HERMES_* runtime contract; not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "docker-compose*.yml",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "compose service/volume/env names mirror the frozen HERMES_HOME/HERMES_* runtime contract used by Dockerfile; not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".dockerignore",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "ignore patterns reference internal .hermes/hermes_cli paths, not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".env.example",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "HERMES_* env var names in the example env file mirror the frozen runtime contract; not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "AGENTS.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "remaining occurrences after the issue #200/#205/#187 branding pass are deliberate ADR-0010 role terminology ('Hermes reasons and coordinates' — the LLM's reasoning role, distinct from the Simplicio CLI execution role) and references to the frozen HERMES_*/hermes_cli internal contract; not unaddressed product branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
       "path_glob": "tests/hermes_cli/*",
       "term": null,
       "class": "KEEP_INTERNAL",
