@@ -40,6 +40,20 @@ jobs:
           smoke-venv/bin/python -m pip install --disable-pip-version-check --no-index --find-links dist-rust hermes-fast==0.1.0
           smoke-venv/bin/python -c 'import hermes_fast; print(hermes_fast.__name__)'
 
+      - name: Run tests/agent/test_hermes_fast.py WITH the compiled extension present
+        # Issue #113 AC: the "with extension" branch (parse_tool_call_delta
+        # routing through the Rust module, real-extension parity checks) must
+        # actually run in CI, not just the pure-Python fallback path that runs
+        # whenever the extension isn't built. Install the just-built wheel
+        # into the same interpreter running the full test suite so
+        # `HAVE_RUST` is true and the `requires_rust_extension`-marked tests
+        # execute instead of skipping.
+        run: |
+          python -m pip install --disable-pip-version-check --no-index --find-links dist-rust hermes-fast==0.1.0
+          python -m pip install --disable-pip-version-check pytest
+          python -c 'from agent._hermes_fast import HAVE_RUST; assert HAVE_RUST, "extension did not load after install"'
+          python -m pytest tests/agent/test_hermes_fast.py -v
+
       - name: Upload Rust wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
