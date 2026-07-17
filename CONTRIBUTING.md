@@ -118,14 +118,14 @@ A well-built third-party-product plugin can clear automated review and still be 
 For most contributors, the best development bootstrap is the same path users
 take: run the standard installer, then work inside the repository it cloned.
 The installer creates the Simplicio Agent venv, wires the `simplicio-agent` command, stamps the
-install method for `simplicio-agent update`, and clones the full git project into
-`$HERMES_HOME/hermes-agent` (usually `~/.hermes/hermes-agent`). That keeps your
-development environment on the same layout the CLI, updater, lazy dependency
-installer, gateway, and docs assume.
+install method for `simplicio-agent update`, and (on the git-clone fallback path)
+clones the full git project into `${DATA_DIR:-$HOME/.simplicio_agent}/source`.
+That keeps your development environment on the same layout the CLI, updater,
+lazy dependency installer, gateway, and docs assume.
 
 ```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-cd "${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+curl -fsSL https://simpleti.com.br/simplicio/install.sh | sh
+cd "${DATA_DIR:-$HOME/.simplicio_agent}/source"
 
 # Add dev/test extras on top of the standard install.
 uv pip install -e ".[all,dev]"
@@ -214,7 +214,7 @@ pytest tests/ -v
 ## Project Structure
 
 ```
-hermes-agent/
+simplicio-agent/
 ├── run_agent.py              # AIAgent class — core conversation loop, tool dispatch, session persistence
 ├── cli.py                    # HermesCLI class — interactive TUI, prompt_toolkit integration
 ├── model_tools.py            # Tool orchestration (thin layer over tools/registry.py)
@@ -274,7 +274,6 @@ hermes-agent/
 ├── skills/                   # Bundled skills (copied to ~/.hermes/skills/ on install)
 ├── optional-skills/          # Official optional skills (discoverable via hub, not activated by default)
 ├── tests/                    # Test suite
-├── website/                  # Documentation site (hermes-agent.nousresearch.com)
 │
 ├── cli-config.yaml.example   # Example configuration (copied to ~/.hermes/config.yaml)
 └── AGENTS.md                 # Development guide for AI coding assistants
