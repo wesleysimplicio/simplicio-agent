@@ -49,6 +49,12 @@ class _SessionEntry:
     turn_lock: Lock = field(default_factory=Lock)
     active_leases: int = 0
     last_used: float = field(default_factory=time.monotonic)
+    # Idempotency cache is scoped to this entry (not the host-wide process
+    # lifetime) so it is discarded automatically when the session is evicted
+    # from the pool, instead of growing without bound for the life of a
+    # long-running warm host.
+    idempotent: dict[str, "Future[Any]"] = field(default_factory=dict)
+    idempotent_lock: Lock = field(default_factory=Lock)
 
 
 class SessionDirectory:
@@ -254,7 +260,6 @@ class AgentHost:
         self.scheduler = TurnScheduler(max_workers=max_workers, max_pending=max_pending)
         self._lock = Lock()
         self._stopping = False
-        self._idempotent: dict[tuple[SessionIdentity, str], Future[Any]] = {}
 
     @staticmethod
     def _coerce_turn_request(
@@ -336,30 +341,40 @@ class AgentHost:
             incarnation=request.incarnation,
             revision=request.revision,
         )
-        key = (identity, request.idempotency_key) if request.idempotency_key else None
+        key = request.idempotency_key
         with self._lock:
             if self._stopping:
                 raise HostShutdown("agent host is draining")
-            if key is not None and key in self._idempotent:
-                return self._idempotent[key]
 
         lease = self.pool.acquire(identity)
-        try:
-            future = self.scheduler.submit(
-                lease.entry,
-                lambda: self._run_turn(lease.entry, request),
-            )
-        except BaseException:
-            lease.release()
-            raise
+        entry = lease.entry
 
         def release(done: Future[Any]) -> None:
             lease.release()
 
-        future.add_done_callback(release)
         if key is not None:
-            with self._lock:
-                self._idempotent[key] = future
+            with entry.idempotent_lock:
+                cached = entry.idempotent.get(key)
+                if cached is not None:
+                    lease.release()
+                    return cached
+                try:
+                    future = self.scheduler.submit(
+                        entry, lambda: self._run_turn(entry, request)
+                    )
+                except BaseException:
+                    lease.release()
+                    raise
+                entry.idempotent[key] = future
+                future.add_done_callback(release)
+                return future
+
+        try:
+            future = self.scheduler.submit(entry, lambda: self._run_turn(entry, request))
+        except BaseException:
+            lease.release()
+            raise
+        future.add_done_callback(release)
         return future
 
     @staticmethod

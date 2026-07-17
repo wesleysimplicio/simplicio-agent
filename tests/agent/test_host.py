@@ -131,6 +131,39 @@ def test_explicit_recovery_rebuilds_idle_agent():
         host.shutdown()
 
 
+def test_idempotency_cache_is_discarded_on_session_eviction_not_host_lifetime():
+    """Regression guard for an unbounded-growth bug: the idempotency cache
+    used to live on the ``AgentHost`` itself, keyed by every distinct
+    ``(identity, idempotency_key)`` pair ever submitted, and nothing ever
+    removed entries from it. A long-running warm host (this issue's whole
+    point) would accumulate one entry per turn forever, growing RSS without
+    bound over a soak — directly contradicting the "RSS estabiliza" /
+    eviction acceptance criteria for AgentHost.
+
+    The cache must instead be scoped to the per-session pool entry so it is
+    discarded automatically the moment the idle session is evicted.
+    """
+    host = AgentHost(lambda identity: FakeAgent(identity.session_id, Event()), max_sessions=1)
+    try:
+        host.submit("p", "s", "one", idempotency_key="k1").result(timeout=2)
+        entry = host.pool._entries[SessionIdentity("p", "s")]
+        assert "k1" in entry.idempotent
+
+        # A second, unrelated session forces the idle "s" entry (and its
+        # idempotency cache) out of the size-bounded pool.
+        host.submit("p", "other", "x", idempotency_key="k2").result(timeout=2)
+        assert not host.pool.is_present(SessionIdentity("p", "s"))
+
+        # Resubmitting the same idempotency key after eviction must run a
+        # fresh turn (the old cache entry is gone with the evicted entry),
+        # not resurrect a stale cached future from a dict that outlives
+        # sessions.
+        result = host.submit("p", "s", "two", idempotency_key="k1").result(timeout=2)
+        assert result["final_response"] == "s:two"
+    finally:
+        host.shutdown()
+
+
 def test_profile_isolation_uses_distinct_agents():
     created = []
     host = AgentHost(lambda identity: created.append(identity) or FakeAgent(identity.profile, Event()))
