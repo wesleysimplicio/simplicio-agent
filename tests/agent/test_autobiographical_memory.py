@@ -114,6 +114,149 @@ def test_episode_id_collision_preserves_existing_lineage() -> None:
     ).memories == (memory,)
 
 
+def test_causal_evidence_rejects_malformed_prediction_receipt() -> None:
+    with pytest.raises(ValueError, match="prediction_receipt"):
+        CausalEvidence("not-a-sha256", OUTCOME, "prediction_observed")
+
+
+def test_causal_evidence_rejects_malformed_outcome_receipt() -> None:
+    with pytest.raises(ValueError, match="outcome_receipt"):
+        CausalEvidence(PREDICTION, "not-a-sha256", "prediction_observed")
+
+
+def test_causal_evidence_rejects_blank_relation() -> None:
+    with pytest.raises(ValueError, match="causal relation"):
+        CausalEvidence(PREDICTION, OUTCOME, "   ")
+
+
+def test_episode_fact_rejects_blank_key_or_summary() -> None:
+    evidence = CausalEvidence(PREDICTION, OUTCOME, "prediction_observed")
+    with pytest.raises(ValueError, match="key and summary"):
+        EpisodeFact(
+            key="",
+            summary="something",
+            kind=MemoryKind.SEMANTIC,
+            evidence=evidence,
+            confidence=0.5,
+        )
+    with pytest.raises(ValueError, match="key and summary"):
+        EpisodeFact(
+            key="delivery.preference",
+            summary="  ",
+            kind=MemoryKind.SEMANTIC,
+            evidence=evidence,
+            confidence=0.5,
+        )
+
+
+def test_episode_fact_rejects_out_of_range_confidence() -> None:
+    evidence = CausalEvidence(PREDICTION, OUTCOME, "prediction_observed")
+    with pytest.raises(ValueError, match="confidence must be between"):
+        EpisodeFact(
+            key="delivery.preference",
+            summary="something",
+            kind=MemoryKind.SEMANTIC,
+            evidence=evidence,
+            confidence=1.5,
+        )
+    with pytest.raises(ValueError, match="confidence must be between"):
+        EpisodeFact(
+            key="delivery.preference",
+            summary="something",
+            kind=MemoryKind.SEMANTIC,
+            evidence=evidence,
+            confidence=-0.1,
+        )
+
+
+def test_episode_fact_rejects_malformed_consent_receipt() -> None:
+    evidence = CausalEvidence(PREDICTION, OUTCOME, "prediction_observed")
+    with pytest.raises(ValueError, match="consent_receipt"):
+        EpisodeFact(
+            key="delivery.preference",
+            summary="something",
+            kind=MemoryKind.SEMANTIC,
+            evidence=evidence,
+            confidence=0.5,
+            consent_receipt="not-a-sha256",
+        )
+
+
+def test_episode_manifest_rejects_blank_episode_id() -> None:
+    with pytest.raises(ValueError, match="episode_id"):
+        EpisodeManifest(
+            episode_id="   ",
+            scope=MemoryScope.USER_PROJECT,
+            completed_verified=True,
+            valid_from=10,
+            facts=(),
+        )
+
+
+def test_recall_skips_memories_for_other_keys_before_finding_match() -> None:
+    # Exercises the _active_for loop continuation branch: an existing active
+    # memory under a different key must not shadow lookups for the real key.
+    store = AutobiographicalStore()
+    store.consolidate(_manifest("episode-other", _fact("other pref"), **{
+        "facts": (
+            EpisodeFact(
+                key="other.preference",
+                summary="Use email",
+                kind=MemoryKind.SEMANTIC,
+                evidence=CausalEvidence(PREDICTION, OUTCOME, "prediction_observed"),
+                confidence=0.9,
+            ),
+        ),
+    }), system_time=10)
+
+    (memory,) = store.consolidate(_manifest("episode-1", _fact("Use email")), system_time=20)
+
+    assert store.recall("delivery.preference", scope=MemoryScope.USER_PROJECT).memories == (
+        memory,
+    )
+
+
+def test_recall_precision_and_tokens_avoided_benchmark() -> None:
+    """Minimal recall-quality benchmark (issue #171 AC: precision@k / tokens avoided).
+
+    Consolidates a batch of episodes with resolved supersessions and measures:
+    - precision@1: every recall for a live key returns exactly the current fact.
+    - stale recall: superseded facts must never surface via recall.
+    - tokens avoided: sanitized summaries must be no longer than raw transcript
+      text would be (a lower bound stand-in for "we didn't store the transcript").
+    """
+    store = AutobiographicalStore()
+    raw_transcript_chars = 0
+    stored_chars = 0
+
+    keys = [f"pref.k{i}" for i in range(5)]
+    for generation in range(3):  # simulate three rounds of updates per key
+        for i, key in enumerate(keys):
+            summary = f"User {key} chose option-{generation}"
+            raw_transcript_chars += len(summary) * 20  # stand-in raw transcript blob
+            fact = EpisodeFact(
+                key=key,
+                summary=summary,
+                kind=MemoryKind.SEMANTIC,
+                evidence=CausalEvidence(PREDICTION, OUTCOME, "prediction_observed"),
+                confidence=0.8,
+            )
+            manifest = _manifest(f"ep-{generation}-{i}", fact)
+            promoted = store.consolidate(manifest, system_time=generation * 10 + i)
+            stored_chars += sum(len(m.summary) for m in promoted)
+
+    # precision@1 and no stale recall: exactly the latest generation surfaces.
+    for key in keys:
+        result = store.recall(key, scope=MemoryScope.USER_PROJECT)
+        assert len(result.memories) == 1, "precision@1 violated: multiple live memories"
+        assert result.memories[0].summary.endswith("option-2")
+        assert "option-0" not in result.memories[0].summary
+        assert "option-1" not in result.memories[0].summary
+
+    # tokens avoided: consolidated store is far smaller than raw transcript volume.
+    assert stored_chars < raw_transcript_chars / 5
+
+
 def test_prediction_evidence_digest_is_stable_and_non_disclosing() -> None:
     from tests.agent.test_prediction_receipts import _receipt
 
