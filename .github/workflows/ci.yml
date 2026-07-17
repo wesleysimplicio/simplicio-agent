@@ -73,6 +73,40 @@ jobs:
       event_name: ${{ needs.detect.outputs.event_name }}
       ci_review: ${{ needs.detect.outputs.ci_review == 'true' }}
 
+  perf-gate:
+    # Issue #116: guard the measured perf claims in README.md/docs/performance.md
+    # against silent regression. tools/perf_gate/compare.py runs
+    # scripts/benchmark_e2e.py (offline, no network) and compares the median
+    # of 3 runs against the committed tools/perf_gate/baseline_ci.json,
+    # failing (exit 1) on any scenario regressing beyond the baseline's
+    # threshold_pct. Bootstrap mode (empty baseline metrics -- see that
+    # file's own _note) exits 0 without gating, so this is safe to enable
+    # before the first real runner-captured baseline is committed.
+    name: Perf regression gate (blocking)
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 8.3.2
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        uses: ./.github/actions/retry
+        with:
+          command: uv sync --locked --python 3.11 --extra all --extra dev
+
+      - name: Run perf gate
+        run: |
+          source .venv/bin/activate
+          python3 -m tools.perf_gate.compare
+
   js-tests:
     name: JS & TS checks
     needs: detect
@@ -142,6 +176,7 @@ jobs:
     needs:
       - tests
       - lint
+      - perf-gate
       - js-tests
       - history-check
       - contributor-check
