@@ -720,6 +720,14 @@
       "reason": "internal source/module reference to the still-existing hermes_cli/hermes_* module and binary names, tracked separately under epic #186 full module rename; not public-facing branding",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "acp_registry/agent.json",
+      "term": "hermes",
+      "class": "credit",
+      "reason": "description/authors now credit NousResearch/hermes-agent as the upstream fork origin (matching README.md's attribution language); the dead archived-docs website link was fixed to point at this repo instead (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
     }
   ]
 }
