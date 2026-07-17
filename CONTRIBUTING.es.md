@@ -111,7 +111,7 @@ echo "OPENROUTER_API_KEY=***" >> ~/.hermes/.env
 ```bash
 # Enlace simbólico para acceso global
 mkdir -p ~/.local/bin
-ln -sf "$(pwd)/venv/bin/hermes" ~/.local/bin/hermes
+ln -sf "$(pwd)/venv/bin/simplicio-agent" ~/.local/bin/simplicio-agent
 
 # Verificar
 simplicio-agent doctor
@@ -134,7 +134,7 @@ pytest tests/ -v
 ## Estructura del Proyecto
 
 ```
-hermes-agent/
+simplicio-agent/
 ├── run_agent.py              # Clase AIAgent — bucle de conversación central, despacho de herramientas, persistencia de sesión
 ├── cli.py                    # Clase HermesCLI — TUI interactiva, integración prompt_toolkit
 ├── model_tools.py            # Orquestación de herramientas (capa delgada sobre tools/registry.py)
@@ -194,7 +194,6 @@ hermes-agent/
 ├── skills/                   # Habilidades incluidas (copiadas a ~/.hermes/skills/ en la instalación)
 ├── optional-skills/          # Habilidades opcionales oficiales (descubribles vía hub, no activadas por defecto)
 ├── tests/                    # Suite de tests
-├── website/                  # Sitio de documentación (hermes-agent.nousresearch.com)
 │
 ├── cli-config.yaml.example   # Configuración de ejemplo (copiada a ~/.hermes/config.yaml)
 └── AGENTS.md                 # Guía de desarrollo para asistentes de codificación IA

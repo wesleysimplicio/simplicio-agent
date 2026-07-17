@@ -10,6 +10,62 @@
       "expiry": null
     },
     {
+      "path_glob": "locales/*.yaml",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "message-key names use the internal hermes_ prefix (e.g. hermes_cmd_not_found) and one path references the frozen ~/.hermes/logs/ contract; the actual user-facing message text already says 'simplicio-agent' (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "flake.nix",
+      "term": null,
+      "class": "credit",
+      "reason": "the only remaining mention is the deliberate 'forked from Hermes Agent by Nous Research' attribution added when fixing the flake description (issue #187/#200 pass); not unaddressed branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "simplicio-agent",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "remaining mentions are the documented `hermes` deprecated-alias note and the internal `from hermes_cli.main import main` — both already fixed for the branding issue itself (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "CONTRIBUTING.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "remaining occurrences after the wrong-repo/install-command fixes (#205, #187) are the frozen HERMES_HOME/hermes_cli contract, internal toolset names (_HERMES_CORE_TOOLS), and the metadata.hermes schema key shared by all skills; not unaddressed branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "CONTRIBUTING.es.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "remaining occurrences after the wrong-repo/tree/symlink fixes (#205, #187) are the frozen HERMES_HOME/hermes_cli contract and internal toolset names, mirroring CONTRIBUTING.md; not unaddressed branding",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "SECURITY.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "remaining mention is 'hermes-home security', the frozen internal state-directory contract (matches the SECURITY.es.md entry); not unaddressed branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "SECURITY.es.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "after replacing all 20 'Hermes Agent' product-name mentions with 'Simplicio Agent' (matching SECURITY.md exactly) the one remaining mention is 'hermes-home security', the frozen internal state-directory contract (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
       "path_glob": "hermes_cli/*",
       "term": null,
       "class": "KEEP_INTERNAL",
