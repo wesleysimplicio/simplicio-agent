@@ -1,9 +1,12 @@
 """Focused tests for the live-commit/pending-manual-pull boundary."""
 
+import pytest
+
 from tools.live_commit_attestation import (
     AttestationStatus,
     CodeIdentity,
     PullStatus,
+    RollbackIntent,
     attest_live_commit,
     attest_rollback,
     detect_manual_pull,
@@ -87,3 +90,66 @@ def test_first_head_observation_is_only_a_baseline():
 
     assert result.status is PullStatus.BASELINE
     assert not result.pending
+
+
+def test_unchanged_head_is_not_pending():
+    result = detect_manual_pull(OLD.commit, OLD.commit)
+
+    assert result.status is PullStatus.UNCHANGED
+    assert not result.pending
+    assert result.reason == "head_unchanged"
+
+
+def test_code_identity_rejects_malformed_digest():
+    with pytest.raises(ValueError, match="digest must be"):
+        CodeIdentity(OLD.commit, "not-a-digest")
+
+
+def test_code_identity_rejects_malformed_commit():
+    with pytest.raises(ValueError, match="commit must be"):
+        CodeIdentity("not-a-commit!", OLD.digest)
+
+
+def test_rollback_intent_rejects_non_boolean_required():
+    with pytest.raises(TypeError, match="rollback required must be a boolean"):
+        RollbackIntent(required="yes")
+
+
+def test_rollback_intent_rejects_target_when_not_required():
+    with pytest.raises(ValueError, match="non-required rollback cannot have a target"):
+        RollbackIntent(required=False, target=OLD)
+
+
+def test_rollback_intent_requires_reason_when_required():
+    with pytest.raises(ValueError, match="required rollback must include a reason"):
+        RollbackIntent(required=True, target=OLD, reason="")
+
+
+def test_healthy_startup_without_live_report_is_unreported():
+    result = attest_live_commit(NEW, None)
+
+    assert result.status is AttestationStatus.FAILED
+    assert result.reason == "live_commit_unreported"
+    assert result.rollback.required
+
+
+def test_attest_rollback_returns_failed_result_unmodified_when_mismatched():
+    result = attest_rollback(OLD, NEW)
+
+    assert result.status is AttestationStatus.FAILED
+    assert result.reason == "live_commit_mismatch"
+
+
+def test_loaded_code_digest_rejects_empty_name():
+    with pytest.raises(ValueError, match="non-empty strings"):
+        loaded_code_digest({"": b"a"})
+
+
+def test_loaded_code_digest_reads_path_contents(tmp_path):
+    file_path = tmp_path / "module.py"
+    file_path.write_bytes(b"payload")
+
+    from_path = loaded_code_digest({"module.py": file_path})
+    from_bytes = loaded_code_digest({"module.py": b"payload"})
+
+    assert from_path == from_bytes
