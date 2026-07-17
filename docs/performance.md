@@ -87,6 +87,38 @@ to the same host and don't get pooling for free from an SDK. Removing it
 would just mean re-writing it the next time someone needs it. See the
 module docstring in `agent/net/http_pool.py` for the usage example.
 
+## Message-history token estimator: why it stays pure Python (issue #111)
+
+`agent/model_metadata.py::estimate_messages_tokens_rough` — the hottest
+estimator in the product, called on every turn and every compression
+pre-flight — used a plain `len(str(shadow_dict)) // 4` loop with no
+faster backend wired in, even though `agent/tokens/fast_estimator.py`
+(tiktoken) and the Rust extension's `estimate_tokens_many` both exist.
+Issue #111 asked for a real bench (not faith) to decide whether to swap.
+
+`scripts/benchmark_e2e.py --skip ... message_tokens_backends` (also
+runnable standalone via `--skip <everything else>`) compares the current
+Python path against the Rust batch estimator across 20/200/1000-message
+histories, with and without an image content part, all backends counting
+tokens for the *identical* shadow-string text — image-token accounting
+(`_count_image_tokens`, flat 1500 tokens/image) is untouched in every
+variant, so swapping the backend can never change that contract.
+
+**Result: current Python wins or ties at every size** (median across
+sizes: current ~1.0-1.5x faster than the Rust batch call, matching the
+FFI/marshalling-overhead-dominates-trivial-arithmetic conclusion
+`agent/_hermes_fast.py`'s own docstring already reached for this class of
+op). `tiktoken` isn't even a declared project dependency (absent from
+`pyproject.toml`), so introducing it would mean shipping a new mandatory
+dependency for a backend that, per the Rust result, wouldn't win either
+(BPE tokenization work on top of the same shadow-string construction that
+already dominates the Rust variant's time).
+
+Decision: **no swap.** `estimate_messages_tokens_rough` stays exactly as
+it is. This is a measured, documented "no" — re-run the benchmark before
+reopening this if a future PyO3/tiktoken release changes the FFI cost
+picture.
+
 ## Measuring the actual gain
 
 Module-level claims like "2-10x faster JSON" are microbenchmarks of one
