@@ -39,6 +39,19 @@ the default (user decision 2026-07-08; wave 1 of
 
 ### Added
 
+- **TOON prompt encoding default-on for brand-new sessions** (issue #112,
+  `hermes_cli/config.py` `DEFAULT_CONFIG`): `context.toon_prompts` now
+  defaults to `true` for configs that have never set the key — 60.9%
+  measured token savings on the uniform-array golden-corpus benchmark
+  (`docs/performance.md`). Existing installs are unaffected: the
+  version-32→33 migration in `migrate_config()` pins an explicit
+  `toon_prompts: false` into any config.yaml that never set the key, so
+  the flip only ever applies to genuinely new installs; any prior explicit
+  choice (`true` or `false`) is always preserved. The flag is still read
+  once per session and pinned for the life of the `AIAgent` instance
+  (`agent/agent_init.py` → `agent._toon_prompts_enabled`), never
+  re-derived mid-conversation, so prompt-cache safety is unchanged
+  (`tests/agent/test_toon_prompts_session_pin.py`).
 - **`addressing_geometry`** (issue #36, Asolaria Algorithms — Addressing
   Geometry): deterministic `REALMATHPOS` (file:line:col → monotone
   locality-preserving coordinate), `FNV-1a64` (fast file-path hash with

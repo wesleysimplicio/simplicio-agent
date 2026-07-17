@@ -69,13 +69,24 @@ def test_flag_does_not_change_after_construction_even_if_config_changes():
 def test_no_config_read_happens_outside_construction():
     """agent.toon_boundary and agent.system_prompt must read the pinned
     instance attribute, never call load_config() themselves — otherwise a
-    long-running conversation could pick up a config change mid-session."""
+    long-running conversation could pick up a config change mid-session.
+
+    Only the mutating ``load_config()`` (which can run migrations and write
+    to disk) is disallowed here. ``load_config_readonly()`` is a distinct,
+    side-effect-free accessor used elsewhere (e.g. system_prompt.py's
+    Telegram rich-messages hint) for config keys that have nothing to do
+    with the TOON pin, so a bare substring match on "load_config" is too
+    broad — it would false-positive on any unrelated use of the readonly
+    variant.
+    """
     import inspect
+    import re
 
     import agent.toon_boundary as boundary
     import agent.system_prompt as system_prompt
 
     src_boundary = inspect.getsource(boundary)
     src_prompt = inspect.getsource(system_prompt)
-    assert "load_config" not in src_boundary
-    assert "load_config" not in src_prompt
+    _mutating_load_config = re.compile(r"(?<!_)load_config\s*\(")
+    assert not _mutating_load_config.search(src_boundary)
+    assert not _mutating_load_config.search(src_prompt)
