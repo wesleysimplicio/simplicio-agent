@@ -628,9 +628,20 @@ def _live_system_guard(request, monkeypatch):
             return False
         try:
             walker = _psutil.Process(pid)
+        except _psutil.NoSuchProcess:
+            # POSIX: a genuinely gone PID makes a real kill() a harmless
+            # ESRCH no-op, so allowing it through is safe. On Windows,
+            # though, OpenProcess()/TerminateProcess() on a nonexistent or
+            # reserved low PID (e.g. PID 1, which has no POSIX meaning
+            # there) raises a *visible* WinError instead of silently
+            # no-op'ing — so "allow" would let a real, non-blocked OSError
+            # escape past the guard. Default-deny on that platform.
+            return sys.platform != "win32"
         except Exception:
-            # Stale PID — kill would be a no-op anyway, allow it.
-            return True
+            # Any other lookup failure (e.g. access-denied on a reserved/
+            # protected PID) is NOT a safe no-op — treat it as foreign and
+            # block.
+            return False
         try:
             for parent in walker.parents():
                 if parent.pid == test_pid:

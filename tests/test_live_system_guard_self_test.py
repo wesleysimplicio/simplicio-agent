@@ -25,6 +25,14 @@ import sys
 
 import pytest
 
+_posix_only = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "pty/termios do not exist on Windows (no PTY concept); this exercises "
+        "POSIX-only pty.spawn coverage and is exercised on Linux/macOS CI."
+    ),
+)
+
 _no_systemctl = pytest.mark.skipif(
     shutil.which("systemctl") is None,
     reason=(
@@ -157,10 +165,7 @@ def test_os_popen_systemctl_blocked():
 # ──────────────────── pty.spawn ────────────────────────────────
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="pty/termios are POSIX-only; the guard's fail-closed pty.spawn block is covered on POSIX CI",
-)
+@_posix_only
 def test_pty_spawn_systemctl_blocked():
     import pty
     with pytest.raises(RuntimeError, match="live-system guard"):
