@@ -133,10 +133,13 @@ Two bots (AlfradHD `~/.hermes`, Simplicio `~/.simplicio_agent`) share the same G
 
 ## Tool routing for Simplicio work
 
-- Prefer **Hermes-native tools first** for orientation, reading, searching, and decision support.
-- Use **Simplicio CLI/MCP next** for execution, deterministic edits, validation, and evidence.
-- When the task can be split, keep Hermes in the reasoning/coordination role and hand only the mutation step to Simplicio.
-- If the repository already documents a local routing rule in `AGENTS.md`, mirror it in the skill and keep the skill aligned with the repo source of truth.
+> Canonical source: `AGENTS.md` § "Tool routing" ([ADR-0010](../../../docs/architecture/ADR-0010-runtime-first-execution.md)),
+> issue #212. Any wording below that diverges from AGENTS.md is the bug.
+
+- **Hermes reasons and coordinates** — decides, interprets, plans; not the preferred execution or orientation layer.
+- **Simplicio CLI executes first** — orientation, reading, searching, decision support, deterministic edits, validation, and evidence all attempt `simplicio <command>` before anything else.
+- **Simplicio MCP is fallback runtime transport only** when CLI is unavailable or an explicit warm MCP path is configured.
+- **A native Hermes tool is a temporary capability exception** — report the gap (`UNVERIFIED| runtime capability gap`) instead of silently repeating it.
 
 ## Core workflow
 
