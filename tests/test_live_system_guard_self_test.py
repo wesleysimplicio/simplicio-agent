@@ -21,8 +21,17 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 
 import pytest
+
+_posix_only = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "pty/termios do not exist on Windows (no PTY concept); this exercises "
+        "POSIX-only pty.spawn coverage and is exercised on Linux/macOS CI."
+    ),
+)
 
 _no_systemctl = pytest.mark.skipif(
     shutil.which("systemctl") is None,
@@ -156,6 +165,7 @@ def test_os_popen_systemctl_blocked():
 # ──────────────────── pty.spawn ────────────────────────────────
 
 
+@_posix_only
 def test_pty_spawn_systemctl_blocked():
     import pty
     with pytest.raises(RuntimeError, match="live-system guard"):
@@ -269,13 +279,21 @@ def test_systemctl_unrelated_unit_passes_through():
 
 def test_kill_own_subtree_passes_through():
     """We CAN kill our own children — guard recognizes them via psutil."""
-    p = subprocess.Popen(["sleep", "30"])
+    p = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"]
+    )
     try:
         os.kill(p.pid, signal.SIGTERM)
     finally:
-        p.wait(timeout=2)
-    # SIGTERM = 15; subprocess returncode is -15 on POSIX.
-    assert p.returncode in {-signal.SIGTERM, 128 + int(signal.SIGTERM)}
+        p.wait(timeout=5)
+    if sys.platform == "win32":
+        # os.kill(SIGTERM) on Windows calls TerminateProcess(handle, sig);
+        # the child's returncode is that exit code (the signal number
+        # itself), not a negative POSIX signal number.
+        assert p.returncode == signal.SIGTERM
+    else:
+        # SIGTERM = 15; subprocess returncode is -15 on POSIX.
+        assert p.returncode in {-signal.SIGTERM, 128 + int(signal.SIGTERM)}
 
 
 def test_subprocess_pkill_with_unrelated_pattern_passes_through():
