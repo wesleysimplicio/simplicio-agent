@@ -12,6 +12,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import platform
 import shutil
 import tempfile
 import threading
@@ -447,10 +448,24 @@ class PromotionController:
         temporary.unlink(missing_ok=True)
         target = f"slots/{digest}"
         try:
-            try:
-                os.symlink(target, temporary, target_is_directory=True)
-            except (OSError, NotImplementedError):
+            # Windows' MoveFileEx (which os.replace uses) cannot atomically
+            # replace a directory reparse point (a symlink-to-directory)
+            # with another one: it fails with WinError 5 (access denied)
+            # even when both sides are owned by the current process and no
+            # other handle is open. This is a genuine platform limitation,
+            # not a race we can retry away -- POSIX rename(2) has no such
+            # restriction on symlinks. A plain-text pointer file is exactly
+            # as atomic under os.replace (regular file -> regular file) and
+            # is already understood by ``current()`` as a fallback format,
+            # so Windows always uses it instead of attempting a symlink
+            # swap that we have verified deterministically fails.
+            if platform.system() == "Windows":
                 temporary.write_text(target + "\n", encoding="utf-8")
+            else:
+                try:
+                    os.symlink(target, temporary, target_is_directory=True)
+                except (OSError, NotImplementedError):
+                    temporary.write_text(target + "\n", encoding="utf-8")
             os.replace(temporary, self.pointer)
         finally:
             temporary.unlink(missing_ok=True)
