@@ -14,8 +14,10 @@ from agent.prediction_receipts import (
     ObservationState,
     Precondition,
     PreconditionKind,
+    PredictionError,
     PredictionOutcome,
     PredictionReceipt,
+    prediction_evidence_digest,
     ReconciliationDecision,
     TimeoutReconciliation,
     Verifier,
@@ -263,3 +265,289 @@ def test_receipt_links_to_existing_content_addressed_ledger(tmp_path) -> None:
 
     assert ledger_receipt.yool_id == "agent.consciousness.prediction"
     assert (tmp_path / f"{ledger_receipt.sha}.json").is_file()
+
+
+def test_error_outcome_ledger_status_is_error(tmp_path) -> None:
+    error_receipt = _receipt().assess(
+        (Observation.error("balance", "verifier crashed"),)
+    )
+
+    ledger_receipt = error_receipt.record_ledger(tmp_path)
+
+    assert ledger_receipt.status == "error"
+
+
+def test_precondition_from_value_rejects_bad_strings() -> None:
+    with pytest.raises(ValueError, match="belief:<ref> or receipt:<sha>"):
+        Precondition.from_value("nope")
+    with pytest.raises(ValueError, match="belief:<ref> or receipt:<sha>"):
+        Precondition.from_value("weird:ref")
+
+    from_string = Precondition.from_value("belief:balance@v1")
+    assert from_string.kind is PreconditionKind.BELIEF
+    assert from_string.reference == "balance@v1"
+
+    from_dict = Precondition.from_value(
+        {"kind": "receipt", "reference": "sha256:abc", "fresh": True}
+    )
+    assert from_dict.kind is PreconditionKind.RECEIPT
+
+    with pytest.raises(ValueError, match="non-empty"):
+        Precondition(PreconditionKind.BELIEF, "  ")
+
+
+def test_verifier_from_value_variants_and_validation() -> None:
+    with pytest.raises(ValueError, match="declared"):
+        Verifier.from_value("   ")
+
+    from_string = Verifier.from_value("ledger.balance")
+    assert from_string.label == "ledger.balance"
+    assert from_string.source == "ledger.balance"
+
+    from_dict = Verifier.from_value({"label": "a", "source": "b"})
+    assert from_dict.label == "a"
+    assert from_dict.source == "b"
+
+    with pytest.raises(ValueError, match="must be declared"):
+        Verifier("", "source")
+
+
+def test_timeout_reconciliation_requires_fields_and_rejects_retry() -> None:
+    with pytest.raises(ValueError, match="effect journal and verifier query"):
+        TimeoutReconciliation(effect_journal_ref="", verifier_query="q")
+    with pytest.raises(ValueError, match="cannot permit blind retry"):
+        TimeoutReconciliation(
+            effect_journal_ref="ref", verifier_query="q", retry_permitted=True
+        )
+
+
+def test_hard_policy_constraint_validation() -> None:
+    with pytest.raises(ValueError, match="label must be non-empty"):
+        HardPolicyConstraint("  ", "high", 1)
+    with pytest.raises(ValueError, match="low/medium/high/critical"):
+        HardPolicyConstraint("label", "extreme", 1)
+    with pytest.raises(ValueError, match="non-negative"):
+        HardPolicyConstraint("label", "high", -1)
+
+
+def test_prediction_error_validation() -> None:
+    with pytest.raises(ValueError, match="rate between 0 and 1"):
+        PredictionError(ObservationState.KNOWN, rate=None)
+    with pytest.raises(ValueError, match="rate between 0 and 1"):
+        PredictionError(ObservationState.KNOWN, rate=1.5)
+    with pytest.raises(ValueError, match="cannot carry a reason"):
+        PredictionError(ObservationState.KNOWN, rate=0.5, reason="oops")
+    with pytest.raises(ValueError, match="requires a reason only"):
+        PredictionError(ObservationState.UNKNOWN)
+    with pytest.raises(ValueError, match="requires a reason only"):
+        PredictionError(ObservationState.UNKNOWN, rate=0.1, reason="set")
+
+
+def test_confidence_calibration_validation() -> None:
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        ConfidenceCalibration(ObservationState.KNOWN, predicted_confidence=1.5)
+    with pytest.raises(ValueError, match="requires observed accuracy"):
+        ConfidenceCalibration(ObservationState.KNOWN, predicted_confidence=0.5)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        ConfidenceCalibration(
+            ObservationState.KNOWN, predicted_confidence=0.5, observed_accuracy=2.0
+        )
+    with pytest.raises(ValueError, match="cannot carry a reason"):
+        ConfidenceCalibration(
+            ObservationState.KNOWN,
+            predicted_confidence=0.5,
+            observed_accuracy=0.5,
+            reason="nope",
+        )
+    with pytest.raises(ValueError, match="requires a reason"):
+        ConfidenceCalibration(ObservationState.UNKNOWN, predicted_confidence=0.5)
+
+
+def test_observation_validation() -> None:
+    with pytest.raises(ValueError, match="key must be non-empty"):
+        Observation(key="  ", value=1)
+    with pytest.raises(ValueError, match="requires a value"):
+        Observation(key="k")
+    with pytest.raises(ValueError, match="cannot carry a reason"):
+        Observation(key="k", value=1, reason="nope")
+    with pytest.raises(ValueError, match="requires a reason only"):
+        Observation(key="k", state=ObservationState.UNKNOWN)
+
+    with pytest.raises(ValueError, match="serialized value"):
+        Observation.from_dict({"key": "k", "state": "known"})
+
+    round_tripped = Observation.from_dict(
+        Observation.unknown("k", "timeout").to_dict()
+    )
+    assert round_tripped.state is ObservationState.UNKNOWN
+    assert round_tripped.reason == "timeout"
+
+
+def test_observation_keys_must_be_unique() -> None:
+    with pytest.raises(ValueError, match="unique"):
+        _receipt(
+            expected_effects=(
+                Observation.known("balance", 10),
+                Observation.known("balance", 11),
+            )
+        )
+
+
+def test_precondition_references_must_be_unique() -> None:
+    with pytest.raises(ValueError, match="precondition references must be unique"):
+        _receipt(
+            preconditions=(
+                Precondition(PreconditionKind.RECEIPT, "same"),
+                Precondition(PreconditionKind.RECEIPT, "same"),
+            )
+        )
+
+
+def test_policy_constraint_labels_must_be_unique() -> None:
+    with pytest.raises(ValueError, match="labels must be unique"):
+        _receipt(
+            hard_policy_constraints=(
+                HardPolicyConstraint("dup", "high", 5),
+                HardPolicyConstraint("dup", "high", 5),
+            )
+        )
+
+
+def test_risk_rank_rejects_unknown_risk() -> None:
+    with pytest.raises(ValueError, match="risk must be low/medium/high/critical"):
+        _receipt(risk="unbounded")
+
+
+def test_counterfactual_required_rejects_missing_alternative_kind() -> None:
+    with pytest.raises(ValueError, match="no_action and alternative"):
+        _receipt(
+            counterfactuals=(
+                Counterfactual(
+                    CounterfactualKind.NO_ACTION,
+                    "only",
+                    Observation.known("balance", 8),
+                    "ledger-v1",
+                ),
+            )
+        )
+
+
+def test_counterfactual_not_required_allows_empty() -> None:
+    receipt = _receipt(counterfactuals=(), counterfactual_required=False)
+    assert receipt.counterfactuals == ()
+
+
+def test_receipt_requires_action_digest_and_preconditions_and_expected_effects() -> None:
+    with pytest.raises(ValueError, match="action_digest must be non-empty"):
+        _receipt(action_digest="  ")
+    with pytest.raises(ValueError, match="preconditions must reference"):
+        _receipt(preconditions=())
+    with pytest.raises(ValueError, match="allowed_variance may only name"):
+        _receipt(allowed_variance={"unknown_key": 1.0})
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        _receipt(allowed_variance={"balance": -1.0})
+    with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
+        _receipt(confidence=1.2)
+    with pytest.raises(ValueError, match="risk, verifier, and rollback"):
+        _receipt(risk="", rollback="compensate")
+    with pytest.raises(ValueError, match="risk, verifier, and rollback"):
+        _receipt(rollback="  ")
+    with pytest.raises(ValueError, match="cost_estimate must be non-negative"):
+        _receipt(cost_estimate=-1)
+    with pytest.raises(ValueError, match="timeout_reconciliation must be declared"):
+        _receipt(timeout_reconciliation=None)
+    with pytest.raises(ValueError, match="strategy_fingerprint must be declared"):
+        _receipt(strategy_fingerprint="  ")
+
+
+def test_pending_receipt_cannot_carry_assessment_data() -> None:
+    with pytest.raises(ValueError, match="cannot contain assessment data"):
+        _receipt(outcome=PredictionOutcome.PENDING, failure_fingerprint="oops")
+
+
+def test_assessed_receipt_requires_reconciliation_data() -> None:
+    with pytest.raises(ValueError, match="requires reconciliation data"):
+        _receipt(
+            outcome=PredictionOutcome.MATCH,
+            reconciliation=ReconciliationDecision.NONE,
+            update_decision="pending",
+        )
+
+
+def test_match_outcome_cannot_carry_failure_fingerprint_or_change_strategy() -> None:
+    with pytest.raises(ValueError, match="cannot carry a failure fingerprint"):
+        _receipt(
+            outcome=PredictionOutcome.MATCH,
+            reconciliation=ReconciliationDecision.NONE,
+            update_decision="no_update",
+            failure_fingerprint="oops",
+        )
+    with pytest.raises(ValueError, match="cannot change strategy fingerprint"):
+        _receipt(
+            outcome=PredictionOutcome.MATCH,
+            reconciliation=ReconciliationDecision.NONE,
+            update_decision="no_update",
+            next_strategy_fingerprint="strategy:different",
+        )
+
+
+def test_non_match_outcome_requires_failure_fingerprint_and_new_strategy() -> None:
+    with pytest.raises(ValueError, match="require a failure fingerprint"):
+        _receipt(
+            outcome=PredictionOutcome.MISMATCH,
+            reconciliation=ReconciliationDecision.UPDATE_BELIEF,
+            update_decision="update_belief_and_strategy",
+        )
+    with pytest.raises(ValueError, match="must change strategy fingerprint"):
+        _receipt(
+            outcome=PredictionOutcome.MISMATCH,
+            reconciliation=ReconciliationDecision.UPDATE_BELIEF,
+            update_decision="update_belief_and_strategy",
+            failure_fingerprint="mismatch:balance",
+            next_strategy_fingerprint="strategy:baseline",
+        )
+
+
+def test_from_dict_rejects_unsupported_schema() -> None:
+    payload = _receipt().to_dict()
+    payload["schema"] = "bogus"
+    with pytest.raises(ValueError, match="unsupported prediction receipt schema"):
+        PredictionReceipt.from_dict(payload)
+
+    payload = _receipt().to_dict()
+    payload["schema_version"] = "bogus"
+    with pytest.raises(ValueError, match="unsupported prediction receipt schema version"):
+        PredictionReceipt.from_dict(payload)
+
+
+def test_unresolved_and_extra_observations_are_tracked_correctly() -> None:
+    receipt = _receipt(
+        expected_effects=(
+            Observation.known("balance", 10),
+            Observation.known("status", "settled"),
+        ),
+    )
+
+    assessed = receipt.assess(
+        (
+            Observation.known("balance", 10),
+            Observation.error("status", "verifier crashed"),
+            Observation.unknown("extra_unresolved", "not checked"),
+            Observation.error("extra_error", "verifier crashed"),
+            Observation.known("extra_mismatch", "unexpected"),
+        )
+    )
+
+    assert assessed.outcome is PredictionOutcome.ERROR
+    assert "status" in assessed.prediction_error.reason
+    assert "extra_error" in assessed.prediction_error.reason
+
+
+def test_prediction_evidence_digest_requires_receipt_type() -> None:
+    with pytest.raises(TypeError, match="requires a PredictionReceipt"):
+        prediction_evidence_digest("not-a-receipt")
+
+
+def test_counterfactual_evidence_digest_requires_receipt_type() -> None:
+    with pytest.raises(TypeError, match="requires a PredictionReceipt"):
+        counterfactual_evidence_digest("not-a-receipt")
