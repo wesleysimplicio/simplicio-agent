@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
+
+import pytest
 
 from agent.issue_claim_lease import (
     CLAIM_MARKER,
     ClaimCoordinator,
+    ClaimLease,
     ClaimLeaseStore,
     GhIssueCommentSink,
     render_claim_comment,
@@ -190,3 +194,252 @@ def test_github_sink_finds_marker_and_patches_instead_of_posting() -> None:
     assert len(calls) == 2
     assert calls[1][1] == "repos/owner/repo/issues/comments/77"
     assert "POST" not in calls[1]
+
+
+def test_github_sink_posts_once_when_no_marker_comment_exists() -> None:
+    sink = GhIssueCommentSink("owner/repo")
+    calls: list[list[str]] = []
+    responses = [json.dumps([[{"id": 1, "body": "unrelated"}]]), json.dumps({"id": 99})]
+
+    def run(args: list[str]) -> str:
+        calls.append(args)
+        return responses.pop(0)
+
+    sink._run = run  # type: ignore[method-assign]
+    assert sink.upsert("315", CLAIM_MARKER, "new body", None) == "99"
+    assert len(calls) == 2
+    assert "POST" in calls[1]
+
+
+def test_github_sink_raises_lease_error_on_gh_failure() -> None:
+    from agent.issue_claim_lease import LeaseError
+
+    sink = GhIssueCommentSink("owner/repo")
+
+    import subprocess as _subprocess
+
+    class FakeResult:
+        returncode = 1
+        stderr = "boom"
+        stdout = ""
+
+    real_run = _subprocess.run
+
+    def fake_run(*_args, **_kwargs):
+        return FakeResult()
+
+    _subprocess.run = fake_run  # type: ignore[assignment]
+    try:
+        with pytest.raises(LeaseError, match="boom"):
+            sink.upsert("315", CLAIM_MARKER, "body", "77")
+    finally:
+        _subprocess.run = real_run  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Validation / error-path coverage (anti-tautology: each test would fail if
+# the corresponding guard were removed).
+# ---------------------------------------------------------------------------
+
+
+def test_lease_rejects_non_finite_timestamps() -> None:
+    with pytest.raises(ValueError, match="must be finite"):
+        ClaimLease(
+            issue="315",
+            lease_id="x",
+            holder="worker-a",
+            acquired_at=float("nan"),
+            ttl_s=30,
+            heartbeat_at=10,
+            fencing_token=1,
+        )
+
+
+def test_lease_rejects_non_positive_ttl() -> None:
+    with pytest.raises(ValueError, match="ttl_s must be positive"):
+        ClaimLease(
+            issue="315",
+            lease_id="x",
+            holder="worker-a",
+            acquired_at=10,
+            ttl_s=0,
+            heartbeat_at=10,
+            fencing_token=1,
+        )
+
+
+def test_store_rejects_empty_issue_name(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    with pytest.raises(ValueError, match="issue must not be empty"):
+        store.acquire("   ", "worker-a", now=10, ttl_s=30)
+
+
+def test_acquire_rejects_non_finite_now_or_ttl(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    with pytest.raises(ValueError, match="finite numbers"):
+        store.acquire("315", "worker-a", now=float("inf"), ttl_s=30)
+    with pytest.raises(ValueError, match="finite numbers"):
+        store.acquire("315", "worker-a", now=10, ttl_s=float("nan"))
+    with pytest.raises(ValueError, match="ttl_s must be positive"):
+        store.acquire("315", "worker-a", now=10, ttl_s=-1)
+
+
+def test_renew_rejects_non_finite_now(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+    with pytest.raises(ValueError, match="finite number"):
+        store.renew(acquired.lease, now=float("nan"))
+
+
+def test_renew_on_missing_lease_reports_not_found(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+    store.release(acquired.lease)
+    # Delete the row entirely to exercise the "not_found" branch (distinct
+    # from a released-but-present row).
+    with store._connect() as connection:
+        connection.execute("DELETE FROM issue_claims WHERE issue = ?", ("315",))
+    result = store.renew(acquired.lease, now=11)
+    assert result.status == "not_found"
+    assert result.changed is False
+
+
+def test_release_on_missing_lease_reports_not_found(tmp_path: Path) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+    with store._connect() as connection:
+        connection.execute("DELETE FROM issue_claims WHERE issue = ?", ("315",))
+    result = store.release(acquired.lease)
+    assert result.status == "not_found"
+    assert result.changed is False
+
+
+def test_acquire_rolls_back_and_reraises_on_internal_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    # An existing (expired) row is required so acquire's takeover branch
+    # reaches `_row_to_lease` at all.
+    store.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(store, "_row_to_lease", boom)
+    with pytest.raises(RuntimeError, match="disk full"):
+        store.acquire("315", "worker-b", now=41, ttl_s=30)
+    # The failed takeover transaction must not have bumped the fence.
+    monkeypatch.undo()
+    assert store.get("315").holder == "worker-a"
+    assert store.get("315").fencing_token == 1
+
+
+def test_renew_rolls_back_and_reraises_on_internal_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(store, "_row_to_lease", boom)
+    with pytest.raises(RuntimeError, match="disk full"):
+        store.renew(acquired.lease, now=11)
+
+
+def test_release_rolls_back_and_reraises_on_internal_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ClaimLeaseStore(tmp_path / "claims.sqlite")
+    acquired = store.acquire("315", "worker-a", now=10, ttl_s=30)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(store, "_row_to_lease", boom)
+    with pytest.raises(RuntimeError, match="disk full"):
+        store.release(acquired.lease)
+
+
+# ---------------------------------------------------------------------------
+# Real concurrency: multiple OS threads racing the same real SQLite file.
+# This is not a mock — a bug in the CAS logic (e.g. dropping BEGIN IMMEDIATE)
+# would let more than one thread observe "acquired" here.
+# ---------------------------------------------------------------------------
+
+
+def test_concurrent_acquire_on_real_sqlite_file_yields_exactly_one_winner(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "race.sqlite"
+    ClaimLeaseStore(db_path)  # pre-create schema once to avoid a table-create race
+
+    winners: list[str] = []
+    lock = threading.Lock()
+    barrier = threading.Barrier(8)
+
+    def worker(name: str) -> None:
+        store = ClaimLeaseStore(db_path)
+        barrier.wait()
+        result = store.acquire("315", name, now=10, ttl_s=30)
+        if result.status == "acquired":
+            with lock:
+                winners.append(name)
+
+    threads = [threading.Thread(target=worker, args=(f"worker-{i}",)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(winners) == 1
+
+
+# ---------------------------------------------------------------------------
+# Replay harness for the #315 incident: 6 workers racing the same lease
+# within the TTL window must produce exactly one active lease and exactly
+# one GitHub comment (created once, edited on the remaining idempotent
+# attempts) instead of the 6 duplicate "claim" comments from the incident.
+# ---------------------------------------------------------------------------
+
+
+INCIDENT_315_WORKERS = [
+    ("smoke-wave-315", 0.0),
+    ("smoke-wave-315-v3", 240.0),
+    ("smoke-wave-315-v4", 610.0),
+    ("smoke-wave-315-codex", 1215.0),
+    ("smoke-wave-315-codex-v2", 1980.0),
+    ("smoke-wave-315-codex-v4", 2640.0),
+]
+
+
+def test_replay_of_issue_315_incident_yields_one_lease_and_one_comment(
+    tmp_path: Path,
+) -> None:
+    """Reproduces the #315 root cause: 6 distinct workers claimed the same
+    issue over ~44 minutes while a prior claim was still (or believed to
+    still be) active. With CAS + marker-comment editing, exactly one worker
+    should hold the lease and exactly one comment should exist afterwards —
+    not the 6 duplicate "claim notice" comments the incident produced.
+    """
+
+    coordinator, comments = make_coordinator(tmp_path)
+    attempts = [
+        coordinator.acquire("315", holder, now=now, ttl_s=3600)
+        for holder, now in INCIDENT_315_WORKERS
+    ]
+
+    acquired = [a for a in attempts if a.status == "acquired"]
+    rejected = [a for a in attempts if a.status == "already_claimed"]
+
+    assert len(acquired) == 1
+    assert len(rejected) == 5
+    assert acquired[0].lease.holder == INCIDENT_315_WORKERS[0][0]
+    # Exactly one comment ever created on the issue — the whole point of #335.
+    assert len(comments.created) == 1
+    assert comments.updated == []
+    final = coordinator.store.get("315")
+    assert final is not None
+    assert final.holder == INCIDENT_315_WORKERS[0][0]
+    assert final.fencing_token == 1
