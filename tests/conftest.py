@@ -526,6 +526,32 @@ def _ensure_current_event_loop(request):
 _LIVE_SYSTEM_GUARD_BYPASS_MARK = "live_system_guard_bypass"
 
 
+def pytest_load_initial_conftests(early_config, parser, args):  # noqa: D401 — pytest hook
+    """Force ``--capture=sys`` on Windows (issue #451).
+
+    pytest's default ``--capture=fd`` redirects file descriptors 1/2 with
+    ``os.dup``/``os.dup2`` around every test. On Windows + Python 3.14 that
+    leaves ``subprocess.Popen``'s handle table in a state where
+    ``Popen._make_inheritable()`` (``_winapi.DuplicateHandle``) intermittently
+    raises ``OSError: [WinError 6] Invalid handle`` for any subprocess
+    started later in the same session (reproduced by
+    ``tests/tools/test_rename_guard.py``, which starts many short-lived
+    ``git`` subprocesses). This is independent of this file's live-system
+    guard — the guard's wrappers call the real ``subprocess`` functions
+    unchanged; the failure reproduces with the guard fixture disabled too,
+    and disappears entirely under ``--capture=sys`` or ``--capture=no``,
+    which capture at the Python ``sys.stdout``/``sys.stderr`` object level
+    instead of duplicating OS file descriptors. Only override when the user
+    hasn't already picked a capture method explicitly (``-s``/``--capture``
+    on the command line, or an ``addopts``/ini override some other way),
+    so ``-s`` / ``--capture=no`` for interactive debugging still wins.
+    """
+    if sys.platform == "win32" and not any(
+        a == "-s" or a.startswith("--capture") for a in args
+    ):
+        args.append("--capture=sys")
+
+
 def pytest_configure(config):  # noqa: D401 — pytest hook
     """Register markers used by hermetic conftest."""
     config.addinivalue_line(

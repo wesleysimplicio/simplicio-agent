@@ -134,6 +134,15 @@ def find_subprocess_calls(content: str, filepath: str) -> list[dict]:
 
 
 def main() -> int:
+    # Windows terminals default to cp1252, which can't encode the ❌
+    # character used in the output below (issue #451's WinError-6 audit
+    # also surfaced this pre-existing crash). Reconfigure streams to UTF-8
+    # so the script works on the platform it's checking.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
     fix_mode = "--fix" in sys.argv
     repo_root = Path(__file__).resolve().parent.parent
     os.chdir(repo_root)
@@ -146,7 +155,12 @@ def main() -> int:
             continue
 
         for py_file in dirpath.rglob("*.py"):
-            rel = str(py_file.relative_to(repo_root))
+            # .as_posix(), not str(): on Windows str() yields backslashes
+            # ("plugins\\security-guidance\\patterns.py"), which never
+            # match KNOWN_SAFE's forward-slash entries — silently
+            # re-flagging an already-reviewed false positive on every
+            # Windows run (issue #451).
+            rel = py_file.relative_to(repo_root).as_posix()
 
             # Skip known-safe files.
             if rel in KNOWN_SAFE:
@@ -157,7 +171,7 @@ def main() -> int:
             if any(skip.rstrip("/") in parts for skip in SKIP_DIRS):
                 continue
 
-            content = py_file.read_text()
+            content = py_file.read_text(encoding="utf-8")
             violations = find_subprocess_calls(content, rel)
             all_violations.extend(violations)
 
