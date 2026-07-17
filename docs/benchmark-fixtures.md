@@ -57,3 +57,19 @@ categories, mismatched fixture hashes, and non-numeric metrics. It reports
 are measurements of this Python runner only; the fixture's receipt-derived
 weights remain `UNVERIFIED|` until scrubbed SessionDB receipts are mined, and
 neither result is evidence of remote-provider latency or agent capability.
+
+## Stability check (`bench.stability`)
+
+```text
+python -m bench.stability --runs 3 --repeats 100 --warmup 5 --json out/stability.json
+```
+
+Runs the stub baseline three times and reports `(max - min) / mean` variance
+per category/metric. Token proxies are deterministic (0% variance) since they
+are derived from fixture content, not timing. **Measured on this Windows dev
+runner, local wall-clock latency variance across 3 runs regularly exceeds 5%
+per category** (observed up to ~71% on `fanout_tools.latency_us.p95` in one
+run), so the <=5% stability target from the issue is **not met for latency on
+this shared, unpinned runner** — it would need a dedicated/pinned CI runner
+and more repeats to tighten. Token-metric stability is met. This is reported
+honestly rather than claimed as passing.

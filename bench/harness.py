@@ -145,6 +145,7 @@ def validate_report(
             errors.append(f"{prefix}.id must be a non-empty string")
             continue
         ids.append(category_id)
+        expected_category = expected_categories.get(category_id) if expected_categories else None
         if expected_categories and category_id not in expected_categories:
             errors.append(f"{prefix}.id is not in the fixture manifest")
         for field in (
@@ -155,13 +156,13 @@ def validate_report(
         ):
             if not _numeric(row.get(field)) or row[field] < 0:
                 errors.append(f"{prefix}.{field} must be a non-negative number")
-        if expected_categories and row.get("weight_pct") != expected_categories[
-            category_id
-        ].get("weight"):
+        if expected_category is not None and row.get(
+            "weight_pct"
+        ) != expected_category.get("weight"):
             errors.append(f"{prefix}.weight_pct must match the fixture manifest")
-        if expected_categories and row.get("route") != expected_categories[
-            category_id
-        ].get("route"):
+        if expected_category is not None and row.get(
+            "route"
+        ) != expected_category.get("route"):
             errors.append(f"{prefix}.route must match the fixture manifest")
         latency = row.get("latency_us")
         if not isinstance(latency, Mapping):
