@@ -185,6 +185,7 @@ def _import_gate(staging: Path, entrypoints: Sequence[str]) -> str:
         [sys.executable, "-I", "-c", code, str(staging), *entrypoints],
         cwd=staging,
         env=environment,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
