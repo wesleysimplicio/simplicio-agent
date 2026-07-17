@@ -9,6 +9,23 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+// `useSavingsData` reads the active project's repo root straight from the
+// shared nanostore (issue #128 workspace correlation) rather than taking it
+// as a prop, so the isolation test below needs a controllable stand-in for
+// `$activeWorkspacePath` instead of the real store (which is driven by
+// project-tree/gateway state this file has no interest in wiring up). The
+// mocked module IS the shared instance — importing `@/store/projects` below
+// resolves to this factory's return value, so there's no need to smuggle the
+// atom out via `vi.hoisted` (which runs before the module graph is linked
+// and can't safely reference a statically-imported binding here).
+vi.mock('@/store/projects', async () => {
+  const { atom } = await import('nanostores')
+
+  return { $activeWorkspacePath: atom<string | null>(null) }
+})
+
+import { $activeWorkspacePath } from '@/store/projects'
+
 import { initialSurfaceState, mergeSurfaceState, useSavingsData } from './use-savings-data'
 
 interface Deferred<T> {
@@ -32,6 +49,7 @@ function installBridge(bridge: Record<string, unknown>): void {
 afterEach(() => {
   cleanup()
   delete (window as unknown as { simplicioSavings?: unknown }).simplicioSavings
+  $activeWorkspacePath.set(null)
   vi.restoreAllMocks()
 })
 
@@ -217,5 +235,58 @@ describe('useSavingsData loading honesty', () => {
     await waitFor(() => {
       expect(result.current.memory.status === 'ok' && result.current.memory.data.backend).toBe('vector')
     })
+  })
+
+  it('switching the active project repo resets sessions/report and re-scopes fetches (issue #128 isolation)', async () => {
+    const savingsSessions = vi.fn((opts?: { repoPath?: string }) => {
+      const repo = opts?.repoPath ?? 'home'
+
+      return Promise.resolve({ ok: true, sessions: [{ runId: `run-${repo}` }], skipped: 0, sources: [repo] })
+    })
+    const savingsReport = vi.fn((opts?: { repoPath?: string }) => {
+      const repo = opts?.repoPath ?? 'home'
+
+      return Promise.resolve({ ok: true, report: { repo } })
+    })
+
+    installBridge({
+      mcpDaemonStatus: () => Promise.resolve({ restarts: 0, running: true }),
+      savingsReport,
+      savingsSessions
+    })
+
+    $activeWorkspacePath.set('/repo-a')
+
+    const { result } = renderHook(() => useSavingsData())
+
+    // Initial mount fetches scoped to whichever repo was already active — no
+    // reset fires on mount (the `prevRepoPathRef` sentinel), just the fetch.
+    await waitFor(() => {
+      expect(result.current.sessions.status).toBe('ok')
+    })
+    expect(savingsSessions).toHaveBeenLastCalledWith({ repoPath: '/repo-a' })
+    expect(savingsReport).toHaveBeenLastCalledWith({ repoPath: '/repo-a' })
+    expect(
+      result.current.sessions.status === 'ok' && result.current.sessions.data.sources
+    ).toEqual(['/repo-a'])
+
+    // Switching projects must clear the PREVIOUS repo's data immediately
+    // (not just once the new fetch settles) so repo-a's sessions never
+    // linger on screen scoped to repo-b — the isolation guarantee.
+    act(() => {
+      $activeWorkspacePath.set('/repo-b')
+    })
+
+    expect(result.current.sessions.status).toBe('loading')
+    expect(result.current.state.status).toBe('loading')
+
+    await waitFor(() => {
+      expect(result.current.sessions.status).toBe('ok')
+    })
+    expect(savingsSessions).toHaveBeenLastCalledWith({ repoPath: '/repo-b' })
+    expect(savingsReport).toHaveBeenLastCalledWith({ repoPath: '/repo-b' })
+    expect(
+      result.current.sessions.status === 'ok' && result.current.sessions.data.sources
+    ).toEqual(['/repo-b'])
   })
 })
