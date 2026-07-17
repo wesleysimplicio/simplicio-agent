@@ -6,7 +6,7 @@ cancelamento, retry, compressão e retomada deixem de competir por flags soltas.
 
 Fases (TurnPhase):
     ACCEPTED -> STARTED -> TOOL_CALL <-> TOOL_RESULT -> FINALIZE -> COMPLETED
-                                  \-> COMPRESS -> TOOL_CALL
+                                  \\-> COMPRESS -> TOOL_CALL
     Qualquer fase -> CANCELLED
     Qualquer fase -> FAILED (exceto COMPLETED/CANCELLED)
 
