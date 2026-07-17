@@ -34,7 +34,7 @@ children:
     title: "[Native 5] Daemon Rust sempre quente para o hot path"
     adr:
       - docs/architecture/ADR-0023-simplicio-native-inside-out.md
-      - docs/architecture/ADR-0039-daemon-hot-path-contract.md
+      - docs/architecture/ADR-0045-daemon-hot-path-contract.md
     implementation: [tools/daemon_hot_path.py]
     tests: [tests/tools/test_daemon_hot_path.py]
     program_graph_p0: [210, 221, 228]
