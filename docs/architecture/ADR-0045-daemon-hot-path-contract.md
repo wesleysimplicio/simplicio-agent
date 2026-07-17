@@ -1,4 +1,4 @@
-# ADR-0039: Bounded daemon hot-path contract
+# ADR-0045: Bounded daemon hot-path contract
 
 - Status: bounded contract
 - Date: 2026-07-14
