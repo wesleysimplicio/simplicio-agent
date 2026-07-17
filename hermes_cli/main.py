@@ -9119,6 +9119,63 @@ def _discard_lockfile_churn(git_cmd, repo_root):
         pass
 
 
+def _cmd_update_plan(args) -> None:
+    """``simplicio-agent update plan`` — read-only preflight report.
+
+    Prints the detected installation type, update-lock state, and where a
+    pre-update snapshot would land, using :mod:`hermes_cli.update_preflight`
+    (issue #342). Performs no filesystem writes: it only reads the project
+    tree and, if present, the existing lock file's metadata.
+    """
+    import json as _json
+
+    from hermes_cli.update_preflight import detect_installation
+
+    root = PROJECT_ROOT
+    installation = detect_installation(root)
+    update_state_dir = get_hermes_home() / "update"
+    lock_path = update_state_dir / "update.lock"
+    snapshots_dir = update_state_dir / "snapshots"
+
+    print("Update plan (read-only — no files are written)")
+    print(f"  Installation root : {installation.root}")
+    print(f"  Installation state: {installation.state}")
+    print(f"  Install type      : {installation.install_type}")
+    if installation.version:
+        print(f"  Version           : {installation.version}")
+    if installation.commit:
+        print(f"  Commit            : {installation.commit}")
+
+    lock_held = lock_path.exists()
+    holder = None
+    if lock_held:
+        try:
+            info = _json.loads(lock_path.read_text(encoding="utf-8"))
+            holder = info.get("owner") if isinstance(info, dict) else None
+        except (OSError, ValueError):
+            holder = None
+        print(f"  Lock status       : held by {holder or 'unknown owner'}")
+    else:
+        print("  Lock status       : free")
+
+    print(f"  Snapshot source   : {installation.root}")
+    print(f"  Snapshot store    : {snapshots_dir}")
+    print()
+
+    if installation.install_type == "unknown":
+        print(
+            "✗ Installation type is ambiguous or undetectable — refusing to "
+            "plan an automatic update (fail-closed)."
+        )
+        sys.exit(1)
+
+    if lock_held:
+        print(f"✗ An update lock is already held (owner: {holder or 'unknown'}).")
+        sys.exit(1)
+
+    print("✓ Plan complete — installation is updatable and no lock is held.")
+
+
 def cmd_update(args):
     """Update Hermes Agent to the latest version.
 
@@ -9126,6 +9183,12 @@ def cmd_update(args):
     runs the update, then restores stdio on the way out (even on
     ``sys.exit`` or unhandled exceptions).
     """
+    if getattr(args, "action", None) == "plan":
+        # Read-only — must run before the is_managed()/docker gates below,
+        # which are only relevant to a real (mutating) update.
+        _cmd_update_plan(args)
+        return
+
     from hermes_cli.config import (
         detect_install_method,
         format_docker_update_message,

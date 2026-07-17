@@ -136,7 +136,7 @@ def _read_commit(root: Path) -> str | None:
     try:
         head = (git / "HEAD").read_text(encoding="utf-8").strip()
         if head.startswith("ref: "):
-            ref = head[6:].strip()
+            ref = head[5:].strip()
             return (git / ref).read_text(encoding="utf-8").strip() or None
         return head or None
     except OSError:

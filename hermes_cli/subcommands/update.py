@@ -20,6 +20,18 @@ def build_update_parser(subparsers, *, cmd_update: Callable) -> None:
         description="Pull the latest changes from git and reinstall dependencies",
     )
     update_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["plan"],
+        default=None,
+        help=(
+            "Optional read-only sub-action. 'plan' prints the detected "
+            "installation type, update-lock state, and the pre-update "
+            "snapshot plan without writing anything to disk (see "
+            "hermes_cli/update_preflight.py). Omit for a real update."
+        ),
+    )
+    update_parser.add_argument(
         "--gateway",
         action="store_true",
         default=False,
