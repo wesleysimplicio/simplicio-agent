@@ -334,8 +334,17 @@ def snapshot_tree(root: Path) -> SnapshotManifest:
         SnapshotEntry(relative, *_file_digest(path))
         for relative, path in _safe_files(Path(root))
     )
-    payload = [entry.to_dict() for entry in entries]
-    snapshot_id = hashlib.sha256(_canonical(payload)).hexdigest()
+    # The content address must be computed over entries in the same
+    # canonical (path-sorted) order that snapshot_tree_from_entries() and
+    # every manifest round-trip (SnapshotManifest.from_dict, _validate_manifest)
+    # use to recompute and verify it. _safe_files() yields entries in
+    # os.walk() traversal order (a directory's own files before any of its
+    # subdirectories' files), which is NOT the same as a full path sort
+    # whenever a top-level filename sorts alphabetically after a
+    # subdirectory name (e.g. "z_root.txt" vs "a_dir/file.txt"). Using the
+    # unsorted walk order here previously produced a snapshot_id that failed
+    # its own round-trip validation for any such directory tree.
+    snapshot_id = snapshot_tree_from_entries(entries)
     return SnapshotManifest(snapshot_id, entries)
 
 
