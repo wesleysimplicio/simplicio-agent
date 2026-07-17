@@ -71,6 +71,7 @@ required, is isolated from product identity and runtime namespaces.
 
 ## Tool routing
 
+> **Canonical source (issue #212, effective 2026-07-13):** the Simplicio CLI is the primary execution surface; MCP is fallback transport only.
 > **Normative decision:** [ADR-0010](docs/architecture/ADR-0010-runtime-first-execution.md).
 > This section is its operational summary. Conflicting routing guidance is
 > obsolete and must be replaced with a link to ADR-0010.
