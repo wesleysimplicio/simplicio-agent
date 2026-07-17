@@ -5,16 +5,21 @@ description: Autonomously complete a body of work (tasks, issues, cards, CI fail
 
 # /simplicio-tasks — Universal Looping Orchestrator
 
-## Hermes-native orientation first, then Simplicio-runtime execution
+## CLI-first execution, Hermes reasons, MCP is fallback
 
-> Canonical source: `AGENTS.md` § "Tool routing" is the single source of
-> truth for the CLI-first/MCP-fallback hierarchy (issue #212). This section
-> is a task-specific restatement for orchestration work, not a competing
-> decision.
+> Canonical source: `AGENTS.md` § "Tool routing" ([ADR-0010](../../docs/architecture/ADR-0010-runtime-first-execution.md))
+> is the single source of truth for the CLI-first/MCP-fallback hierarchy
+> (issue #212). This section is a task-specific restatement for
+> orchestration work, not a competing decision — any wording here that
+> ever drifts from AGENTS.md is the bug, and AGENTS.md wins.
 
-> **Use Hermes-native tools first when the task is about reading, searching, orienting, or analyzing repo/session state.**
->
-> Use the verified Simplicio runtime path for deterministic execution, validation, repeatable edits, and ledgered operations once the task is understood.
+> Use `simplicio <command>` first for reading, searching, orienting, and analyzing
+> repo/session state — this includes `simplicio memory`/`simplicio-mapper` orientation.
+> Simplicio MCP is fallback runtime transport only when the CLI is unavailable or an
+> explicit warm MCP path is configured.
+> A native Hermes read/search tool is a temporary capability exception: use it only
+> for the parts neither the CLI nor MCP surface covers yet, and report the gap as
+> `UNVERIFIED| runtime capability gap` instead of silently repeating the fallback.
 > If the runtime surface is missing or incomplete, **do not stall**: state the gap plainly and continue with the verified CLI/native fallback that is already available.
 >
 > See `references/fork-aware-orientation.md` for the fork-aware rule and pitfall.
@@ -27,11 +32,11 @@ description: Autonomously complete a body of work (tasks, issues, cards, CI fail
 >
 > If a reusable skill does not exist yet, create/index it after the task when the pattern is durable.
 >
-> **Practical hierarchy:**
-> 1. Hermes-native read/search/orient tools — first for orientation and fact-finding
-> 2. Simplicio MCP / runtime binding — preferred for deterministic execution when exposed and verified
-> 3. Simplicio CLI — verified fallback when MCP is unavailable
-> 4. Native LLM tools — use only for the parts neither surface covers yet, and report the gap
+> **Practical hierarchy (mirrors AGENTS.md § Tool routing exactly):**
+> 1. Hermes reasons and coordinates — it decides and interprets, it is not the preferred execution layer.
+> 2. Simplicio CLI executes every action it can — reading, searching, git, tests, edits, evidence.
+> 3. Simplicio MCP — fallback runtime transport only when CLI is unavailable.
+> 4. Native Hermes execution tool — temporary capability exception; report the gap, don't repeat it silently.
 >
 > Speed is not the only goal; deterministic execution and honest coverage reporting matter more. When a limitation appears, turn it into an issue instead of pretending it is covered.
 
