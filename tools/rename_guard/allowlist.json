@@ -74,6 +74,70 @@
       "expiry": "2026-12-31"
     },
     {
+      "path_glob": "pyproject.toml",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "[project.scripts] deliberately documents `hermes`/`hermes-agent`/`hermes-acp` as deprecated compatibility aliases for the canonical `simplicio-agent`/`simplicio-agent-acp` (see AGENTS.md 'Product identity'); py-modules/[tool.setuptools] include the frozen hermes_* internal module names; other comments reference internal modules or CLI examples, not unaddressed branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "README.md",
+      "term": null,
+      "class": "credit",
+      "reason": "remaining occurrences are the deliberate Hermes→Simplicio attribution/comparison section (upstream credit, benchmark table, MIT license notice) and documented `hermes` deprecated-alias notes; not unaddressed branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "rust_ext/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "`hermes-fast`/`hermes_fast` is the internal Rust accelerator crate/module name consumed by agent._hermes_fast as a fallback-guarded internal module, not a public product name; module rename tracked under epic #186 (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".plans/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal design/planning docs (not shipped) referencing the frozen HERMES_HOME/hermes_cli contract and internal diagram labels; not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "datagen-config-examples/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal dev/dataset-generation scripts referencing the frozen ~/.hermes/ path contract, not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "hooks/*",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "internal git hooks reading HERMES_HOME as the documented fallback for SIMPLICIO_AGENT_HOME during the identity migration (issue #117); not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": ".hadolint.yaml",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "lint-ignore comments reference the frozen HERMES_UID/hermes container user contract (matches Dockerfile), not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "MANIFEST.in",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "comment references the internal hermes_cli/plugins.py module, not user-facing branding (issue #187 classification pass)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
       "path_glob": "tests/hermes_cli/*",
       "term": null,
       "class": "KEEP_INTERNAL",
