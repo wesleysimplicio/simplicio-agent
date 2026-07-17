@@ -81,8 +81,8 @@ Esto no es una barra de calidad — es una decisión de acoplamiento y mantenimi
 ### Clonar e instalar
 
 ```bash
-git clone https://github.com/NousResearch/hermes-agent.git
-cd hermes-agent
+git clone https://github.com/wesleysimplicio/simplicio-agent.git
+cd simplicio-agent
 
 # Crear venv con Python 3.11
 uv venv venv --python 3.11
@@ -581,7 +581,7 @@ test(tools): añadir tests unitarios para file_operations
 
 ## Reportar Issues
 
-- Usa [GitHub Issues](https://github.com/NousResearch/hermes-agent/issues)
+- Usa [GitHub Issues](https://github.com/wesleysimplicio/simplicio-agent/issues)
 - Incluye: SO, versión de Python, versión de Hermes (`simplicio-agent version`), traza de error completa
 - Incluye pasos para reproducir
 - Verifica los issues existentes antes de crear duplicados
