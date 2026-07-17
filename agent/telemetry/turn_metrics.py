@@ -50,12 +50,14 @@ def _default_ledger_path() -> Path:
 _DEFAULT_LEDGER_PATH = _default_ledger_path()
 
 _log_path: Optional[Path] = None
+_dir_ensured_for: Optional[Path] = None
 
 
 def set_log_path(path: str | os.PathLike[str]) -> None:
     """Override the JSONL output path (mainly for tests)."""
-    global _log_path
+    global _log_path, _dir_ensured_for
     _log_path = Path(path)
+    _dir_ensured_for = None
 
 
 def get_log_path() -> Path:
@@ -69,6 +71,7 @@ def get_log_path() -> Path:
 
 def record_turn_metrics(sample: TurnLatencySample) -> None:
     """Append one turn's latency sample to the JSONL ledger. Best-effort."""
+    global _dir_ensured_for
     try:
         record = {
             "schema": SCHEMA,
@@ -77,7 +80,13 @@ def record_turn_metrics(sample: TurnLatencySample) -> None:
             **sample.as_dict(),
         }
         path = get_log_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        # mkdir(exist_ok=True) is a real syscall every call; on Windows (with
+        # antivirus/real-time scanning on directory ops) this dominated the
+        # instrumentation overhead budget (issue #119 AC: <1%). The ledger
+        # directory only needs to be created once per path per process.
+        if _dir_ensured_for != path.parent:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _dir_ensured_for = path.parent
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:  # noqa: BLE001 - telemetry must never break a turn
