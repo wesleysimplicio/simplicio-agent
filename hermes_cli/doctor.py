@@ -474,6 +474,47 @@ def _check_warm_daemon() -> None:
     check_ok("Warm daemon: running", detail)
 
 
+def _check_update_preflight() -> None:
+    """Report installation-type detection and update-lock state (issue #342).
+
+    Read-only: mirrors ``simplicio-agent update plan`` using the same
+    :mod:`hermes_cli.update_preflight` primitives, but never mutates the
+    filesystem and never acquires the lock. Degrades to an informational
+    line rather than raising if the module or project root is unavailable.
+    """
+    try:
+        from hermes_cli.update_preflight import detect_installation
+        from hermes_constants import get_hermes_home
+    except Exception:
+        return
+
+    _section("Update Preflight")
+
+    try:
+        project_root = Path(__file__).resolve().parent.parent
+        installation = detect_installation(project_root)
+    except Exception as exc:
+        check_warn("Update preflight: detection failed", str(exc))
+        return
+
+    if installation.install_type == "unknown":
+        check_warn(
+            f"Installation type: {installation.install_type}",
+            "(ambiguous or undetectable — automatic update would refuse, fail-closed)",
+        )
+    else:
+        detail = f"state={installation.state}"
+        if installation.version:
+            detail += f" version={installation.version}"
+        check_ok(f"Installation type: {installation.install_type}", detail)
+
+    lock_path = get_hermes_home() / "update" / "update.lock"
+    if lock_path.exists():
+        check_warn("Update lock: held", f"({lock_path})")
+    else:
+        check_info("Update lock: free")
+
+
 def check_certificates() -> None:
     """Verify the certifi CA bundle is loadable.
 
@@ -1806,6 +1847,7 @@ def run_doctor(args):
     _check_gateway_service_linger(issues)
     _check_s6_supervision(issues)
     _check_warm_daemon()
+    _check_update_preflight()
 
     if sys.platform != "win32":
         _section("Command Installation")
