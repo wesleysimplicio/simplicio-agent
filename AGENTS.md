@@ -1497,3 +1497,12 @@ them into invariants before re-requesting review.
 
 ## Simplicio capability contract (mandatory)
 Read `docs/SIMPLICIO_AGENT_CAPABILITY_CONTRACT.md` before acting. It is the canonical index of the Runtime, neural database, Tokio/fan-out, commands, fast stack, seeds, and installed skills. Load the complete relevant `SKILL.md` before using a capability; use `simplicio` CLI, deterministic edits, real validation, and evidence receipts.
+
+## Learned Workspace Facts (simplicio-agent evolution)
+
+- **Repo branch discipline:** `simplicio-agent` work happens on feature branches (`simplicio/<topic>`), NOT `main`. Push feature branches; Wesley reviews/merges. Never merge to main without his sign-off.
+- **Multi-repo sync order:** pull --ff-only each repo first (`runtime`, `loop`, `agent`). Loop diverged from origin/main → rebase (stash -u first, then `git pull --rebase`, then `git stash pop` + resolve conflicts).
+- **claims_audit.py conflict pattern:** when rebasing loop main, both upstream (`operator_check.py`) and local stash (`supervisor_enforcement.py`) add to the same list — keep BOTH lines, no conflict markers.
+- **.receipts/ is gitignored** in both `simplicio-runtime` and `simplicio-agent` — runtime execution evidence, NOT committed. Don't force-add; don't append to .gitignore (already covered).
+- **Memory seed = neural sqlite** (`~/.simplicio/memory/simplicio-memory.sqlite`) + this AGENTS.md. Learnings go here; neural is auto-fed by runtime during execution.
+- **simplicio-loop main** carries 7-ahead remote vs local — always `git pull --rebase` (not merge) to keep linear history.
