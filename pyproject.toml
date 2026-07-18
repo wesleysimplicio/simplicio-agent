@@ -43,6 +43,9 @@ dependencies = [
   # user picks that backend. Smaller `dependencies` = smaller blast
   # radius for the next supply-chain attack.
   "openai==2.24.0",
+  # Canonical local BPE estimator used by agent/tokens/fast_estimator.py.
+  # Provider-reported usage remains authoritative whenever available.
+  "tiktoken==0.12.0",
   "certifi==2026.5.20",
   "python-dotenv==1.2.2",
   "fire==0.7.1",
