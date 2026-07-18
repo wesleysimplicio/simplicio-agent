@@ -169,6 +169,8 @@ infographic/
 .orchestrator/worktrees/
 # Pre-Implementation Gate receipts (#400) — generated per-issue, not committed
 .orchestrator/pre-impl/
+# Simplicio runtime execution evidence receipts — generated per-run, not committed
+.receipts/
 .claude/worktrees/
 
 # Local hermes-achievements scan state (generated from session history)
