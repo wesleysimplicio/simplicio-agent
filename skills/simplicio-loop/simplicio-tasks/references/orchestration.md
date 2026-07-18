@@ -11,6 +11,7 @@ and authed, then use it. Never claim a source works without a live connector.
 | Trello / Azure DevOps | host connector, else the `az boards` adapter (`scripts/az_boards_adapter.py`, see `azure-devops-adapter.md`) |
 | agentsview sessions | `scripts/agentsview_adapter.py` (see `agentsview-adapter.md`) | session observability, recovery of stalled sessions |
 | local files / CI queue | filesystem / CI API |
+| vague goal / no reachable board | the LOCAL BACKLOG — `scripts/task_backlog.py` (the frozen LLM decomposition, `.orchestrator/backlog/`; SKILL.md § Phase 0) |
 
 If the target source has no reachable adapter, STOP and report it as a blocker (do not silently
 fall back to GitHub). Each adapter exposes: list_ready (metadata-only), get_details, claim,
@@ -30,7 +31,11 @@ Triage is metadata-only; implementation is NOT. An agent that skips this produce
 assignees, milestone, acceptance_criteria, comments, linked_prs, linked_items.
 - Extract explicit **acceptance criteria** (numbered, checklists, "done when…"). If none stated,
   derive + record them. An item that obviously should have ACs but has none is a BLOCKER — ask
-  ONE line, don't guess.
+  ONE line, don't guess. With a VAGUE goal and no source at all, decompose first (brainstorm the
+  subtasks + per-item ACs + `depends_on`) and freeze the plan with `python3
+  scripts/task_backlog.py init --goal "<goal>" --item-file plan.json` (SKILL.md § Phase 0). For a
+  genesis repo, make one explicit `scaffold` item T1 in that input and make every later item
+  depend on T1.
 - Extract design decisions/constraints/rejections from comments ("don't use X", "must integrate
   with Y", reviewer requests) — these override naive title reading.
 - Note linked items/PRs and check status — a blocked dependency is flagged, not ignored.
@@ -90,7 +95,7 @@ touching that surface — the rubric runs always, its expensive evidence require
   Quarantine items that fail K times to a dead-letter list.
 
 **Worker report contract (every worker MUST follow).** A worker result is re-injected into the
-orchestrator context verbatim and costs budget on EVERY delegation. Forbid narration; mandate the
+orchestrator context verbatim and consumes context on EVERY delegation. Forbid narration; mandate the
 terse MACHINE-tier schema:
 ```
 <status>          # FIRST line, one token: done | blocked | too-big | needs-human | regressed | ambiguous
@@ -125,7 +130,7 @@ ZERO cross-item conflict — the simplest model to reason about. Each item's bra
 learned `repo_conventions` profile (Step 1a' — `repo_conventions.py branch --type <t> --slug
 <title>`), not a generic `agent/{id}` name, so the delivered branches match the repo's own style.
 
-The one **opt-out** is cost: a worktree is expensive for a big COMPILED project (fresh build/target dir +
+The one **opt-out** is resource pressure: a worktree is expensive for a big COMPILED project (fresh build/target dir +
 disk per item). When the toolchain is heavy-compile AND items are many, fall back to conflict-AWARE
 sharing: predict the file-overlap graph; items in DISJOINT files share ONE checkout, committing
 sequentially on their own branches; only OVERLAPPING items serialize. Select the mode up front
@@ -139,7 +144,30 @@ review+autofix → collect. After all waves: merge + close. Prune worktrees on t
 queue; the pool pulls as a slot frees. ALSO poll this run's open PRs (failed checks, new
 review/requested-changes, branches behind main) → reopen the feedback loop (Step 6b). **Reset
 `dry=0` whenever the poll finds anything new.** The run FINISHES only when queue empty AND no
-worker busy AND `dry >= 2` consecutive empty polls (plus hard stops: time-box, budget, scope).
+worker busy AND `dry >= 2` consecutive empty polls (plus hard stops: time-box, scope, STOP).
+
+**PR patrol cadence (mandatory, non-blocking).** After every **two** work-items are delivered
+and their PRs are open, run the read-only patrol before starting the next delivery wave:
+`python3 scripts/pr_patrol.py --repo <owner/name> --completed-items <N>`. It classifies open
+PRs as conflict/rebase, review-required/requested-changes, failed checks, or clean; every
+actionable result returns to Step 6b instead of being deferred. Run the same patrol with
+`--final` before the run can claim completion. It is a priority signal, not a queue lock: local
+work may continue while independent PR repair workers run.
+
+**Cross-agent acceptance review.** A patrol may review PRs opened by any provider (Claude,
+Codex, Cursor, Gemini, Kiro, Antigravity, Hermes/Simplicio Agent, OpenClaw, or a human). Fetch
+the review packet first, inspect the diff against the explicit AC checklist and its evidence, then
+publish/update exactly one marked PR comment:
+`python3 scripts/pr_patrol.py review --repo <owner/name> --pr <N> --verdict accepted|changes_requested|unverified --note "<concrete evidence>" --publish`.
+`accepted` is rejected unless every explicit criterion is checked and carries evidence; this is a
+coordination receipt, **not** an automatic GitHub approval. Missing ACs/evidence must be commented
+as `unverified`, never silently accepted. Conflict/rebase/failed-check findings return to Step 6b.
+
+**GitHub issue signature before work.** Before any provider starts an issue, it must claim/sign
+the source issue with the canonical `CLAIMED` lifecycle comment (worker/run/attempt identity and
+goal) using `github_lifecycle.py publish`. Do this before editing or opening a worktree; never
+take an issue already claimed by another live worker. PR reviewers keep the issue lifecycle state
+intact and sign their independent AC assessment on the PR comment instead.
 
 **agentsview (optional).** If configured (`scripts/agentsview_adapter.py` authed), poll
 agentsview for stalled sessions each cycle and convert them into work-items of type 'resume
