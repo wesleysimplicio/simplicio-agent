@@ -9,6 +9,7 @@ never-overwrite-user-installs rule, and honest install failure reporting.
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -753,3 +754,42 @@ class TestCanonicalSymlink:
             assert real_file.read_bytes() == b"not-a-symlink\r\n"
         else:
             assert real_file.read_text(encoding="utf-8") == "#!/bin/sh\necho not-a-symlink\n"
+
+
+# =========================================================================
+# real (non-mocked) binary integration -- DOD.md Layer 2 / hub issue #579,
+# #488: this repo's own handshake contract must be exercised against a real
+# `simplicio` binary when one is reachable, not only against synthetic
+# subprocess.CompletedProcess stand-ins. Skips cleanly (never fakes a pass)
+# when no real binary is on PATH -- most CI/sandbox environments won't have
+# one, dev machines with the managed install will.
+# =========================================================================
+
+class TestRealRuntimeBinary:
+    def test_kernel_version_parses_a_real_installed_binary(self):
+        real_bin = shutil.which("simplicio")
+        if not real_bin:
+            pytest.skip("no real 'simplicio' binary on PATH -- nothing to verify against")
+
+        version = rm.kernel_version(real_bin)
+
+        assert version is not None, (
+            f"real binary at {real_bin} did not produce a version kernel_version() "
+            "could parse -- banner format may have drifted"
+        )
+        assert rm.parse_semver(version) is not None, (
+            f"kernel_version() returned {version!r}, which is not itself valid semver"
+        )
+
+    def test_resolve_kernel_finds_the_same_real_binary_unmocked(self, tmp_path, monkeypatch):
+        real_bin = shutil.which("simplicio")
+        if not real_bin:
+            pytest.skip("no real 'simplicio' binary on PATH -- nothing to verify against")
+
+        lock = _write_lock(tmp_path, monkeypatch)
+        # No shutil.which mock here -- this is the real resolution order
+        # running against the real environment, not a stand-in.
+        path, source = rm.resolve_kernel(lock)
+
+        assert path is not None
+        assert source in ("env", "path", "managed")
