@@ -728,6 +728,41 @@
       "reason": "description/authors now credit NousResearch/hermes-agent as the upstream fork origin (matching README.md's attribution language); the dead archived-docs website link was fixed to point at this repo instead (issue #187 classification pass)",
       "owner": "wesley.simplicio@evtit.com",
       "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "DOD.md",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "cross-repository engineering DoD records the upstream Hermes lineage and internal compatibility terminology; this developer-only document is not a shipped product surface (issue #187)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "package.json",
+      "term": null,
+      "class": "public-must-migrate",
+      "reason": "root JavaScript package metadata still exposes the legacy Hermes package identity and is owned by the packaging/rebrand wave (issue #118); retained as an explicit migration finding rather than hidden in the baseline",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31",
+      "issue": "#118"
+    },
+    {
+      "path_glob": "packaging/homebrew/hermes-agent.rb",
+      "term": null,
+      "class": "public-must-migrate",
+      "reason": "Homebrew formula, executable aliases, source URL and test assertions still use the legacy public identity; migration is tracked by the packaging/rebrand epic (issue #118)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31",
+      "issue": "#118"
+    },
+    {
+      "path_glob": "packaging/homebrew/README.md",
+      "term": null,
+      "class": "public-must-migrate",
+      "reason": "Homebrew packaging instructions still name the legacy formula and are intentionally queued for the dedicated distribution rename, not silently grandfathered (issue #118)",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31",
+      "issue": "#118"
     }
   ]
 }

@@ -198,6 +198,30 @@ def test_repo_capability_contract_and_rename_status_docs_are_allowlisted():
             assert entry["reason"]
 
 
+def test_current_packaging_debt_is_classified_and_owned():
+    """Public packaging debt must remain visible as a migration class.
+
+    The inventory may allow a legacy occurrence temporarily, but it must keep
+    the owning issue in machine-readable data instead of hiding the occurrence
+    in the numeric baseline.
+    """
+    import json as _json
+    from tools.rename_guard.scanner import DEFAULT_ALLOWLIST
+
+    entries = _json.loads(
+        DEFAULT_ALLOWLIST.read_text(encoding="utf-8")
+    )["entries"]
+    by_path = {entry["path_glob"]: entry for entry in entries}
+    for path in ("package.json", "packaging/homebrew/hermes-agent.rb", "packaging/homebrew/README.md"):
+        entry = by_path[path]
+        assert entry["class"] == "public-must-migrate"
+        assert entry["issue"] == "#118"
+        assert entry["owner"]
+        assert entry["reason"]
+
+    assert by_path["DOD.md"]["class"] == "KEEP_INTERNAL"
+
+
 def test_repo_baseline_and_allowlist_are_valid_and_guard_passes_on_head():
     """The live repo's own baseline.json/allowlist.json must be internally
     consistent and the guard must currently report zero new occurrences —
