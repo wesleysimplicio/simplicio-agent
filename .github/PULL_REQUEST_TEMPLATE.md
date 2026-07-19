@@ -36,6 +36,20 @@ Fixes #
 2. 
 3. 
 
+**Invariant check** (see [`DOD.md`](../DOD.md) Layer 4): if this PR adds a
+function that partitions/groups/processes a collection that another function
+also processes, do both use the same granularity/key? <!-- answer explicitly, or write "N/A" -->
+
+
+
+**Observable evidence**: paste the real command output or artifact this PR
+produces (not just "tests pass") — e.g. the actual stdout/diff/response
+payload, or the specific `pytest` test name(s) run and their result.
+
+```
+<!-- paste here -->
+```
+
 ## Checklist
 
 <!-- Complete these before requesting review. -->
