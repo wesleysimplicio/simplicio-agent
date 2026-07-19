@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -14,12 +15,14 @@ from agent.i18n import DEFAULT_LANGUAGE, _normalize_lang
 
 INVENTORY_SCHEMA = "locale-contracts/inventory/v1"
 PARITY_SCHEMA = "locale-contracts/key-parity/v1"
+MATRIX_SCHEMA = "locale-contracts/matrix/v1"
 RECEIPT_SCHEMA = "locale-contracts/receipt/v1"
 CURRENT_CONTRACT_VERSION = 1
 REQUIRED_PRODUCT_LOCALES = ("en-US", "pt-BR")
 
 _LEGACY_BRAND = "Hermes"
 _CURRENT_BRAND = "Simplicio Agent"
+_PLACEHOLDER_RE = re.compile(r"(?<!\{)\{([^{}]+)\}(?!\})")
 
 
 def _flatten(node: Any, prefix: str = "", out: dict[str, str] | None = None) -> dict[str, str]:
@@ -179,6 +182,60 @@ def build_required_locale_parity(
     }
 
 
+def _placeholders(value: str) -> list[str]:
+    """Return format placeholders in stable order for contract comparison."""
+    return sorted(_PLACEHOLDER_RE.findall(value))
+
+
+def build_locale_matrix(
+    locales_dir: Path,
+    *,
+    baseline_locale: str = "en",
+) -> dict[str, Any]:
+    """Build a parity/placeholder matrix for every shipped catalog.
+
+    The baseline is the source of truth for keys and formatting contracts.
+    Translation quality is intentionally not inferred: this report only
+    proves structural parity, placeholder preservation, and branding class.
+    """
+    _, flattened = _build_catalogs(locales_dir)
+    baseline = _resolve_requested_locale(baseline_locale, catalogs=flattened)
+    baseline_values = flattened[baseline.canonical_locale]
+    baseline_keys = set(baseline_values)
+    catalogs: list[dict[str, Any]] = []
+    for locale in sorted(flattened):
+        values = flattened[locale]
+        missing = sorted(baseline_keys - set(values))
+        extra = sorted(set(values) - baseline_keys)
+        placeholder_mismatches = [
+            {
+                "key": key,
+                "baseline": _placeholders(baseline_values[key]),
+                "locale": _placeholders(values[key]),
+            }
+            for key in sorted(baseline_keys & set(values))
+            if _placeholders(baseline_values[key]) != _placeholders(values[key])
+        ]
+        catalogs.append({
+            "locale": locale,
+            "catalog_file": f"{locale}.yaml",
+            "key_count": len(values),
+            "missing_keys": missing,
+            "extra_keys": extra,
+            "placeholder_mismatches": placeholder_mismatches,
+            "branding_classification": _classify_branding(list(values.values())),
+            "ok": not missing and not extra and not placeholder_mismatches,
+        })
+    return {
+        "schema": MATRIX_SCHEMA,
+        "contract_version": CURRENT_CONTRACT_VERSION,
+        "baseline_locale": baseline.requested_locale,
+        "baseline_canonical_locale": baseline.canonical_locale,
+        "catalogs": catalogs,
+        "ok": all(catalog["ok"] for catalog in catalogs),
+    }
+
+
 def build_locale_receipt(
     locales_dir: Path,
     *,
@@ -215,9 +272,11 @@ __all__ = [
     "CURRENT_CONTRACT_VERSION",
     "INVENTORY_SCHEMA",
     "PARITY_SCHEMA",
+    "MATRIX_SCHEMA",
     "RECEIPT_SCHEMA",
     "REQUIRED_PRODUCT_LOCALES",
     "build_locale_inventory",
     "build_locale_receipt",
     "build_required_locale_parity",
+    "build_locale_matrix",
 ]
