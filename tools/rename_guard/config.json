@@ -6,6 +6,9 @@
     "*.lock",
     "*package-lock.json",
     "*/node_modules/*",
-    "tools/rename_guard/baseline.json"
+    "tools/rename_guard/baseline.json",
+    "tools/rename_guard/baseline-classification.json",
+    "tools/rename_guard/classify_baseline.py",
+    "docs/rename-inventory-status.md"
   ]
 }
