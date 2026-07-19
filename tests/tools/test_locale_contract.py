@@ -7,11 +7,13 @@ import yaml
 from tools.locale_contract import (
     CURRENT_CONTRACT_VERSION,
     INVENTORY_SCHEMA,
+    MATRIX_SCHEMA,
     PARITY_SCHEMA,
     RECEIPT_SCHEMA,
     build_locale_inventory,
     build_locale_receipt,
     build_required_locale_parity,
+    build_locale_matrix,
 )
 
 
@@ -69,6 +71,22 @@ def test_required_product_locales_use_alias_fallback_and_key_parity_on_repo_cata
     assert parity["key_parity"] is True
     assert parity["missing_keys"] == []
     assert parity["extra_keys"] == []
+
+
+def test_all_shipped_locales_have_key_and_placeholder_parity():
+    matrix = build_locale_matrix(REPO_LOCALES_DIR)
+
+    assert matrix["schema"] == MATRIX_SCHEMA
+    assert matrix["ok"] is True
+    assert len(matrix["catalogs"]) == 16
+    assert {catalog["locale"] for catalog in matrix["catalogs"]} == {
+        path.stem for path in REPO_LOCALES_DIR.glob("*.yaml")
+    }
+    for catalog in matrix["catalogs"]:
+        assert catalog["missing_keys"] == []
+        assert catalog["extra_keys"] == []
+        assert catalog["placeholder_mismatches"] == []
+        assert catalog["branding_classification"] == "simplicio_only"
 
 
 def test_branding_classification_distinguishes_current_mixed_and_unbranded_catalogs():
