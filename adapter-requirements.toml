@@ -5,8 +5,8 @@
 # Keep in sync with the compatibility matrix reported by `simplicio doctor --json`.
 
 [adapters]
-simplicio-mapper  = "0.19.0"   # loop survey operator; pre-0.19 lacks freshness gate
-simplicio-dev-cli = "0.11.0"   # loop operate operator
+simplicio-mapper  = "0.24.1"   # loop survey operator; mapper release aligned with the current ecosystem
+simplicio-dev-cli = "0.16.2"   # loop operate operator; mapper-aligned CLI release
 simplicio-prompt  = "0.14.1"   # LLM artifact contract producer
-simplicio-loop    = "3.24.0"   # evidence-gated loop; pre-3.24 lacks gate-escalation hooks
+simplicio-loop    = "3.38.1"   # evidence-gated loop; current PyPI release
 simplicio-runtime = "3.5.2"    # control plane / schema registry
