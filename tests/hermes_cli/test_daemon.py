@@ -157,6 +157,75 @@ def test_top_level_help_lists_daemon_subcommand():
     assert "daemon" in result.stdout
 
 
+def test_workspace_request_handler_is_effect_free_and_fail_closed():
+    from agent.host_protocol import WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    handler = getattr(daemon_mod, "_handle_workspace_request", None)
+    assert callable(handler)
+    store = WorkspaceAdvisoryStore(max_workspaces=2, max_events_per_workspace=4)
+
+    observed = handler(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "client-workspace-1",
+            "revision": 1,
+            "snapshot": {
+                "changed_files": 1,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "not_run",
+            },
+        },
+        store,
+    )
+    assert observed["ok"] is True
+    assert observed["observation"]["effect"] == "none"
+
+    replayed = handler(
+        {
+            "op": "workspace.advisory",
+            "workspace_id": "client-workspace-1",
+            "cursor": 0,
+        },
+        store,
+    )
+    assert replayed["ok"] is True
+    assert [
+        event["kind"] for event in replayed["workspace_advisories"]["events"]
+    ] == ["finding", "suggestion"]
+
+    rejected = handler(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "client-workspace-1",
+            "revision": 2,
+            "snapshot": {
+                "changed_files": 0,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "unknown",
+            },
+            "prompt": "do not retain this",
+        },
+        store,
+    )
+    assert rejected["ok"] is False
+    assert "prompt" not in rejected["error"]
+
+
+def test_daemon_rejects_non_object_json_requests_without_echoing_content():
+    from hermes_cli import daemon as daemon_mod
+
+    validator = getattr(daemon_mod, "_request_object", None)
+    assert callable(validator)
+    request = {"op": "workspace.advisory", "workspace_id": "workspace-a"}
+    assert validator(request) is request
+    with pytest.raises(ValueError, match="request must be an object") as rejected:
+        validator(["private-content"])
+    assert "private-content" not in str(rejected.value)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX sockets used by the daemon")
 def test_daemon_start_status_stop_round_trip():
     """Real start/status/invalidate/stop round trip over a UNIX socket.
@@ -220,6 +289,59 @@ def test_daemon_start_status_stop_round_trip():
         )
         assert replay["advisories"]["events"] == []
         assert replay["advisories"]["next_cursor"] == cursor
+
+        observation = _client_request(
+            sock_path,
+            {
+                "op": "workspace.observe",
+                "workspace_id": "client-workspace-1",
+                "revision": 1,
+                "snapshot": {
+                    "changed_files": 3,
+                    "diagnostic_errors": 1,
+                    "diagnostic_warnings": 0,
+                    "test_status": "not_run",
+                },
+            },
+        )
+        assert observation["ok"] is True
+        assert observation["observation"]["effect"] == "none"
+        assert observation["observation"]["published_count"] == 3
+        assert observation["workspace_observation_schema"] == (
+            "simplicio.workspace-observation/v1"
+        )
+
+        workspace_replay = _client_request(
+            sock_path,
+            {
+                "op": "workspace.advisory",
+                "workspace_id": "client-workspace-1",
+                "cursor": 0,
+            },
+        )
+        assert workspace_replay["ok"] is True
+        assert workspace_replay["workspace_advisories"]["schema"] == (
+            "simplicio.workspace-advisory/v1"
+        )
+        assert [
+            event["kind"]
+            for event in workspace_replay["workspace_advisories"]["events"]
+        ] == ["finding", "risk", "suggestion"]
+        assert all(
+            event["effect"] == "none"
+            for event in workspace_replay["workspace_advisories"]["events"]
+        )
+
+        future_workspace_cursor = _client_request(
+            sock_path,
+            {
+                "op": "workspace.advisory",
+                "workspace_id": "client-workspace-1",
+                "cursor": 4,
+            },
+        )
+        assert future_workspace_cursor["ok"] is False
+        assert "exceeds" in future_workspace_cursor["error"]
 
         invalidate = _run_cli(
             "daemon", "invalidate", "provider_metadata", "--socket", sock_path
