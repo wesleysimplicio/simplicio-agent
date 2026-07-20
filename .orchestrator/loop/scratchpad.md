@@ -1,22 +1,16 @@
 ---
 iteration: 1
-max_iterations: 1
-completion_promise: "ISSUE-195 ROLLBACK IDENTITY GATE SLICE PROVEN"
+max_iterations: 5
+completion_promise: "SIMPLICIO_LOOP_DONE"
 evidence_required: true
-mode: converge
-started_at: "2026-07-13T19:52:00Z"
+mode: drain
+started_at: "2026-07-16T16:00:00Z"
 ---
 
-Implement one bounded issue #195 release-gate slice: require rollback evidence
-to contain a digest-pinned restored Simplicio Agent identity and a separate
-digest-pinned Simplicio Runtime identity, with compatible=true; reject legacy,
-mismatched, or non-canonical identities fail-closed. Update focused tests,
-fixture, and release-gate documentation only. Run the Simplicio Runtime CLI,
-focused pytest, CLI validation, and Ruff. Do not claim clean-machine install,
-upgrade, rollback execution, full matrix coverage, or issue closure.
+GOAL: Terminar todas as 85 issues do simplicio-agent via simplicio-loop. Triagem honesta:
+- Issues com branch/worktree de OUTRO processo (10): NAO TOCO (lock protocol).
+- Issues EPIC sem AC testavel (75): QUARANTINE com comentario honesto (deixar aberta, nao close falso).
+- Issues com AC real: PR (nenhuma encontrada nas 75 livres).
 
-The bound dev-cli operator was attempted once and failed with an opaque cache
-lookup error; the Runtime edit route timed out. Native apply_patch fallback was
-used only for this narrow slice. The loop helper scripts referenced by the
-skill are absent in this checkout; command outputs and this scratchpad are the
-available cross-session evidence.
+NAO-CONFLITO: prefixo simplicio/ nos meus branches; lock por issue na memoria.
+PR #409 ja aberta (adapter-requirements.toml). #2988/#3019 (runtime) ja fechadas.

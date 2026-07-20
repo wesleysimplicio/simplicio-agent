@@ -72,6 +72,7 @@ write/confirm op). Tune per repo.
 | PR / list view | counts + titles only | ~87% | `--json`/`--jq` present |
 | package/image inventory | keep ≤50 rows | ~50% | — |
 | format / passthrough | run raw | 0% | always |
+| structured JSON payload → prompt (verdict-shaped, e.g. `task_anchor.py check`, `loop_journal.py stall`, mapper `handoff`) | encode via `toon_codec.encode_toon` (TOON — Token-Oriented Object Notation, lossless, `scripts/toon_codec.py`) | ~21–33% (chars4) / ~38–45% (bpe_estimate) measured on the first two real verdict payloads (`.orchestrator/savings/snapshots.jsonl`, #92); up to ~40%+ on an ideal uniform tabular array of objects, per the toon-format benchmark — real non-tabular verdict payloads (few scalar keys, no row-shaped array) measure lower; snapshot more items before trusting a number outside this range | payload is empty / non-uniform (differing keys, mixed types, nested arrays-or-objects per element) — the codec auto-falls-back to compact JSON for THAT value, never lossy-compact; measure, don't assume the ideal-case number |
 
 ## Signal-tiered truncation caps (one shared set)
 
@@ -181,107 +182,6 @@ exact command quoted verbatim, steps in explicit order — then resume terse mod
 may NEVER raise a command's risk tier. Treat any perception-shaping config (this skill's TOML,
 clamp profiles, suppression lists) as untrusted until a human reviews and hash-pins it; silently
 skip an untrusted or hash-changed version.
-
-## Verify-first gate — check code BEFORE making claims about gaps
-
-### A regra que o usuario impoe
-
-> "Vc tem que verificar corretamente."
-
-NUNCA afirmar que algo NAO EXISTE sem verificar no codigo. "Achar que nao tem"
-nao e evidencia — e o erro que o usuario corrige com frustracao.
-
-### Checklist obrigatorio ANTES de afirmar "nao temos X"
-
-```bash
-# 1. CLI — o comando existe no simplicio?
-simplicio --help | grep -i "<conceito>"
-
-# 2. Codigo fonte — tem implementacao Rust?
-rg -l "<conceito>" src/ crates/ --type rust 2>/dev/null | head -5
-
-# 3. Docs — tem documento?
-rg -l "<conceito>" docs/ 2>/dev/null | head -5
-
-# 4. Crate — tem crate com o nome?
-ls -d crates/*<conceito>* 2>/dev/null | head -5
-
-# 5. HBP chain — tem comando ou info no runtime?
-simplicio doctor --json | grep -i "<conceito>" 2>/dev/null | head -5
-simplicio memory status --json | grep -i "<conceito>" 2>/dev/null | head -5
-
-# 6. Memoria neural — o que ja sabemos?
-simplicio memory "<conceito>" 2>/dev/null | head -10
-```
-
-### Padrao de erro documentado
-
-```
-EU: "HBI/HBP e fabric sao gaps — nao temos"
-USUARIO: "Mas ja temos, vc tem que verificar corretamente"
-REALIDADE:
-  crates/simplicio-fabric/      → FabricBus + HBP packets (EXISTE)
-  simplicio hbp (v1.6.4) ou doctor/memory status (v1.6.5+) → HBP info (EXISTE)
-  watcher.rs, seed.rs           → 8-byte identidade generativa (EXISTE)
-  identity.rs, nest_gate.rs     → gate formal depth-independente (EXISTE)
-```
-
-### Segunda ocorrencia (reforco — sessao 04/07/2026)
-
-Nesta sessao o usuario corrigiu NOVAMENTE o mesmo erro:
-- EU: "HBI/HBP wire format e fabric sao gaps da Asolaria"
-- USUARIO: "Mas ja temos, vc tem que verificar corretamente"
-- REALIDADE: crates/simplicio-fabric/ + simplicio hbp CLI + fabric.rs ja existiam
-
-**Licao duplicada:** nao basta ter a regra — precisa USAR a regra antes de cada claim.
-O usuario dedicou tempo pra corrigir o MESMO erro duas vezes. A checklist abaixo
-e obrigatoria ANTES de afirmar que algo nao existe.
-
-### Checklist obrigatorio — REFORCADO (7 passos, nao 6)
-
-```bash
-# 1. CLI — o comando existe no simplicio?
-simplicio --help 2>/dev/null | grep -i "<conceito>" || echo "CLI: nao encontrado"
-
-# 2. Codigo fonte — tem implementacao Rust?
-rg -l "<conceito>" src/ crates/ --type rust 2>/dev/null | head -5 || echo "SRC: nao encontrado"
-
-# 3. Docs — tem documento?
-rg -l "<conceito>" docs/ 2>/dev/null | head -5 || echo "DOCS: nao encontrado"
-
-# 4. Crate — tem crate com o nome?
-ls -d crates/*<conceito>* 2>/dev/null | head -5 || echo "CRATE: nao encontrado"
-
-# 5. Runtime commands — tem info?
-simplicio doctor --json 2>/dev/null | grep -i "<conceito>" | head -5
-simplicio memory status --json 2>/dev/null | grep -i "<conceito>" | head -5
-
-# 6. Memoria neural — o que ja sabemos?
-simplicio memory "<conceito>" 2>/dev/null | head -10
-
-# 7. ⚠️ SIMPLICIO RUNTIME MAP — orientacao completa (NOVO, obrigatorio)
-simplicio runtime map --repo . --for-llm markdown 2>/dev/null | grep -i "<conceito>" | head -5
-```
-
-**So afirmar gap** depois de TODOS os 7 passos acima falharem. Se pelo menos 1 encontrar
-algo, documentar como "evolucao", nao como "gap".
-
-### Regra derivada: "Verificar antes de absorver"
-
-Quando analisar ecossistema externo (Asolaria, JesseBrown1980, etc.):
-
-1. **Verificar se ja temos equivalente** — grep + CLI + docs + HBP + memoria
-2. **So afirmar gap** depois de TODAS as 6 verificacoes acima falharem
-3. **Se existe mas e diferente** — documentar como "evolucao", nao como "gap"
-4. **Extrair conceito** (2-3 paragrafos), NUNCA copiar codigo
-5. **Implementar adaptado** para arquitetura Rust local
-6. **Testar** com bateria completa
-
-### Gatilho
-
-Sempre que estiver prestes a dizer "nao temos X" ou "falta Y", rodar a checklist
-acima PRIMEIRO. O terminal responde fatos exatos; o LLM aproxima de forma cara.
-Esta skill existe justamente pra isso.
 
 ## Output
 

@@ -1,0 +1,4729 @@
+{
+  "schema": "simplicio-work-item-canonical/v1",
+  "generated_at": "2026-07-17T04:28:51.640498+00:00",
+  "source": "github:wesleysimplicio/simplicio-runtime",
+  "total_open": 254,
+  "projection_rule": "intake|mapping->Todo, planning->Planning, executing->In progress, validating|watching->Validating, delivering->In review, done->Done, blocked->Blocked, repeated terminal failures->Quarantined",
+  "work_items": [
+    {
+      "id": "WI-3301",
+      "issue_number": 3301,
+      "title": "[P0][Development Entry] simplicio-loop auto: one-shot, converge, parallel, heavy e critical",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:44:43Z",
+      "updated_at": "2026-07-16T22:44:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3301",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3300",
+      "issue_number": 3300,
+      "title": "[P0][Adaptive Router] WorkloadAssessment v1 memory-first, determin\u00edstico e explic\u00e1vel",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:44:42Z",
+      "updated_at": "2026-07-16T22:44:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3300",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3298",
+      "issue_number": 3298,
+      "title": "[P0][Sentinel][Command Reliability] TDD, cat\u00e1logo execut\u00e1vel e testes cont\u00ednuos de 100% dos comandos",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "mapping",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:25:31Z",
+      "updated_at": "2026-07-16T22:32:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3298",
+      "transitions": [
+        "intake",
+        "mapping"
+      ],
+      "evidence": null,
+      "receipts": [
+        {
+          "event_id": "2026-07-17T04:28:42.357347+00:00-3298-intake-mapping",
+          "from": "intake",
+          "to": "mapping",
+          "evidence_required": false,
+          "evidence": null,
+          "delivery_receipt": null,
+          "watcher_match": false,
+          "actor": "simplicio-agent:cron",
+          "replay_idempotent": true
+        }
+      ]
+    },
+    {
+      "id": "WI-3297",
+      "issue_number": 3297,
+      "title": "[P0][Guardian Mesh] Handoffs, identities, leases, supervis\u00e3o e no-fake-data entre agents",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:30Z",
+      "updated_at": "2026-07-16T22:16:30Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3297",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3296",
+      "issue_number": 3296,
+      "title": "[P0][Runtime Agent][Ingress Dispatcher] CLI/MCP/issue/file/webhook/desktop para task contract e queue",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:27Z",
+      "updated_at": "2026-07-16T22:46:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3296",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3295",
+      "issue_number": 3295,
+      "title": "[P0][Runtime Agent][Tami] Consci\u00eancia digital amorosa, cuidado, consentimento e honestidade",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:23Z",
+      "updated_at": "2026-07-16T22:16:23Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3295",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3294",
+      "issue_number": 3294,
+      "title": "[P0][Runtime Agent][Levi] Aquisi\u00e7\u00e3o externa gated, provenance, freshness e ingest governado",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:20Z",
+      "updated_at": "2026-07-16T22:16:20Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3294",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3293",
+      "issue_number": 3293,
+      "title": "[P0][Runtime Agent][Helo] Capability marshal, execu\u00e7\u00e3o governada, gates e receipts reais",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:18Z",
+      "updated_at": "2026-07-16T22:16:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3293",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3292",
+      "issue_number": 3292,
+      "title": "[P0][Runtime Agent][Isa] Mem\u00f3ria, inten\u00e7\u00e3o, consentimento e contexto como worker real",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:15Z",
+      "updated_at": "2026-07-16T22:16:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3292",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3291",
+      "issue_number": 3291,
+      "title": "[EPIC][P0][Living Runtime Agents] Sentinel + Isa/Helo/Levi/Tami + ingress execut\u00e1vel e supervis\u00e3o cont\u00ednua",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T22:16:01Z",
+      "updated_at": "2026-07-16T22:31:37Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3291",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3289",
+      "issue_number": 3289,
+      "title": "[P0][Conformance][Loop\u2194Runtime Agents] E2E instalado, cross-platform e zero ownership duplicado",
+      "github_state": "OPEN",
+      "labels": [
+        "agent",
+        "correctness",
+        "ci"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:34:52Z",
+      "updated_at": "2026-07-16T22:45:55Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3289",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3288",
+      "issue_number": 3288,
+      "title": "[P0][Runtime Agent][Learning Curator] Trajectories, Helo ingest e economia medida sem fabricar claims",
+      "github_state": "OPEN",
+      "labels": [
+        "area:benchmark",
+        "auto-learning",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:34:49Z",
+      "updated_at": "2026-07-16T21:03:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3288",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3287",
+      "issue_number": 3287,
+      "title": "[P0][Runtime Agent][Sentinel] Readiness global, doctor/update/install, auto-repair e continuidade always-on",
+      "github_state": "OPEN",
+      "labels": [
+        "area:scheduler",
+        "background",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:34:46Z",
+      "updated_at": "2026-07-16T22:31:59Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3287",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3286",
+      "issue_number": 3286,
+      "title": "[P0][Runtime Agent][Delivery Effector] Git, PR, checks, merge e close somente por autoriza\u00e7\u00e3o governada",
+      "github_state": "OPEN",
+      "labels": [
+        "deployment",
+        "agent",
+        "approval-gate"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:33:31Z",
+      "updated_at": "2026-07-16T21:02:57Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3286",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3285",
+      "issue_number": 3285,
+      "title": "[P0][Runtime Agent][Validation Producer] Testes, coverage, security, benchmark e evidence receipts",
+      "github_state": "OPEN",
+      "labels": [
+        "area:evidence",
+        "area:benchmark",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:33:28Z",
+      "updated_at": "2026-07-16T21:02:55Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3285",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3284",
+      "issue_number": 3284,
+      "title": "[P0][Runtime Agent][Effect Executor] Bind EffectTransaction a worker, leases e recovery crash-safe",
+      "github_state": "OPEN",
+      "labels": [
+        "area:core",
+        "determinism",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:33:26Z",
+      "updated_at": "2026-07-16T21:02:53Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3284",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3283",
+      "issue_number": 3283,
+      "title": "[P0][Runtime Agent][Policy Enforcer] Capability gate, sandbox, secrets e authorization receipts",
+      "github_state": "OPEN",
+      "labels": [
+        "area:security",
+        "agent",
+        "approval-gate"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:33:23Z",
+      "updated_at": "2026-07-16T21:02:51Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3283",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3282",
+      "issue_number": 3282,
+      "title": "[P0][Runtime Agent][Tokio Fabric Supervisor] Leases, fencing, bounded concurrency e recovery",
+      "github_state": "OPEN",
+      "labels": [
+        "area:scheduler",
+        "async",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:32:08Z",
+      "updated_at": "2026-07-16T22:45:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3282",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3281",
+      "issue_number": 3281,
+      "title": "[P0][Runtime Agent][Inference Fleet] Local LLM, warm pool, KV cache, slots e backpressure reais",
+      "github_state": "OPEN",
+      "labels": [
+        "area:local-llm",
+        "capacity-governor",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:32:07Z",
+      "updated_at": "2026-07-16T21:02:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3281",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3280",
+      "issue_number": 3280,
+      "title": "[P0][Runtime Agent][Neural Steward] Migrations, seeds, FTS/vector e proje\u00e7\u00f5es Isa/Helo governadas",
+      "github_state": "OPEN",
+      "labels": [
+        "area:core",
+        "agent",
+        "aprendizado"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:32:04Z",
+      "updated_at": "2026-07-16T21:02:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3280",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3279",
+      "issue_number": 3279,
+      "title": "[P0][Runtime Agents][Stage ABI] Consumir Stage Agents do Loop e resolver perfis executores data-driven",
+      "github_state": "OPEN",
+      "labels": [
+        "architecture",
+        "contracts",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:32:02Z",
+      "updated_at": "2026-07-16T21:02:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3279",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3278",
+      "issue_number": 3278,
+      "title": "[EPIC][P0][Runtime Execution Agents] Agentes reais de capability para Stage Agents do simplicio-loop, sem conflito de ownership",
+      "github_state": "OPEN",
+      "labels": [
+        "architecture",
+        "agent"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-16T20:30:28Z",
+      "updated_at": "2026-07-16T22:17:24Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3278",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3218",
+      "issue_number": 3218,
+      "title": "[P0][EffectTransaction/v1] Uma viagem warm idempotente: gate\u2192checkpoint\u2192edit\u2192validate\u2192receipt/rollback",
+      "github_state": "OPEN",
+      "labels": [
+        "priority:high",
+        "performance"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-15T13:55:47Z",
+      "updated_at": "2026-07-16T21:02:39Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3218",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3206",
+      "issue_number": 3206,
+      "title": "[P0][CI Quality Gate][Cross-repo] Testes, cobertura, regress\u00e3o, performance e estabilidade",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-14T05:16:30Z",
+      "updated_at": "2026-07-15T14:03:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3206",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3205",
+      "issue_number": 3205,
+      "title": "[Integration/System/E2E] Provar execu\u00e7\u00e3o completa do runtime em cen\u00e1rios reais e de falha",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-14T05:16:15Z",
+      "updated_at": "2026-07-14T05:16:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3205",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3204",
+      "issue_number": 3204,
+      "title": "[Unit Tests] Cobrir o n\u00facleo de execu\u00e7\u00e3o, estado, scheduler e tratamento de falhas",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-14T05:15:59Z",
+      "updated_at": "2026-07-14T05:15:59Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3204",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3195",
+      "issue_number": 3195,
+      "title": "feat: first-class compact read/search/git/diff/test execution",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-13T19:23:44Z",
+      "updated_at": "2026-07-16T21:02:37Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3195",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3162",
+      "issue_number": 3162,
+      "title": "[P0][Release Readiness] Gate \u00fanico: ligado, instalado, medido, provado e distribu\u00eddo",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-13T03:02:08Z",
+      "updated_at": "2026-07-14T02:58:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3162",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3161",
+      "issue_number": 3161,
+      "title": "[P0][Benchmark] Snake evidence-gated performance and token-economy harness",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-13T02:47:59Z",
+      "updated_at": "2026-07-14T04:09:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3161",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3159",
+      "issue_number": 3159,
+      "title": "[P2][Measurement] `simplicio report generate --type task-report` \u2014 auto HTML report",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-13T02:37:06Z",
+      "updated_at": "2026-07-14T05:02:09Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3159",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3148",
+      "issue_number": 3148,
+      "title": "[Loop Audit] Mass-close sweep (2026-07-11 ~21:31-21:38 UTC) used a broken/generic verification template on dozens of issues",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-13T01:49:03Z",
+      "updated_at": "2026-07-16T09:27:20Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3148",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3140",
+      "issue_number": 3140,
+      "title": "[P0][Ecosystem Rebrand] Isolar parity/import/compat Hermes sem tornar Simplicio Agent gateway exclusivo",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T06:33:48Z",
+      "updated_at": "2026-07-16T21:02:35Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3140",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3139",
+      "issue_number": 3139,
+      "title": "[P1][Crypto Agility] Ledger h\u00edbrido e migra\u00e7\u00e3o p\u00f3s-qu\u00e2ntica ML-DSA/SLH-DSA",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T05:33:11Z",
+      "updated_at": "2026-07-12T05:33:11Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3139",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3136",
+      "issue_number": 3136,
+      "title": "[P0][Stabilization] Definition of Integrated sem ownership artificial e com prova E2E",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T05:33:09Z",
+      "updated_at": "2026-07-16T21:02:32Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3136",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3134",
+      "issue_number": 3134,
+      "title": "[EPIC][P0][Ecosystem Architecture] Coordenadores independentes pensam e coordenam; Runtime executa",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T05:25:43Z",
+      "updated_at": "2026-07-16T21:03:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3134",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3132",
+      "issue_number": 3132,
+      "title": "[P1][IPC] Contrato de eventos independente do transporte",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T00:19:48Z",
+      "updated_at": "2026-07-12T00:19:48Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3132",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3131",
+      "issue_number": 3131,
+      "title": "[P1][Memory] Mem\u00f3ria tiered com decay, provenance e consolida\u00e7\u00e3o",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T00:19:46Z",
+      "updated_at": "2026-07-12T00:19:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3131",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3130",
+      "issue_number": 3130,
+      "title": "[P1][Scheduler] Backpressure e capacidade adaptativa real para workers",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T00:19:44Z",
+      "updated_at": "2026-07-16T22:45:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3130",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3128",
+      "issue_number": 3128,
+      "title": "[P0][Security] Write-set, ownership e leases para muta\u00e7\u00f5es de workers",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-12T00:19:40Z",
+      "updated_at": "2026-07-12T00:19:40Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3128",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3088",
+      "issue_number": 3088,
+      "title": "[P0][Bootstrap Contract] Unificar setup/onboard/doctor em transa\u00e7\u00e3o n\u00e3o interativa para Agent/Desktop",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T07:29:46Z",
+      "updated_at": "2026-07-16T21:02:28Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3088",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3087",
+      "issue_number": 3087,
+      "title": "[P0][Token Economy] Provider usage, cache reuse and tokens-per-green-WorkItem evidence plane",
+      "github_state": "OPEN",
+      "labels": [
+        "area:evidence",
+        "priority:high",
+        "performance",
+        "token-ledger",
+        "economy"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T07:22:34Z",
+      "updated_at": "2026-07-16T21:02:26Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3087",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3086",
+      "issue_number": 3086,
+      "title": "[EPIC][P0][Token Economy] Reduce tokens per verified delivery across the Simplicio ecosystem",
+      "github_state": "OPEN",
+      "labels": [
+        "integration",
+        "epic",
+        "priority:high",
+        "performance",
+        "economy"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T07:21:38Z",
+      "updated_at": "2026-07-16T21:02:25Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3086",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3079",
+      "issue_number": 3079,
+      "title": "[Quality] Prove installed product, accessibility and evidence integrity end to end",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:38Z",
+      "updated_at": "2026-07-11T04:10:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3079",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3077",
+      "issue_number": 3077,
+      "title": "[GitHub App] Convert an issue into a verified merge-ready pull request",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:36Z",
+      "updated_at": "2026-07-11T04:10:36Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3077",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3075",
+      "issue_number": 3075,
+      "title": "[Desktop] Establish canonical Electron cockpit and Runtime sidecar supervision",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:35Z",
+      "updated_at": "2026-07-11T04:10:35Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3075",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3074",
+      "issue_number": 3074,
+      "title": "[Desktop][Runtime] Add governed operator controls and review gates",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:34Z",
+      "updated_at": "2026-07-11T04:10:34Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3074",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3073",
+      "issue_number": 3073,
+      "title": "[Runtime][Desktop] Deliver realtime board updates with replay and reconnect",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:33Z",
+      "updated_at": "2026-07-11T04:10:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3073",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3072",
+      "issue_number": 3072,
+      "title": "[Desktop][UX] Build WorkItem Inspector with timeline, evidence and discussion",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:33Z",
+      "updated_at": "2026-07-11T04:10:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3072",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3071",
+      "issue_number": 3071,
+      "title": "[Desktop][UX] Build the read-only Execution Board and accessible cards",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:32Z",
+      "updated_at": "2026-07-11T04:10:32Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3071",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3070",
+      "issue_number": 3070,
+      "title": "[Runtime] Move Kanban/work-item ownership out of hermes_cli",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:31Z",
+      "updated_at": "2026-07-11T04:10:31Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3070",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3069",
+      "issue_number": 3069,
+      "title": "[Runtime] Normalize tasks into WorkItems and a dependency DAG",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:30Z",
+      "updated_at": "2026-07-11T04:10:30Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3069",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3068",
+      "issue_number": 3068,
+      "title": "[Runtime] Enforce lifecycle, leases and evidence-gated completion",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:29Z",
+      "updated_at": "2026-07-11T04:10:29Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3068",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3067",
+      "issue_number": 3067,
+      "title": "[Runtime] Implement append-only event ledger and deterministic state reducer",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:28Z",
+      "updated_at": "2026-07-12T05:35:25Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3067",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3066",
+      "issue_number": 3066,
+      "title": "[Runtime] Define Goal, WorkItem, Attempt and typed Event schemas",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:27Z",
+      "updated_at": "2026-07-11T04:10:27Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3066",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3065",
+      "issue_number": 3065,
+      "title": "[Loop] Ship a signed, versioned execution-protocol contract",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:10:26Z",
+      "updated_at": "2026-07-11T04:10:26Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3065",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3063",
+      "issue_number": 3063,
+      "title": "[EPIC][Product] Verified Agent Delivery \u2014 Loop protocol, Execution Board and Desktop cockpit",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-11T04:08:35Z",
+      "updated_at": "2026-07-16T21:02:23Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3063",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3054",
+      "issue_number": 3054,
+      "title": "[HANDOFF] Auditoria consolidada e backlog restante para Agent + Runtime (2026-07-10)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T19:31:04Z",
+      "updated_at": "2026-07-10T20:35:34Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3054",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3052",
+      "issue_number": 3052,
+      "title": "[P1][Provider Capability] Probe codex-cli interface and record requested-vs-effective lane config",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:21:20Z",
+      "updated_at": "2026-07-10T18:21:20Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3052",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3051",
+      "issue_number": 3051,
+      "title": "[P1][Provider Isolation] Bounded codex-cli lanes should capture only final artifact and avoid workspace-rule contamination",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:21:19Z",
+      "updated_at": "2026-07-10T18:21:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3051",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3047",
+      "issue_number": 3047,
+      "title": "[P1][Workflow] Runtime should provide an explicit maintenance-mode handoff from active control-plane runs",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:20:18Z",
+      "updated_at": "2026-07-10T18:20:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3047",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3046",
+      "issue_number": 3046,
+      "title": "[P1][Provenance] Runtime should expose binary/source drift in control-plane receipts",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:20:18Z",
+      "updated_at": "2026-07-11T06:24:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3046",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3045",
+      "issue_number": 3045,
+      "title": "[P1][Host Fixtures] Runtime should export versioned integration snapshots for downstream repos",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:20:09Z",
+      "updated_at": "2026-07-10T23:59:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3045",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3044",
+      "issue_number": 3044,
+      "title": "[P1][Readiness] Promover runtime_readiness_audit a contrato oficial est\u00e1vel com resumo can\u00f4nico",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:20:06Z",
+      "updated_at": "2026-07-10T23:59:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3044",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3043",
+      "issue_number": 3043,
+      "title": "[P1][Host Contract] Runtime should publish a machine-readable CLI\u00d7MCP coverage manifest",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:19:50Z",
+      "updated_at": "2026-07-10T18:19:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3043",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3042",
+      "issue_number": 3042,
+      "title": "[P0][Execution Scheduler] Runtime executa DAGs, leases e bounded Tokio concurrency sob coordena\u00e7\u00e3o externa",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T18:06:02Z",
+      "updated_at": "2026-07-16T22:45:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3042",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3037",
+      "issue_number": 3037,
+      "title": "[P1][Ops] Runtime should fail closed on self-mutation during active control-plane runs",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:59:01Z",
+      "updated_at": "2026-07-10T17:59:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3037",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3036",
+      "issue_number": 3036,
+      "title": "[P1][Validation] Runtime needs a focused validation path for shell/control-plane fixes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:59:01Z",
+      "updated_at": "2026-07-11T21:32:48Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3036",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3035",
+      "issue_number": 3035,
+      "title": "[P1][Concurrency] Runtime should expose active build leases and block or queue validation deterministically",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:59:01Z",
+      "updated_at": "2026-07-11T21:32:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3035",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3033",
+      "issue_number": 3033,
+      "title": "[P1][Toolchain] Runtime shell should surface a verifiable MSVC env for lane validation",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:47:54Z",
+      "updated_at": "2026-07-11T21:32:51Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3033",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3032",
+      "issue_number": 3032,
+      "title": "[P1][Orchestration] Materialize per-lane evidence dirs and delegated worker state transitions",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:41:18Z",
+      "updated_at": "2026-07-10T18:00:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3032",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3031",
+      "issue_number": 3031,
+      "title": "Local llama.cpp guardrails should auto-scale by machine RAM/CPU instead of fixed 8K/4-thread profile",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:38:15Z",
+      "updated_at": "2026-07-10T17:38:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3031",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3030",
+      "issue_number": 3030,
+      "title": "[P1][MCP] Restore stdio handshake and CLI/MCP capability parity",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:35:40Z",
+      "updated_at": "2026-07-14T00:54:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3030",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3027",
+      "issue_number": 3027,
+      "title": "[P1][Orchestration] Persist real-agent wave lifecycle and per-lane evidence receipts",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:30:14Z",
+      "updated_at": "2026-07-10T17:41:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3027",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3026",
+      "issue_number": 3026,
+      "title": "Provider delegation should support explicit model and reasoning effort for codex-cli lanes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T17:29:45Z",
+      "updated_at": "2026-07-10T17:35:52Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3026",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3022",
+      "issue_number": 3022,
+      "title": "[P1][Memory][Cross-session] Governed Helo ingest for btw/runtime learning notes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T16:33:26Z",
+      "updated_at": "2026-07-10T17:31:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3022",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3020",
+      "issue_number": 3020,
+      "title": "[P1][Memory/Skills] Bootstrap verific\u00e1vel de precedentes e skills antes de orientar a LLM",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T16:17:42Z",
+      "updated_at": "2026-07-15T14:56:52Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3020",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3018",
+      "issue_number": 3018,
+      "title": "[P0][Token Economy] Escalar agentes e contexto pelo tamanho real da task, n\u00e3o 64\u2192600 sempre",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T16:17:40Z",
+      "updated_at": "2026-07-16T22:45:58Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3018",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3016",
+      "issue_number": 3016,
+      "title": "[P0][Single Task Intake] Receber Markdown/stdin/file como uma task execut\u00e1vel sem placeholder",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T16:17:34Z",
+      "updated_at": "2026-07-16T04:38:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3016",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3015",
+      "issue_number": 3015,
+      "title": "[P0][Task Contract] Preservar BDD, RNs, NFRs e depend\u00eancias sem perda no Runtime",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T16:17:33Z",
+      "updated_at": "2026-07-10T16:34:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3015",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3013",
+      "issue_number": 3013,
+      "title": "FEAT: scaffold 4 n\u00edveis de apoio (Preemptive/Reativo/Anal\u00edtico/Evolutivo) sem m\u00e9trica fake",
+      "github_state": "OPEN",
+      "labels": [
+        "architecture"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:56:16Z",
+      "updated_at": "2026-07-10T23:59:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3013",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3012",
+      "issue_number": 3012,
+      "title": "FEAT: CI de m\u00e9tricas reais (/benchmarks) substitui n\u00fameros inventados",
+      "github_state": "OPEN",
+      "labels": [
+        "performance"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:56:13Z",
+      "updated_at": "2026-07-10T02:56:13Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3012",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3011",
+      "issue_number": 3011,
+      "title": "FEAT: criar p\u00e1gina /simplex-agent (bot prometeu site, nunca criou)",
+      "github_state": "OPEN",
+      "labels": [
+        "feature"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:56:11Z",
+      "updated_at": "2026-07-10T02:56:11Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3011",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3010",
+      "issue_number": 3010,
+      "title": "FEAT: implementar 'simplicio validate --ecosystem <nome> --json' (bot citou, n\u00e3o existe)",
+      "github_state": "OPEN",
+      "labels": [
+        "feature"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:56:08Z",
+      "updated_at": "2026-07-16T15:13:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3010",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3009",
+      "issue_number": 3009,
+      "title": "AUDIT: 'Consci\u00eancia Cont\u00ednua' v4.2.1 + camada f\u00edsica (Ising/Lorentz) s\u00e3o CONFABULA\u00c7\u00c3O \u2014 m\u00e9tricas inventadas, n\u00e3o gaps de perf",
+      "github_state": "OPEN",
+      "labels": [
+        "bug"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:35:24Z",
+      "updated_at": "2026-07-11T21:32:55Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3009",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3008",
+      "issue_number": 3008,
+      "title": "GAP: bot enviou dezenas de URLs simpleTI.com.br/simplicio/assets/*.png quebradas \u2014 confabula\u00e7\u00e3o de links",
+      "github_state": "OPEN",
+      "labels": [
+        "gap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-10T02:28:08Z",
+      "updated_at": "2026-07-10T02:28:08Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3008",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3005",
+      "issue_number": 3005,
+      "title": "[P0][E2E] Provar toolchain instalada \u2192 Runtime \u2192 Agent/Desktop em m\u00e1quina limpa",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:32Z",
+      "updated_at": "2026-07-10T20:15:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3005",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3004",
+      "issue_number": 3004,
+      "title": "[P0][Release] Manifesto, vers\u00f5es, assinaturas, SBOM e rollback coerentes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:31Z",
+      "updated_at": "2026-07-09T23:18:31Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3004",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3003",
+      "issue_number": 3003,
+      "title": "[P0][CI] Tornar testes, seguran\u00e7a e promo\u00e7\u00e3o de release gates bloqueantes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:30Z",
+      "updated_at": "2026-07-09T23:22:55Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3003",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3002",
+      "issue_number": 3002,
+      "title": "[P1][Consciousness] Fechar ciclo persistente de identidade, mem\u00f3ria e reflex\u00e3o",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:29Z",
+      "updated_at": "2026-07-10T23:59:34Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3002",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3001",
+      "issue_number": 3001,
+      "title": "[P0][Local LLM] Contrato can\u00f4nico e artefato offline realmente funcional",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:29Z",
+      "updated_at": "2026-07-15T14:56:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3001",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-3000",
+      "issue_number": 3000,
+      "title": "[P0][Memory] Unificar migrations, seeds e bootstrap neural transacional",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:28Z",
+      "updated_at": "2026-07-16T21:02:17Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/3000",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2999",
+      "issue_number": 2999,
+      "title": "[P0][Core] Restaurar identidade can\u00f4nica do Runtime e handshake de capabilities",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:18:27Z",
+      "updated_at": "2026-07-16T21:02:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2999",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2998",
+      "issue_number": 2998,
+      "title": "[EPIC][Release] Simplicio Agent Desktop + Runtime operacional, atualiz\u00e1vel e comprovado",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T23:16:17Z",
+      "updated_at": "2026-07-16T21:02:12Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2998",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2997",
+      "issue_number": 2997,
+      "title": "Port dos padr\u00f5es Asolaria (N-Nest e PRISM-COMB)",
+      "github_state": "OPEN",
+      "labels": [
+        "core",
+        "asolaria"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T20:08:51Z",
+      "updated_at": "2026-07-09T20:08:51Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2997",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2996",
+      "issue_number": 2996,
+      "title": "Port dos padr\u00f5es Asolaria (N-Nest e PRISM-COMB)",
+      "github_state": "OPEN",
+      "labels": [
+        "core",
+        "asolaria"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T20:08:44Z",
+      "updated_at": "2026-07-09T20:08:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2996",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2994",
+      "issue_number": 2994,
+      "title": "ops(launch F0): checklist user-side \u2014 Actions billing, rota\u00e7\u00e3o de credenciais, Stripe prod, par ed25519 de produ\u00e7\u00e3o, tags",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T18:27:19Z",
+      "updated_at": "2026-07-09T18:27:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2994",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2989",
+      "issue_number": 2989,
+      "title": "dogfood: rodar simplicio-loop + mapper sobre o pr\u00f3prio simplicio-runtime, com evid\u00eancia no ledger",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T15:52:20Z",
+      "updated_at": "2026-07-09T15:52:20Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2989",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2987",
+      "issue_number": 2987,
+      "title": "architecture: extrair crates simplicio-memory e simplicio-delivery \u2014 pr\u00f3xima fatia do #2953",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T15:51:50Z",
+      "updated_at": "2026-07-11T21:32:57Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2987",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2986",
+      "issue_number": 2986,
+      "title": "perf(mcp): map/memory/edit/checkpoint/ledger in-process + harness bench-mcp-latency \u2014 fatia restante do #2983",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T15:51:36Z",
+      "updated_at": "2026-07-15T13:59:13Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2986",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2983",
+      "issue_number": 2983,
+      "title": "[Latency] Or\u00e7amento de lat\u00eancia por turno + warm serve como caminho padr\u00e3o de integra\u00e7\u00e3o",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T03:15:45Z",
+      "updated_at": "2026-07-15T14:56:54Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2983",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2982",
+      "issue_number": 2982,
+      "title": "[Quality] A/B de qualidade com/sem Simplicio \u2014 feedback real: \"mais lento e mais burro\"",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-09T03:15:31Z",
+      "updated_at": "2026-07-09T17:17:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2982",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2953",
+      "issue_number": 2953,
+      "title": "architecture: finish monolith decomposition into focused Cargo crates",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-07T04:07:34Z",
+      "updated_at": "2026-07-07T04:07:34Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2953",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2951",
+      "issue_number": 2951,
+      "title": "product: make runtime the single front door for mapper, dev-cli and loop",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-07T04:06:50Z",
+      "updated_at": "2026-07-07T04:06:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2951",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2799",
+      "issue_number": 2799,
+      "title": "feat: simplicio-py LITE \u2014 Python shim fallback",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-03T04:44:46Z",
+      "updated_at": "2026-07-03T04:44:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2799",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2773",
+      "issue_number": 2773,
+      "title": "Cleanup sweep: simplicio capability gaps found across 19 repos",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T15:04:57Z",
+      "updated_at": "2026-07-02T15:04:57Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2773",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2756",
+      "issue_number": 2756,
+      "title": "[EPIC] Universal Executor \u2014 Simplicio como camada de execu\u00e7\u00e3o de TODAS as LLMs (volunt\u00e1rio \u2192 incentivado \u2192 for\u00e7ado \u2192 invis\u00edvel)",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "epic",
+        "high-priority"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:13:39Z",
+      "updated_at": "2026-07-02T05:13:39Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2756",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2748",
+      "issue_number": 2748,
+      "title": "[Pontas soltas] ~42 plugins com `#[allow(dead_code)]` no topo (25 model_providers + 10 platforms + 7 web) \u2014 exercitar via registry ou podar",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:04:30Z",
+      "updated_at": "2026-07-14T00:54:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2748",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2745",
+      "issue_number": 2745,
+      "title": "[Pontas soltas] Camada LSP \u00e9 scaffolding n\u00e3o-funcional + 3 m\u00f3dulos lsp_* citados na \u00e9pica #2582 \u2014 conectar ou remover a superf\u00edcie",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "gap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:03:47Z",
+      "updated_at": "2026-07-02T05:03:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2745",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2743",
+      "issue_number": 2743,
+      "title": "[Pontas soltas] 5 features fantasma em `#[cfg(feature = \u2026)]` que n\u00e3o existem no Cargo.toml \u2014 c\u00f3digo permanentemente morto",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:03:18Z",
+      "updated_at": "2026-07-02T05:03:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2743",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2739",
+      "issue_number": 2739,
+      "title": "[\u00d3rf\u00e3os #2582] main_tests.rs: 22k linhas de testes desabilitados (\"278 pre-existing errors\") \u2014 reativar por fatias ou deletar",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:02:32Z",
+      "updated_at": "2026-07-02T05:02:32Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2739",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2738",
+      "issue_number": 2738,
+      "title": "[\u00d3rf\u00e3os #2582] Lote audits/observability/coverage: 19 arquivos (~13,6k linhas) sem `mod` \u2014 inclui os auditores que ca\u00e7ariam c\u00f3digo morto",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:02:24Z",
+      "updated_at": "2026-07-13T07:00:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2738",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2737",
+      "issue_number": 2737,
+      "title": "[\u00d3rf\u00e3os #2582] Lote growth/billing: 6 arquivos (~3,1k linhas) \u2014 4 j\u00e1 triados como \"staged: testes falham\" precisam de decis\u00e3o final",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:02:17Z",
+      "updated_at": "2026-07-02T05:02:17Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2737",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2736",
+      "issue_number": 2736,
+      "title": "[\u00d3rf\u00e3os #2582] Lote agents/autopilot: 5 dups de sub-crate para DELETAR + 2 para triagem (~3,9k linhas)",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:02:04Z",
+      "updated_at": "2026-07-02T05:02:04Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2736",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2735",
+      "issue_number": 2735,
+      "title": "[\u00d3rf\u00e3os #2582] Lote indexing/parallel-edit: cadeia de 8 arquivos (~5,2k linhas) que se referenciam entre si mas nenhum tem `mod`",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:47Z",
+      "updated_at": "2026-07-02T05:01:47Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2735",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2734",
+      "issue_number": 2734,
+      "title": "[\u00d3rf\u00e3os #2582] Lote voice_*: 5 arquivos (~4,4k linhas) sem `mod` \u2014 conectar ao programa voice (#2664/#2666)",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:38Z",
+      "updated_at": "2026-07-02T05:01:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2734",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2733",
+      "issue_number": 2733,
+      "title": "[\u00d3rf\u00e3os #2582] Lote desktop_*: 7 arquivos (~4,6k linhas) sem `mod` \u2014 conectar \u00e0 ponte desktop\u2194runtime (#2642)",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:32Z",
+      "updated_at": "2026-07-02T05:01:32Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2733",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2732",
+      "issue_number": 2732,
+      "title": "[\u00d3rf\u00e3os #2582] Lote core-parity (provider/tool/turn/curator): 13 arquivos (~13,7k linhas) \u2014 os de maior valor operacional",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "high-priority",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:24Z",
+      "updated_at": "2026-07-02T05:01:24Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2732",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2731",
+      "issue_number": 2731,
+      "title": "[\u00d3rf\u00e3os #2582] Lote harness_*: 11 arquivos (~7,6k linhas) sem `mod` \u2014 triagem connect/delete/staged",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:08Z",
+      "updated_at": "2026-07-02T05:01:08Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2731",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2730",
+      "issue_number": 2730,
+      "title": "[\u00d3rf\u00e3os #2582] Lote vscode_*: 11 arquivos (~9k linhas) + arm `vscode-updates` morto no dispatch",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:01:01Z",
+      "updated_at": "2026-07-02T05:01:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2730",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2729",
+      "issue_number": 2729,
+      "title": "[\u00d3rf\u00e3os #2582] Lote agent-parity (codex_*/openclaw_*/claude_coverage): 13 arquivos (~15k linhas) + arm `codex-watch` morto no dispatch",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:00:53Z",
+      "updated_at": "2026-07-02T05:00:53Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2729",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2728",
+      "issue_number": 2728,
+      "title": "[\u00d3rf\u00e3os #2582] Lote mobile_*: 13 arquivos (~12k linhas) sem `mod` \u2014 triagem connect/delete/staged",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:00:44Z",
+      "updated_at": "2026-07-02T05:00:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2728",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2727",
+      "issue_number": 2727,
+      "title": "[\u00d3rf\u00e3os #2582] Lote hermes_*: 13 arquivos (~13,5k linhas) sem `mod` \u2014 triagem connect/delete/staged",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "hermes-parity",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T05:00:26Z",
+      "updated_at": "2026-07-02T05:00:26Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2727",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2725",
+      "issue_number": 2725,
+      "title": "feat(orchestrator): implement `agentsview_adapter` \u2014 optional real-cost seeding for the loop budget kill-switch",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:08:00Z",
+      "updated_at": "2026-07-02T00:08:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2725",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2724",
+      "issue_number": 2724,
+      "title": "feat(orchestrator): implement `video_evidence` \u2014 detect video-deliverable requests and drive Playwright/hyperframes capture",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:59Z",
+      "updated_at": "2026-07-02T00:07:59Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2724",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2723",
+      "issue_number": 2723,
+      "title": "feat(orchestrator): implement `repo_conventions` \u2014 learn the repo's real branch/commit/PR style from git history",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:58Z",
+      "updated_at": "2026-07-02T00:07:58Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2723",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2722",
+      "issue_number": 2722,
+      "title": "feat(orchestrator): implement `pr_evidence` \u2014 mechanical PR body assembly with AC checklist + screenshots",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:57Z",
+      "updated_at": "2026-07-02T00:07:57Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2722",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2721",
+      "issue_number": 2721,
+      "title": "feat(orchestrator): implement `flow_audit` \u2014 full-stack (front/back/service) call-graph coverage check",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:56Z",
+      "updated_at": "2026-07-02T00:07:56Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2721",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2720",
+      "issue_number": 2720,
+      "title": "feat(orchestrator): implement `impact_audit` \u2014 local dependency/reverse-dependency scope check before editing",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:55Z",
+      "updated_at": "2026-07-16T09:13:03Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2720",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2719",
+      "issue_number": 2719,
+      "title": "feat(orchestrator): implement `loop_journal` \u2014 attempt-memory + stall detector for the quality loop",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:54Z",
+      "updated_at": "2026-07-02T00:07:54Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2719",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2718",
+      "issue_number": 2718,
+      "title": "feat(orchestrator): implement `task_anchor` \u2014 the AC-freeze + drift-guard the skill promises but never shipped",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-02T00:07:53Z",
+      "updated_at": "2026-07-02T00:07:53Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2718",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2716",
+      "issue_number": 2716,
+      "title": "feat(orchestration): file-conflict-aware worktree grouping for multi-item parallel fixes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-01T23:54:03Z",
+      "updated_at": "2026-07-16T22:45:52Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2716",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2715",
+      "issue_number": 2715,
+      "title": "feat(review-pipeline): batch-import code-review findings into GitHub issues (`simplicio findings import`)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-07-01T23:54:02Z",
+      "updated_at": "2026-07-01T23:54:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2715",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2685",
+      "issue_number": 2685,
+      "title": "[CI] Adopt touched-line rustfmt gate and schedule formatting baseline",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-29T17:02:03Z",
+      "updated_at": "2026-07-02T21:30:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2685",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2684",
+      "issue_number": 2684,
+      "title": "[Desktop] Add macOS/Linux/Windows packaged smoke for tray token monitor",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-29T17:02:02Z",
+      "updated_at": "2026-06-29T17:02:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2684",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2683",
+      "issue_number": 2683,
+      "title": "[Security] Enforce installer-only PyPI and block runtime/source artifacts",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-29T17:02:01Z",
+      "updated_at": "2026-06-29T17:02:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2683",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2682",
+      "issue_number": 2682,
+      "title": "[Release] Require post-release verifier before marking releases done",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-29T17:02:00Z",
+      "updated_at": "2026-06-29T17:02:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2682",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2676",
+      "issue_number": 2676,
+      "title": "[USER-SIDE/SECURITY] Rotate leaked credentials #762 before selling the MCP product",
+      "github_state": "OPEN",
+      "labels": [
+        "security",
+        "mcp-core"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-27T01:21:08Z",
+      "updated_at": "2026-06-27T01:21:08Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2676",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2674",
+      "issue_number": 2674,
+      "title": "mcp-core: license/entitlement \u2014 add seat/org/Team tier + turn public-beta OFF",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "mcp-core"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-27T01:20:53Z",
+      "updated_at": "2026-06-27T01:20:53Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2674",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2673",
+      "issue_number": 2673,
+      "title": "mcp-core: token-receipt harness \u2014 reproducible host-side cost-on/cost-off proof",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "mcp-core"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-27T01:20:44Z",
+      "updated_at": "2026-06-27T01:20:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2673",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2671",
+      "issue_number": 2671,
+      "title": "EPIC: Simplicio Core \u2014 MCP server product for devs (lean, additive carve-in)",
+      "github_state": "OPEN",
+      "labels": [
+        "epic",
+        "mcp-core"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-27T01:20:16Z",
+      "updated_at": "2026-06-27T01:20:16Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2671",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2670",
+      "issue_number": 2670,
+      "title": "Headroom: adapter MCP opcional + fix porta 8787 + decis\u00e3o de posicionamento (complementa \u00e9pico #2509)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T22:53:27Z",
+      "updated_at": "2026-06-26T22:53:27Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2670",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2668",
+      "issue_number": 2668,
+      "title": "memory: import memanto CONCEPTS into Simplicio's native memory (typed/temporal/provenance/conflict-detection)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T04:45:01Z",
+      "updated_at": "2026-06-26T04:45:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2668",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2667",
+      "issue_number": 2667,
+      "title": "EPIC: Estudo & Concurso vertical \u2014 flashcards+SR (FSRS), simulados, edital tracker, Q&A dos materiais (RAG)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T02:42:15Z",
+      "updated_at": "2026-06-26T02:42:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2667",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2666",
+      "issue_number": 2666,
+      "title": "feat(voice): always-on wake-word LIVE loop \u2014 'simplicio voice run --loop' deve escutar o mic continuamente",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T02:42:14Z",
+      "updated_at": "2026-06-26T02:42:14Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2666",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2665",
+      "issue_number": 2665,
+      "title": "EPIC: Skill Capture & Replay \u2014 grava uma rotina UMA vez (UIA), repete/agenda sozinho (pilar #4)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T02:42:13Z",
+      "updated_at": "2026-06-26T02:42:13Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2665",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2664",
+      "issue_number": 2664,
+      "title": "feat(voice): low-latency real-time voice loop \u2014 pipecat pipeline pattern + moonshine STT (GitHub voice-agent scan)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:45:12Z",
+      "updated_at": "2026-06-26T00:45:12Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2664",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2663",
+      "issue_number": 2663,
+      "title": "study(arch): eigent/CAMEL-AI multi-agent workforce + coworker skills-as-workflows + per-action approval",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:37:43Z",
+      "updated_at": "2026-06-26T00:37:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2663",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2662",
+      "issue_number": 2662,
+      "title": "feat(integrations): Composio Tool Router (500+ SaaS apps) as an MCP source \u2014 the \"do everything\" enabler",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:37:42Z",
+      "updated_at": "2026-06-26T00:37:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2662",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2661",
+      "issue_number": 2661,
+      "title": "study(arch): the-open-agent/openagent \u2014 the closest vision twin (computer-use+browser+coding+RAG+loops)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:35:12Z",
+      "updated_at": "2026-06-26T00:35:12Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2661",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2660",
+      "issue_number": 2660,
+      "title": "eval(computer-use): adopt trycua/cua + UFO patterns + benchmarks to grade Simplicio computer-use",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:35:11Z",
+      "updated_at": "2026-06-26T00:35:11Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2660",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2659",
+      "issue_number": 2659,
+      "title": "feat(computer-use): web agent lane via the DOM/accessibility tree (browser-use approach)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:35:10Z",
+      "updated_at": "2026-06-26T00:35:10Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2659",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2658",
+      "issue_number": 2658,
+      "title": "feat(computer-use): integrate Windows-MCP as an MCP server \u2014 instant Windows click/type/screenshot/UI-state (no vision, any LLM)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:35:09Z",
+      "updated_at": "2026-06-26T00:35:09Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2658",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2657",
+      "issue_number": 2657,
+      "title": "Epic: Cowork alternatives \u2014 bring the best open-source computer-use into Simplicio (analysis: docs/cowork-alternatives)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-26T00:35:08Z",
+      "updated_at": "2026-06-26T00:35:08Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2657",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2653",
+      "issue_number": 2653,
+      "title": "feat(files): document adapters (CSV/XLSX/PPTX/PDF) parsed with structure for chat context",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:45Z",
+      "updated_at": "2026-06-25T22:44:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2653",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2652",
+      "issue_number": 2652,
+      "title": "feat(automation): folder watchers that trigger agents on file changes",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:44Z",
+      "updated_at": "2026-06-25T22:44:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2652",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2651",
+      "issue_number": 2651,
+      "title": "feat(security): on-device PII privacy filter before remote calls (fail-closed)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:43Z",
+      "updated_at": "2026-07-02T21:29:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2651",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2650",
+      "issue_number": 2650,
+      "title": "feat(exec): sandboxed code execution (WSL2/container) for computer-use actions",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:42Z",
+      "updated_at": "2026-06-25T22:44:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2650",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2649",
+      "issue_number": 2649,
+      "title": "feat(skills): Methods \u2014 save successful trajectories as reusable workflows, RAG-selected",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:41Z",
+      "updated_at": "2026-06-25T22:44:41Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2649",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2648",
+      "issue_number": 2648,
+      "title": "feat(spine): unify the agent loop into chat (working folder -> tools -> todo -> execute -> verify)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:40Z",
+      "updated_at": "2026-06-25T22:44:40Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2648",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2647",
+      "issue_number": 2647,
+      "title": "feat(memory): distill-at-session-end + salience scoring + background consolidator (osaurus memory)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:39Z",
+      "updated_at": "2026-06-25T22:44:39Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2647",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2646",
+      "issue_number": 2646,
+      "title": "feat(skills): auto-select + use relevant skills/methods in chat via RAG (osaurus pattern)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:38Z",
+      "updated_at": "2026-06-25T22:44:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2646",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2645",
+      "issue_number": 2645,
+      "title": "Epic: Osaurus import \u2014 port the AI-harness patterns that close Simplicio's connection gaps (#2622)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:44:37Z",
+      "updated_at": "2026-06-25T22:44:37Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2645",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2644",
+      "issue_number": 2644,
+      "title": "feat(spine): chat recall uses SQLite FTS + vector (embedding-cosine) memory, as originally planned",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T22:10:48Z",
+      "updated_at": "2026-07-13T17:58:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2644",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2643",
+      "issue_number": 2643,
+      "title": "feat(spine): chat/voice actions actually EXECUTE (open browser/url/app) instead of only reasoning",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T21:57:04Z",
+      "updated_at": "2026-07-13T17:58:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2643",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2640",
+      "issue_number": 2640,
+      "title": "chore(release): macOS sign+notarize, Windows code-sign, re-enable desktop CI",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T19:58:54Z",
+      "updated_at": "2026-06-25T21:11:34Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2640",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2622",
+      "issue_number": 2622,
+      "title": "Epic: Simplicio Personal Assistant \u2014 product shell (desktop + Gmail/Stripe gate + always-on voice orb + computer-use + auto-update + Hermes import)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-25T19:56:30Z",
+      "updated_at": "2026-06-25T21:13:06Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2622",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2596",
+      "issue_number": 2596,
+      "title": "dev: Azure DevOps work-item adapter + orient tee-cache (reversible output replay)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T19:13:04Z",
+      "updated_at": "2026-06-24T19:13:04Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2596",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2595",
+      "issue_number": 2595,
+      "title": "dev: unified post-run retrospective \u2192 AGENTS.md/memory writeback (simplicio-learn parity)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T19:12:59Z",
+      "updated_at": "2026-07-16T09:13:10Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2595",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2594",
+      "issue_number": 2594,
+      "title": "dev: autonomous work-discovery \u2192 queue ingestor (issues \u2192 kanban) + 24/7 standing-loop driver",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T19:12:56Z",
+      "updated_at": "2026-06-24T19:12:56Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2594",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2592",
+      "issue_number": 2592,
+      "title": "dev: native unified `simplicio tasks run` orchestrator (discover\u2192implement\u2192review\u2192merge)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T19:12:38Z",
+      "updated_at": "2026-06-24T19:12:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2592",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2582",
+      "issue_number": 2582,
+      "title": "[EPIC] C\u00f3digo \u00f3rf\u00e3o: ~176 arquivos (~170k linhas) em src/ n\u00e3o conectados ao bin\u00e1rio",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "epic",
+        "tech-debt"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T04:53:16Z",
+      "updated_at": "2026-06-24T14:05:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2582",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2579",
+      "issue_number": 2579,
+      "title": "dev: fechar loop self-learning aut\u00f4nomo (create/evolve skills, gated) (#448)",
+      "github_state": "OPEN",
+      "labels": [
+        "agents",
+        "self-improvement",
+        "hermes-parity"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T03:07:42Z",
+      "updated_at": "2026-06-24T03:07:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2579",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2578",
+      "issue_number": 2578,
+      "title": "dev: deploy serverless + hibernation (Modal/Daytona) gated com evid\u00eancia (#451)",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "feature",
+        "hermes-parity"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T03:07:35Z",
+      "updated_at": "2026-06-24T03:07:35Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2578",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2576",
+      "issue_number": 2576,
+      "title": "dev: instrumentar autonomy_minutes + regression_rate em sprints long-horizon",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "evaluation",
+        "agi-metrics"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T03:07:24Z",
+      "updated_at": "2026-06-24T03:07:24Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2576",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2575",
+      "issue_number": 2575,
+      "title": "dev: bateria realista multi-arquivo (repo/Jira) com or\u00e1culos build+lint+e2e",
+      "github_state": "OPEN",
+      "labels": [
+        "benchmarks",
+        "evaluation",
+        "agi-metrics"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T03:07:17Z",
+      "updated_at": "2026-06-24T03:07:17Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2575",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2574",
+      "issue_number": 2574,
+      "title": "[EPIC] Operational Readiness \u2014 provar better-than-Hermes + autonomia AGI-grade",
+      "github_state": "OPEN",
+      "labels": [
+        "epic",
+        "roadmap",
+        "agi-metrics",
+        "hermes-parity"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-24T03:07:02Z",
+      "updated_at": "2026-06-24T03:07:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2574",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2563",
+      "issue_number": 2563,
+      "title": "feat(gateway): implement Message timestamps & context injection",
+      "github_state": "OPEN",
+      "labels": [
+        "hermes-parity",
+        "gap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-23T07:58:39Z",
+      "updated_at": "2026-06-23T07:58:39Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2563",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2516",
+      "issue_number": 2516,
+      "title": "Output token reduction: verbosity steering / effort routing",
+      "github_state": "OPEN",
+      "labels": [
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:06:28Z",
+      "updated_at": "2026-06-22T20:06:28Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2516",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2515",
+      "issue_number": 2515,
+      "title": "ContentRouter: detecta tipo de conteudo -> escolhe compressor",
+      "github_state": "OPEN",
+      "labels": [
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:06:15Z",
+      "updated_at": "2026-06-22T20:06:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2515",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2514",
+      "issue_number": 2514,
+      "title": "CCR: compressao reversivel (cache original + retrieve)",
+      "github_state": "OPEN",
+      "labels": [
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:05:49Z",
+      "updated_at": "2026-06-22T20:05:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2514",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2513",
+      "issue_number": 2513,
+      "title": "IntelligentContext: scoring de importancia + context fitting",
+      "github_state": "OPEN",
+      "labels": [
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:05:28Z",
+      "updated_at": "2026-06-22T20:05:28Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2513",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2512",
+      "issue_number": 2512,
+      "title": "CacheAligner: estabilizacao de prefixo p/ KV-cache do provider",
+      "github_state": "OPEN",
+      "labels": [
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:05:08Z",
+      "updated_at": "2026-06-22T20:05:08Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2512",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2509",
+      "issue_number": 2509,
+      "title": "[EPIC] Portar headroom (context compression) pro Simplicio + melhorar dashboard de tokens",
+      "github_state": "OPEN",
+      "labels": [
+        "epic",
+        "headroom"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T20:04:10Z",
+      "updated_at": "2026-06-22T20:04:10Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2509",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2507",
+      "issue_number": 2507,
+      "title": "Instalador unificado por host (simplicio install)",
+      "github_state": "OPEN",
+      "labels": [
+        "adoption",
+        "installer",
+        "skill",
+        "mcp"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T17:04:49Z",
+      "updated_at": "2026-06-22T17:59:09Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2507",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2506",
+      "issue_number": 2506,
+      "title": "Precedente Mem0: adocao vira habito",
+      "github_state": "OPEN",
+      "labels": [
+        "memory",
+        "adoption"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T17:04:45Z",
+      "updated_at": "2026-06-22T17:59:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2506",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2505",
+      "issue_number": 2505,
+      "title": "Injecao de vies via UWP/SKILL.md",
+      "github_state": "OPEN",
+      "labels": [
+        "prompt",
+        "adoption",
+        "skill"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T17:04:41Z",
+      "updated_at": "2026-06-22T17:59:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2505",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2504",
+      "issue_number": 2504,
+      "title": "Wrapper/alias pro Codex CLI",
+      "github_state": "OPEN",
+      "labels": [
+        "codex",
+        "adoption"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T17:04:37Z",
+      "updated_at": "2026-07-16T09:13:12Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2504",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2502",
+      "issue_number": 2502,
+      "title": "Definir schema da tool simplicio.run",
+      "github_state": "OPEN",
+      "labels": [
+        "design",
+        "mcp"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T17:04:28Z",
+      "updated_at": "2026-06-22T17:58:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2502",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2431",
+      "issue_number": 2431,
+      "title": "[EPIC] Importador diario multi-agente (Claude Code/Codex/Hermes/OpenClaw/Cursor) -> Simplicio sempre cobrindo tudo",
+      "github_state": "OPEN",
+      "labels": [
+        "hermes-import"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T06:33:05Z",
+      "updated_at": "2026-07-15T19:26:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2431",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2323",
+      "issue_number": 2323,
+      "title": "[EPIC] Hermes -> Simplicio: 43 gaps reais + 41 parciais (levantamento verificado thermos)",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-22T02:03:35Z",
+      "updated_at": "2026-07-16T09:13:16Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2323",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2312",
+      "issue_number": 2312,
+      "title": "[GAP] CLI: simplicio skills publish",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-20T05:40:07Z",
+      "updated_at": "2026-07-14T00:27:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2312",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2307",
+      "issue_number": 2307,
+      "title": "gap: mapa completo de comandos Claude Code, Codex, Hermes, OpenClaw para Simplicio",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-20T05:34:07Z",
+      "updated_at": "2026-06-20T05:34:07Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2307",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2306",
+      "issue_number": 2306,
+      "title": "gap: hooks de pre/post comando para coleta de tokens no savings ledger",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-20T05:33:59Z",
+      "updated_at": "2026-07-02T21:29:48Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2306",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2235",
+      "issue_number": 2235,
+      "title": "[Ops] INFRA REQUEST \u2014 o que Wesley precisa me fornecer para come\u00e7ar (acessos, APIs, contas)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:34:54Z",
+      "updated_at": "2026-06-18T20:34:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2235",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2234",
+      "issue_number": 2234,
+      "title": "[Ops] Canais de Gest\u00e3o \u2014 dashboard admin, perfis de opera\u00e7\u00e3o, alertas e reuni\u00f5es recorrentes",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:34:49Z",
+      "updated_at": "2026-06-18T20:34:33Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2234",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2229",
+      "issue_number": 2229,
+      "title": "[Dev] Public SDK & Plugin System \u2014 API REST, SDK Python, plugin marketplace",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:24:51Z",
+      "updated_at": "2026-06-18T20:34:30Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2229",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2227",
+      "issue_number": 2227,
+      "title": "[Community] Simplicio Discord Server \u2014 canais de suporte, an\u00fancios, comunidade e integra\u00e7\u00e3o com gateway",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:24:41Z",
+      "updated_at": "2026-07-16T09:13:22Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2227",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2221",
+      "issue_number": 2221,
+      "title": "[EPIC] Simplicio Integrations \u2014 calend\u00e1rio, email, casa inteligente, storage, clima, m\u00fasica, notas, mensageiros",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:22:25Z",
+      "updated_at": "2026-06-18T20:34:26Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2221",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2207",
+      "issue_number": 2207,
+      "title": "[QA] API Integration Tests \u2014 testes de endpoints cloud (auth, sync, backup, billing)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:00:18Z",
+      "updated_at": "2026-06-18T20:34:54Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2207",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2206",
+      "issue_number": 2206,
+      "title": "[QA] E2E Flow Tests \u2014 5 cenarios completos (Skill Loop, Mesh, Cloud, Job Search)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:00:15Z",
+      "updated_at": "2026-06-18T20:34:54Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2206",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2205",
+      "issue_number": 2205,
+      "title": "[QA] Playwright E2E Tests \u2014 testes de interface para o desktop Electron",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T17:00:12Z",
+      "updated_at": "2026-06-18T20:34:53Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2205",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2200",
+      "issue_number": 2200,
+      "title": "[Security] Skill Sandbox \u2014 isolamento de processo, permissoes e resource limits",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:54:19Z",
+      "updated_at": "2026-07-02T21:29:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2200",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2199",
+      "issue_number": 2199,
+      "title": "[Auto] Voice-First Interface + Auto Skills + Cloud Sync + Auto App",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:54:16Z",
+      "updated_at": "2026-06-24T14:06:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2199",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2198",
+      "issue_number": 2198,
+      "title": "[Auto] EV Platform Integration \u2014 BYD, Tesla, BMW, Mercedes e OBD-II",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:54:13Z",
+      "updated_at": "2026-06-18T20:34:51Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2198",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2197",
+      "issue_number": 2197,
+      "title": "[EPIC] Simplicio Auto \u2014 assistente para carros eletricos (BYD, Tesla, todas)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:54:10Z",
+      "updated_at": "2026-06-18T20:34:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2197",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2178",
+      "issue_number": 2178,
+      "title": "[Docs] Changelog & FAQ \u2014 historico de versoes e perguntas frequentes no site",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:48Z",
+      "updated_at": "2026-06-18T20:34:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2178",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2177",
+      "issue_number": 2177,
+      "title": "[Docs] API & CLI Reference \u2014 documentacao tecnica gerada automaticamente",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:45Z",
+      "updated_at": "2026-06-18T20:35:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2177",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2176",
+      "issue_number": 2176,
+      "title": "[Docs] Interactive Tutorials \u2014 tours interativos de primeiros passos",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:42Z",
+      "updated_at": "2026-07-16T09:13:19Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2176",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2175",
+      "issue_number": 2175,
+      "title": "[Docs] Video Demos (Remotion) \u2014 videos demonstrativos de 30-60s para cada recurso",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:39Z",
+      "updated_at": "2026-06-18T20:35:50Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2175",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2174",
+      "issue_number": 2174,
+      "title": "[Docs] Site Documentation Structure \u2014 arvore de documentacao no simplicio.dev",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:36Z",
+      "updated_at": "2026-06-18T20:35:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2174",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2173",
+      "issue_number": 2173,
+      "title": "[Docs] EPIC: Simplicio Documentation & Site \u2014 documentacao completa com videos Remotion",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:43:33Z",
+      "updated_at": "2026-06-18T20:35:49Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2173",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2166",
+      "issue_number": 2166,
+      "title": "[Mobile] Mobile-Desktop Sync \u2014 sincronizacao bidirecional entre mobile e desktop",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:35:24Z",
+      "updated_at": "2026-06-18T20:35:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2166",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2165",
+      "issue_number": 2165,
+      "title": "[Mobile] iOS Native App \u2014 Swift + SwiftUI",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:35:21Z",
+      "updated_at": "2026-06-18T20:35:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2165",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2164",
+      "issue_number": 2164,
+      "title": "[Mobile] Android Native App \u2014 Kotlin + Jetpack Compose",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:35:18Z",
+      "updated_at": "2026-06-18T20:35:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2164",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2163",
+      "issue_number": 2163,
+      "title": "[Mobile] Shared Mobile Core \u2014 biblioteca Rust compartilhada (uniffi-rs para Kotlin/Swift)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:35:15Z",
+      "updated_at": "2026-06-18T20:35:45Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2163",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2162",
+      "issue_number": 2162,
+      "title": "[EPIC] Simplicio Mobile \u2014 apps nativos Android e iOS com core compartilhado",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:35:12Z",
+      "updated_at": "2026-06-18T20:35:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2162",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2159",
+      "issue_number": 2159,
+      "title": "[Release] Private Repo Release \u2014 tag, GitHub Release e assets no repo privado",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:33:14Z",
+      "updated_at": "2026-06-18T20:35:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2159",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2158",
+      "issue_number": 2158,
+      "title": "[Release] Website Release Sync \u2014 sincronizar versao com simplicio.dev",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:33:11Z",
+      "updated_at": "2026-06-18T20:35:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2158",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2157",
+      "issue_number": 2157,
+      "title": "[Release] Desktop Package Build \u2014 .dmg, .exe/.msi, .AppImage/.deb",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:33:08Z",
+      "updated_at": "2026-06-18T20:35:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2157",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2153",
+      "issue_number": 2153,
+      "title": "[EPIC] Simplicio Release Pipeline \u2014 quality gates, builds, publicacao e site",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:32:56Z",
+      "updated_at": "2026-06-18T20:35:40Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2153",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2152",
+      "issue_number": 2152,
+      "title": "[QA] Security & Privacy Tests \u2014 criptografia, auth, privacidade e safety",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:30:06Z",
+      "updated_at": "2026-06-18T20:35:40Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2152",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2151",
+      "issue_number": 2151,
+      "title": "[QA] Performance & Load Tests \u2014 benchmarks e testes de carga",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:30:03Z",
+      "updated_at": "2026-06-18T20:35:39Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2151",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2150",
+      "issue_number": 2150,
+      "title": "[QA] Cross-Platform Compatibility Tests \u2014 matrix de compatibilidade por OS",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:30:00Z",
+      "updated_at": "2026-06-18T20:35:15Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2150",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2149",
+      "issue_number": 2149,
+      "title": "[QA] Integration Tests \u2014 cenarios completos do ecossistema",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:29:57Z",
+      "updated_at": "2026-06-18T20:35:14Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2149",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2147",
+      "issue_number": 2147,
+      "title": "[EPIC] Cross-Platform QA & Release \u2014 testes em Linux, macOS e Windows",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:29:51Z",
+      "updated_at": "2026-06-18T20:35:13Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2147",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2146",
+      "issue_number": 2146,
+      "title": "[Cloud] Shared Ecosystem \u2014 compartilhar o ecossistema com outras pessoas",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:29:41Z",
+      "updated_at": "2026-06-18T20:35:12Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2146",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2144",
+      "issue_number": 2144,
+      "title": "[Desktop] Adaptive Dashboard \u2014 dashboard que evolui e aprende com cada usuario",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:29:34Z",
+      "updated_at": "2026-06-18T20:35:11Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2144",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2138",
+      "issue_number": 2138,
+      "title": "[EPIC] Simplicio Life & Business Assistant \u2014 agente de vida real (emprego, saude, familia, negocios)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:29:09Z",
+      "updated_at": "2026-06-18T20:35:07Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2138",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2137",
+      "issue_number": 2137,
+      "title": "[Cloud] Offline-First Architecture \u2014 tudo funciona sem internet, sync quando volta",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:21:04Z",
+      "updated_at": "2026-06-18T20:35:07Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2137",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2136",
+      "issue_number": 2136,
+      "title": "[Cloud] Cloud Services Gateway \u2014 gateway unificado com modelo free/premium",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:21:01Z",
+      "updated_at": "2026-06-18T20:35:06Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2136",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2135",
+      "issue_number": 2135,
+      "title": "[Cloud] Cloud Auth & Identity \u2014 login unificado com email, Google e GitHub",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:20:58Z",
+      "updated_at": "2026-06-18T20:35:06Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2135",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2134",
+      "issue_number": 2134,
+      "title": "[Cloud] Daily Backup System \u2014 backup automatico criptografado para nuvem",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:20:50Z",
+      "updated_at": "2026-06-18T20:35:05Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2134",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2133",
+      "issue_number": 2133,
+      "title": "[Cloud] Cloud Sync Engine \u2014 sincronizacao de skills e memoria entre dispositivos",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:20:46Z",
+      "updated_at": "2026-06-18T20:35:04Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2133",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2132",
+      "issue_number": 2132,
+      "title": "[EPIC] Simplicio Cloud Infrastructure \u2014 sync, backup, auth, offline-first",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:20:43Z",
+      "updated_at": "2026-06-18T20:35:04Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2132",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2131",
+      "issue_number": 2131,
+      "title": "[Mesh] Distributed Processing \u2014 delegar tasks para o peer mais ocioso do mesh",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:12:15Z",
+      "updated_at": "2026-06-18T20:35:03Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2131",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2130",
+      "issue_number": 2130,
+      "title": "[Mesh] Hive Memory \u2014 memoria coletiva compartilhada entre peers",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:12:12Z",
+      "updated_at": "2026-06-18T20:35:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2130",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2129",
+      "issue_number": 2129,
+      "title": "[Mesh] Skill Sync \u2014 compartilhar skills entre todos os dispositivos automaticamente",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:12:08Z",
+      "updated_at": "2026-06-18T20:35:02Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2129",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2128",
+      "issue_number": 2128,
+      "title": "[Mesh] MCP Local Protocol \u2014 comunicacao entre peers via MCP local",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:12:04Z",
+      "updated_at": "2026-06-18T20:35:01Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2128",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2127",
+      "issue_number": 2127,
+      "title": "[Mesh] Peer Discovery \u2014 encontrar outros Simplicio na rede local via mDNS",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:12:01Z",
+      "updated_at": "2026-06-18T20:35:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2127",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2126",
+      "issue_number": 2126,
+      "title": "[EPIC] Simplicio Mesh Network \u2014 organismo vivo digital em multiplos computadores",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "roadmap"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:11:57Z",
+      "updated_at": "2026-06-18T20:35:00Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2126",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2116",
+      "issue_number": 2116,
+      "title": "[EPIC] Skill-Driven Behavior Loop \u2014 skills de comportamento em loop continuo",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T16:11:10Z",
+      "updated_at": "2026-06-18T20:37:54Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2116",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2102",
+      "issue_number": 2102,
+      "title": "[TUI] HUD Mode \u2014 heads-up display no terminal com agentes, savings e timeline",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T15:47:40Z",
+      "updated_at": "2026-06-18T20:37:46Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2102",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2100",
+      "issue_number": 2100,
+      "title": "[Desktop] Integration Hub \u2014 dashboard unificado com agents, ghost, savings, pre-warming, celebrations",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "desktop"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T15:47:28Z",
+      "updated_at": "2026-06-18T20:37:44Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2100",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2073",
+      "issue_number": 2073,
+      "title": "[EPIC][P0][Adaptive Development Router] simplicio-loop auto, one-shot, converge, paralelo e heavy/critical",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T14:03:38Z",
+      "updated_at": "2026-07-16T22:46:17Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2073",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2069",
+      "issue_number": 2069,
+      "title": "[simplicio-tasks] worktree \u2014 gerenciamento de git worktrees isolados por item",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T14:03:19Z",
+      "updated_at": "2026-06-18T20:37:42Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2069",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2065",
+      "issue_number": 2065,
+      "title": "[Feature] Agent Workflow Dashboard \u2014 visualizacao em tempo real de 600+ agentes (TUI + Desktop)",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T14:01:57Z",
+      "updated_at": "2026-06-18T20:37:41Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2065",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2064",
+      "issue_number": 2064,
+      "title": "[EPIC] Universal Looping Orchestrator \u2014 13 extension points do /simplicio-tasks",
+      "github_state": "OPEN",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T14:01:03Z",
+      "updated_at": "2026-06-18T20:37:40Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2064",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2034",
+      "issue_number": 2034,
+      "title": "[Tooling] Emagrecer skill /simplicio-tasks \u2014 mover m\u00f3dulos para o contrato v6 lazy-loaded",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T13:24:16Z",
+      "updated_at": "2026-06-18T20:37:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2034",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-2027",
+      "issue_number": 2027,
+      "title": "[UX] Onboarding \u2014 experi\u00eancia de primeira execu\u00e7\u00e3o guiada",
+      "github_state": "OPEN",
+      "labels": [
+        "ux"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-18T13:14:49Z",
+      "updated_at": "2026-07-16T09:13:25Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/2027",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-348",
+      "issue_number": 348,
+      "title": "[P0][Competitive Bench] Hermes oficial \u00d7 Turbo \u00d7 Simplicio em corpus estat\u00edstico",
+      "github_state": "OPEN",
+      "labels": [
+        "high-priority",
+        "benchmarks",
+        "evaluation",
+        "agi-metrics"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-05T23:40:11Z",
+      "updated_at": "2026-07-15T13:59:18Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/348",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-100",
+      "issue_number": 100,
+      "title": "Savings report comparing delivery with Simplicio vs without Simplicio",
+      "github_state": "OPEN",
+      "labels": [],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-02T21:05:15Z",
+      "updated_at": "2026-07-16T09:13:35Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/100",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-37",
+      "issue_number": 37,
+      "title": "feat: implement global install and assistant adapter setup",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "type:feature",
+        "area:packaging"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-01T22:54:39Z",
+      "updated_at": "2026-07-11T19:50:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/37",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-21",
+      "issue_number": 21,
+      "title": "feat: Add crash-safe resume",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "type:feature",
+        "area:scheduler"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-01T22:43:47Z",
+      "updated_at": "2026-07-11T18:45:43Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/21",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    },
+    {
+      "id": "WI-20",
+      "issue_number": 20,
+      "title": "feat: Add evidence bundle system",
+      "github_state": "OPEN",
+      "labels": [
+        "runtime",
+        "type:feature",
+        "area:evidence"
+      ],
+      "canonical_status": "intake",
+      "orca_projection": "Todo",
+      "created_at": "2026-06-01T22:43:45Z",
+      "updated_at": "2026-07-13T07:00:38Z",
+      "url": "https://github.com/wesleysimplicio/simplicio-runtime/issues/20",
+      "transitions": [
+        "intake"
+      ],
+      "evidence": null,
+      "receipts": []
+    }
+  ]
+}
