@@ -48,7 +48,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.host import AgentHost, HostBackpressure, HostShutdown
-from agent.host_protocol import HostAdvisoryBuffer, host_protocol_metadata
+from agent.host_protocol import (
+    HostAdvisoryBuffer,
+    WorkspaceAdvisoryStore,
+    host_protocol_metadata,
+)
 from agent.protocol import HostTurnRequest
 
 try:
@@ -274,6 +278,48 @@ PROFILE_PRELOADS: dict[str, tuple[str, ...]] = {
 # ---------------------------------------------------------------------------
 
 
+def _request_object(value: Any) -> dict[str, Any]:
+    """Require the daemon's JSON envelope without echoing rejected content."""
+    if not isinstance(value, dict):
+        raise ValueError("request must be an object")
+    return value
+
+
+def _handle_workspace_request(
+    request: dict[str, Any],
+    store: WorkspaceAdvisoryStore,
+) -> dict[str, Any] | None:
+    """Handle the effect-free workspace protocol or decline another op."""
+    op = request.get("op")
+    if op not in {"workspace.observe", "workspace.advisory"}:
+        return None
+    try:
+        if op == "workspace.observe":
+            if set(request) != {"op", "workspace_id", "revision", "snapshot"}:
+                raise ValueError(
+                    "workspace.observe fields must match the metadata-only allowlist"
+                )
+            observation = store.observe(
+                workspace_id=request["workspace_id"],
+                revision=request["revision"],
+                snapshot=request["snapshot"],
+            )
+            return {"ok": True, "observation": observation}
+
+        allowed = {"op", "workspace_id", "cursor"}
+        if "workspace_id" not in request or not set(request).issubset(allowed):
+            raise ValueError(
+                "workspace.advisory fields must match the metadata-only allowlist"
+            )
+        replay = store.replay(
+            workspace_id=request["workspace_id"],
+            after=request.get("cursor", 0),
+        )
+        return {"ok": True, "workspace_advisories": replay}
+    except (KeyError, TypeError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> int:
     if profile not in PROFILES:
         print(f"unknown profile: {profile}", file=sys.stderr)
@@ -299,6 +345,7 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
 
     host = AgentHost(make_agent, max_sessions=32, max_workers=4, max_pending=64)
     advisories = HostAdvisoryBuffer()
+    workspace_advisories = WorkspaceAdvisoryStore()
     advisories.publish("host.ready")
     started = time.time()
     idle_ttl = _idle_ttl_s(idle_ttl_s)
@@ -340,15 +387,18 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
             with conn:
                 try:
                     raw = conn.recv(8192).decode("utf-8", errors="replace")
-                    req = json.loads(raw or "{}")
-                except json.JSONDecodeError as exc:
+                    req = _request_object(json.loads(raw or "{}"))
+                except (json.JSONDecodeError, ValueError) as exc:
                     conn.sendall(
                         json.dumps(response({"ok": False, "error": str(exc)})).encode()
                     )
                     continue
 
                 op = req.get("op", "status")
-                if op == "status":
+                workspace_resp = _handle_workspace_request(req, workspace_advisories)
+                if workspace_resp is not None:
+                    resp = workspace_resp
+                elif op == "status":
                     resp = {
                         "ok": True,
                         "profile": profile,

@@ -210,11 +210,28 @@ simplicio shell -- <command>
   (`ready`, backpressure, draining e resultado do turno), replay bounded e
   cursor monotônico. Não aceita prompt, segredo, conteúdo de workspace nem
   payload arbitrário.
-- Este primeiro slice **não** implementa ainda observação proativa do trabalho.
-  Os contratos neutros futuros `workspace.observe` e `workspace.advisory`
-  (finding/risk/suggestion com política, privacidade e aprovação) permanecem
-  gap explícito; o advisory operacional não pode ser apresentado como se já
-  entregasse essa capacidade.
+- `workspace.observe` aceita somente um snapshot enviado explicitamente pelo
+  cliente no schema `simplicio.workspace-observation/v1`: `workspace_id` opaco
+  (1–64 caracteres, inicia alfanumérico e segue `[A-Za-z0-9._-]`), `revision`
+  positiva e contígua e exatamente os
+  metadados `changed_files`, `diagnostic_errors`, `diagnostic_warnings`
+  (inteiros `0..100000`) e `test_status`
+  (`unknown|not_run|passing|failing`). Campos extras, paths, nomes, texto,
+  prompt, diff e segredo falham fechado; o Agent não lê o workspace.
+- O producer determinístico publica somente códigos de catálogo fixo como
+  `finding`, `risk` ou `suggestion` no schema
+  `simplicio.workspace-advisory/v1`. Eventos carregam apenas facts allow-listed,
+  `redaction=metadata_only` e `effect=none`; uma sugestão nunca executa Runtime,
+  tool, provider/model ou outro efeito.
+- `workspace.advisory` faz replay estritamente depois do cursor, isolado por
+  `workspace_id`. O daemon retém no máximo 32 workspaces e 64 eventos por
+  workspace; cursor futuro é erro e cursor anterior à janela retorna
+  `truncated=true` com os eventos ainda retidos, sem salto silencioso.
+- Este slice é volátil e local: restart reinicia streams. Watcher/polling,
+  leitura automática, persistência, liberação de workspace, approval/execução,
+  UI e suporte IPC cross-platform continuam fora de escopo. O transporte atual
+  permanece AF_UNIX; consumidores futuros não criam dependência inversa no
+  Agent.
 
 ## Governança
 - Não fabricar números, savings, testes ou resultados.
