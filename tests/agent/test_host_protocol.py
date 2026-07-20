@@ -73,6 +73,8 @@ def test_host_instance_mismatch_is_fail_closed_without_echoing_the_value() -> No
     assert stale not in str(rejected.value)
     with pytest.raises(ValueError, match="opaque 16-64"):
         require_current_host_instance("too-short", current=current)
+    with pytest.raises(ValueError, match="opaque 16-64"):
+        require_current_host_instance(None, current=current)
 
 
 def test_host_and_workspace_replays_are_bound_to_the_same_incarnation() -> None:

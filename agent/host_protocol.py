@@ -125,8 +125,6 @@ def require_current_host_instance(
     current: str,
 ) -> None:
     """Reject a request tied to another daemon process, without echoing it."""
-    if expected is None:
-        return
     if _host_instance_id(expected) != current:
         raise ValueError("host_instance_id does not match the active host incarnation")
 

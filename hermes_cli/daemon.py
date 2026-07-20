@@ -308,7 +308,7 @@ def _handle_workspace_request(
                 raise ValueError(
                     "workspace.observe fields must match the metadata-only allowlist"
                 )
-            if host_instance_id is not None:
+            if host_instance_id is not None and "host_instance_id" in request:
                 require_current_host_instance(
                     request.get("host_instance_id"), current=host_instance_id
                 )
@@ -324,7 +324,7 @@ def _handle_workspace_request(
             raise ValueError(
                 "workspace.advisory fields must match the metadata-only allowlist"
             )
-        if host_instance_id is not None:
+        if host_instance_id is not None and "host_instance_id" in request:
             require_current_host_instance(
                 request.get("host_instance_id"), current=host_instance_id
             )
@@ -350,9 +350,10 @@ def _handle_host_advisory_request(
         allowed = {"op", "cursor", "host_instance_id"}
         if not set(request).issubset(allowed):
             raise ValueError("host.advisories fields must match the allowlist")
-        require_current_host_instance(
-            request.get("host_instance_id"), current=host_instance_id
-        )
+        if "host_instance_id" in request:
+            require_current_host_instance(
+                request["host_instance_id"], current=host_instance_id
+            )
         cursor = request.get("cursor", 0)
         if isinstance(cursor, bool) or not isinstance(cursor, int):
             raise ValueError("cursor must be a non-negative integer")

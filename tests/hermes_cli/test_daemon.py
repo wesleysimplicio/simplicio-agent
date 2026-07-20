@@ -270,12 +270,12 @@ def test_daemon_replay_handlers_bind_both_streams_to_one_host_incarnation():
 
 
 @pytest.mark.parametrize("op", ["host.advisories", "workspace.advisory"])
-def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op):
+@pytest.mark.parametrize("stale", ["process-incarnation-000002", None])
+def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op, stale):
     from agent.host_protocol import HostAdvisoryBuffer, WorkspaceAdvisoryStore
     from hermes_cli import daemon as daemon_mod
 
     current = "process-incarnation-000001"
-    stale = "process-incarnation-000002"
     if op == "host.advisories":
         response = daemon_mod._handle_host_advisory_request(
             {"op": op, "cursor": 0, "host_instance_id": stale},
@@ -295,8 +295,12 @@ def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op):
         )
 
     assert response["ok"] is False
-    assert "does not match" in response["error"]
-    assert stale not in response["error"]
+    if stale is None:
+        assert "opaque 16-64" in response["error"]
+    else:
+        assert "does not match" in response["error"]
+    if stale is not None:
+        assert stale not in response["error"]
 
 
 def test_daemon_rejects_non_object_json_requests_without_echoing_content():
