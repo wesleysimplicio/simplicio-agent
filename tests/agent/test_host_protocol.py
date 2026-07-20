@@ -11,6 +11,8 @@ from agent.host_protocol import (
     HOST_PROTOCOL_VERSION,
     HostAdvisoryBuffer,
     host_protocol_metadata,
+    new_host_instance_id,
+    require_current_host_instance,
 )
 from tools.daemon_hot_path import classify_health
 
@@ -45,6 +47,60 @@ def test_host_protocol_metadata_makes_the_existing_health_gate_ready() -> None:
 
     assert health.ready is True
     assert health.protocol_status == "compatible"
+
+
+def test_host_instance_is_opaque_bounded_and_additive_to_v1_discovery() -> None:
+    first = new_host_instance_id()
+    second = new_host_instance_id()
+
+    assert first != second
+    assert 16 <= len(first) <= 64
+    assert first.replace("_", "").replace("-", "").isalnum()
+    metadata = host_protocol_metadata("desktop", host_instance_id=first)
+    assert metadata["host_instance_id"] == first
+    assert metadata["protocol_version"] == HOST_PROTOCOL_VERSION
+    # Existing in-process v1 consumers retain the old exact discovery shape.
+    assert "host_instance_id" not in host_protocol_metadata("desktop")
+
+
+def test_host_instance_mismatch_is_fail_closed_without_echoing_the_value() -> None:
+    current = "current-host-instance-0001"
+    stale = "stale-host-instance-00001"
+
+    require_current_host_instance(current, current=current)
+    with pytest.raises(ValueError, match="does not match") as rejected:
+        require_current_host_instance(stale, current=current)
+    assert stale not in str(rejected.value)
+    with pytest.raises(ValueError, match="opaque 16-64"):
+        require_current_host_instance("too-short", current=current)
+
+
+def test_host_and_workspace_replays_are_bound_to_the_same_incarnation() -> None:
+    host_instance_id = "process-incarnation-000001"
+    host_events = HostAdvisoryBuffer(host_instance_id=host_instance_id)
+    workspace_events = host_protocol.WorkspaceAdvisoryStore(
+        host_instance_id=host_instance_id,
+    )
+    host_events.publish("host.ready")
+    workspace_events.observe(
+        workspace_id="workspace-a",
+        revision=1,
+        snapshot={
+            "changed_files": 0,
+            "diagnostic_errors": 0,
+            "diagnostic_warnings": 0,
+            "test_status": "passing",
+        },
+    )
+
+    assert host_events.replay(after=0)["host_instance_id"] == host_instance_id
+    replay = workspace_events.replay(workspace_id="workspace-a", after=0)
+    assert replay["host_instance_id"] == host_instance_id
+    assert replay["next_cursor"] == 1
+    # A cursor that was valid in an earlier process must still be validated
+    # within this process; callers also get an incarnation to compare first.
+    with pytest.raises(ValueError, match="exceeds"):
+        workspace_events.replay(workspace_id="workspace-a", after=2)
 
 
 def test_advisory_buffer_replays_after_cursor_without_user_payload() -> None:
