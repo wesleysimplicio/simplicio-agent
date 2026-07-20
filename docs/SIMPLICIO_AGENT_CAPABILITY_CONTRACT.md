@@ -199,6 +199,23 @@ simplicio shell -- <command>
 | `workflow` | Process GitHub issues autonomously via Simplicio's issue-factory pipeline: discover, worktree, sprint, validate, PR handoff. | `.simplicio_agent/skills/workflow/simplicio-issue-automation/SKILL.md` |
 | `yuanbao` | Yuanbao (元宝) groups: @mention users, query info/members. | `.simplicio_agent/skills/yuanbao/SKILL.md` |
 
+## AgentHost boundary
+
+- O Agent é um produto independente. O host publica um contrato neutro para
+  qualquer consumidor e não importa nem depende do produto que o consome.
+- O daemon atual anuncia `simplicio.agent-host/v1`, protocolo `agent/v1` e
+  capabilities reais em toda resposta. `host.status` e `turn.start` continuam
+  as superfícies de saúde e turno já existentes.
+- `host.advisories` oferece apenas sinais operacionais de catálogo fixo
+  (`ready`, backpressure, draining e resultado do turno), replay bounded e
+  cursor monotônico. Não aceita prompt, segredo, conteúdo de workspace nem
+  payload arbitrário.
+- Este primeiro slice **não** implementa ainda observação proativa do trabalho.
+  Os contratos neutros futuros `workspace.observe` e `workspace.advisory`
+  (finding/risk/suggestion com política, privacidade e aprovação) permanecem
+  gap explícito; o advisory operacional não pode ser apresentado como se já
+  entregasse essa capacidade.
+
 ## Governança
 - Não fabricar números, savings, testes ou resultados.
 - Não fechar issue/PR sem mudança, teste/evidência e reconsulta.

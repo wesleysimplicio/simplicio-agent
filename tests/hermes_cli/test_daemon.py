@@ -15,6 +15,7 @@ Covers two things:
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -22,7 +23,7 @@ import time
 
 import pytest
 
-from hermes_cli.daemon import PRELOADERS, PROFILE_PRELOADS
+from hermes_cli.daemon import PRELOADERS, PROFILE_PRELOADS, _client_request
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +189,37 @@ def test_daemon_start_status_stop_round_trip():
         assert "tool_registry" in status.stdout
         assert "skill_index" in status.stdout
         assert "provider_metadata" in status.stdout
+
+        status_payload = json.loads(status.stdout)
+        assert status_payload["protocol_schema"] == "simplicio.agent-host/v1"
+        assert status_payload["protocol_version"] == 1
+        assert status_payload["agent_protocol"] == "agent/v1"
+        assert {
+            "host.status",
+            "host.advisories",
+            "turn.start",
+        }.issubset(status_payload["capabilities"])
+
+        ping_payload = _client_request(sock_path, {"op": "ping"})
+        assert ping_payload["protocol_version"] == 1
+        assert ping_payload["agent_protocol"] == "agent/v1"
+
+        host_payload = _client_request(sock_path, {"op": "host.status"})
+        assert host_payload["protocol_version"] == 1
+        assert host_payload["host"]["ready"] is True
+
+        advisory_payload = _client_request(
+            sock_path, {"op": "host.advisories", "cursor": 0}
+        )
+        assert advisory_payload["protocol_version"] == 1
+        assert advisory_payload["advisories"]["schema"] == "simplicio.agent-advisory/v1"
+        assert advisory_payload["advisories"]["events"][0]["kind"] == "host.ready"
+        cursor = advisory_payload["advisories"]["next_cursor"]
+        replay = _client_request(
+            sock_path, {"op": "host.advisories", "cursor": cursor}
+        )
+        assert replay["advisories"]["events"] == []
+        assert replay["advisories"]["next_cursor"] == cursor
 
         invalidate = _run_cli(
             "daemon", "invalidate", "provider_metadata", "--socket", sock_path
