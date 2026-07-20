@@ -15,6 +15,7 @@ Covers two things:
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -22,7 +23,7 @@ import time
 
 import pytest
 
-from hermes_cli.daemon import PRELOADERS, PROFILE_PRELOADS
+from hermes_cli.daemon import PRELOADERS, PROFILE_PRELOADS, _client_request
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +157,164 @@ def test_top_level_help_lists_daemon_subcommand():
     assert "daemon" in result.stdout
 
 
+def test_workspace_request_handler_is_effect_free_and_fail_closed():
+    from agent.host_protocol import WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    handler = getattr(daemon_mod, "_handle_workspace_request", None)
+    assert callable(handler)
+    store = WorkspaceAdvisoryStore(max_workspaces=2, max_events_per_workspace=4)
+
+    observed = handler(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "client-workspace-1",
+            "revision": 1,
+            "snapshot": {
+                "changed_files": 1,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "not_run",
+            },
+        },
+        store,
+    )
+    assert observed["ok"] is True
+    assert observed["observation"]["effect"] == "none"
+
+    replayed = handler(
+        {
+            "op": "workspace.advisory",
+            "workspace_id": "client-workspace-1",
+            "cursor": 0,
+        },
+        store,
+    )
+    assert replayed["ok"] is True
+    assert [
+        event["kind"] for event in replayed["workspace_advisories"]["events"]
+    ] == ["finding", "suggestion"]
+
+    rejected = handler(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "client-workspace-1",
+            "revision": 2,
+            "snapshot": {
+                "changed_files": 0,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "unknown",
+            },
+            "prompt": "do not retain this",
+        },
+        store,
+    )
+    assert rejected["ok"] is False
+    assert "prompt" not in rejected["error"]
+
+
+def test_daemon_replay_handlers_bind_both_streams_to_one_host_incarnation():
+    from agent.host_protocol import HostAdvisoryBuffer, WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    host_instance_id = "process-incarnation-000001"
+    host_advisories = HostAdvisoryBuffer(host_instance_id=host_instance_id)
+    host_advisories.publish("host.ready")
+    workspace_advisories = WorkspaceAdvisoryStore(host_instance_id=host_instance_id)
+
+    host_reply = daemon_mod._handle_host_advisory_request(
+        {"op": "host.advisories", "cursor": 0, "host_instance_id": host_instance_id},
+        host_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert host_reply["ok"] is True
+    assert host_reply["advisories"]["schema"] == "simplicio.agent-advisory/v1"
+    assert host_reply["advisories"]["host_instance_id"] == host_instance_id
+    assert host_reply["advisories"]["next_cursor"] == 1
+    assert [event["kind"] for event in host_reply["advisories"]["events"]] == [
+        "host.ready"
+    ]
+
+    observed = daemon_mod._handle_workspace_request(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "workspace-a",
+            "revision": 1,
+            "snapshot": {
+                "changed_files": 0,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "passing",
+            },
+            "host_instance_id": host_instance_id,
+        },
+        workspace_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert observed["ok"] is True
+    assert observed["observation"]["host_instance_id"] == host_instance_id
+
+    workspace_reply = daemon_mod._handle_workspace_request(
+        {
+            "op": "workspace.advisory",
+            "workspace_id": "workspace-a",
+            "cursor": 0,
+            "host_instance_id": host_instance_id,
+        },
+        workspace_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert workspace_reply["ok"] is True
+    assert workspace_reply["workspace_advisories"]["host_instance_id"] == host_instance_id
+
+
+@pytest.mark.parametrize("op", ["host.advisories", "workspace.advisory"])
+@pytest.mark.parametrize("stale", ["process-incarnation-000002", None])
+def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op, stale):
+    from agent.host_protocol import HostAdvisoryBuffer, WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    current = "process-incarnation-000001"
+    if op == "host.advisories":
+        response = daemon_mod._handle_host_advisory_request(
+            {"op": op, "cursor": 0, "host_instance_id": stale},
+            HostAdvisoryBuffer(host_instance_id=current),
+            host_instance_id=current,
+        )
+    else:
+        response = daemon_mod._handle_workspace_request(
+            {
+                "op": op,
+                "workspace_id": "workspace-a",
+                "cursor": 0,
+                "host_instance_id": stale,
+            },
+            WorkspaceAdvisoryStore(host_instance_id=current),
+            host_instance_id=current,
+        )
+
+    assert response["ok"] is False
+    if stale is None:
+        assert "opaque 16-64" in response["error"]
+    else:
+        assert "does not match" in response["error"]
+    if stale is not None:
+        assert stale not in response["error"]
+
+
+def test_daemon_rejects_non_object_json_requests_without_echoing_content():
+    from hermes_cli import daemon as daemon_mod
+
+    validator = getattr(daemon_mod, "_request_object", None)
+    assert callable(validator)
+    request = {"op": "workspace.advisory", "workspace_id": "workspace-a"}
+    assert validator(request) is request
+    with pytest.raises(ValueError, match="request must be an object") as rejected:
+        validator(["private-content"])
+    assert "private-content" not in str(rejected.value)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX sockets used by the daemon")
 def test_daemon_start_status_stop_round_trip():
     """Real start/status/invalidate/stop round trip over a UNIX socket.
@@ -188,6 +347,126 @@ def test_daemon_start_status_stop_round_trip():
         assert "tool_registry" in status.stdout
         assert "skill_index" in status.stdout
         assert "provider_metadata" in status.stdout
+
+        status_payload = json.loads(status.stdout)
+        assert status_payload["protocol_schema"] == "simplicio.agent-host/v1"
+        assert status_payload["protocol_version"] == 1
+        assert status_payload["agent_protocol"] == "agent/v1"
+        host_instance_id = status_payload["host_instance_id"]
+        assert 16 <= len(host_instance_id) <= 64
+        assert {
+            "host.status",
+            "host.advisories",
+            "turn.start",
+        }.issubset(status_payload["capabilities"])
+
+        ping_payload = _client_request(sock_path, {"op": "ping"})
+        assert ping_payload["protocol_version"] == 1
+        assert ping_payload["agent_protocol"] == "agent/v1"
+        assert ping_payload["host_instance_id"] == host_instance_id
+
+        host_payload = _client_request(sock_path, {"op": "host.status"})
+        assert host_payload["protocol_version"] == 1
+        assert host_payload["host"]["ready"] is True
+        assert host_payload["host"]["host_instance_id"] == host_instance_id
+
+        advisory_payload = _client_request(
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": 0,
+                "host_instance_id": host_instance_id,
+            },
+        )
+        assert advisory_payload["protocol_version"] == 1
+        assert advisory_payload["advisories"]["schema"] == "simplicio.agent-advisory/v1"
+        assert advisory_payload["advisories"]["events"][0]["kind"] == "host.ready"
+        assert advisory_payload["advisories"]["host_instance_id"] == host_instance_id
+        cursor = advisory_payload["advisories"]["next_cursor"]
+        replay = _client_request(
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": cursor,
+                "host_instance_id": host_instance_id,
+            },
+        )
+        assert replay["advisories"]["events"] == []
+        assert replay["advisories"]["next_cursor"] == cursor
+
+        observation = _client_request(
+            sock_path,
+            {
+                "op": "workspace.observe",
+                "workspace_id": "client-workspace-1",
+                "revision": 1,
+                "snapshot": {
+                    "changed_files": 3,
+                    "diagnostic_errors": 1,
+                    "diagnostic_warnings": 0,
+                    "test_status": "not_run",
+                },
+                "host_instance_id": host_instance_id,
+            },
+        )
+        assert observation["ok"] is True
+        assert observation["observation"]["effect"] == "none"
+        assert observation["observation"]["published_count"] == 3
+        assert observation["workspace_observation_schema"] == (
+            "simplicio.workspace-observation/v1"
+        )
+        assert observation["observation"]["host_instance_id"] == host_instance_id
+
+        workspace_replay = _client_request(
+            sock_path,
+            {
+                "op": "workspace.advisory",
+                "workspace_id": "client-workspace-1",
+                "cursor": 0,
+                "host_instance_id": host_instance_id,
+            },
+        )
+        assert workspace_replay["ok"] is True
+        assert workspace_replay["workspace_advisories"]["schema"] == (
+            "simplicio.workspace-advisory/v1"
+        )
+        assert [
+            event["kind"]
+            for event in workspace_replay["workspace_advisories"]["events"]
+        ] == ["finding", "risk", "suggestion"]
+        assert all(
+            event["effect"] == "none"
+            for event in workspace_replay["workspace_advisories"]["events"]
+        )
+        assert (
+            workspace_replay["workspace_advisories"]["host_instance_id"]
+            == host_instance_id
+        )
+
+        future_workspace_cursor = _client_request(
+            sock_path,
+            {
+                "op": "workspace.advisory",
+                "workspace_id": "client-workspace-1",
+                "cursor": 4,
+                "host_instance_id": host_instance_id,
+            },
+        )
+        assert future_workspace_cursor["ok"] is False
+        assert "exceeds" in future_workspace_cursor["error"]
+
+        stale_instance = "different-host-instance-00001"
+        stale_host_cursor = _client_request(
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": cursor,
+                "host_instance_id": stale_instance,
+            },
+        )
+        assert stale_host_cursor["ok"] is False
+        assert "does not match" in stale_host_cursor["error"]
+        assert stale_instance not in stale_host_cursor["error"]
 
         invalidate = _run_cli(
             "daemon", "invalidate", "provider_metadata", "--socket", sock_path

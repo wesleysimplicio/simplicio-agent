@@ -48,6 +48,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.host import AgentHost, HostBackpressure, HostShutdown
+from agent.host_protocol import (
+    HostAdvisoryBuffer,
+    WorkspaceAdvisoryStore,
+    host_protocol_metadata,
+    new_host_instance_id,
+    require_current_host_instance,
+)
 from agent.protocol import HostTurnRequest
 
 try:
@@ -273,6 +280,88 @@ PROFILE_PRELOADS: dict[str, tuple[str, ...]] = {
 # ---------------------------------------------------------------------------
 
 
+def _request_object(value: Any) -> dict[str, Any]:
+    """Require the daemon's JSON envelope without echoing rejected content."""
+    if not isinstance(value, dict):
+        raise ValueError("request must be an object")
+    return value
+
+
+def _handle_workspace_request(
+    request: dict[str, Any],
+    store: WorkspaceAdvisoryStore,
+    *,
+    host_instance_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Handle the effect-free workspace protocol or decline another op."""
+    op = request.get("op")
+    if op not in {"workspace.observe", "workspace.advisory"}:
+        return None
+    try:
+        if op == "workspace.observe":
+            allowed = {
+                "op", "workspace_id", "revision", "snapshot", "host_instance_id",
+            }
+            if not set(request).issubset(allowed) or not {
+                "op", "workspace_id", "revision", "snapshot",
+            }.issubset(request):
+                raise ValueError(
+                    "workspace.observe fields must match the metadata-only allowlist"
+                )
+            if host_instance_id is not None and "host_instance_id" in request:
+                require_current_host_instance(
+                    request.get("host_instance_id"), current=host_instance_id
+                )
+            observation = store.observe(
+                workspace_id=request["workspace_id"],
+                revision=request["revision"],
+                snapshot=request["snapshot"],
+            )
+            return {"ok": True, "observation": observation}
+
+        allowed = {"op", "workspace_id", "cursor", "host_instance_id"}
+        if "workspace_id" not in request or not set(request).issubset(allowed):
+            raise ValueError(
+                "workspace.advisory fields must match the metadata-only allowlist"
+            )
+        if host_instance_id is not None and "host_instance_id" in request:
+            require_current_host_instance(
+                request.get("host_instance_id"), current=host_instance_id
+            )
+        replay = store.replay(
+            workspace_id=request["workspace_id"],
+            after=request.get("cursor", 0),
+        )
+        return {"ok": True, "workspace_advisories": replay}
+    except (KeyError, TypeError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _handle_host_advisory_request(
+    request: dict[str, Any],
+    advisories: HostAdvisoryBuffer,
+    *,
+    host_instance_id: str,
+) -> dict[str, Any] | None:
+    """Replay generic host signals only for the requested daemon incarnation."""
+    if request.get("op") != "host.advisories":
+        return None
+    try:
+        allowed = {"op", "cursor", "host_instance_id"}
+        if not set(request).issubset(allowed):
+            raise ValueError("host.advisories fields must match the allowlist")
+        if "host_instance_id" in request:
+            require_current_host_instance(
+                request["host_instance_id"], current=host_instance_id
+            )
+        cursor = request.get("cursor", 0)
+        if isinstance(cursor, bool) or not isinstance(cursor, int):
+            raise ValueError("cursor must be a non-negative integer")
+        return {"ok": True, "advisories": advisories.replay(after=cursor)}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> int:
     if profile not in PROFILES:
         print(f"unknown profile: {profile}", file=sys.stderr)
@@ -297,6 +386,12 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
         return AIAgent(session_id=identity.session_id)
 
     host = AgentHost(make_agent, max_sessions=32, max_workers=4, max_pending=64)
+    host_instance_id = new_host_instance_id()
+    advisories = HostAdvisoryBuffer(host_instance_id=host_instance_id)
+    workspace_advisories = WorkspaceAdvisoryStore(
+        host_instance_id=host_instance_id
+    )
+    advisories.publish("host.ready")
     started = time.time()
     idle_ttl = _idle_ttl_s(idle_ttl_s)
     # Poll interval for the idle-TTL check: never longer than the TTL itself,
@@ -315,6 +410,14 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
     )
 
     last_activity = time.time()
+
+    def response(payload: dict[str, Any]) -> dict[str, Any]:
+        """Attach discovery data to every daemon response, including errors."""
+        return {
+            **payload,
+            **host_protocol_metadata(profile, host_instance_id=host_instance_id),
+        }
+
     try:
         while True:
             try:
@@ -332,13 +435,29 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
             with conn:
                 try:
                     raw = conn.recv(8192).decode("utf-8", errors="replace")
-                    req = json.loads(raw or "{}")
-                except json.JSONDecodeError as exc:
-                    conn.sendall(json.dumps({"ok": False, "error": str(exc)}).encode())
+                    req = _request_object(json.loads(raw or "{}"))
+                except (json.JSONDecodeError, ValueError) as exc:
+                    conn.sendall(
+                        json.dumps(response({"ok": False, "error": str(exc)})).encode()
+                    )
                     continue
 
                 op = req.get("op", "status")
-                if op == "status":
+                workspace_resp = _handle_workspace_request(
+                    req,
+                    workspace_advisories,
+                    host_instance_id=host_instance_id,
+                )
+                host_advisory_resp = _handle_host_advisory_request(
+                    req,
+                    advisories,
+                    host_instance_id=host_instance_id,
+                )
+                if workspace_resp is not None:
+                    resp = workspace_resp
+                elif host_advisory_resp is not None:
+                    resp = host_advisory_resp
+                elif op == "status":
                     resp = {
                         "ok": True,
                         "profile": profile,
@@ -357,7 +476,13 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                     else:
                         resp = {"ok": False, "error": f"unknown cache: {target}"}
                 elif op == "host.status":
-                    resp = {"ok": True, "host": host.status()}
+                    resp = {
+                        "ok": True,
+                        "host": {
+                            **host.status(),
+                            "host_instance_id": host_instance_id,
+                        },
+                    }
                 elif op == "turn.start":
                     try:
                         request = HostTurnRequest.from_mapping(
@@ -367,23 +492,28 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                         future = host.submit(request)
                         result = future.result(timeout=float(req.get("timeout", 300)))
                         resp = {"ok": True, "result": result}
+                        advisories.publish("turn.completed")
                     except (KeyError, ValueError) as exc:
                         resp = {"ok": False, "error": str(exc)}
                     except HostBackpressure as exc:
                         resp = {"ok": False, "error": str(exc), "retryable": True}
+                        advisories.publish("host.backpressure")
                     except HostShutdown as exc:
                         resp = {"ok": False, "error": str(exc), "retryable": False}
+                        advisories.publish("host.draining")
                     except Exception as exc:
                         # The daemon returns a stable envelope; raw provider
                         # details remain in the existing AIAgent logs.
                         resp = {"ok": False, "error": type(exc).__name__}
+                        advisories.publish("turn.failed")
                 elif op == "shutdown":
-                    conn.sendall(json.dumps({"ok": True, "bye": True}).encode())
+                    advisories.publish("host.draining")
+                    conn.sendall(json.dumps(response({"ok": True, "bye": True})).encode())
                     break
                 else:
                     resp = {"ok": False, "error": f"unknown op: {op}"}
 
-                conn.sendall(json.dumps(resp).encode())
+                conn.sendall(json.dumps(response(resp)).encode())
     finally:
         host.shutdown()
         srv.close()

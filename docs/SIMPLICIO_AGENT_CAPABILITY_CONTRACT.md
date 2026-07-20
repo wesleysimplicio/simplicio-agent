@@ -199,6 +199,48 @@ simplicio shell -- <command>
 | `workflow` | Process GitHub issues autonomously via Simplicio's issue-factory pipeline: discover, worktree, sprint, validate, PR handoff. | `.simplicio_agent/skills/workflow/simplicio-issue-automation/SKILL.md` |
 | `yuanbao` | Yuanbao (元宝) groups: @mention users, query info/members. | `.simplicio_agent/skills/yuanbao/SKILL.md` |
 
+## AgentHost boundary
+
+- O Agent é um produto independente. O host publica um contrato neutro para
+  qualquer consumidor e não importa nem depende do produto que o consome.
+- O daemon atual anuncia `simplicio.agent-host/v1`, protocolo `agent/v1` e
+  capabilities reais em toda resposta. `host.status` e `turn.start` continuam
+  as superfícies de saúde e turno já existentes.
+- Cada processo do daemon gera um `host_instance_id` opaco de 16–64 caracteres,
+  estável apenas durante aquela execução e novo em um restart real. O campo é
+  aditivo no envelope de discovery, em `host.status`, `host.advisories` e nos
+  envelopes de `workspace.observe`/`workspace.advisory`. Clientes novos podem
+  enviar o valor esperado nesses fluxos de replay; divergência falha fechado,
+  para que resposta atrasada ou cursor de outra execução não seja confundido
+  com o stream atual. Clientes v1 que omitem o campo continuam compatíveis,
+  mas não recebem essa proteção até adotarem o rollout.
+- `host.advisories` oferece apenas sinais operacionais de catálogo fixo
+  (`ready`, backpressure, draining e resultado do turno), replay bounded e
+  cursor monotônico. Não aceita prompt, segredo, conteúdo de workspace nem
+  payload arbitrário.
+- `workspace.observe` aceita somente um snapshot enviado explicitamente pelo
+  cliente no schema `simplicio.workspace-observation/v1`: `workspace_id` opaco
+  (1–64 caracteres, inicia alfanumérico e segue `[A-Za-z0-9._-]`), `revision`
+  positiva e contígua e exatamente os
+  metadados `changed_files`, `diagnostic_errors`, `diagnostic_warnings`
+  (inteiros `0..100000`) e `test_status`
+  (`unknown|not_run|passing|failing`). Campos extras, paths, nomes, texto,
+  prompt, diff e segredo falham fechado; o Agent não lê o workspace.
+- O producer determinístico publica somente códigos de catálogo fixo como
+  `finding`, `risk` ou `suggestion` no schema
+  `simplicio.workspace-advisory/v1`. Eventos carregam apenas facts allow-listed,
+  `redaction=metadata_only` e `effect=none`; uma sugestão nunca executa Runtime,
+  tool, provider/model ou outro efeito.
+- `workspace.advisory` faz replay estritamente depois do cursor, isolado por
+  `workspace_id`. O daemon retém no máximo 32 workspaces e 64 eventos por
+  workspace; cursor futuro é erro e cursor anterior à janela retorna
+  `truncated=true` com os eventos ainda retidos, sem salto silencioso.
+- Este slice é volátil e local: restart reinicia streams. Watcher/polling,
+  leitura automática, persistência, liberação de workspace, approval/execução,
+  UI e suporte IPC cross-platform continuam fora de escopo. O transporte atual
+  permanece AF_UNIX; consumidores futuros não criam dependência inversa no
+  Agent.
+
 ## Governança
 - Não fabricar números, savings, testes ou resultados.
 - Não fechar issue/PR sem mudança, teste/evidência e reconsulta.

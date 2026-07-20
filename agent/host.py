@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
+import asyncio
 from threading import Lock
 import time
 from typing import Any, Callable, Optional, overload
@@ -54,6 +55,7 @@ class _SessionEntry:
     # from the pool, instead of growing without bound for the life of a
     # long-running warm host.
     idempotent: dict[str, "Future[Any]"] = field(default_factory=dict)
+    async_idempotent: dict[str, asyncio.Future[Any]] = field(default_factory=dict)
     idempotent_lock: Lock = field(default_factory=Lock)
 
 
