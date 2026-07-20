@@ -9,8 +9,12 @@
 # session is explicitly wanted.
 set -euo pipefail
 
-export HERMES_HOME="${HERMES_HOME:-${SIMPLICIO_AGENT_HOME:-$HOME/.simplicio_agent}}"
-export SIMPLICIO_AGENT_HOME="${SIMPLICIO_AGENT_HOME:-$HERMES_HOME}"
+# This underscore launcher is reserved for the Simplicio bot.  Do not inherit
+# HERMES_HOME from another local agent (for example AlfradHD's ~/.hermes), or
+# gateway start/status will target the wrong launchd service.
+BOT_HOME="${SIMPLICIO_AGENT_HOME:-$HOME/.simplicio_agent}"
+export SIMPLICIO_AGENT_HOME="$BOT_HOME"
+export HERMES_HOME="$BOT_HOME"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SIMPLICIO_AGENT_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -19,6 +23,63 @@ if [[ ! -x "$REPO_ROOT/tools/build_bundle.sh" && -x "/Users/wesleysimplicio/Proj
 fi
 
 BUNDLE_PY="${SIMPLICIO_AGENT_BUNDLE_PY:-$SIMPLICIO_AGENT_HOME/current/venv/bin/python}"
+BOT_LAUNCHD_LABEL="${SIMPLICIO_AGENT_LAUNCHD_LABEL:-ai.hermes.gateway-simplicio-agent}"
+BOT_LAUNCHD_PLIST="${SIMPLICIO_AGENT_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/${BOT_LAUNCHD_LABEL}.plist}"
+
+use_bot_launchd() {
+  [[ "$(uname -s)" == "Darwin" ]] || return 1
+  [[ "${SIMPLICIO_AGENT_USE_LAUNCHD:-1}" != "0" ]] || return 1
+  command -v launchctl >/dev/null 2>&1
+}
+
+bot_launchd_target() {
+  printf 'gui/%s/%s\n' "$(id -u)" "$BOT_LAUNCHD_LABEL"
+}
+
+bot_launchd_action() {
+  local action="${1:-status}"
+  local target
+  target="$(bot_launchd_target)"
+
+  case "$action" in
+    start)
+      if ! launchctl print "$target" >/dev/null 2>&1; then
+        [[ -f "$BOT_LAUNCHD_PLIST" ]] || {
+          echo "simplicio_bot: plist nao encontrado: $BOT_LAUNCHD_PLIST" >&2
+          return 1
+        }
+        launchctl bootstrap "gui/$(id -u)" "$BOT_LAUNCHD_PLIST"
+      fi
+      launchctl kickstart "$target"
+      echo "simplicio_bot: gateway started ($BOT_LAUNCHD_LABEL)"
+      ;;
+    restart)
+      launchctl kickstart -k "$target"
+      echo "simplicio_bot: gateway restarted ($BOT_LAUNCHD_LABEL)"
+      ;;
+    stop)
+      launchctl kill SIGTERM "$target"
+      echo "simplicio_bot: gateway stop requested ($BOT_LAUNCHD_LABEL)"
+      ;;
+    status)
+      local details pid
+      details="$(launchctl print "$target" 2>/dev/null)" || {
+        echo "simplicio_bot: gateway inactive ($BOT_LAUNCHD_LABEL)"
+        return 1
+      }
+      pid="$(printf '%s\n' "$details" | awk '$1 == "pid" && $2 == "=" {print $3; exit}')"
+      if [[ -n "$pid" ]]; then
+        echo "simplicio_bot: gateway active (PID $pid; $BOT_LAUNCHD_LABEL)"
+      else
+        echo "simplicio_bot: gateway loaded ($BOT_LAUNCHD_LABEL)"
+      fi
+      ;;
+    *)
+      echo "acao de gateway desconhecida: $action" >&2
+      return 2
+      ;;
+  esac
+}
 
 run_cli() {
   if [[ ! -x "$BUNDLE_PY" ]]; then
@@ -55,16 +116,32 @@ case "${1:-}" in
   "")
     # Critical behavior: no args start the bot gateway and return; they do not
     # enter `hermes_cli.main`'s interactive chat/TUI default.
-    run_cli gateway start
+    if use_bot_launchd; then
+      bot_launchd_action start
+    else
+      run_cli gateway start
+    fi
     ;;
   bot|start)
     shift
-    run_cli gateway start "$@"
+    if [[ $# -gt 0 ]]; then
+      run_cli gateway start "$@"
+    elif use_bot_launchd; then
+      bot_launchd_action start
+    else
+      run_cli gateway start
+    fi
     ;;
   stop|restart|status)
     action="$1"
     shift
-    run_cli gateway "$action" "$@"
+    if [[ $# -gt 0 ]]; then
+      run_cli gateway "$action" "$@"
+    elif use_bot_launchd; then
+      bot_launchd_action "$action"
+    else
+      run_cli gateway "$action"
+    fi
     ;;
   *)
     # Explicit CLI commands retain the full canonical Simplicio Agent surface.

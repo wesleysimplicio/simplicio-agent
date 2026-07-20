@@ -15,6 +15,8 @@ def _fake_bundle(tmp_path: Path) -> tuple[Path, Path]:
     python.parent.mkdir(parents=True)
     python.write_text(
         "#!/bin/sh\n"
+        "printf 'HERMES_HOME=%s\\n' \"$HERMES_HOME\"\n"
+        "printf 'SIMPLICIO_AGENT_HOME=%s\\n' \"$SIMPLICIO_AGENT_HOME\"\n"
         "printf '%s\\n' \"$@\"\n",
         encoding="utf-8",
     )
@@ -25,7 +27,8 @@ def _fake_bundle(tmp_path: Path) -> tuple[Path, Path]:
 def _run_launcher(home: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["SIMPLICIO_AGENT_HOME"] = str(home)
-    env["HERMES_HOME"] = str(home)
+    env["HERMES_HOME"] = str(home / "wrong-inherited-agent")
+    env["SIMPLICIO_AGENT_USE_LAUNCHD"] = "0"
     return subprocess.run(
         [str(LAUNCHER), *args],
         cwd=ROOT,
@@ -42,7 +45,14 @@ def test_no_arguments_start_gateway_without_entering_chat(tmp_path: Path) -> Non
     result = _run_launcher(home)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == ["-m", "hermes_cli.main", "gateway", "start"]
+    assert result.stdout.splitlines() == [
+        f"HERMES_HOME={home}",
+        f"SIMPLICIO_AGENT_HOME={home}",
+        "-m",
+        "hermes_cli.main",
+        "gateway",
+        "start",
+    ]
 
 
 def test_explicit_chat_remains_available(tmp_path: Path) -> None:
@@ -51,4 +61,12 @@ def test_explicit_chat_remains_available(tmp_path: Path) -> None:
     result = _run_launcher(home, "chat", "-q", "hello")
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == ["-m", "hermes_cli.main", "chat", "-q", "hello"]
+    assert result.stdout.splitlines() == [
+        f"HERMES_HOME={home}",
+        f"SIMPLICIO_AGENT_HOME={home}",
+        "-m",
+        "hermes_cli.main",
+        "chat",
+        "-q",
+        "hello",
+    ]
