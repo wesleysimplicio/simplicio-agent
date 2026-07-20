@@ -1,14 +1,14 @@
 {
   "schema": "runtime-lock/v2",
   "kernel": "simplicio",
-  "min_version": "3.5.2",
+  "min_version": "3.5.3",
   "release_repo": "wesleysimplicio/simplicio",
   "source_repo": "wesleysimplicio/simplicio-runtime",
   "assets": {
     "darwin-arm64": {
       "name": "simplicio-macos-arm64",
-      "version": "3.5.2",
-      "url": "https://github.com/wesleysimplicio/simplicio/releases/download/v3.5.2/simplicio-macos-arm64",
+      "version": "3.5.3",
+      "url": "https://github.com/wesleysimplicio/simplicio/releases/download/v3.5.3/simplicio-macos-arm64",
       "sha256": "931bc6d8f45c1b1e586070f8f5ac4a762861bc9157c70f75aaa4ebfad8ff27bb",
       "size": 26752208,
       "target": {"os": "darwin", "arch": "arm64"}
