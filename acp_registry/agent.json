@@ -1,16 +1,21 @@
 {
   "id": "simplicio-agent",
   "name": "Simplicio Agent",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Self-improving open-source AI agent with ACP editor integration, persistent memory, skills, and rich tool support. An independent, public fork of NousResearch/hermes-agent.",
   "repository": "https://github.com/wesleysimplicio/simplicio-agent",
   "website": "https://github.com/wesleysimplicio/simplicio-agent#readme",
-  "authors": ["Wesley Simplicio", "Nous Research (upstream Hermes Agent)"],
+  "authors": [
+    "Wesley Simplicio",
+    "Nous Research (upstream Hermes Agent)"
+  ],
   "license": "MIT",
   "distribution": {
     "uvx": {
-      "package": "simplicio-agent[acp]==0.25.0",
-      "args": ["simplicio-agent-acp"]
+      "package": "simplicio-agent[acp]==0.26.0",
+      "args": [
+        "simplicio-agent-acp"
+      ]
     }
   }
 }

@@ -23,8 +23,8 @@ try:
         __version__ = _distribution_version("hermes-agent")
 except PackageNotFoundError:
     # Source checkouts without an install still expose the current project version.
-    __version__ = "0.25.0"
-__release_date__ = "2026.7.7.2"
+    __version__ = "0.26.0"
+__release_date__ = "2026.7.20"
 
 
 def _ensure_utf8():
