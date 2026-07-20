@@ -206,6 +206,14 @@ simplicio shell -- <command>
 - O daemon atual anuncia `simplicio.agent-host/v1`, protocolo `agent/v1` e
   capabilities reais em toda resposta. `host.status` e `turn.start` continuam
   as superfícies de saúde e turno já existentes.
+- Cada processo do daemon gera um `host_instance_id` opaco de 16–64 caracteres,
+  estável apenas durante aquela execução e novo em um restart real. O campo é
+  aditivo no envelope de discovery, em `host.status`, `host.advisories` e nos
+  envelopes de `workspace.observe`/`workspace.advisory`. Clientes novos podem
+  enviar o valor esperado nesses fluxos de replay; divergência falha fechado,
+  para que resposta atrasada ou cursor de outra execução não seja confundido
+  com o stream atual. Clientes v1 que omitem o campo continuam compatíveis,
+  mas não recebem essa proteção até adotarem o rollout.
 - `host.advisories` oferece apenas sinais operacionais de catálogo fixo
   (`ready`, backpressure, draining e resultado do turno), replay bounded e
   cursor monotônico. Não aceita prompt, segredo, conteúdo de workspace nem

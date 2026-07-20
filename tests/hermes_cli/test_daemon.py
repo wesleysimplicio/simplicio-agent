@@ -214,6 +214,95 @@ def test_workspace_request_handler_is_effect_free_and_fail_closed():
     assert "prompt" not in rejected["error"]
 
 
+def test_daemon_replay_handlers_bind_both_streams_to_one_host_incarnation():
+    from agent.host_protocol import HostAdvisoryBuffer, WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    host_instance_id = "process-incarnation-000001"
+    host_advisories = HostAdvisoryBuffer(host_instance_id=host_instance_id)
+    host_advisories.publish("host.ready")
+    workspace_advisories = WorkspaceAdvisoryStore(host_instance_id=host_instance_id)
+
+    host_reply = daemon_mod._handle_host_advisory_request(
+        {"op": "host.advisories", "cursor": 0, "host_instance_id": host_instance_id},
+        host_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert host_reply["ok"] is True
+    assert host_reply["advisories"]["schema"] == "simplicio.agent-advisory/v1"
+    assert host_reply["advisories"]["host_instance_id"] == host_instance_id
+    assert host_reply["advisories"]["next_cursor"] == 1
+    assert [event["kind"] for event in host_reply["advisories"]["events"]] == [
+        "host.ready"
+    ]
+
+    observed = daemon_mod._handle_workspace_request(
+        {
+            "op": "workspace.observe",
+            "workspace_id": "workspace-a",
+            "revision": 1,
+            "snapshot": {
+                "changed_files": 0,
+                "diagnostic_errors": 0,
+                "diagnostic_warnings": 0,
+                "test_status": "passing",
+            },
+            "host_instance_id": host_instance_id,
+        },
+        workspace_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert observed["ok"] is True
+    assert observed["observation"]["host_instance_id"] == host_instance_id
+
+    workspace_reply = daemon_mod._handle_workspace_request(
+        {
+            "op": "workspace.advisory",
+            "workspace_id": "workspace-a",
+            "cursor": 0,
+            "host_instance_id": host_instance_id,
+        },
+        workspace_advisories,
+        host_instance_id=host_instance_id,
+    )
+    assert workspace_reply["ok"] is True
+    assert workspace_reply["workspace_advisories"]["host_instance_id"] == host_instance_id
+
+
+@pytest.mark.parametrize("op", ["host.advisories", "workspace.advisory"])
+@pytest.mark.parametrize("stale", ["process-incarnation-000002", None])
+def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op, stale):
+    from agent.host_protocol import HostAdvisoryBuffer, WorkspaceAdvisoryStore
+    from hermes_cli import daemon as daemon_mod
+
+    current = "process-incarnation-000001"
+    if op == "host.advisories":
+        response = daemon_mod._handle_host_advisory_request(
+            {"op": op, "cursor": 0, "host_instance_id": stale},
+            HostAdvisoryBuffer(host_instance_id=current),
+            host_instance_id=current,
+        )
+    else:
+        response = daemon_mod._handle_workspace_request(
+            {
+                "op": op,
+                "workspace_id": "workspace-a",
+                "cursor": 0,
+                "host_instance_id": stale,
+            },
+            WorkspaceAdvisoryStore(host_instance_id=current),
+            host_instance_id=current,
+        )
+
+    assert response["ok"] is False
+    if stale is None:
+        assert "opaque 16-64" in response["error"]
+    else:
+        assert "does not match" in response["error"]
+    if stale is not None:
+        assert stale not in response["error"]
+
+
 def test_daemon_rejects_non_object_json_requests_without_echoing_content():
     from hermes_cli import daemon as daemon_mod
 
@@ -263,6 +352,8 @@ def test_daemon_start_status_stop_round_trip():
         assert status_payload["protocol_schema"] == "simplicio.agent-host/v1"
         assert status_payload["protocol_version"] == 1
         assert status_payload["agent_protocol"] == "agent/v1"
+        host_instance_id = status_payload["host_instance_id"]
+        assert 16 <= len(host_instance_id) <= 64
         assert {
             "host.status",
             "host.advisories",
@@ -272,20 +363,33 @@ def test_daemon_start_status_stop_round_trip():
         ping_payload = _client_request(sock_path, {"op": "ping"})
         assert ping_payload["protocol_version"] == 1
         assert ping_payload["agent_protocol"] == "agent/v1"
+        assert ping_payload["host_instance_id"] == host_instance_id
 
         host_payload = _client_request(sock_path, {"op": "host.status"})
         assert host_payload["protocol_version"] == 1
         assert host_payload["host"]["ready"] is True
+        assert host_payload["host"]["host_instance_id"] == host_instance_id
 
         advisory_payload = _client_request(
-            sock_path, {"op": "host.advisories", "cursor": 0}
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": 0,
+                "host_instance_id": host_instance_id,
+            },
         )
         assert advisory_payload["protocol_version"] == 1
         assert advisory_payload["advisories"]["schema"] == "simplicio.agent-advisory/v1"
         assert advisory_payload["advisories"]["events"][0]["kind"] == "host.ready"
+        assert advisory_payload["advisories"]["host_instance_id"] == host_instance_id
         cursor = advisory_payload["advisories"]["next_cursor"]
         replay = _client_request(
-            sock_path, {"op": "host.advisories", "cursor": cursor}
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": cursor,
+                "host_instance_id": host_instance_id,
+            },
         )
         assert replay["advisories"]["events"] == []
         assert replay["advisories"]["next_cursor"] == cursor
@@ -302,6 +406,7 @@ def test_daemon_start_status_stop_round_trip():
                     "diagnostic_warnings": 0,
                     "test_status": "not_run",
                 },
+                "host_instance_id": host_instance_id,
             },
         )
         assert observation["ok"] is True
@@ -310,6 +415,7 @@ def test_daemon_start_status_stop_round_trip():
         assert observation["workspace_observation_schema"] == (
             "simplicio.workspace-observation/v1"
         )
+        assert observation["observation"]["host_instance_id"] == host_instance_id
 
         workspace_replay = _client_request(
             sock_path,
@@ -317,6 +423,7 @@ def test_daemon_start_status_stop_round_trip():
                 "op": "workspace.advisory",
                 "workspace_id": "client-workspace-1",
                 "cursor": 0,
+                "host_instance_id": host_instance_id,
             },
         )
         assert workspace_replay["ok"] is True
@@ -331,6 +438,10 @@ def test_daemon_start_status_stop_round_trip():
             event["effect"] == "none"
             for event in workspace_replay["workspace_advisories"]["events"]
         )
+        assert (
+            workspace_replay["workspace_advisories"]["host_instance_id"]
+            == host_instance_id
+        )
 
         future_workspace_cursor = _client_request(
             sock_path,
@@ -338,10 +449,24 @@ def test_daemon_start_status_stop_round_trip():
                 "op": "workspace.advisory",
                 "workspace_id": "client-workspace-1",
                 "cursor": 4,
+                "host_instance_id": host_instance_id,
             },
         )
         assert future_workspace_cursor["ok"] is False
         assert "exceeds" in future_workspace_cursor["error"]
+
+        stale_instance = "different-host-instance-00001"
+        stale_host_cursor = _client_request(
+            sock_path,
+            {
+                "op": "host.advisories",
+                "cursor": cursor,
+                "host_instance_id": stale_instance,
+            },
+        )
+        assert stale_host_cursor["ok"] is False
+        assert "does not match" in stale_host_cursor["error"]
+        assert stale_instance not in stale_host_cursor["error"]
 
         invalidate = _run_cli(
             "daemon", "invalidate", "provider_metadata", "--socket", sock_path

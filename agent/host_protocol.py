@@ -14,6 +14,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 import re
+import secrets
 from typing import Any, Final, Mapping
 
 from agent.protocol_v1 import PROTOCOL_VERSION as AGENT_PROTOCOL_VERSION
@@ -46,6 +47,7 @@ _ADVISORY_CATALOG: Final[dict[str, tuple[str, str, str | None]]] = {
 }
 
 _WORKSPACE_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+_HOST_INSTANCE_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
 _WORKSPACE_SNAPSHOT_FIELDS: Final = frozenset({
     "changed_files",
     "diagnostic_errors",
@@ -99,11 +101,43 @@ _WORKSPACE_ADVISORY_CATALOG: Final[dict[str, tuple[str, str, str, str | None]]] 
 }
 
 
-def host_protocol_metadata(profile: str) -> dict[str, Any]:
+def new_host_instance_id() -> str:
+    """Create an opaque, bounded identity for one daemon process lifetime.
+
+    The value intentionally carries no host, user, workspace, or clock data.
+    It is generated only by the daemon at process start and is never persisted.
+    """
+    return secrets.token_urlsafe(24)
+
+
+def _host_instance_id(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or _HOST_INSTANCE_ID_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError("host_instance_id must be an opaque 16-64 character identifier")
+    return value
+
+
+def require_current_host_instance(
+    expected: Any,
+    *,
+    current: str,
+) -> None:
+    """Reject a request tied to another daemon process, without echoing it."""
+    if _host_instance_id(expected) != current:
+        raise ValueError("host_instance_id does not match the active host incarnation")
+
+
+def host_protocol_metadata(
+    profile: str,
+    *,
+    host_instance_id: str | None = None,
+) -> dict[str, Any]:
     """Return the stable discovery envelope included in every host response."""
     if not isinstance(profile, str) or not profile.strip():
         raise ValueError("profile must be a non-empty string")
-    return {
+    metadata = {
         "protocol_schema": HOST_PROTOCOL_SCHEMA,
         "protocol_version": HOST_PROTOCOL_VERSION,
         "agent_protocol": AGENT_PROTOCOL_VERSION,
@@ -113,12 +147,22 @@ def host_protocol_metadata(profile: str) -> dict[str, Any]:
         "workspace_observation_schema": WORKSPACE_OBSERVATION_SCHEMA,
         "workspace_advisory_schema": WORKSPACE_ADVISORY_SCHEMA,
     }
+    # Omission preserves the v1 discovery shape for direct in-process callers.
+    # The daemon always supplies this additive v1 field during rollout.
+    if host_instance_id is not None:
+        metadata["host_instance_id"] = _host_instance_id(host_instance_id)
+    return metadata
 
 
 class HostAdvisoryBuffer:
     """Thread-safe, bounded replay buffer for generic host attention signals."""
 
-    def __init__(self, *, max_events: int = 128) -> None:
+    def __init__(
+        self,
+        *,
+        max_events: int = 128,
+        host_instance_id: str | None = None,
+    ) -> None:
         if (
             isinstance(max_events, bool)
             or not isinstance(max_events, int)
@@ -128,6 +172,11 @@ class HostAdvisoryBuffer:
         self._events: deque[dict[str, Any]] = deque(maxlen=max_events)
         self._sequence = 0
         self._lock = threading.Lock()
+        self._host_instance_id = (
+            _host_instance_id(host_instance_id)
+            if host_instance_id is not None
+            else None
+        )
 
     def publish(self, kind: str) -> dict[str, Any]:
         """Publish one catalogued signal without accepting arbitrary payloads."""
@@ -163,12 +212,15 @@ class HostAdvisoryBuffer:
             first_sequence = retained[0]["sequence"] if retained else self._sequence + 1
             truncated = bool(retained) and after < first_sequence - 1
             events = [dict(event) for event in retained if event["sequence"] > after]
-            return {
+            replay = {
                 "schema": ADVISORY_SCHEMA,
                 "events": events,
                 "next_cursor": self._sequence,
                 "truncated": truncated,
             }
+            if self._host_instance_id is not None:
+                replay["host_instance_id"] = self._host_instance_id
+            return replay
 
 
 @dataclass(slots=True)
@@ -283,6 +335,7 @@ class WorkspaceAdvisoryStore:
         *,
         max_workspaces: int = 32,
         max_events_per_workspace: int = 64,
+        host_instance_id: str | None = None,
     ) -> None:
         self._max_workspaces = _positive_limit(max_workspaces, name="max_workspaces")
         self._max_events_per_workspace = _positive_limit(
@@ -290,6 +343,11 @@ class WorkspaceAdvisoryStore:
         )
         self._streams: dict[str, _WorkspaceStream] = {}
         self._lock = threading.Lock()
+        self._host_instance_id = (
+            _host_instance_id(host_instance_id)
+            if host_instance_id is not None
+            else None
+        )
 
     def observe(
         self,
@@ -339,7 +397,7 @@ class WorkspaceAdvisoryStore:
                     "ts_wall_ns": time.time_ns(),
                 })
             stream.revision = revision
-            return {
+            observation = {
                 "schema": WORKSPACE_OBSERVATION_SCHEMA,
                 "workspace_id": workspace_id,
                 "accepted_revision": revision,
@@ -347,6 +405,9 @@ class WorkspaceAdvisoryStore:
                 "next_cursor": stream.sequence,
                 "effect": "none",
             }
+            if self._host_instance_id is not None:
+                observation["host_instance_id"] = self._host_instance_id
+            return observation
 
     def replay(self, *, workspace_id: str, after: int = 0) -> dict[str, Any]:
         """Replay one workspace stream strictly after a validated cursor."""
@@ -359,13 +420,16 @@ class WorkspaceAdvisoryStore:
                     raise ValueError(
                         "after exceeds the current workspace advisory sequence"
                     )
-                return {
+                replay = {
                     "schema": WORKSPACE_ADVISORY_SCHEMA,
                     "workspace_id": workspace_id,
                     "events": [],
                     "next_cursor": 0,
                     "truncated": False,
                 }
+                if self._host_instance_id is not None:
+                    replay["host_instance_id"] = self._host_instance_id
+                return replay
             if after > stream.sequence:
                 raise ValueError(
                     "after exceeds the current workspace advisory sequence"
@@ -380,10 +444,13 @@ class WorkspaceAdvisoryStore:
                 for event in retained
                 if event["sequence"] > after
             ]
-            return {
+            replay = {
                 "schema": WORKSPACE_ADVISORY_SCHEMA,
                 "workspace_id": workspace_id,
                 "events": events,
                 "next_cursor": stream.sequence,
                 "truncated": truncated,
             }
+            if self._host_instance_id is not None:
+                replay["host_instance_id"] = self._host_instance_id
+            return replay

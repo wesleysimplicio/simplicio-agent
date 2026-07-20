@@ -1,0 +1,13 @@
+{
+  "issue": "503",
+  "domain": "agent host protocol compatibility",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| comando simplicio indisponivel neste ambiente; contrato existente e testes locais revisados",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "test-driven-development"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "agent": "Codex /root/agent_host_incarnation"
+}
