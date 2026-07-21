@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ParsedSavingsReport } from '@/app/savings/parse'
 import type { SavingsDataState, UseSavingsDataResult } from '@/app/savings/use-savings-data'
+import type { CockpitSession } from '@/app/savings/cockpit'
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
@@ -195,6 +196,59 @@ describe('TokenMonitor (savings panel)', () => {
     renderPanel()
 
     expect(screen.getByText(/mixed evidence/i)).toBeTruthy()
+  })
+
+  it('renders the correlated session/run metadata without inventing unavailable values', () => {
+    const sessions: CockpitSession[] = [
+      {
+        branch: 'main',
+        endedAt: null,
+        events: [
+          {
+            cache: { hit: true, readTokens: 12, writeTokens: null },
+            cost: null,
+            evidenceRefs: ['receipt://run-1'],
+            eventHash: 'abcdef0123456789',
+            hashState: 'unverified',
+            id: 'event-1',
+            latencyMs: null,
+            model: 'model-x',
+            prevEventHash: null,
+            priceState: 'missing_price',
+            proofKind: 'estimated',
+            provider: 'provider-x',
+            sessionId: null,
+            surfaces: ['runtime_map'],
+            taskTitle: 'Correlate savings',
+            timestamp: '2026-07-07T12:00:00Z',
+            tokens: { baseline: 100, saved: 90, spent: 10 },
+            tools: []
+          }
+        ],
+        repo: '/repo/one',
+        runId: 'run-1',
+        savedPct: 90,
+        startedAt: '2026-07-07T12:00:00Z',
+        title: 'Savings run',
+        totals: { baseline: 100, saved: 90, spent: 10 }
+      }
+    ]
+    useSavingsDataMock.mockReturnValue({
+      ...bridge({ parsed: report({ totals: { baseline: 100, pct: 90, saved: 90, spent: 10 } }), status: 'ok' }),
+      sessions: { data: { sessions, skipped: 0, sources: ['/repo/one/.simplicio/ledger/savings-events.jsonl'] }, status: 'ok' }
+    })
+
+    renderPanel()
+
+    expect(screen.getByText(/run=run-1/)).toBeTruthy()
+    expect(screen.getByText('session=—')).toBeTruthy()
+    expect(screen.getByText('cost=—')).toBeTruthy()
+    expect(screen.getByText('cache=hit=yes read=12 write=—')).toBeTruthy()
+    expect(screen.getByText('latency=—')).toBeTruthy()
+    expect(screen.getByText('tools=—')).toBeTruthy()
+    expect(screen.getByText('evidence=receipt://run-1')).toBeTruthy()
+    expect(screen.getByText('hash=unverified')).toBeTruthy()
+    expect(screen.getByText('price=missing_price')).toBeTruthy()
   })
 
   it('header Diagnostics button dispatches the Setup Simplicio post-setup flow', () => {
