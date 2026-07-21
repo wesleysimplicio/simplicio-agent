@@ -125,6 +125,33 @@ def test_expand_file_range_and_folder_listing(sample_repo: Path):
     assert not result.warnings
 
 
+def test_reference_registry_emits_duplicate_body_once(sample_repo: Path, tmp_path: Path):
+    from agent.context_references import preprocess_context_references
+    from agent.token_economy import PaidArtifactRegistry
+
+    registry = PaidArtifactRegistry(max_resident=10_000, receipt_directory=tmp_path)
+    first = preprocess_context_references(
+        "Review @file:src/main.py",
+        cwd=sample_repo,
+        context_length=100_000,
+        artifact_registry=registry,
+    )
+    second = preprocess_context_references(
+        "Review it again @file:src/main.py",
+        cwd=sample_repo,
+        context_length=100_000,
+        artifact_registry=registry,
+    )
+
+    assert "return 'changed'" in first.message
+    assert "return 'changed'" not in second.message
+    assert "⟦context:" in second.message
+    assert first.cache_hits == 0
+    assert second.cache_hits == 1
+    assert second.tokens_saved > 0
+    assert len(second.context_handles) == 1
+
+
 def test_folder_listing_falls_back_when_rg_is_blocked(sample_repo: Path):
     from agent.context_references import preprocess_context_references
 
