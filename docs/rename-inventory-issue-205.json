@@ -1,0 +1,46 @@
+{
+  "schema": "simplicio.rename-inventory/v1",
+  "issue": 205,
+  "scope": [
+    "README.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING.es.md",
+    "SECURITY.md",
+    "SECURITY.es.md"
+  ],
+  "canonical_brand": "Simplicio Agent",
+  "legacy_term": "Hermes",
+  "policy": "Rename user-facing product prose and command examples; preserve only reviewed upstream, compatibility, and internal-contract references.",
+  "allowlist": [
+    {
+      "path": "README.md",
+      "pattern": "official[- ]Hermes|Hermes → Simplicio Agent|Hermes Agent foundation|Hermes-derived|Hermes remains the origin|NousResearch/hermes-agent|--upstream.*hermes-agent|Hermes Agent contributors|hermes-to-simplicio-transformation|Hermes evolving|deprecated compatibility alias|remains available temporarily for compatibility",
+      "class": "KEEP_UPSTREAM_REFERENCE",
+      "reason": "Upstream attribution/comparison, the transformation asset, or the deprecated CLI compatibility alias."
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "pattern": "~\\/.hermes|\\$HOME/\\.hermes|hermes-cli|hermes-telegram|hermes_state\\.py|metadata\\.hermes|^\\s+hermes:\\s*$|hermes-agent\\.nousresearch\\.com|legacy Hermes compatibility wrapper",
+      "class": "KEEP_INTERNAL",
+      "reason": "Frozen state paths, schema/module/toolset identifiers, upstream documentation URL, or explicitly labeled compatibility wrapper."
+    },
+    {
+      "path": "CONTRIBUTING.es.md",
+      "pattern": "~\\/.hermes|hermes-cli|hermes-telegram|^\\s+hermes:\\s*$",
+      "class": "KEEP_INTERNAL",
+      "reason": "Frozen state paths and schema/toolset identifiers required by the current compatibility contract."
+    },
+    {
+      "path": "SECURITY.md",
+      "pattern": "`HERMES_HOME`",
+      "class": "KEEP_INTERNAL",
+      "reason": "Frozen environment-variable name for the state-directory compatibility contract."
+    },
+    {
+      "path": "SECURITY.es.md",
+      "pattern": "`HERMES_HOME`",
+      "class": "KEEP_INTERNAL",
+      "reason": "Frozen environment-variable name for the state-directory compatibility contract."
+    }
+  ]
+}

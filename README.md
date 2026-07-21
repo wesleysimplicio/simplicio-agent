@@ -4,7 +4,7 @@
 
 <h1 align="center">Simplicio Agent</h1>
 
-<p align="center"><strong>Hermes speed. Simplicio determinism. Verified delivery.</strong></p>
+<p align="center"><strong>Simplicio speed. Simplicio determinism. Verified delivery.</strong></p>
 
 <p align="center">
   The local-first autonomous agent that reasons broadly, executes through a Rust control plane,<br>
