@@ -2,9 +2,9 @@
 
 The harness deliberately stays independent of the agent runtime.  The stub
 provider exercises the same fixture, token, route, and report boundaries that
-Native gates consume, while making zero network calls.  Wall-clock latency is
-measured for the local work and is therefore reported as a measurement of the
-runner, not as a claim about remote-provider latency.
+Native gates consume, while making zero network calls.  It intentionally does
+not read a wall clock or sample process memory: executor-only metrics stay
+null with an UNVERIFIED reason instead of becoming runner-specific claims.
 """
 
 from __future__ import annotations
@@ -15,8 +15,6 @@ import json
 import math
 import re
 import sys
-import time
-import tracemalloc
 from collections import Counter
 from pathlib import Path
 from typing import Any, Mapping
@@ -32,6 +30,10 @@ DEFAULT_TOKEN_THRESHOLD_PCT = 5.0
 # it for a controlled runner with --latency-threshold-pct.
 DEFAULT_LATENCY_THRESHOLD_PCT = 20.0
 EVIDENCE_PREFIXES = ("MEASURED|", "UNVERIFIED|")
+TOKEN_EVIDENCE = "MEASURED|deterministic UTF-8 byte proxy; provider tokenizer unavailable"
+EXECUTOR_METRIC_EVIDENCE = (
+    "UNVERIFIED|stub does not execute the runtime/provider; wall-clock latency and memory are unavailable"
+)
 SENSITIVE_PATTERNS = (
     re.compile(r"\b(?:sk|api|token|secret|password)[-_][A-Za-z0-9_-]{24,}\b", re.I),
     re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
@@ -152,10 +154,33 @@ def validate_report(
             "weight_pct",
             "input_tokens",
             "output_tokens",
-            "peak_memory_bytes",
         ):
             if not _numeric(row.get(field)) or row[field] < 0:
                 errors.append(f"{prefix}.{field} must be a non-negative number")
+        peak_memory = row.get("peak_memory_bytes")
+        if peak_memory is not None and (
+            not _numeric(peak_memory) or peak_memory < 0
+        ):
+            errors.append(f"{prefix}.peak_memory_bytes must be null or a non-negative number")
+        metric_evidence = row.get("metric_evidence")
+        if not isinstance(metric_evidence, Mapping):
+            errors.append(f"{prefix}.metric_evidence must be an object")
+            metric_evidence = {}
+        for metric in ("input_tokens", "output_tokens"):
+            reason = metric_evidence.get(metric)
+            if not isinstance(reason, str) or not reason.startswith(EVIDENCE_PREFIXES):
+                errors.append(f"{prefix}.metric_evidence.{metric} must explain its evidence")
+        for metric, value in (
+            ("latency_us", row.get("latency_us")),
+            ("stages_us", row.get("stages_us")),
+            ("peak_memory_bytes", peak_memory),
+        ):
+            if value is None or (
+                isinstance(value, Mapping) and any(item is None for item in value.values())
+            ):
+                reason = metric_evidence.get(metric)
+                if not isinstance(reason, str) or not reason.startswith("UNVERIFIED|"):
+                    errors.append(f"{prefix}.metric_evidence.{metric} must explain unavailable data")
         if expected_category is not None and row.get(
             "weight_pct"
         ) != expected_category.get("weight"):
@@ -169,9 +194,10 @@ def validate_report(
             errors.append(f"{prefix}.latency_us must be an object")
         else:
             for percentile in ("p50", "p95"):
-                if not _numeric(latency.get(percentile)) or latency[percentile] < 0:
+                value = latency.get(percentile)
+                if value is not None and (not _numeric(value) or value < 0):
                     errors.append(
-                        f"{prefix}.latency_us.{percentile} must be a non-negative number"
+                        f"{prefix}.latency_us.{percentile} must be null or a non-negative number"
                     )
             if (
                 _numeric(latency.get("p50"))
@@ -257,7 +283,13 @@ def compare_reports(
             after_value = _metric_value(after_row, metric)
             path = f"{category_id}.{metric}"
             if not _numeric(before_value) or not _numeric(after_value):
-                errors.append(f"{path} must be numeric in both receipts")
+                if before_value is None and after_value is None:
+                    reason = _category_rows(before).get(category_id, {}).get(
+                        "metric_evidence", {}
+                    ).get(metric.split(".")[0])
+                    errors.append(f"{path} is unavailable: {reason}")
+                else:
+                    errors.append(f"{path} must be numeric in both receipts")
                 continue
             delta = float(after_value) - float(before_value)
             change = _percent_change(float(before_value), float(after_value))
@@ -305,7 +337,7 @@ def compare_reports(
             "error_count": len(errors),
         },
         "limitations": [
-            "The stub provider measures only local harness work; it is not remote-provider latency.",
+            "The stub provider does not execute the runtime or a provider; latency and memory are UNVERIFIED.",
             "Fixture weights are provisional until scrubbed receipt mining is available.",
         ],
     }
@@ -372,28 +404,14 @@ def _tokens(value: Any) -> int:
 def _stub_run(case: dict[str, Any]) -> dict[str, Any]:
     """Execute one case without I/O, network, or runtime imports."""
 
-    input_started = time.perf_counter_ns()
     input_tokens = _tokens(case["input"])
     output_tokens = _tokens(case["expected"]["output"])
-    token_us = (time.perf_counter_ns() - input_started) / 1000
-
-    route_started = time.perf_counter_ns()
     route = case["expected"]["route"]
-    route_us = (time.perf_counter_ns() - route_started) / 1000
-
-    execute_started = time.perf_counter_ns()
     output = case["expected"]["output"]
-    hashlib.sha256(
-        canonical_json({"route": route, "output": output}).encode("utf-8")
-    ).hexdigest()
-    execute_us = (time.perf_counter_ns() - execute_started) / 1000
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "route": route,
-        "token_us": token_us,
-        "route_us": route_us,
-        "execute_us": execute_us,
         "output": output,
     }
 
@@ -419,31 +437,12 @@ def run_benchmark(
         entry["id"]: [] for entry in manifest["categories"]
     }
 
-    # Keep tracemalloc out of the latency loop: its tracing hooks materially
-    # inflate and destabilize sub-millisecond measurements. Memory is sampled
-    # in a separate pass and remains in the report as its own metric.
     for case in manifest["cases"]:
         for _ in range(warmup):
             _stub_run(case)
         for _ in range(repeats):
-            started = time.perf_counter_ns()
             result = _stub_run(case)
-            result["latency_us"] = (time.perf_counter_ns() - started) / 1000
             samples[case["category"]].append(result)
-
-    memory_by_category: dict[str, int] = {
-        entry["id"]: 0 for entry in manifest["categories"]
-    }
-    tracemalloc.start()
-    try:
-        for case in manifest["cases"]:
-            _stub_run(case)
-            memory_by_category[case["category"]] = max(
-                memory_by_category[case["category"]], tracemalloc.get_traced_memory()[1]
-            )
-    finally:
-        _, peak_memory = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
 
     categories = []
     for category in manifest["categories"]:
@@ -455,16 +454,16 @@ def run_benchmark(
             "sample_count": len(rows),
             "input_tokens": sum(row["input_tokens"] for row in rows) / len(rows),
             "output_tokens": sum(row["output_tokens"] for row in rows) / len(rows),
-            "latency_us": {
-                "p50": _percentile([row["latency_us"] for row in rows], 0.50),
-                "p95": _percentile([row["latency_us"] for row in rows], 0.95),
+            "latency_us": {"p50": None, "p95": None},
+            "stages_us": {"token": None, "route": None, "execute": None},
+            "peak_memory_bytes": None,
+            "metric_evidence": {
+                "input_tokens": TOKEN_EVIDENCE,
+                "output_tokens": TOKEN_EVIDENCE,
+                "latency_us": EXECUTOR_METRIC_EVIDENCE,
+                "stages_us": EXECUTOR_METRIC_EVIDENCE,
+                "peak_memory_bytes": EXECUTOR_METRIC_EVIDENCE,
             },
-            "stages_us": {
-                "token": _percentile([row["token_us"] for row in rows], 0.50),
-                "route": _percentile([row["route_us"] for row in rows], 0.50),
-                "execute": _percentile([row["execute_us"] for row in rows], 0.50),
-            },
-            "peak_memory_bytes": max(memory_by_category[category["id"]], peak_memory),
         })
     return {
         "schema": REPORT_SCHEMA,
@@ -477,7 +476,11 @@ def run_benchmark(
         "warmup": warmup,
         "sample_count": sum(len(rows) for rows in samples.values()),
         "categories": categories,
-        "evidence": "MEASURED|stub execution, token counts, local stage latency, and tracemalloc peak",
+        "evidence": "UNVERIFIED|stub is deterministic and offline; runtime/provider latency and memory were not executed",
+        "limitations": [
+            "Token counts are UTF-8 byte proxies, not provider tokenizer counts.",
+            "Latency, stage timings, and peak memory require an executor receipt and are null here.",
+        ],
     }
 
 

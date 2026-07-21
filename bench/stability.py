@@ -1,9 +1,9 @@
 """Run the stub-provider baseline repeatedly and check cross-run variance.
 
 This is a real, executable stability check (not a fabricated claim): it runs
-``run_benchmark`` N times against the same fixture manifest and asserts that
-each category-level metric varies by no more than ``--max-variance-pct``
-across the runs, using ``(max - min) / mean`` as the variance measure.
+``run_benchmark`` N times against the same fixture manifest and checks that
+the deterministic token proxies vary by no more than ``--max-variance-pct``
+across the runs. Executor-only latency remains explicitly unverified.
 """
 
 from __future__ import annotations
@@ -16,7 +16,8 @@ from typing import Any
 
 from bench.harness import DEFAULT_FIXTURES, run_benchmark
 
-METRICS = ("input_tokens", "output_tokens", "latency_us.p50", "latency_us.p95")
+METRICS = ("input_tokens", "output_tokens")
+UNAVAILABLE_METRICS = ("latency_us.p50", "latency_us.p95")
 
 
 def _get(row: dict[str, Any], metric: str) -> float:
@@ -52,6 +53,7 @@ def check_stability(
     category_ids = [row["id"] for row in reports[0]["categories"]]
     rows: dict[str, dict[str, dict[str, Any]]] = {}
     violations: list[str] = []
+    unverified: list[str] = []
     for category_id in category_ids:
         rows[category_id] = {}
         for metric in METRICS:
@@ -66,16 +68,29 @@ def check_stability(
             }
             if variance_pct > max_variance_pct:
                 violations.append(f"{category_id}.{metric}={variance_pct:.2f}%")
+        for metric in UNAVAILABLE_METRICS:
+            rows[category_id][metric] = {
+                "values": [None for _ in reports],
+                "variance_pct": None,
+                "evidence": "UNVERIFIED|stub does not execute runtime/provider timing",
+            }
+            unverified.append(f"{category_id}.{metric}")
     return {
         "schema": "simplicio.bench-stability/v1",
         "runs": runs,
         "repeats": repeats,
         "warmup": warmup,
         "max_variance_pct": max_variance_pct,
-        "status": "pass" if not violations else "fail",
+        "status": "fail" if violations else ("unverified" if unverified else "pass"),
         "violations": violations,
+        "unverified": unverified,
         "categories": rows,
-        "evidence": f"MEASURED|{runs} consecutive stub-provider baseline runs compared for variance",
+        "evidence": (
+            f"UNVERIFIED|{runs} consecutive deterministic stub runs compared; "
+            "runtime/provider latency is unavailable"
+            if unverified
+            else f"MEASURED|{runs} consecutive stub-provider baseline runs compared for variance"
+        ),
     }
 
 
@@ -102,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
         args.json.write_text(rendered, encoding="utf-8")
     else:
         print(rendered, end="")
-    return 0 if result["status"] == "pass" else 1
+    return 0 if result["status"] == "pass" else (2 if result["status"] == "unverified" else 1)
 
 
 if __name__ == "__main__":
