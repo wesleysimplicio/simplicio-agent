@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -149,6 +150,53 @@ def test_daemon_start_help_uses_warm_profile_flag_not_global_profile():
 def test_daemon_status_help_reachable():
     result = _run_cli("daemon", "status", "--help")
     assert result.returncode == 0, result.stderr
+
+
+def test_windows_loopback_sidecars_are_private_and_reject_nonlocal_endpoints(tmp_path):
+    """The Windows fallback may discover only an authenticated loopback host."""
+    from hermes_cli import daemon as daemon_mod
+
+    sock_path = tmp_path / "daemon.sock"
+    daemon_mod._tcp_endpoint_path(sock_path).write_text("127.0.0.1:43123\n")
+    daemon_mod._tcp_token_path(sock_path).write_text("a" * 43 + "\n")
+    assert daemon_mod._read_tcp_endpoint(sock_path) == ("127.0.0.1", 43123)
+    assert daemon_mod._read_tcp_token(sock_path) == "a" * 43
+
+    daemon_mod._tcp_endpoint_path(sock_path).write_text("192.0.2.1:43123\n")
+    assert daemon_mod._read_tcp_endpoint(sock_path) is None
+    daemon_mod._tcp_token_path(sock_path).write_text("short\n")
+    assert daemon_mod._read_tcp_token(sock_path) is None
+
+
+def test_daemon_host_status_round_trip_uses_authenticated_local_transport(monkeypatch, tmp_path):
+    """A Windows AF_UNIX-less host is discoverable only through its tokenized loopback sidecars."""
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.setitem(daemon_mod.PROFILE_PRELOADS, "car", ())
+    sock_path = tmp_path / "daemon.sock"
+    result: list[int] = []
+    worker = threading.Thread(
+        target=lambda: result.append(daemon_mod._serve(sock_path, "car", idle_ttl_s=20)),
+        daemon=True,
+    )
+    worker.start()
+    endpoint = sock_path if daemon_mod._local_transport_available() else daemon_mod._tcp_endpoint_path(sock_path)
+    deadline = time.time() + 10
+    while time.time() < deadline and not endpoint.exists():
+        time.sleep(0.05)
+    assert endpoint.exists(), "daemon did not publish its local endpoint"
+
+    status = daemon_mod._client_request(sock_path, {"op": "host.status"})
+    assert status["ok"] is True
+    assert status["host"]["ready"] is True
+    assert status["host_instance_id"] == status["host"]["host_instance_id"]
+    assert status["protocol_schema"] == "simplicio.agent-host/v1"
+
+    stopped = daemon_mod._client_request(sock_path, {"op": "shutdown"})
+    assert stopped["ok"] is True
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert result == [0]
 
 
 def test_top_level_help_lists_daemon_subcommand():

@@ -262,6 +262,49 @@ class AgentHost:
         self.scheduler = TurnScheduler(max_workers=max_workers, max_pending=max_pending)
         self._lock = Lock()
         self._stopping = False
+        # Only explicitly correlated turns are addressable for cancellation.
+        # A running provider call cannot be truthfully reported as cancelled;
+        # callers receive ``running`` and must reconcile its terminal receipt.
+        self._turns: dict[str, Future[AgentConversationResult]] = {}
+        self._turns_lock = Lock()
+
+    def _track_turn(
+        self,
+        request: HostTurnRequest,
+        future: Future[AgentConversationResult],
+    ) -> Future[AgentConversationResult]:
+        if request.turn_id is None:
+            return future
+        with self._turns_lock:
+            self._turns[request.turn_id] = future
+
+        def forget(done: Future[AgentConversationResult]) -> None:
+            with self._turns_lock:
+                if self._turns.get(request.turn_id) is done:
+                    self._turns.pop(request.turn_id, None)
+
+        future.add_done_callback(forget)
+        return future
+
+    def cancel_turn(self, turn_id: str) -> str:
+        """Cancel a queued correlated turn without misreporting a running one.
+
+        Returns one of ``cancelled``, ``running``, ``terminal`` or
+        ``not_found``. ``running`` is deliberately non-terminal: an in-flight
+        provider/tool operation must be reconciled through its final receipt,
+        never retried as if cancellation had succeeded.
+        """
+        if not isinstance(turn_id, str) or not turn_id.strip():
+            raise ValueError("turn_id must be non-empty")
+        with self._turns_lock:
+            future = self._turns.get(turn_id)
+        if future is None:
+            return "not_found"
+        if future.cancel():
+            return "cancelled"
+        if future.done():
+            return "terminal"
+        return "running"
 
     @staticmethod
     def _coerce_turn_request(
@@ -369,7 +412,7 @@ class AgentHost:
                     raise
                 entry.idempotent[key] = future
                 future.add_done_callback(release)
-                return future
+                return self._track_turn(request, future)
 
         try:
             future = self.scheduler.submit(entry, lambda: self._run_turn(entry, request))
@@ -377,7 +420,7 @@ class AgentHost:
             lease.release()
             raise
         future.add_done_callback(release)
-        return future
+        return self._track_turn(request, future)
 
     @staticmethod
     def _run_turn(

@@ -38,8 +38,10 @@ a process that lives forever. Override per-run with ``daemon start
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
+import secrets
 import socket
 import subprocess
 import sys
@@ -84,6 +86,40 @@ def _socket_path(arg: str | None) -> Path:
 
 def _pid_path(sock: Path) -> Path:
     return sock.with_suffix(".pid")
+
+
+def _tcp_endpoint_path(sock: Path) -> Path:
+    """Sidecar containing the private loopback endpoint used on Windows."""
+    return sock.with_suffix(".tcp")
+
+
+def _tcp_token_path(sock: Path) -> Path:
+    """Sidecar containing the one-process loopback bearer token."""
+    return sock.with_suffix(".token")
+
+
+def _read_tcp_endpoint(sock: Path) -> tuple[str, int] | None:
+    """Read a bounded ``host:port`` sidecar without accepting remote hosts."""
+    try:
+        host, raw_port = _tcp_endpoint_path(sock).read_text(encoding="utf-8").strip().split(":", 1)
+        port = int(raw_port)
+    except (OSError, ValueError):
+        return None
+    if host != "127.0.0.1" or not 1 <= port <= 65535:
+        return None
+    return host, port
+
+
+def _read_tcp_token(sock: Path) -> str | None:
+    try:
+        token = _tcp_token_path(sock).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return token if 32 <= len(token) <= 256 else None
+
+
+def _local_transport_available() -> bool:
+    return hasattr(socket, "AF_UNIX") and sys.platform != "win32"
 
 
 def _ensure_dir(p: Path) -> None:
@@ -368,8 +404,11 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
         return 2
 
     _ensure_dir(sock_path)
-    if sock_path.exists():
-        sock_path.unlink()
+    tcp_endpoint_path = _tcp_endpoint_path(sock_path)
+    tcp_token_path = _tcp_token_path(sock_path)
+    for stale_path in (sock_path, tcp_endpoint_path, tcp_token_path):
+        if stale_path.exists():
+            stale_path.unlink()
 
     pid_path = _pid_path(sock_path)
     pid_path.write_text(str(os.getpid()))
@@ -397,14 +436,31 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
     # Poll interval for the idle-TTL check: never longer than the TTL itself,
     # so a very short TTL (e.g. in tests) is still observed promptly.
     poll_s = min(1.0, idle_ttl / 2) if idle_ttl < 2 else 1.0
-    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(str(sock_path))
+    tcp_token: str | None = None
+    if _local_transport_available():
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        srv.bind(str(sock_path))
+        os.chmod(sock_path, 0o600)
+        transport_label = f"socket={sock_path}"
+    else:
+        # Windows builds can omit AF_UNIX entirely.  Bind only IPv4 loopback,
+        # publish no public port, and require an unpredictable per-process
+        # bearer token before handling any operation.
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.bind(("127.0.0.1", 0))
+        bind_host, port = srv.getsockname()
+        if bind_host != "127.0.0.1":  # defensive: never advertise another scope
+            srv.close()
+            raise RuntimeError("daemon loopback binding was not local")
+        tcp_token = secrets.token_urlsafe(32)
+        tcp_endpoint_path.write_text(f"{bind_host}:{port}\n", encoding="utf-8")
+        tcp_token_path.write_text(f"{tcp_token}\n", encoding="utf-8")
+        transport_label = f"loopback={bind_host}:{port}"
     srv.listen(8)
-    os.chmod(sock_path, 0o600)
     srv.settimeout(poll_s)
 
     print(
-        f"simplicio-agent daemon ready profile={profile} socket={sock_path} "
+        f"simplicio-agent daemon ready profile={profile} {transport_label} "
         f"idle_ttl_s={idle_ttl}",
         flush=True,
     )
@@ -441,6 +497,14 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                         json.dumps(response({"ok": False, "error": str(exc)})).encode()
                     )
                     continue
+
+                if tcp_token is not None:
+                    supplied = req.pop("auth_token", None)
+                    if not isinstance(supplied, str) or not hmac.compare_digest(supplied, tcp_token):
+                        conn.sendall(
+                            json.dumps(response({"ok": False, "error": "daemon authentication failed"})).encode()
+                        )
+                        continue
 
                 op = req.get("op", "status")
                 workspace_resp = _handle_workspace_request(
@@ -517,20 +581,34 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
     finally:
         host.shutdown()
         srv.close()
-        if sock_path.exists():
-            sock_path.unlink()
-        if pid_path.exists():
-            pid_path.unlink()
+        for cleanup_path in (sock_path, tcp_endpoint_path, tcp_token_path, pid_path):
+            if cleanup_path.exists():
+                cleanup_path.unlink()
     return 0
 
 
 def _client_request(sock_path: Path, payload: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
-    if not sock_path.exists():
+    use_unix = _local_transport_available()
+    endpoint = None if use_unix else _read_tcp_endpoint(sock_path)
+    if use_unix and not sock_path.exists():
+        return {"ok": False, "error": "daemon not running", "fallback": "cold"}
+    if endpoint is None and not use_unix:
         return {"ok": False, "error": "daemon not running", "fallback": "cold"}
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as c:
+        if use_unix:
+            c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        else:
+            token = _read_tcp_token(sock_path)
+            if token is None:
+                return {"ok": False, "error": "daemon authentication unavailable", "fallback": "cold"}
+            c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            payload = {**payload, "auth_token": token}
+        with c:
             c.settimeout(timeout)
-            c.connect(str(sock_path))
+            if use_unix:
+                c.connect(str(sock_path))
+            else:
+                c.connect(endpoint)
             c.sendall(json.dumps(payload).encode())
             data = c.recv(65536)
             return json.loads(data.decode("utf-8", errors="replace") or "{}")

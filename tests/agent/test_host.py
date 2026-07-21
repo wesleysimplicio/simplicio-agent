@@ -1,6 +1,6 @@
 """Contract tests for the embedded AgentHost vertical slice."""
 
-from concurrent.futures import wait
+from concurrent.futures import CancelledError, wait
 from threading import Event
 
 import pytest
@@ -97,6 +97,30 @@ def test_duplicate_idempotency_key_returns_same_turn_without_duplicate_call():
         assert one.result(timeout=2)["final_response"] == "s:once"
         assert created[0].calls == [("once", {})]
     finally:
+        host.shutdown()
+
+
+def test_cancel_turn_cancels_only_a_queued_correlated_turn():
+    gate = Event()
+    started = Event()
+    host = AgentHost(
+        lambda identity: FakeAgent(identity.session_id, started, gate),
+        max_workers=1,
+    )
+    try:
+        running = host.submit("p", "s", "running", turn_id="running")
+        assert started.wait(timeout=1)
+        assert host.cancel_turn("running") == "running"
+        queued = host.submit("p", "s", "queued", turn_id="queued")
+        assert host.cancel_turn("queued") == "cancelled"
+        with pytest.raises(CancelledError):
+            queued.result(timeout=1)
+        assert host.cancel_turn("queued") == "not_found"
+        gate.set()
+        running.result(timeout=2)
+        assert host.cancel_turn("running") == "not_found"
+    finally:
+        gate.set()
         host.shutdown()
 
 
