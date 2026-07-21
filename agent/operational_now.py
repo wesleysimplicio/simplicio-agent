@@ -29,6 +29,7 @@ from agent.event_store import (
     AwarenessReceipt,
     OperationalEventStore,
     OperationalEventStoreCorruptError,
+    OperationalScope,
     OperationalValueStatus,
 )
 
@@ -160,6 +161,7 @@ class OperationalNowSnapshot:
 
     run_id: str
     profile_id: str
+    tenant_id: str
     fields: dict[str, OperationalField]
     beliefs: dict[str, BeliefFact]
     materialized_at_ns: int
@@ -172,6 +174,7 @@ class OperationalNowSnapshot:
     def __post_init__(self) -> None:
         object.__setattr__(self, "run_id", _text(self.run_id, "run_id"))
         object.__setattr__(self, "profile_id", _text(self.profile_id, "profile_id"))
+        object.__setattr__(self, "tenant_id", _text(self.tenant_id, "tenant_id"))
         object.__setattr__(self, "fields", dict(sorted(self.fields.items())))
         object.__setattr__(self, "beliefs", dict(sorted(self.beliefs.items())))
         if not isinstance(self.degradation, Degradation):
@@ -235,6 +238,7 @@ class OperationalNowSnapshot:
             "schema_version": OPERATIONAL_NOW_SCHEMA_VERSION,
             "run_id": self.run_id,
             "profile_id": self.profile_id,
+            "tenant_id": self.tenant_id,
             "materialized_at_ns": self.materialized_at_ns,
             "source_event_count": self.source_event_count,
             "degradation": self.degradation.value,
@@ -253,6 +257,7 @@ class OperationalNowSnapshot:
         return cls(
             run_id=data["run_id"],
             profile_id=data["profile_id"],
+            tenant_id=data["tenant_id"],
             fields={
                 key: OperationalField(**value)
                 for key, value in data.get("fields", {}).items()
@@ -303,10 +308,15 @@ class OperationalNowProjector:
         self,
         *,
         source_reliability: Mapping[str, SourceReliability] | None = None,
+        scope: OperationalScope | None = None,
     ) -> None:
         self._belief_engine = BeliefStateEngine(source_reliability=source_reliability)
+        self.scope = scope
 
     def project(self, receipts: Sequence[AwarenessReceipt]) -> OperationalNowSnapshot:
+        if self.scope is not None:
+            for receipt in receipts:
+                self.scope.validate_payload(receipt.payload)
         ordered = sorted(
             receipts, key=lambda receipt: (receipt.recorded_at_ns, receipt.receipt_id)
         )
@@ -445,13 +455,26 @@ class OperationalNowProjector:
             )
 
         materialized_at_ns = ordered[-1].recorded_at_ns if ordered else 0
+        if ordered:
+            run_id = ordered[-1].payload.get("run_id", "unknown")
+            profile_id = (
+                self.scope.profile_id
+                if self.scope is not None
+                else ordered[-1].payload.get("profile_id", "unknown")
+            )
+            tenant_id = (
+                self.scope.tenant_id
+                if self.scope is not None
+                else ordered[-1].payload.get("tenant_id", "unknown")
+            )
+        else:
+            run_id = "unknown"
+            profile_id = self.scope.profile_id if self.scope is not None else "unknown"
+            tenant_id = self.scope.tenant_id if self.scope is not None else "unknown"
         snapshot = OperationalNowSnapshot(
-            run_id=ordered[-1].payload.get("run_id", "unknown")
-            if ordered
-            else "unknown",
-            profile_id=ordered[-1].payload.get("profile_id", "unknown")
-            if ordered
-            else "unknown",
+            run_id=run_id,
+            profile_id=profile_id,
+            tenant_id=tenant_id,
             fields=fields,
             beliefs=belief_facts,
             materialized_at_ns=materialized_at_ns,
@@ -471,9 +494,11 @@ class OperationalNowStore:
         *,
         event_log_path: str | Path,
         snapshot_path: str | Path,
+        scope: OperationalScope,
         source_reliability: Mapping[str, SourceReliability] | None = None,
     ) -> None:
-        self.event_store = OperationalEventStore(event_log_path)
+        self.scope = scope
+        self.event_store = OperationalEventStore(event_log_path, scope=scope)
         self.snapshot_path = Path(snapshot_path)
         self.source_reliability = dict(source_reliability or {})
 
@@ -481,7 +506,10 @@ class OperationalNowStore:
         return self.event_store.append(receipt)
 
     def project(self) -> OperationalNowSnapshot:
-        projector = OperationalNowProjector(source_reliability=self.source_reliability)
+        projector = OperationalNowProjector(
+            source_reliability=self.source_reliability,
+            scope=self.scope,
+        )
         snapshot = projector.project(list(self.event_store.iter_receipts()))
         self._write_snapshot(snapshot)
         return snapshot
@@ -500,12 +528,17 @@ class OperationalNowStore:
             snapshot = OperationalNowSnapshot.from_dict(payload)
         except FileNotFoundError:
             raise
-        except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise OperationalEventStoreCorruptError(
                 f"cannot read snapshot: {exc}"
             ) from exc
         if snapshot.content_hash() != snapshot.snapshot_hash:
             raise OperationalEventStoreCorruptError("snapshot hash mismatch")
+        if (
+            snapshot.profile_id != self.scope.profile_id
+            or snapshot.tenant_id != self.scope.tenant_id
+        ):
+            raise OperationalEventStoreCorruptError("snapshot scope mismatch")
         return snapshot
 
     def load_or_rebuild(self) -> OperationalNowSnapshot:
