@@ -34,6 +34,7 @@ from agent.context_compressor import ContextCompressor
 from agent.iteration_budget import IterationBudget, resolve_max_iterations
 from agent.memory_manager import StreamingContextScrubber
 from agent.model_policy import enforce_model_policy
+from agent.local_inference_policy import ensure_local_inference_allowed
 from agent.model_metadata import (
     MINIMUM_CONTEXT_LENGTH,
     fetch_model_metadata,
@@ -444,6 +445,13 @@ def init_agent(
     agent.base_url = base_url or ""
     provider_name = provider.strip().lower() if isinstance(provider, str) and provider.strip() else None
     agent.provider = provider_name or ""
+    # Evaluate before transport warming, endpoint probes, or Ollama metadata
+    # discovery. The policy itself never downloads, loads, or starts a model.
+    ensure_local_inference_allowed(
+        provider=agent.provider,
+        base_url=agent.base_url,
+        model=agent.model,
+    )
     agent._credential_pool = credential_pool
     agent.acp_command = acp_command or command
     agent.acp_args = list(acp_args or args or [])
