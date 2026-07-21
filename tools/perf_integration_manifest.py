@@ -30,15 +30,37 @@ STAGES = (
     "PRESENT",
     "SAME_SOURCE",
     "BUILT",
-    "PACKAGED",
     "INSTALLED",
-    "INVOKED",
-    "E2E",
-    "DEFAULT",
-    "GATED",
+    "IMPORTABLE",
+    "CALLED",
+    "E2E_PROVEN",
+    "DEFAULT_ON",
+    "BENCHMARKED",
+    "REGRESSION_GATED",
 )
 PASSING_STATUSES = frozenset(("pass", "not_applicable"))
 VALID_STATUSES = frozenset(("pass", "fail", "not_applicable", "unknown"))
+REQUIRED_AXIS_NAMES = (
+    "fast-json",
+    "uvloop",
+    "rust-fast-path",
+    "streaming",
+    "async-dag-thread-pool",
+    "tool-batch-timeout",
+    "rate-limit-dedup",
+    "http-pool",
+    "warm-daemon",
+    "prompt-transport-registry",
+    "prompt-cache",
+    "compression-toon",
+    "kernel-binding",
+    "installation-profiles",
+    "hermes-turbo-pipeline",
+)
+RUNTIME_UNVERIFIED_REASON = (
+    "UNVERIFIED| runtime obrigatório ausente; nenhum Qwen/Ollama/llama.cpp/"
+    "MiniCPM/LLM local disponível"
+)
 
 
 def _is_canonical_source_path(value: Any) -> bool:
@@ -89,10 +111,15 @@ class StageResult:
 class AxisResult:
     name: str
     description: str
+    owner: str
+    platforms: tuple[str, ...]
+    related_issues: tuple[str, ...]
+    source_commit: dict[str, Any]
     source: tuple[str, ...]
     call_sites: tuple[dict[str, str], ...]
     config: tuple[dict[str, str], ...]
     fallback: dict[str, Any]
+    benchmark: dict[str, Any]
     stages: dict[str, StageResult] = field(default_factory=dict)
 
     def mark(
@@ -133,6 +160,10 @@ class AxisResult:
         return {
             "name": self.name,
             "description": self.description,
+            "owner": self.owner,
+            "platforms": list(self.platforms),
+            "related_issues": list(self.related_issues),
+            "source_commit": dict(self.source_commit),
             "ok": self.ok,
             "stages": {stage: result["ok"] for stage, result in stage_results.items()},
             "stage_status": {
@@ -144,6 +175,7 @@ class AxisResult:
             "call_sites": [dict(item) for item in self.call_sites],
             "config": [dict(item) for item in self.config],
             "fallback": self.fallback,
+            "benchmark": dict(self.benchmark),
         }
 
 
@@ -151,6 +183,10 @@ class AxisResult:
 class AxisSpec:
     name: str
     description: str
+    owner: str
+    platforms: tuple[str, ...]
+    related_issues: tuple[str, ...]
+    source_commit: dict[str, Any]
     source: tuple[str, ...]
     call_sites: tuple[dict[str, str], ...]
     config: tuple[dict[str, str], ...]
@@ -286,266 +322,255 @@ def _spec_result(spec: AxisSpec) -> AxisResult:
     return AxisResult(
         name=spec.name,
         description=spec.description,
+        owner=spec.owner,
+        platforms=spec.platforms,
+        related_issues=spec.related_issues,
+        source_commit=dict(spec.source_commit),
         source=spec.source,
         call_sites=spec.call_sites,
         config=spec.config,
         fallback=dict(spec.fallback),
+        benchmark={
+            "kind": "E2E",
+            "baseline": None,
+            "candidate": None,
+            "p50": None,
+            "p95": None,
+            "gain": None,
+            "cpu": None,
+            "rss": None,
+            "tokens": None,
+            "cost": None,
+            "status": "UNVERIFIED",
+            "reason": RUNTIME_UNVERIFIED_REASON,
+        },
     )
 
 
-def _check_uvloop(result: AxisResult, repo_root: Path) -> None:
+def _module_from_source(path: str) -> str | None:
+    if not path.endswith(".py") or path.startswith("rust_ext/"):
+        return None
+    return path[:-3].replace("/", ".")
+
+
+def _check_static_axis(result: AxisResult, repo_root: Path) -> None:
+    """Collect static receipts without promoting them to runtime evidence."""
+
     present = all((repo_root / path).is_file() for path in result.source)
-    result.mark("PRESENT", present, evidence=result.source)
-    source_ok = present and _contains(
-        repo_root, "agent/uvloop_utils.py", "def install_uvloop_policy"
-    )
+    result.mark("PRESENT", present, evidence=result.source if present else ())
     result.mark(
         "SAME_SOURCE",
-        source_ok,
-        evidence=("agent/uvloop_utils.py:install_uvloop_policy",),
-    )
-    built = _importable("agent.uvloop_utils", repo_root)
-    result.mark("BUILT", built, evidence=("agent.uvloop_utils",))
-    pyproject = _text(repo_root, "pyproject.toml")
-    result.mark(
-        "PACKAGED",
-        '"uvloop>=' in pyproject and "sys_platform != 'win32'" in pyproject,
-        evidence=("pyproject.toml:project.optional-dependencies.fast",),
-    )
-
-    available = _importable("uvloop", repo_root)
-    platform_skip = sys.platform == "win32"
-    if platform_skip:
-        result.mark(
-            "INSTALLED",
-            status="not_applicable",
-            reason="uvloop is not supported on Windows",
-        )
-    else:
-        result.mark(
-            "INSTALLED",
-            available,
-            reason="uvloop importable" if available else "uvloop is unavailable",
-        )
-
-    invoked = False
-    if platform_skip:
-        result.mark(
-            "INVOKED",
-            status="not_applicable",
-            reason="asyncio fallback is the Windows path",
-        )
-    elif available and built:
-        try:
-            old_policy = asyncio.get_event_loop_policy()
-            module = importlib.import_module("agent.uvloop_utils")
-            invoked = bool(module.install_uvloop_policy())
-            asyncio.set_event_loop_policy(old_policy)
-        except Exception:
-            invoked = False
-        result.mark(
-            "INVOKED", invoked, evidence=("agent.uvloop_utils:install_uvloop_policy",)
-        )
-    else:
-        result.mark("INVOKED", False, reason="uvloop activation cannot be exercised")
-
-    e2e = all(
-        _contains(repo_root, call["path"], call["symbol"]) for call in result.call_sites
+        status="unknown",
+        reason="UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
     )
     result.mark(
-        "E2E",
-        e2e,
-        evidence=tuple(f"{c['path']}:{c['symbol']}" for c in result.call_sites),
+        "BUILT",
+        status="unknown",
+        reason="UNVERIFIED| no clean build receipt was supplied",
     )
-    result.mark(
-        "DEFAULT",
-        "strongly recommended" in pyproject or "recommended" in pyproject,
-        evidence=("pyproject.toml:fast",),
-    )
-    result.mark(
-        "GATED",
-        _contains(repo_root, "hermes_cli/doctor.py", "uvloop event loop"),
-        evidence=("hermes_cli/doctor.py:uvloop event loop",),
-    )
-
-
-def _check_fast_json(result: AxisResult, repo_root: Path) -> None:
-    present = all((repo_root / path).is_file() for path in result.source)
-    result.mark("PRESENT", present, evidence=result.source)
-    source_ok = present and _contains(
-        repo_root, "agent/serde/fast_json.py", "def has_msgspec"
-    )
-    result.mark(
-        "SAME_SOURCE", source_ok, evidence=("agent/serde/fast_json.py:has_msgspec",)
-    )
-    built = _importable("agent.serde.fast_json", repo_root)
-    result.mark("BUILT", built, evidence=("agent.serde.fast_json",))
-    pyproject = _text(repo_root, "pyproject.toml")
-    packaged = all(token in pyproject for token in ("orjson>=", "msgspec>="))
-    result.mark(
-        "PACKAGED",
-        packaged,
-        evidence=("pyproject.toml:project.optional-dependencies.fast",),
-    )
-    has_orjson = _module_attr(
-        "agent.serde.fast_json", "has_orjson", repo_root
-    ) and _importable("orjson", repo_root)
-    has_msgspec = _module_attr(
-        "agent.serde.fast_json", "has_msgspec", repo_root
-    ) and _importable("msgspec", repo_root)
+    importable_modules = [
+        module
+        for module in (_module_from_source(path) for path in result.source)
+        if module
+    ]
+    # Avoid importing the checkout here: optional dependency availability would
+    # make the committed receipt vary by host. Clean installed-artifact import
+    # belongs to INSTALLED/E2E_PROVEN and remains independently unverified.
+    importable = present and bool(importable_modules)
     result.mark(
         "INSTALLED",
-        has_orjson or has_msgspec,
-        reason=f"orjson={has_orjson} msgspec={has_msgspec}",
-    )
-    invoked, receipt = (
-        _exercise_fast_json(repo_root)
-        if built
-        else (
-            False,
-            "serializer module is not importable",
-        )
+        status="unknown",
+        reason="UNVERIFIED| checkout import is not an installed-artifact receipt",
     )
     result.mark(
-        "INVOKED",
-        invoked and (has_orjson or has_msgspec),
-        reason=receipt,
-        evidence=("agent.serde.fast_json:dumps/loads",),
+        "IMPORTABLE",
+        importable,
+        reason=(
+            "source import path present; dependency import not runtime-proven"
+            if importable
+            else "no Python source import path present"
+        ),
+        evidence=tuple(importable_modules),
     )
-    e2e = all(
-        _contains(repo_root, call["path"], call["symbol"]) for call in result.call_sites
-    )
-    result.mark(
-        "E2E",
-        e2e,
-        evidence=tuple(f"{c['path']}:{c['symbol']}" for c in result.call_sites),
-    )
-    result.mark(
-        "DEFAULT",
-        "strongly recommended" in pyproject or "recommended" in pyproject,
-        evidence=("pyproject.toml:fast",),
-    )
-    result.mark(
-        "GATED",
-        _contains(repo_root, "hermes_cli/doctor.py", "Fast JSON"),
-        evidence=("hermes_cli/doctor.py:Fast JSON",),
-    )
-
-
-def _check_prewarm(result: AxisResult, repo_root: Path) -> None:
-    present = all((repo_root / path).is_file() for path in result.source)
-    result.mark("PRESENT", present, evidence=result.source)
-    source_ok = present and all(
-        _contains(repo_root, call["path"], f"def {call['symbol']}")
+    called = all(
+        (repo_root / call["path"]).is_file()
+        and _contains(repo_root, call["path"], call["symbol"])
         for call in result.call_sites
     )
     result.mark(
-        "SAME_SOURCE",
-        source_ok,
+        "CALLED",
+        called,
+        reason=("static call-site markers found" if called else "static call-site marker missing"),
         evidence=tuple(f"{c['path']}:{c['symbol']}" for c in result.call_sites),
     )
-    built = _importable("agent.skill_commands", repo_root) and _importable(
-        "hermes_cli.model_switch", repo_root
+    result.mark(
+        "E2E_PROVEN",
+        status="unknown",
+        reason=RUNTIME_UNVERIFIED_REASON,
+    )
+    config_present = all(
+        (repo_root / item["path"]).is_file()
+        and _contains(repo_root, item["path"], item["key"])
+        for item in result.config
     )
     result.mark(
-        "BUILT", built, evidence=("agent.skill_commands", "hermes_cli.model_switch")
-    )
-    config = _text(repo_root, "hermes_cli/config.py")
-    packaged = all(item["key"] in config for item in result.config)
-    result.mark(
-        "PACKAGED",
-        packaged,
-        evidence=tuple(f"{c['path']}:{c['key']}" for c in result.config),
-    )
-    installed = _module_attr(
-        "agent.skill_commands", "prewarm_skill_payloads", repo_root
-    ) and _module_attr(
-        "hermes_cli.model_switch", "prewarm_picker_cache_async", repo_root
-    )
-    result.mark(
-        "INSTALLED",
-        installed,
-        evidence=("prewarm_skill_payloads", "prewarm_picker_cache_async"),
-    )
-    invoked = _contains(repo_root, "hermes_cli/model_switch.py", "_picker_prewarm_done")
-    result.mark(
-        "INVOKED",
-        invoked,
-        evidence=("hermes_cli/model_switch.py:_picker_prewarm_done",),
-    )
-    e2e = _contains(repo_root, "agent/agent_init.py", "_openrouter_prewarm_done")
-    result.mark("E2E", e2e, evidence=("agent/agent_init.py:_openrouter_prewarm_done",))
-    result.mark(
-        "DEFAULT",
-        all(item["key"] in config for item in result.config),
+        "DEFAULT_ON",
+        config_present,
+        reason=("config/default marker present" if config_present else "config/default marker missing"),
         evidence=tuple(f"{c['path']}:{c['key']}" for c in result.config),
     )
     result.mark(
-        "GATED", "prewarm" in config.lower(), evidence=("hermes_cli/config.py:prewarm",)
+        "BENCHMARKED",
+        status="unknown",
+        reason=RUNTIME_UNVERIFIED_REASON,
+    )
+    result.mark(
+        "REGRESSION_GATED",
+        status="unknown",
+        reason="UNVERIFIED| no approved baseline and regression receipt supplied",
+    )
+
+
+_SOURCE_COMMIT_UNVERIFIED = {
+    "value": None,
+    "status": "UNVERIFIED",
+    "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+}
+
+
+def _axis(
+    name: str,
+    description: str,
+    source: tuple[str, ...],
+    call_sites: tuple[dict[str, str], ...],
+    config: tuple[dict[str, str], ...],
+    related_issues: tuple[str, ...],
+    fallback_paths: tuple[str, ...],
+) -> AxisSpec:
+    return AxisSpec(
+        name=name,
+        description=description,
+        owner="perf-audit",
+        platforms=("linux", "macos", "windows", "termux"),
+        related_issues=related_issues,
+        source_commit=dict(_SOURCE_COMMIT_UNVERIFIED),
+        source=source,
+        call_sites=call_sites,
+        config=config,
+        fallback={
+            "available": True,
+            "paths": list(fallback_paths),
+            "description": "documented fallback path; activation requires runtime receipt",
+        },
+        check=_check_static_axis,
     )
 
 
 AXIS_SPECS: tuple[AxisSpec, ...] = (
-    AxisSpec(
-        "uvloop",
-        "Optional libuv event-loop policy for async entrypoints.",
-        ("agent/uvloop_utils.py", "agent/async_dag/uvloop_runner.py"),
-        (
-            {"path": "hermes_cli/main.py", "symbol": "install_uvloop_policy()"},
-            {"path": "hermes_cli/gateway.py", "symbol": "install_uvloop_policy()"},
-        ),
-        ({"path": "pyproject.toml", "key": "fast.uvloop"},),
-        {
-            "available": True,
-            "paths": ["agent/uvloop_utils.py"],
-            "description": "asyncio default policy",
-        },
-        _check_uvloop,
-    ),
-    AxisSpec(
-        "fast-json",
-        "Fast JSON serialization with msgspec/orjson and stdlib fallback.",
+    _axis(
+        "fast-json", "orjson/msgspec serializer with stdlib fallback.",
         ("agent/serde/fast_json.py", "agent/serde/__init__.py", "agent/_fastjson.py"),
-        (
-            {"path": "run_agent.py", "symbol": "from agent._fastjson"},
-            {"path": "agent/telemetry/receipts.py", "symbol": "from agent.serde"},
-        ),
-        (
-            {"path": "pyproject.toml", "key": "fast.orjson"},
-            {"path": "pyproject.toml", "key": "fast.msgspec"},
-        ),
-        {
-            "available": True,
-            "paths": ["agent/_fastjson.py"],
-            "description": "stdlib json",
-        },
-        _check_fast_json,
+        ({"path": "run_agent.py", "symbol": "from agent._fastjson"}, {"path": "agent/telemetry/receipts.py", "symbol": "from agent.serde"}),
+        ({"path": "pyproject.toml", "key": "orjson>="}, {"path": "pyproject.toml", "key": "msgspec>="}),
+        ("#220", "#70"), ("agent/_fastjson.py",),
     ),
-    AxisSpec(
-        "prewarm",
-        "Bounded background prewarm for skills and model picker caches.",
-        (
-            "agent/skill_commands.py",
-            "hermes_cli/model_switch.py",
-            "agent/agent_init.py",
-        ),
-        (
-            {"path": "agent/skill_commands.py", "symbol": "prewarm_skill_payloads"},
-            {
-                "path": "hermes_cli/model_switch.py",
-                "symbol": "prewarm_picker_cache_async",
-            },
-        ),
-        (
-            {"path": "hermes_cli/config.py", "key": "prewarm_max_items"},
-            {"path": "hermes_cli/config.py", "key": "prewarm_cache_max_entries"},
-        ),
-        {
-            "available": True,
-            "paths": ["agent/skill_commands.py"],
-            "description": "bounded no-op on errors",
-        },
-        _check_prewarm,
+    _axis(
+        "uvloop", "Optional libuv event-loop policy for async entrypoints.",
+        ("agent/uvloop_utils.py", "agent/async_dag/uvloop_runner.py"),
+        ({"path": "hermes_cli/main.py", "symbol": "install_uvloop_policy"}, {"path": "hermes_cli/gateway.py", "symbol": "install_uvloop_policy"}),
+        ({"path": "pyproject.toml", "key": "uvloop>="},),
+        ("#220", "#70"), ("agent/uvloop_utils.py",),
+    ),
+    _axis(
+        "rust-fast-path", "rust_ext and agent/_hermes_fast native hot path.",
+        ("rust_ext/src/lib.rs", "rust_ext/pyproject.toml", "agent/_hermes_fast.py"),
+        ({"path": "agent/_hermes_fast.py", "symbol": "rust_ext"}, {"path": "scripts/importer/import.sh", "symbol": "agent/_hermes_fast.py"}),
+        ({"path": "rust_ext/pyproject.toml", "key": "maturin"}, {"path": "pyproject.toml", "key": "maturin"}),
+        ("#220", "#113"), ("agent/_hermes_fast.py",),
+    ),
+    _axis(
+        "streaming", "Incremental/streaming parsing and stream diagnostics.",
+        ("agent/stream_diag.py", "run_agent.py"),
+        ({"path": "run_agent.py", "symbol": "stream"}, {"path": "agent/stream_diag.py", "symbol": "stream"}),
+        ({"path": "pyproject.toml", "key": "stream"},),
+        ("#220", "#18"), ("agent/stream_diag.py",),
+    ),
+    _axis(
+        "async-dag-thread-pool", "Async DAG executor and current thread-pool path.",
+        ("agent/async_dag/executor.py", "agent/async_dag/__init__.py"),
+        ({"path": "agent/async_dag/executor.py", "symbol": "ThreadPoolExecutor"}, {"path": "run_agent.py", "symbol": "async_dag"}),
+        ({"path": "pyproject.toml", "key": "async_dag"},),
+        ("#220", "#22"), ("agent/async_dag/executor.py",),
+    ),
+    _axis(
+        "tool-batch-timeout", "Timeout boundary for batched tool execution.",
+        ("hermes_cli/timeouts.py", "run_agent.py"),
+        ({"path": "run_agent.py", "symbol": "get_provider_request_timeout"}, {"path": "hermes_cli/timeouts.py", "symbol": "timeout"}),
+        ({"path": "hermes_cli/config.py", "key": "timeout"},),
+        ("#220", "#70"), ("hermes_cli/timeouts.py",),
+    ),
+    _axis(
+        "rate-limit-dedup", "Rate limiter, rate tracking, and in-flight deduplication.",
+        ("agent/tier_rate_limiter.py", "agent/rate_limit_tracker.py", "hermes_cli/skills_hub.py"),
+        ({"path": "run_agent.py", "symbol": "rate_limit"}, {"path": "hermes_cli/skills_hub.py", "symbol": "deduped"}),
+        ({"path": "pyproject.toml", "key": "rate"},),
+        ("#220", "#70"), ("agent/rate_limit_tracker.py",),
+    ),
+    _axis(
+        "http-pool", "Reusable HTTP connection pool path.",
+        ("agent/net/http_pool.py", "agent/net/__init__.py"),
+        ({"path": "run_agent.py", "symbol": "http_client"}, {"path": "agent/net/http_pool.py", "symbol": "Pool"}),
+        ({"path": "pyproject.toml", "key": "http"},),
+        ("#220", "#110"), ("urllib",),
+    ),
+    _axis(
+        "warm-daemon", "Warm daemon/prewarm process path.",
+        ("hermes_cli/daemon.py", "fixtures/native/daemon_hot_path_contract.json"),
+        ({"path": "hermes_cli/daemon.py", "symbol": "daemon"}, {"path": "hermes_cli/main.py", "symbol": "daemon"}),
+        ({"path": "hermes_cli/config.py", "key": "daemon"},),
+        ("#220", "#110"), ("hermes_cli/daemon.py",),
+    ),
+    _axis(
+        "prompt-transport-registry", "simplicio_prompt and transport registry wiring.",
+        ("agent/simplicio_prompt.py", "agent/prompt_builder.py"),
+        ({"path": "run_agent.py", "symbol": "simplicio_prompt"}, {"path": "agent/prompt_builder.py", "symbol": "transport"}),
+        ({"path": "pyproject.toml", "key": "prompt"},),
+        ("#220", "#18"), ("agent/prompt_builder.py",),
+    ),
+    _axis(
+        "prompt-cache", "Prompt cache reuse and provider cache policy.",
+        ("agent/prompt_caching.py", "run_agent.py"),
+        ({"path": "run_agent.py", "symbol": "_anthropic_prompt_cache_policy"}, {"path": "agent/prompt_caching.py", "symbol": "cache"}),
+        ({"path": "hermes_cli/config.py", "key": "prompt_cache"},),
+        ("#220", "#22"), ("agent/prompt_caching.py",),
+    ),
+    _axis(
+        "compression-toon", "Prompt compression, compression receipt, and TOON encoding.",
+        ("agent/conversation_compression.py", "agent/toon_codec.py", "agent/toon_boundary.py"),
+        ({"path": "run_agent.py", "symbol": "conversation_compression"}, {"path": "agent/toon_boundary.py", "symbol": "toon"}),
+        ({"path": "pyproject.toml", "key": "toon"},),
+        ("#220", "#112"), ("agent/conversation_compression.py",),
+    ),
+    _axis(
+        "kernel-binding", "Gate, checkpoint, edit, orient, memory, and ledger bindings.",
+        ("agent/golden_path.py", "agent/reversible_path.py", "agent/verification_evidence.py"),
+        ({"path": "agent/golden_path.py", "symbol": "checkpoint"}, {"path": "agent/golden_path.py", "symbol": "ledger"}),
+        ({"path": "runtime.lock", "key": "runtime"},),
+        ("#220", "#116"), ("agent/reversible_path.py",),
+    ),
+    _axis(
+        "installation-profiles", "Official installer, wheels, Docker, Windows, and lean/Termux profiles.",
+        ("pyproject.toml", "scripts/install.sh", "scripts/install.ps1", "docker/entrypoint.sh"),
+        ({"path": "scripts/install.sh", "symbol": "SIMPLICIO_AGENT_LEAN"}, {"path": "scripts/install.ps1", "symbol": "Install"}),
+        ({"path": "pyproject.toml", "key": "optional-dependencies"}, {"path": "pyproject.toml", "key": "Termux"}),
+        ("#220", "#187"), ("agent/_fastjson.py",),
+    ),
+    _axis(
+        "hermes-turbo-pipeline", "Hermes → Hermes Turbo → Simplicio Agent provenance pipeline.",
+        ("scripts/importer/import.sh", "scripts/sync/ecosystem-sync.sh", "docs/SYNC_PIPELINE.md"),
+        ({"path": "scripts/importer/import.sh", "symbol": "Pipeline:"}, {"path": "docs/SYNC_PIPELINE.md", "symbol": "Hermes Turbo Agent"}),
+        ({"path": "docs/SYNC_PIPELINE.md", "key": "hermes-turbo-agent"},),
+        ("#220", "#18", "#158"), ("agent/",),
     ),
 )
 
@@ -733,6 +758,21 @@ def validate_manifest(
         for key in ("call_sites", "config", "fallback"):
             if key not in axis:
                 errors.append(f"{prefix}.{key} is required")
+        for key in ("owner", "platforms", "related_issues", "source_commit", "benchmark"):
+            if key not in axis:
+                errors.append(f"{prefix}.{key} is required")
+        benchmark = axis.get("benchmark")
+        if not isinstance(benchmark, Mapping):
+            errors.append(f"{prefix}.benchmark must be an object")
+        else:
+            required_benchmark = {
+                "kind", "baseline", "candidate", "p50", "p95", "gain",
+                "cpu", "rss", "tokens", "cost", "status", "reason",
+            }
+            if not required_benchmark.issubset(benchmark):
+                errors.append(f"{prefix}.benchmark is incomplete")
+            if benchmark.get("status") == "UNVERIFIED" and not benchmark.get("reason"):
+                errors.append(f"{prefix}.benchmark UNVERIFIED requires a reason")
     if len(names) != len(set(names)):
         errors.append("axis names must be unique")
     summary = document.get("summary")
@@ -782,6 +822,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--validate", metavar="PATH", help="validate an existing manifest JSON file"
     )
+    parser.add_argument(
+        "--check", action="store_true",
+        help="return non-zero when any axis is not fully proven",
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo).resolve()
 
@@ -807,7 +851,9 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(document, Path(args.generate))
     if args.json or not args.generate:
         print(json.dumps(document, indent=2, sort_keys=True))
-    return 0 if document["summary"]["ok"] else 1
+    if args.check or args.json:
+        return 0 if document["summary"]["ok"] else 1
+    return 0
 
 
 if __name__ == "__main__":
