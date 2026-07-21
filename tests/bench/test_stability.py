@@ -16,7 +16,8 @@ def test_check_stability_runs_baseline_n_times_and_reports_token_metrics():
 
     assert result["schema"] == "simplicio.bench-stability/v1"
     assert result["runs"] == 2
-    assert result["status"] == "pass"
+    assert result["status"] == "unverified"
+    assert result["unverified"]
     assert set(result["categories"]) == {
         "routine_deterministic",
         "memory_lookup",
@@ -35,9 +36,9 @@ def test_check_stability_runs_baseline_n_times_and_reports_token_metrics():
 def test_check_stability_flags_violations_with_a_tight_threshold():
     result = check_stability(runs=2, repeats=1, warmup=0, max_variance_pct=0.0)
 
-    assert result["status"] == "fail"
-    assert result["violations"]
-    assert result["evidence"].startswith("MEASURED|")
+    assert result["status"] == "unverified"
+    assert not result["violations"]
+    assert result["evidence"].startswith("UNVERIFIED|")
 
 
 def test_cli_writes_json_report(tmp_path):
@@ -56,14 +57,14 @@ def test_cli_writes_json_report(tmp_path):
         str(out_path),
     ])
 
-    assert exit_code == 0
+    assert exit_code == 2
     payload = json.loads(out_path.read_text(encoding="utf-8"))
-    assert payload["status"] == "pass"
+    assert payload["status"] == "unverified"
 
 
 def test_cli_prints_to_stdout_and_returns_failure_exit_code(capsys):
     exit_code = main(["--runs", "2", "--repeats", "1", "--warmup", "0", "--max-variance-pct", "0"])
 
-    assert exit_code == 1
+    assert exit_code == 2
     out = json.loads(capsys.readouterr().out)
-    assert out["status"] == "fail"
+    assert out["status"] == "unverified"
