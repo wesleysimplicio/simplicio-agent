@@ -14,11 +14,33 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from agent.asolaria_integration_contract import (
+    AsolariaIntegrationError,
+    AsolariaIntegrationManifest,
+    AsolariaProvenance,
+    ClaimKind,
+    CorrectiveGateReceipt,
+    EvidenceStatus,
+    GenerativeIdentity,
+    IntegrationClaim,
+    NestAddress,
+    UnverifiablePhysicsClaim,
+)
+
 __all__ = [
     "addressing_geometry",
+    "AsolariaIntegrationError",
+    "AsolariaIntegrationManifest",
+    "AsolariaProvenance",
+    "ClaimKind",
+    "CorrectiveGateReceipt",
     "citizen_identity",
     "encode_addr",
     "fnv1a64",
+    "EvidenceStatus",
+    "GenerativeIdentity",
+    "IntegrationClaim",
+    "NestAddress",
     "prism_crt_capacity",
     "prism_crt_decompose",
     "prism_crt_recombine",
@@ -30,6 +52,7 @@ __all__ = [
     "selftest",
     "sha16",
     "verify_citizen",
+    "UnverifiablePhysicsClaim",
 ]
 
 _PATTERN_DIR = (
@@ -135,7 +158,11 @@ def citizen_identity(
 ) -> Any:
     """Fused canonical citizen identity CIT-<file_id>-<tier><slot>[-tag]."""
     return _load_pattern("addressing_geometry").citizen_identity(
-        file, line, col, tier=tier, tag=tag  # type: ignore[arg-type]
+        file,
+        line,
+        col,
+        tier=tier,
+        tag=tag,  # type: ignore[arg-type]
     )
 
 

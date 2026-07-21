@@ -1,0 +1,14 @@
+{
+  "issue": "17",
+  "domain": "agent asolaria hrm n-nest provenance contract",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| simplicio memory unavailable: command not found",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "test-driven-development"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "runtime_status": "UNVERIFIED| simplicio runtime unavailable in this slot; bounded contract does not claim runtime execution",
+  "agent": "Codex /root/simplicio-agent-issue-17"
+}
