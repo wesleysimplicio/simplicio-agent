@@ -1,21 +1,29 @@
 """Bounded, deterministic delivery certificates for one task.
 
-This module deliberately proves a local certificate contract only.  It does
-not mint a Simplicio Runtime certificate and it does not sign anything.  A
-runtime attestation or an external signing key must be supplied by a later
-integration; absent those inputs the manifest records ``unavailable`` and
-``not_claimed`` explicitly.
+The certificate is an agent-side contract.  Runtime attestations remain
+explicit inputs; this module never upgrades a missing Runtime receipt into a
+success.  Ledger rows can be signed with an installation-owned Ed25519 key,
+while offline verification recomputes both the hash chain and signatures.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
 import re
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Iterable, Mapping
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 
 
 CERTIFICATE_SCHEMA = "simplicio.delivery-certificate/v1"
@@ -56,6 +64,96 @@ def _hash_is_valid(value: str) -> bool:
 
 def _enum_value(value: str | Enum) -> str:
     return value.value if isinstance(value, Enum) else value
+
+
+def _private_key(value: Ed25519PrivateKey | bytes) -> Ed25519PrivateKey:
+    if isinstance(value, Ed25519PrivateKey):
+        return value
+    if isinstance(value, bytes):
+        try:
+            return Ed25519PrivateKey.from_private_bytes(value)
+        except ValueError as exc:
+            raise ValueError("Ed25519 private key must contain 32 raw bytes") from exc
+    raise TypeError("signing_key must be an Ed25519PrivateKey or 32 raw bytes")
+
+
+def _public_key(value: Ed25519PublicKey | bytes) -> Ed25519PublicKey:
+    if isinstance(value, Ed25519PublicKey):
+        return value
+    if isinstance(value, bytes):
+        try:
+            return Ed25519PublicKey.from_public_bytes(value)
+        except ValueError as exc:
+            raise ValueError("Ed25519 public key must contain 32 raw bytes") from exc
+    raise TypeError("public_key must be an Ed25519PublicKey or 32 raw bytes")
+
+
+def _encode_key(value: Ed25519PublicKey) -> str:
+    return base64.b64encode(
+        value.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode("ascii")
+
+
+def _decode_b64(value: str, label: str) -> bytes:
+    try:
+        return base64.b64decode(value.encode("ascii"), validate=True)
+    except (UnicodeEncodeError, ValueError) as exc:
+        raise ValueError(f"{label} is not valid base64") from exc
+
+
+@dataclass(frozen=True)
+class Ed25519Signer:
+    """Process-local signer backed by an installation-owned private key.
+
+    The private key is never serialized into a certificate or ledger row.  A
+    caller may persist it outside the repository with :meth:`save` and load it
+    again with :meth:`from_file`; the default production path is supplied by
+    the caller so tests cannot accidentally write secrets into a checkout.
+    """
+
+    signer: str
+    private_key: Ed25519PrivateKey
+
+    def __post_init__(self) -> None:
+        if not self.signer.strip():
+            raise ValueError("signer must be non-empty")
+
+    @property
+    def signer_id(self) -> str:
+        return self.signer
+
+    @property
+    def public_key(self) -> Ed25519PublicKey:
+        return self.private_key.public_key()
+
+    def sign(self, payload: bytes) -> str:
+        return base64.b64encode(self.private_key.sign(payload)).decode("ascii")
+
+    @classmethod
+    def generate(cls, signer: str) -> "Ed25519Signer":
+        return cls(signer=signer, private_key=Ed25519PrivateKey.generate())
+
+    @classmethod
+    def from_file(cls, path: str | Path, signer: str) -> "Ed25519Signer":
+        raw = Path(path).read_bytes()
+        if len(raw) != 32:
+            raise ValueError("Ed25519 key file must contain exactly 32 raw bytes")
+        return cls(signer=signer, private_key=Ed25519PrivateKey.from_private_bytes(raw))
+
+    def save(self, path: str | Path) -> None:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(
+            self.private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+        target.chmod(0o600)
 
 
 @dataclass(frozen=True)
@@ -230,6 +328,37 @@ class ReproducibleManifest:
                 value.get("runtime_certificate_claim", False)
             ),
         )
+
+
+@dataclass(frozen=True)
+class ReplayVerification:
+    """Result of comparing a replayed task diff with its manifest."""
+
+    valid: bool
+    byte_equal: bool
+    explained: bool
+    reasons: tuple[str, ...]
+
+
+def verify_replay(
+    manifest: ReproducibleManifest, replayed_diff: str
+) -> ReplayVerification:
+    """Accept byte-identical replay or an explicit nondeterminism explanation."""
+
+    byte_equal = sha256_text(replayed_diff) == manifest.diff_sha256
+    if byte_equal:
+        return ReplayVerification(True, True, False, ())
+    reason = (manifest.nondeterminism_reason or "").strip()
+    if reason:
+        return ReplayVerification(True, False, True, (reason,))
+    return ReplayVerification(
+        False,
+        False,
+        False,
+        (
+            "replayed diff is not byte-identical and no nondeterminism reason was recorded",
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -440,6 +569,15 @@ class LedgerEntry:
     previous_hash: str
     entry_hash: str
     certificate: dict[str, Any]
+    signature: str | None = None
+    public_key: str | None = None
+    signer: str | None = None
+
+    @property
+    def signer_id(self) -> str | None:
+        """Compatibility name for the signer identity in the wire row."""
+
+        return self.signer
 
     def unsigned_dict(self) -> dict[str, Any]:
         return {
@@ -451,8 +589,26 @@ class LedgerEntry:
             "certificate": self.certificate,
         }
 
+    def signing_dict(self) -> dict[str, Any]:
+        """Return the payload covered by an optional Ed25519 signature."""
+
+        payload = self.unsigned_dict()
+        if self.public_key is not None:
+            payload["public_key"] = self.public_key
+        if self.signer is not None:
+            payload["signer"] = self.signer
+        return payload
+
+    def hash_dict(self) -> dict[str, Any]:
+        """Return the payload whose digest becomes the row's entry hash."""
+
+        payload = self.signing_dict()
+        if self.signature is not None:
+            payload["signature"] = self.signature
+        return payload
+
     def to_dict(self) -> dict[str, Any]:
-        return {**self.unsigned_dict(), "entry_hash": self.entry_hash}
+        return {**self.hash_dict(), "entry_hash": self.entry_hash}
 
 
 @dataclass(frozen=True)
@@ -472,10 +628,38 @@ class LedgerVerification:
 
 
 class CertificateLedger:
-    """In-memory append-only ledger suitable for durable wrappers."""
+    """Append-only ledger with optional per-installation Ed25519 signing.
 
-    def __init__(self, entries: Iterable[LedgerEntry | Mapping[str, Any]] = ()) -> None:
+    The caller owns key generation and storage.  A private key is accepted only
+    for the lifetime of this process; the serialized ledger contains the public
+    key and signature, never the private key.  Without a key the legacy
+    hash-linked ledger remains available but is not a signed ledger.
+    """
+
+    def __init__(
+        self,
+        entries: Iterable[LedgerEntry | Mapping[str, Any]] = (),
+        *,
+        signing_key: Ed25519PrivateKey | bytes | None = None,
+        signer: Ed25519Signer | str | None = None,
+        require_signatures: bool = False,
+    ) -> None:
         self._entries: list[LedgerEntry] = []
+        if isinstance(signer, Ed25519Signer):
+            if signing_key is not None:
+                raise ValueError("provide either signer or signing_key, not both")
+            self._signing_key = signer.private_key
+            self._signer = signer.signer_id
+        else:
+            self._signing_key = (
+                _private_key(signing_key) if signing_key is not None else None
+            )
+            if signer is not None and not signer.strip():
+                raise ValueError("signer must be non-empty when provided")
+            if signer is not None and self._signing_key is None:
+                raise ValueError("signer requires signing_key")
+            self._signer = signer
+        self._require_signatures = require_signatures
         for entry in entries:
             self._entries.append(_coerce_entry(entry))
 
@@ -486,30 +670,158 @@ class CertificateLedger:
     def append(self, certificate: TaskCertificate) -> LedgerEntry:
         sequence = len(self._entries)
         previous_hash = self._entries[-1].entry_hash if self._entries else GENESIS_HASH
+        certificate_dict = certificate.to_dict()
+        certificate_hash = certificate.content_hash()
         unsigned = {
             "schema": LEDGER_SCHEMA,
             "sequence": sequence,
             "task_id": certificate.task_id,
-            "certificate_hash": certificate.content_hash(),
+            "certificate_hash": certificate_hash,
             "previous_hash": previous_hash,
-            "certificate": certificate.to_dict(),
+            "certificate": certificate_dict,
         }
+        public_key = (
+            _encode_key(self._signing_key.public_key())
+            if self._signing_key is not None
+            else None
+        )
+        signing_payload = dict(unsigned)
+        if public_key is not None:
+            signing_payload["public_key"] = public_key
+        if self._signer is not None:
+            signing_payload["signer"] = self._signer
+        signature = (
+            base64.b64encode(
+                self._signing_key.sign(_canonical(signing_payload).encode("utf-8"))
+            ).decode("ascii")
+            if self._signing_key is not None
+            else None
+        )
+        hash_payload = dict(signing_payload)
+        if signature is not None:
+            hash_payload["signature"] = signature
         entry = LedgerEntry(
             sequence=sequence,
             task_id=certificate.task_id,
-            certificate_hash=certificate.content_hash(),
+            certificate_hash=certificate_hash,
             previous_hash=previous_hash,
-            entry_hash=sha256_text(_canonical(unsigned)),
-            certificate=certificate.to_dict(),
+            entry_hash=sha256_text(_canonical(hash_payload)),
+            certificate=certificate_dict,
+            signature=signature,
+            public_key=public_key,
+            signer=self._signer,
         )
         self._entries.append(entry)
         return entry
 
-    def verify(self) -> LedgerVerification:
-        return verify_ledger(self._entries)
+    def verify(
+        self,
+        *,
+        public_key: Ed25519PublicKey | bytes | None = None,
+        require_signatures: bool | None = None,
+    ) -> LedgerVerification:
+        return verify_ledger(
+            self._entries,
+            public_key=public_key,
+            require_signatures=(
+                self._require_signatures
+                if require_signatures is None
+                else require_signatures
+            ),
+        )
 
     def to_list(self) -> list[dict[str, Any]]:
         return [entry.to_dict() for entry in self._entries]
+
+
+class SignedLedgerStore:
+    """Small JSONL-backed signed ledger store for offline verification."""
+
+    def __init__(
+        self,
+        path: str | Path,
+        signer: Ed25519Signer,
+        *,
+        require_signatures: bool = True,
+    ) -> None:
+        if not isinstance(signer, Ed25519Signer):
+            raise TypeError("SignedLedgerStore requires an Ed25519Signer")
+        self.path = Path(path)
+        self.signer = signer
+        self.require_signatures = require_signatures
+
+    def _read(self) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                rows.append(json.loads(line))
+        return rows
+
+    def _write(self, rows: Iterable[Mapping[str, Any]]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_name(f".{self.path.name}.tmp")
+        temporary.write_text(
+            "".join(
+                json.dumps(dict(row), ensure_ascii=False, sort_keys=True) + "\n"
+                for row in rows
+            ),
+            encoding="utf-8",
+        )
+        temporary.replace(self.path)
+
+    def append(self, certificate: TaskCertificate) -> LedgerEntry:
+        rows = self._read()
+        if rows:
+            existing = verify_ledger(rows, require_signatures=self.require_signatures)
+            if not existing.valid:
+                raise ValueError(
+                    "cannot append to an invalid signed ledger: "
+                    + "; ".join(existing.reasons)
+                )
+        ledger = CertificateLedger(
+            rows,
+            signer=self.signer,
+            require_signatures=self.require_signatures,
+        )
+        entry = ledger.append(certificate)
+        self._write(ledger.to_list())
+        return entry
+
+    def verify(self) -> LedgerVerification:
+        return verify_ledger_file(self.path, require_signatures=self.require_signatures)
+
+    def to_list(self) -> list[dict[str, Any]]:
+        return self._read()
+
+
+def verify_ledger_file(
+    path: str | Path,
+    *,
+    public_key: Ed25519PublicKey | bytes | None = None,
+    require_signatures: bool = True,
+) -> LedgerVerification:
+    """Verify a JSONL ledger without requiring its private signing key."""
+
+    ledger_path = Path(path)
+    try:
+        rows: list[dict[str, Any]] = []
+        for line_number, line in enumerate(
+            ledger_path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if line.strip():
+                value = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError(f"line {line_number} is not an object")
+                rows.append(value)
+    except (OSError, UnicodeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return LedgerVerification(False, len(rows), (f"invalid ledger file: {exc}",))
+    return verify_ledger(
+        rows,
+        public_key=public_key,
+        require_signatures=require_signatures,
+    )
 
 
 def _coerce_entry(value: LedgerEntry | Mapping[str, Any]) -> LedgerEntry:
@@ -522,17 +834,29 @@ def _coerce_entry(value: LedgerEntry | Mapping[str, Any]) -> LedgerEntry:
         previous_hash=str(value["previous_hash"]),
         entry_hash=str(value["entry_hash"]),
         certificate=dict(value["certificate"]),
+        signature=value.get("signature"),
+        public_key=value.get("public_key"),
+        signer=value.get("signer"),
     )
 
 
 def verify_ledger(
     entries: Iterable[LedgerEntry | Mapping[str, Any]],
+    *,
+    public_key: Ed25519PublicKey | bytes | None = None,
+    require_signatures: bool = False,
 ) -> LedgerVerification:
-    """Recompute every row and link; never trusts stored hashes."""
+    """Recompute every row, link, and available Ed25519 signature offline."""
 
     rows = tuple(_coerce_entry(entry) for entry in entries)
     reasons: list[str] = []
     previous = GENESIS_HASH
+    expected_public_key: Ed25519PublicKey | None = None
+    if public_key is not None:
+        try:
+            expected_public_key = _public_key(public_key)
+        except (TypeError, ValueError) as exc:
+            reasons.append(f"provided public key is invalid: {exc}")
     for expected_sequence, entry in enumerate(rows):
         if entry.sequence != expected_sequence:
             reasons.append(f"entry {expected_sequence} has sequence {entry.sequence}")
@@ -561,16 +885,44 @@ def verify_ledger(
             reasons.append(
                 f"entry {expected_sequence} has a mismatched certificate hash"
             )
-        unsigned = {
-            "schema": LEDGER_SCHEMA,
-            "sequence": entry.sequence,
-            "task_id": entry.task_id,
-            "certificate_hash": entry.certificate_hash,
-            "previous_hash": entry.previous_hash,
-            "certificate": entry.certificate,
-        }
-        if entry.entry_hash != sha256_text(_canonical(unsigned)):
+        if entry.entry_hash != sha256_text(_canonical(entry.hash_dict())):
             reasons.append(f"entry {expected_sequence} has a mismatched entry hash")
+        if require_signatures and entry.signature is None:
+            reasons.append(f"entry {expected_sequence} is unsigned")
+        if entry.signature is not None:
+            if entry.public_key is None:
+                reasons.append(f"entry {expected_sequence} has no public key")
+            else:
+                try:
+                    embedded_public_key = _public_key(
+                        _decode_b64(entry.public_key, "public key")
+                    )
+                    if (
+                        expected_public_key is not None
+                        and embedded_public_key.public_bytes(
+                            serialization.Encoding.Raw,
+                            serialization.PublicFormat.Raw,
+                        )
+                        != expected_public_key.public_bytes(
+                            serialization.Encoding.Raw,
+                            serialization.PublicFormat.Raw,
+                        )
+                    ):
+                        reasons.append(
+                            f"entry {expected_sequence} uses an unexpected public key"
+                        )
+                    embedded_public_key.verify(
+                        _decode_b64(entry.signature, "signature"),
+                        _canonical(entry.signing_dict()).encode("utf-8"),
+                    )
+                except (InvalidSignature, TypeError, ValueError) as exc:
+                    reasons.append(
+                        f"entry {expected_sequence} has an invalid signature: {exc}"
+                    )
+        elif entry.public_key is not None:
+            reasons.append(
+                f"entry {expected_sequence} has a public key but no signature"
+            )
         previous = entry.entry_hash
     return LedgerVerification(not reasons, len(rows), tuple(reasons))
 
@@ -583,14 +935,19 @@ __all__ = [
     "CertificateStatus",
     "CertificateVerification",
     "DeliveryCertificate",
+    "Ed25519Signer",
     "EvidenceVerdict",
     "LedgerEntry",
     "LedgerVerification",
     "ReproducibleManifest",
+    "ReplayVerification",
     "RoutingDecision",
+    "SignedLedgerStore",
     "StructuralCheck",
     "TaskCertificate",
     "sha256_text",
+    "verify_ledger_file",
+    "verify_replay",
     "verify_ledger",
 ]
 

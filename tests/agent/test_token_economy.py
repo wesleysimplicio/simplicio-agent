@@ -10,6 +10,7 @@ from agent.context_references import ContextReference
 from agent.model_metadata import estimate_tokens_rough
 from agent.telemetry.receipts import Cost, Receipt, content_hash
 from agent.token_economy import (
+    ContextEmission,
     PaidArtifactRegistry,
     ShrinkingSummary,
     make_shrinking_summary,
@@ -105,6 +106,32 @@ def test_registry_rejects_stale_or_adversarial_materializer() -> None:
         registry.materialize(handle)
 
 
+def test_render_emits_body_once_then_a_handle_with_measured_savings() -> None:
+    text = "paid context body " * 20
+    calls = 0
+
+    def load() -> str:
+        nonlocal calls
+        calls += 1
+        return text
+
+    registry = PaidArtifactRegistry(max_resident=100)
+    handle = registry.register(_receipt(text), load)
+
+    first = registry.render(handle)
+    second = registry.render(handle)
+
+    assert isinstance(first, ContextEmission)
+    assert first.text == text
+    assert not first.cache_hit
+    assert first.admitted
+    assert second.text == second.handle == registry.handle(handle)
+    assert second.cache_hit
+    assert second.tokens_saved > 0
+    assert calls == 1
+    assert registry.resident_tokens <= registry.max_resident
+
+
 def test_tail_is_bounded_and_lookup_remains_content_addressed() -> None:
     registry = PaidArtifactRegistry(max_resident=100, tail_capacity=2)
     handles = [
@@ -128,7 +155,6 @@ def test_handle_is_short_but_full_sha_remains_collision_safe() -> None:
     assert len(handle.handle) == 8
     assert handle.handle == bytes.fromhex(handle.sha)[:8]
     assert len(handle.sha) == 64
-    assert registry.handle_marker(handle).startswith("⟦context:")
 
 
 def test_second_mention_is_a_zero_token_tail_cache_hit() -> None:
@@ -149,10 +175,7 @@ def test_second_mention_is_a_zero_token_tail_cache_hit() -> None:
 def test_concurrent_admission_never_exceeds_resident_cap() -> None:
     registry = PaidArtifactRegistry(max_resident=8)
     handles = [
-        registry.register(
-            _receipt(f"concurrent-{i}", tokens=1),
-            lambda i=i: f"concurrent-{i}",
-        )
+        registry.register(_receipt(f"concurrent-{i}", tokens=1), lambda i=i: f"concurrent-{i}")
         for i in range(64)
     ]
 

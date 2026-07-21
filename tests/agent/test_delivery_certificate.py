@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import base64
+
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from agent.delivery_certificate import (
     CertificateLedger,
@@ -157,3 +160,67 @@ def test_ledger_detects_broken_link_even_when_entry_payload_is_unchanged():
     result = verify_ledger(tampered)
     assert result.valid is False
     assert any("previous-hash link" in reason for reason in result.reasons)
+
+
+def test_signed_ledger_verifies_offline_and_strict_mode_rejects_unsigned_rows():
+    ledger = CertificateLedger(
+        signing_key=Ed25519PrivateKey.generate(),
+        signer="operator:test-installation",
+    )
+    ledger.append(
+        TaskCertificate.create(
+            task_id="task-24",
+            manifest=_manifest(),
+            evidence=(_evidence(),),
+            structural_checks=(_check(),),
+        )
+    )
+
+    entry = ledger.to_list()[0]
+    assert entry["signature"]
+    assert entry["public_key"]
+    assert entry["signer"] == "operator:test-installation"
+    assert ledger.verify(require_signatures=True).valid
+    assert verify_ledger(
+        (entry for entry in ledger.entries), require_signatures=True
+    ).valid
+
+    unsigned = CertificateLedger()
+    unsigned.append(
+        TaskCertificate.create(
+            task_id="task-24",
+            manifest=_manifest(),
+            evidence=(_evidence(),),
+            structural_checks=(_check(),),
+        )
+    )
+    result = unsigned.verify(require_signatures=True)
+    assert result.valid is False
+    assert any("unsigned" in reason for reason in result.reasons)
+
+
+def test_signed_ledger_detects_signature_and_public_key_tampering():
+    ledger = CertificateLedger(signing_key=Ed25519PrivateKey.generate())
+    ledger.append(
+        TaskCertificate.create(
+            task_id="task-24",
+            manifest=_manifest(),
+            evidence=(_evidence(),),
+            structural_checks=(_check(),),
+        )
+    )
+
+    tampered_signature = ledger.to_list()
+    signature = tampered_signature[0]["signature"]
+    tampered_signature[0]["signature"] = base64.b64encode(
+        bytes([signature.encode("ascii")[0] ^ 1]) + b"invalid"
+    ).decode("ascii")
+    result = verify_ledger(tampered_signature, require_signatures=True)
+    assert result.valid is False
+    assert any("invalid signature" in reason for reason in result.reasons)
+
+    tampered_key = ledger.to_list()
+    tampered_key[0]["public_key"] = base64.b64encode(b"x" * 32).decode("ascii")
+    result = verify_ledger(tampered_key, require_signatures=True)
+    assert result.valid is False
+    assert any("invalid signature" in reason for reason in result.reasons)

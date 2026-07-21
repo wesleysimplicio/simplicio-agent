@@ -449,21 +449,29 @@ class SimplicioTransport:
             )
         raw = (proc.stdout or "").strip()
         if not raw:
-            value: Any = {}
-        else:
-            try:
-                value = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                return TransportReceipt.failure(
-                    operation,
-                    TransportError(
-                        "cli_invalid_json",
-                        f"CLI returned invalid JSON: {exc}",
-                        retryable=False,
-                    ),
-                    request_id=request_id,
-                    elapsed_ms=(time.monotonic() - started) * 1000,
-                )
+            return TransportReceipt.failure(
+                operation,
+                TransportError(
+                    "cli_empty_output",
+                    "CLI returned empty output; refusing to infer success",
+                    retryable=False,
+                ),
+                request_id=request_id,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return TransportReceipt.failure(
+                operation,
+                TransportError(
+                    "cli_invalid_json",
+                    f"CLI returned invalid JSON: {exc}",
+                    retryable=False,
+                ),
+                request_id=request_id,
+                elapsed_ms=(time.monotonic() - started) * 1000,
+            )
         return TransportReceipt.success(
             operation,
             value,

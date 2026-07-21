@@ -85,6 +85,21 @@ def test_cli_command_error_does_not_trigger_mcp_fallback():
     assert run.call_count == 1
 
 
+def test_cli_empty_output_is_failure_not_inferred_success():
+    import subprocess
+
+    proc = subprocess.CompletedProcess(
+        ["simplicio"], 0, stdout="", stderr=""
+    )
+    with patch("tools.simplicio_transport.subprocess.run", return_value=proc):
+        receipt = SimplicioTransport(cli_bin="simplicio").mechanical_edit(
+            {"file": "note.txt", "operations": []}
+        )
+
+    assert receipt.ok is False
+    assert receipt.error.code == "cli_empty_output"
+
+
 def test_timeout_is_a_cli_error_not_mcp_fallback():
     import subprocess
 

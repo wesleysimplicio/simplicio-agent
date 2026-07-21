@@ -48,11 +48,35 @@ class AdmissionDecision:
 
 @dataclass(frozen=True)
 class MentionDecision:
-    """Measured result for one context mention."""
+    """Measured result for a context mention.
+
+    The first mention pays the measured body cost. Subsequent mentions use
+    the O(1) content-addressed tail index and add no body tokens.
+    """
 
     handle: bytes
     first: bool
     tokens: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class ContextEmission:
+    """One bounded context emission from a registered artifact.
+
+    The first successful emission contains the materialized body. Later
+    emissions contain only the stable handle, so a repeated reference does
+    not re-inject the paid body. ``receipt`` always carries the original
+    positive measured cost; cache hits never invent a zero-cost receipt.
+    """
+
+    text: str
+    handle: str
+    receipt: Receipt
+    cache_hit: bool
+    injected_tokens: int
+    tokens_saved: int
+    admitted: bool
     reason: str
 
 
@@ -65,12 +89,19 @@ class PaidArtifactRegistry:
     replace paid content.
     """
 
-    def __init__(self, *, max_resident: int, tail_capacity: int = 128) -> None:
+    def __init__(
+        self,
+        *,
+        max_resident: int,
+        tail_capacity: int = 128,
+        receipt_directory: Path | None = None,
+    ) -> None:
         if max_resident < 1:
             raise ValueError("max_resident must be positive")
         if tail_capacity < 1:
             raise ValueError("tail_capacity must be positive")
         self.max_resident = max_resident
+        self.receipt_directory = receipt_directory
         self._entries: dict[str, PaidArtifactHandle] = {}
         self._tail: deque[str] = deque(maxlen=tail_capacity)
         self._resident: set[str] = set()
@@ -195,6 +226,66 @@ class PaidArtifactRegistry:
             self._materialized[handle.sha] = text
             return text
 
+    def render(self, handle_or_sha: PaidArtifactHandle | str) -> ContextEmission:
+        """Emit an artifact body once, then emit only its content handle.
+
+        Admission happens before materialization. A rejected admission is
+        fail-closed: the caller receives a handle and no body. This method is
+        deliberately separate from ``materialize`` so an explicit expansion
+        can still request the body while ordinary repeated references remain
+        tail-O(1) and body-free.
+        """
+
+        with self._lock:
+            handle = self._resolve(handle_or_sha)
+            if handle is None:
+                raise KeyError("unknown artifact")
+
+            marker = self.handle(handle)
+            if handle.sha in self._paid:
+                return ContextEmission(
+                    text=marker,
+                    handle=marker,
+                    receipt=handle.receipt,
+                    cache_hit=True,
+                    injected_tokens=0,
+                    tokens_saved=handle.token_cost,
+                    admitted=handle.sha in self._resident,
+                    reason="tail-o(1)-cache-hit",
+                )
+
+            decision = self.admit(handle)
+            if not decision.admitted:
+                return ContextEmission(
+                    text=marker,
+                    handle=marker,
+                    receipt=handle.receipt,
+                    cache_hit=False,
+                    injected_tokens=0,
+                    tokens_saved=handle.token_cost,
+                    admitted=False,
+                    reason=decision.reason,
+                )
+
+            body = self.materialize(handle)
+            self._paid.add(handle.sha)
+            return ContextEmission(
+                text=body,
+                handle=marker,
+                receipt=handle.receipt,
+                cache_hit=False,
+                injected_tokens=estimate_tokens_rough(body),
+                tokens_saved=0,
+                admitted=True,
+                reason="materialized",
+            )
+
+    @staticmethod
+    def handle(handle: PaidArtifactHandle) -> str:
+        """Return the stable opaque handle used in subsequent prompt turns."""
+
+        return f"⟦context:{handle.handle.hex()}⟧"
+
     def release(self, handle_or_sha: PaidArtifactHandle | str) -> bool:
         """Release resident content and its token admission."""
 
@@ -211,15 +302,7 @@ class PaidArtifactRegistry:
         """Return the bounded recent-registration tail in insertion order."""
 
         with self._lock:
-            return tuple(
-                self._entries[sha] for sha in self._tail if sha in self._entries
-            )
-
-    @staticmethod
-    def handle_marker(handle: PaidArtifactHandle) -> str:
-        """Return the short opaque handle safe to carry in a prompt."""
-
-        return f"⟦context:{handle.handle.hex()}⟧"
+            return tuple(self._entries[sha] for sha in self._tail if sha in self._entries)
 
     def _resolve(
         self, handle_or_sha: PaidArtifactHandle | str
@@ -332,7 +415,11 @@ def register_context_artifact(
             "proof_kind": "measured_rough_estimate",
             "reference": reference.raw,
         },
-        directory=receipt_directory,
+        directory=(
+            registry.receipt_directory
+            if receipt_directory is None
+            else receipt_directory
+        ),
     )
     return registry.register(
         receipt,
