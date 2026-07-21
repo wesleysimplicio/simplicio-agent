@@ -12,22 +12,13 @@ Simplicio Agent e Simplicio Runtime SÃO UM SÓ. Não existe separação. O Agen
   Depois disso o corpo do Agent já existe — instalação não é a política de
   quando usar cada ferramenta durante uma conversa.
 - **Uso diário** (toda tarefa, a partir daqui em diante): é a política
-  Hermes-native-first descrita abaixo — decide, turno a turno, se você lê,
-  muta ou cai no fallback nativo.
+  Simplicio-runtime-first descrita abaixo — toda ferramenta nativa executável
+  tenta o Runtime e só cai no fallback nativo com gap explícito.
 
-## Política Hermes-native-first (issue #100)
-- Leitura / busca / análise -> ferramentas nativas do Hermes primeiro
-  (orientação, exploração, entendimento de contexto). Reduz atrito e custo.
-- Mutação / validação / checkpoints -> Simplicio-runtime é o caminho
-  preferido e determinístico (`simplicio edit`, `simplicio validate`,
-  `simplicio checkpoints`, `simplicio map`, `simplicio memory`, `simplicio
-  savings`, etc.). Use `simplicio <subcommand>` via terminal quando o MCP
-  não estiver ativo.
-- Fallback nativo é uma EXCEÇÃO explícita, não um substituto silencioso: só
-  quando o Runtime ainda não cobrir algo. Registre a lacuna (issue) para o
-  Runtime evoluir; não trave o fluxo do usuário esperando essa evolução.
-- Fluxo obrigatório: Hermes native read/search/orient -> Simplicio runtime
-  execute/validate/checkpoint -> fallback nativo só para gaps explícitos.
+- Toda ferramenta nativa executável tenta o Simplicio-runtime primeiro, usando
+  CLI e depois MCP quando a CLI está indisponível.
+- Fallback nativo é uma EXCEÇÃO explícita, com
+  `UNVERIFIED| runtime capability gap` e issue para fechar a lacuna.
 - Binario: ~/.local/bin/simplicio. Runtime: ~/Projetos/ai/simplicio-runtime.
 
 ## 🧠 Personalidade e Comportamento Humano (ATIVO)

@@ -1,13 +1,11 @@
-"""Guard the Hermes-native-first policy is codified and stable (issue #100).
+"""Guard the Simplicio-runtime-first policy is codified and stable.
 
-The expected behavior was explicit in conversation but never pinned down as
-a stable, verifiable policy: read/search/analyze -> native Hermes tools;
-mutate/validate/checkpoint -> Simplicio-runtime; native fallback only as an
-explicit exception for gaps the runtime doesn't cover yet.
+The central native-tool dispatcher attempts Simplicio Runtime first. Native
+fallback remains an explicit exception for gaps the runtime doesn't cover yet.
 
 This test covers the acceptance criteria that are mechanically checkable:
-  - the default guidance mentions Hermes-native-first
-  - write/patch still prefer (are routed to) the Simplicio-runtime
+  - the default guidance mentions Simplicio-runtime-first
+  - write/patch guidance names the central Runtime adapter
   - the native fallback is framed as an explicit exception, not a silent
     substitute
   - user-facing setup text distinguishes "installation" from "daily use"
@@ -26,8 +24,8 @@ from plugins.simplicio import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_policy_constant_mentions_hermes_native_first():
-    assert "Hermes-native-first" in HERMES_NATIVE_FIRST_POLICY
+def test_policy_constant_mentions_runtime_first():
+    assert "Simplicio-runtime-first" in HERMES_NATIVE_FIRST_POLICY
     assert "runtime" in HERMES_NATIVE_FIRST_POLICY.lower()
 
 
@@ -41,30 +39,27 @@ def test_policy_constant_frames_native_fallback_as_explicit_exception():
 def test_write_and_patch_guidance_prefer_the_runtime():
     for tool_name in ("write_file", "patch"):
         guidance = _TOOL_GUIDANCE[tool_name]
-        assert "simplicio edit" in guidance or "simplicio dev-cli" in guidance
-        assert "read_file" in guidance or "search_files" in guidance
+        assert "simplicio edit" in guidance
+        assert "Runtime adapter" in guidance
 
 
-def test_block_message_surfaces_the_policy_and_prefers_runtime():
+def test_pre_tool_hook_does_not_block_before_runtime_adapter():
     result = _on_pre_tool_call(
         tool_name="write_file",
         args={"path": "/Users/wesleysimplicio/Projetos/ai/simplicio-runtime/src/main.rs", "content": "x"},
     )
-    assert isinstance(result, dict)
-    assert result["action"] == "block"
-    assert "Hermes-native-first" in result["message"]
-    assert "simplicio edit" in result["message"] or "simplicio dev-cli" in result["message"]
+    assert result is None
 
 
-def test_default_soul_md_mentions_hermes_native_first():
+def test_default_soul_md_mentions_runtime_first():
     from hermes_cli.default_soul import DEFAULT_SOUL_MD
 
-    assert "Hermes-native-first" in DEFAULT_SOUL_MD
+    assert "Simplicio-runtime-first" in DEFAULT_SOUL_MD
 
 
 def test_docker_soul_md_distinguishes_installation_from_daily_use():
     text = (REPO_ROOT / "docker" / "SOUL.md").read_text(encoding="utf-8")
-    assert "Hermes-native-first" in text
+    assert "Simplicio-runtime-first" in text
     assert "Instalação" in text or "instalação" in text
     assert "uso diário" in text.lower()
     # The daily-use policy line itself, not just a heading.

@@ -130,6 +130,10 @@ class SimplicioTransport:
         "recall": ("memory",),
         "ledger": ("ledger", "append"),
         "gitram": ("gitram",),
+        # The runtime-native adapter supplies the tool name dynamically.  The
+        # empty tuple is only a validation sentinel; `_runtime_tool_argv`
+        # selects the concrete CLI command.
+        "runtime_tool": (),
     }
     _MCP_TOOLS = {
         "gate": "simplicio_gate",
@@ -258,6 +262,22 @@ class SimplicioTransport:
         full = [subcommand, *args]
         return self.call("gitram", _raw_args=full)
 
+    def call_tool(
+        self, name: str, arguments: Optional[dict[str, Any]] = None
+    ) -> TransportReceipt:
+        """Call one first-party Simplicio runtime tool by MCP name.
+
+        This is the generic boundary used by the native-tool adapter.  Known
+        tools use their concrete CLI command first; when that command is not
+        available, the existing one-shot MCP fallback receives the exact MCP
+        tool name and arguments.
+        """
+        return self.call(
+            "runtime_tool",
+            name=name,
+            arguments=dict(arguments or {}),
+        )
+
     def call(self, operation: str, **arguments: Any) -> TransportReceipt:
         """Execute one operation and return a uniform receipt."""
         request_id = uuid.uuid4().hex
@@ -359,7 +379,15 @@ class SimplicioTransport:
         cli_bin = self._resolve_cli()
         if not cli_bin:
             return None
-        argv, input_data = self._argv(operation, args)
+        if operation == "runtime_tool":
+            runtime_argv = self._runtime_tool_argv(args)
+            # No concrete CLI mapping means this operation must use MCP when
+            # configured; it is not a reason to execute a different command.
+            if runtime_argv is None:
+                return None
+            argv, input_data = runtime_argv
+        else:
+            argv, input_data = self._argv(operation, args)
         started = time.monotonic()
         try:
             command = [cli_bin, *argv]
@@ -487,6 +515,48 @@ class SimplicioTransport:
             return base + [str(a) for a in raw] + ["--json"], None
         return base, None
 
+    @staticmethod
+    def _runtime_tool_argv(
+        args: dict[str, Any],
+    ) -> Optional[tuple[list[str], Optional[str]]]:
+        """Translate the bounded first-party MCP tools to CLI argv.
+
+        Keep this table intentionally explicit.  A generic MCP tool name must
+        never be guessed into an arbitrary subprocess command.
+        """
+        name = args.get("name")
+        tool_args = args.get("arguments") or {}
+        if not isinstance(name, str) or not isinstance(tool_args, dict):
+            return None
+
+        if name == "simplicio_file_read":
+            path = tool_args.get("path")
+            if not isinstance(path, str) or not path:
+                return None
+            argv = ["file", "read", path, "--json"]
+            repo = tool_args.get("repo")
+            if isinstance(repo, str) and repo:
+                argv += ["--repo", repo]
+            for key, flag in (("start", "--start"), ("end", "--end"), ("max_bytes", "--max-bytes")):
+                value = tool_args.get(key)
+                if value is not None:
+                    argv += [flag, str(value)]
+            return argv, None
+
+        if name == "simplicio_edit":
+            plan = tool_args.get("plan")
+            if not isinstance(plan, str) or not plan:
+                return None
+            return ["edit", plan, "--json"], None
+
+        if name == "simplicio_session_search":
+            query = tool_args.get("query")
+            if not isinstance(query, str) or not query:
+                return None
+            return ["session", "search", query], None
+
+        return None
+
     # -- MCP -----------------------------------------------------------
     def _call_mcp(
         self, operation: str, args: dict[str, Any], *, request_id: str
@@ -558,7 +628,11 @@ class SimplicioTransport:
                     "id": 2,
                     "method": "tools/call",
                     "params": {
-                        "name": self._MCP_TOOLS[operation],
+                        "name": (
+                            args["name"]
+                            if operation == "runtime_tool"
+                            else self._MCP_TOOLS[operation]
+                        ),
                         "arguments": mcp_arguments,
                     },
                 })
@@ -611,6 +685,9 @@ class SimplicioTransport:
     @staticmethod
     def _mcp_arguments(operation: str, args: dict[str, Any]) -> dict[str, Any]:
         """Map the CLI-shaped operation arguments to runtime MCP arguments."""
+        if operation == "runtime_tool":
+            arguments = args.get("arguments")
+            return dict(arguments) if isinstance(arguments, dict) else {}
         if operation == "gate":
             return {"action": args["command"]}
         if operation == "checkpoint":
