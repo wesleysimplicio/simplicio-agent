@@ -1141,6 +1141,29 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
 
         tool_start_time = time.time()
 
+        def _runtime_first_special(next_args: dict) -> tuple[bool, Any]:
+            """Give Runtime first refusal for agent-level native built-ins."""
+            if function_name not in {"todo", "session_search", "memory", "read_terminal"}:
+                return False, None
+            try:
+                from tools.runtime_native_tools import dispatch_native_tool
+
+                runtime_dispatch = dispatch_native_tool(
+                    function_name,
+                    next_args,
+                    task_id=effective_task_id or "default",
+                )
+                middleware_trace.append(runtime_dispatch.trace())
+                if runtime_dispatch.handled:
+                    return True, runtime_dispatch.result
+            except Exception as exc:
+                logger.warning(
+                    "UNVERIFIED| runtime capability gap: tool=%s; reason=adapter_exception: %s",
+                    function_name,
+                    exc,
+                )
+            return False, None
+
         if _block_msg is not None:
             # Tool blocked by plugin policy — return error without executing.
             function_result = json.dumps({"error": _block_msg}, ensure_ascii=False)
@@ -1176,6 +1199,9 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
             )
         elif function_name == "todo":
             def _execute(next_args: dict) -> Any:
+                runtime_handled, runtime_result = _runtime_first_special(next_args)
+                if runtime_handled:
+                    return runtime_result
                 from tools.todo_tool import todo_tool as _todo_tool
                 return _todo_tool(
                     todos=next_args.get("todos"),
@@ -1195,6 +1221,9 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 agent._vprint(f"  {_get_cute_tool_message_impl('todo', function_args, tool_duration, result=function_result)}")
         elif function_name == "session_search":
             def _execute(next_args: dict) -> Any:
+                runtime_handled, runtime_result = _runtime_first_special(next_args)
+                if runtime_handled:
+                    return runtime_result
                 session_db = agent._get_session_db_for_recall()
                 if not session_db:
                     from hermes_state import format_session_db_unavailable
@@ -1224,6 +1253,9 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 agent._vprint(f"  {_get_cute_tool_message_impl('session_search', function_args, tool_duration, result=function_result)}")
         elif function_name == "memory":
             def _execute(next_args: dict) -> Any:
+                runtime_handled, runtime_result = _runtime_first_special(next_args)
+                if runtime_handled:
+                    return runtime_result
                 target = next_args.get("target", "memory")
                 operations = next_args.get("operations")
                 from tools.memory_tool import memory_tool as _memory_tool
@@ -1280,6 +1312,9 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 agent._vprint(f"  {_get_cute_tool_message_impl('clarify', function_args, tool_duration, result=function_result)}")
         elif function_name == "read_terminal":
             def _execute(next_args: dict) -> Any:
+                runtime_handled, runtime_result = _runtime_first_special(next_args)
+                if runtime_handled:
+                    return runtime_result
                 from tools.read_terminal_tool import read_terminal_tool as _read_terminal_tool
                 return _read_terminal_tool(
                     start_line=next_args.get("start_line"),

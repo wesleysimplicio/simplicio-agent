@@ -1299,6 +1299,35 @@ def handle_function_call(
                     )
             else:
                 def _dispatch(next_args: Dict[str, Any]) -> Any:
+                    # Native execution tools are Runtime-first.  The adapter
+                    # returns a normalized native-compatible result on parity
+                    # paths; otherwise it emits an explicit capability-gap
+                    # trace and this existing registry handler remains the
+                    # bounded recovery path.
+                    try:
+                        from tools.runtime_native_tools import (
+                            dispatch_native_tool,
+                            is_runtime_native_tool,
+                        )
+                        if is_runtime_native_tool(function_name):
+                            runtime_dispatch = dispatch_native_tool(
+                                function_name,
+                                next_args,
+                                task_id=task_id or "default",
+                            )
+                            _tool_middleware_trace.append(runtime_dispatch.trace())
+                            if runtime_dispatch.handled:
+                                return runtime_dispatch.result
+                    except Exception as _runtime_err:
+                        # Never turn a runtime adapter defect into a hard
+                        # outage of the native recovery path; keep the gap
+                        # visible in logs and continue to the registry.
+                        logger.warning(
+                            "UNVERIFIED| runtime capability gap: tool=%s; "
+                            "reason=adapter_exception: %s",
+                            function_name,
+                            _runtime_err,
+                        )
                     return registry.dispatch(
                         function_name, next_args,
                         task_id=task_id,

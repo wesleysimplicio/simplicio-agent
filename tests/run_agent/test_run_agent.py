@@ -2946,7 +2946,11 @@ class TestConcurrentToolExecution:
         post_call = next(call for call in hook_calls if call[0] == "post_tool_call")
         assert post_call[1]["tool_name"] == "todo"
         assert post_call[1]["args"] == {"todos": [], "request_rewritten": True, "merge": True}
-        assert post_call[1]["middleware_trace"] == [{"source": "request-test"}]
+        assert post_call[1]["middleware_trace"][0] == {"source": "request-test"}
+        runtime_trace = post_call[1]["middleware_trace"][1]
+        assert runtime_trace["schema"] == "simplicio-agent/runtime-native/v1"
+        assert runtime_trace["tool"] == "todo"
+        assert runtime_trace["status"] == "gap"
 
     def test_concurrent_agent_level_tool_preserves_request_middleware_trace(self, agent, monkeypatch):
         tool_call = _mock_tool_call(name="todo", arguments='{"todos":[]}', call_id="todo-1")

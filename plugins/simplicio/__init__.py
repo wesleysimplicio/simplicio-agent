@@ -19,22 +19,17 @@ _PATH_ARG_KEYS = (
 )
 
 # ---------------------------------------------------------------------------
-# Hermes-native-first policy (issue #100)
+# Simplicio-runtime-first policy
 #
 # Stable, codified guidance -- not just conversational convention -- for
 # which surface handles which kind of work:
 #
-#   1. Read / search / analyze -> native Hermes tools (`read_file`,
-#      `search_files`, grep-style tools, etc.). This is orientation work:
-#      cheapest, fastest, no repo lock-in, and it's what Hermes is already
-#      good at.
-#   2. Mutate / validate / checkpoint -> Simplicio-runtime (`simplicio edit`,
-#      `simplicio dev-cli`, `simplicio validate`, `simplicio checkpoints`,
-#      ...). Deterministic, evidence-producing, and -- for managed repos --
-#      the *only* path `_on_pre_tool_call` below allows for writes.
-#   3. Native fallback is an explicit EXCEPTION, not a silent substitute:
-#      only when the runtime doesn't cover something yet, and the gap
-#      should be logged (an issue) so the runtime grows to close it.
+#   1. Every executable native tool first enters the central Runtime adapter.
+#      Compatible calls become deterministic `simplicio` CLI/MCP calls.
+#   2. Native execution remains available only as an explicit, observable
+#      recovery path when the adapter reports a Runtime capability gap.
+#   3. This plugin is advisory here: blocking the native name before the
+#      central adapter would prevent the Runtime-first route from running.
 #
 # This is the *task-type* axis (read vs. mutate). It composes with, and
 # deliberately does not restate, AGENTS.md "Tool routing" (issue #212),
@@ -43,15 +38,15 @@ _PATH_ARG_KEYS = (
 # mutate. See AGENTS.md#tool-routing for that piece.
 # ---------------------------------------------------------------------------
 HERMES_NATIVE_FIRST_POLICY = (
-    "Hermes-native-first: read/search/analyze with native Hermes tools; "
-    "mutate/validate/checkpoint through the Simplicio-runtime; fall back to "
-    "native tools only as an explicit exception when the runtime has a gap "
-    "(and log that gap so the runtime can close it)."
+    "Simplicio-runtime-first: every executable native tool attempts the "
+    "Simplicio-runtime CLI first and MCP only when the CLI is unavailable; "
+    "fall back to native tools only as an explicit, logged exception when "
+    "the runtime has a capability gap."
 )
 
 _TOOL_GUIDANCE = {
-    "write_file": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes, validation, and checkpoints.",
-    "patch": "Prefer Hermes native `read_file`/`search_files` first for orientation, then use `simplicio edit --plan ... --repo <repo>` or `simplicio dev-cli \"<task>\" --repo <repo>` for writes, validation, and checkpoints.",
+    "write_file": "The native call is routed through `simplicio edit` by the central Runtime adapter; inspect the Runtime receipt and close any `UNVERIFIED| runtime capability gap` before relying on native recovery.",
+    "patch": "The native call is routed through `simplicio edit` by the central Runtime adapter; inspect the Runtime receipt and close any `UNVERIFIED| runtime capability gap` before relying on native recovery.",
 }
 _BLOCKED_TOOLS = frozenset(_TOOL_GUIDANCE)
 
@@ -121,24 +116,18 @@ def _block_message(tool_name: str, repo: Path) -> str:
 
 
 def _on_pre_tool_call(tool_name: str = "", args: Any = None, **_: Any) -> Optional[Dict[str, str]]:
-    if _plugin_disabled() or tool_name not in _BLOCKED_TOOLS or not isinstance(args, dict):
-        return None
-    repo = _target_repo(args)
-    if repo is None:
-        return None
-    return {"action": "block", "message": _block_message(tool_name, repo)}
+    # Do not block on the native tool name. The central dispatcher must run
+    # first so Runtime can execute compatible calls and emit the typed gap
+    # receipt before native recovery is considered.
+    return None
 
 
 # ---------------------------------------------------------------------------
 # Watcher PID pattern (Asolaria N-Nest-Prime, issue #17 P0 #1)
 #
-# `_on_pre_tool_call` above forces every write inside a managed repo through
-# the terminal (`simplicio edit` / `simplicio dev-cli`), which means the
-# native `_turn_file_mutation_paths` verifier (run_agent.py) never sees
-# these edits at all -- it only tracks the native write_file/patch tools
-# this very plugin blocks. So the "did the edit actually land" check needs
-# its own, independent watcher here, at the one place that reliably sees
-# every terminal command AND its real output: `transform_terminal_output`.
+# The central Runtime adapter owns the normal write/patch route. The watcher
+# below independently verifies resulting `simplicio edit` commands so an edit
+# is not trusted merely because its child process reported success.
 #
 # The watcher is a genuinely separate recompute, not a reminder for the
 # same agent to redo its own check: it runs `simplicio validate --repo

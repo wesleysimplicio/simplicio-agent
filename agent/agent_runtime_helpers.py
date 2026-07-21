@@ -2357,6 +2357,30 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
         ]
         return result
 
+    # Agent-level built-ins bypass model_tools' registry dispatcher. Give the
+    # same native execution surfaces a Runtime-first attempt here so the
+    # sequential/concurrent agent paths cannot become a silent bypass.
+    if function_name in {"todo", "session_search", "memory", "read_terminal"}:
+        try:
+            from tools.runtime_native_tools import dispatch_native_tool
+
+            runtime_dispatch = dispatch_native_tool(
+                function_name,
+                function_args,
+                task_id=effective_task_id or "default",
+            )
+            _tool_middleware_trace.append(runtime_dispatch.trace())
+            if runtime_dispatch.handled:
+                return _complete_pipeline(
+                    _finish_agent_tool(runtime_dispatch.result, function_args)
+                )
+        except Exception as _runtime_err:
+            logger.warning(
+                "UNVERIFIED| runtime capability gap: tool=%s; reason=adapter_exception: %s",
+                function_name,
+                _runtime_err,
+            )
+
     if function_name == "todo":
         def _execute(next_args: dict) -> Any:
             from tools.todo_tool import todo_tool as _todo_tool
