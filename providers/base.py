@@ -11,6 +11,7 @@ Those stay on AIAgent.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -172,6 +173,74 @@ class ProviderProfile:
         """
         return self.default_max_tokens
 
+    def _model_catalog_url(self, base_url: str | None) -> str | None:
+        """Resolve the live catalog URL using the sync and async paths."""
+        effective_base = base_url or self.base_url
+        url = (self.models_url or "").strip()
+        if not url:
+            if not effective_base:
+                return None
+            url = effective_base.rstrip("/") + "/models"
+        return url
+
+    def _model_catalog_headers(self, api_key: str | None) -> dict[str, str]:
+        """Build headers once so both facades preserve provider auth behavior."""
+        headers: dict[str, str] = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        headers.update(
+            {
+                "Accept": "application/json",
+                "User-Agent": _profile_user_agent(),
+            }
+        )
+        headers.update(self.default_headers)
+        return headers
+
+    @staticmethod
+    def _parse_model_catalog(data: Any) -> list[str]:
+        items = data if isinstance(data, list) else data.get("data", [])
+        return [m["id"] for m in items if isinstance(m, dict) and "id" in m]
+
+    async def fetch_models_async(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        timeout: float = 8.0,
+    ) -> list[str] | None:
+        """Fetch a model catalog without blocking the running event loop.
+
+        This is the native async counterpart to :meth:`fetch_models`. It uses
+        an owned ``httpx.AsyncClient`` whose context closes on success,
+        timeout, or cancellation. Redirects are not followed so credential
+        headers cannot cross an unverified origin; callers retain the existing
+        static catalog fallback when this method returns ``None``.
+        """
+        url = self._model_catalog_url(base_url)
+        if url is None:
+            return None
+
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=False,
+            ) as client:
+                response = await client.get(
+                    url,
+                    headers=self._model_catalog_headers(api_key),
+                )
+                response.raise_for_status()
+                data = response.json()
+            return self._parse_model_catalog(data)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.debug("fetch_models_async(%s): %s", self.name, exc)
+            return None
+
     def fetch_models(
         self,
         *,
@@ -199,34 +268,21 @@ class ProviderProfile:
         Callers must always fall back to the static _PROVIDER_MODELS list
         when this returns None.
         """
-        effective_base = base_url or self.base_url
-        url = (self.models_url or "").strip()
-        if not url:
-            if not effective_base:
-                return None
-            url = effective_base.rstrip("/") + "/models"
+        url = self._model_catalog_url(base_url)
+        if url is None:
+            return None
 
         import json
         import urllib.request
 
         from hermes_cli.urllib_security import open_credentialed_url
 
-        req = urllib.request.Request(url)
-        if api_key:
-            req.add_header("Authorization", f"Bearer {api_key}")
-        req.add_header("Accept", "application/json")
-        # Some providers (e.g. OpenCode Zen) sit behind a WAF that blocks
-        # the default ``Python-urllib/<ver>`` User-Agent.  Set a generic
-        # hermes-cli UA so the catalog endpoint is reachable.
-        req.add_header("User-Agent", _profile_user_agent())
-        for k, v in self.default_headers.items():
-            req.add_header(k, v)
+        req = urllib.request.Request(url, headers=self._model_catalog_headers(api_key))
 
         try:
             with open_credentialed_url(req, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode())
-            items = data if isinstance(data, list) else data.get("data", [])
-            return [m["id"] for m in items if isinstance(m, dict) and "id" in m]
+            return self._parse_model_catalog(data)
         except Exception as exc:
             logger.debug("fetch_models(%s): %s", self.name, exc)
             return None

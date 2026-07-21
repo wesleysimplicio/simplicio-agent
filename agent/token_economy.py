@@ -103,6 +103,7 @@ class PaidArtifactRegistry:
         self.max_resident = max_resident
         self.receipt_directory = receipt_directory
         self._entries: dict[str, PaidArtifactHandle] = {}
+        self._short_handles: dict[bytes, str] = {}
         self._tail: deque[str] = deque(maxlen=tail_capacity)
         self._resident: set[str] = set()
         self._materialized: dict[str, str] = {}
@@ -132,14 +133,17 @@ class PaidArtifactRegistry:
         if not callable(materializer):
             raise TypeError("materializer must be callable")
 
+        short_handle = bytes.fromhex(receipt.sha)[:HANDLE_BYTES]
         with self._lock:
             existing = self._entries.get(receipt.sha)
             if existing is not None:
                 return existing
-
+            bound_sha = self._short_handles.get(short_handle)
+            if bound_sha is not None and bound_sha != receipt.sha:
+                raise ValueError("ambiguous context handle collision")
             handle = PaidArtifactHandle(
                 sha=receipt.sha,
-                handle=bytes.fromhex(receipt.sha)[:HANDLE_BYTES],
+                handle=short_handle,
                 label=label,
                 token_cost=receipt.cost.tokens,
                 receipt=receipt,
@@ -147,6 +151,7 @@ class PaidArtifactRegistry:
                 reference=reference,
             )
             self._entries[handle.sha] = handle
+            self._short_handles[short_handle] = handle.sha
             self._tail.append(handle.sha)
             return handle
 
@@ -225,6 +230,34 @@ class PaidArtifactRegistry:
                 raise ValueError("materialized content hash does not match receipt")
             self._materialized[handle.sha] = text
             return text
+
+    def expand(self, opaque_handle: str | bytes) -> str:
+        """Explicitly expand a short context handle after admission.
+
+        The prompt-facing marker is intentionally only eight bytes. The
+        registry keeps the full content address privately and rejects
+        ambiguous short-handle collisions at registration time, so an
+        ``expand`` request cannot select the wrong artifact.
+        """
+
+        if isinstance(opaque_handle, str):
+            marker = "⟦context:"
+            if opaque_handle.startswith(marker) and opaque_handle.endswith("⟧"):
+                opaque_handle = opaque_handle[len(marker) : -1]
+            try:
+                short_handle = bytes.fromhex(opaque_handle)
+            except ValueError as exc:
+                raise ValueError("invalid context handle") from exc
+        else:
+            short_handle = opaque_handle
+        if len(short_handle) != HANDLE_BYTES:
+            raise ValueError("context handle must be exactly 8 bytes")
+
+        with self._lock:
+            sha = self._short_handles.get(short_handle)
+            if sha is None:
+                raise KeyError("unknown context handle")
+        return self.materialize(sha)
 
     def render(self, handle_or_sha: PaidArtifactHandle | str) -> ContextEmission:
         """Emit an artifact body once, then emit only its content handle.

@@ -234,6 +234,31 @@ def _build_route(tool_name: str, args: dict[str, Any], task_id: str):
             lambda value: _decode_runtime_read(value, offset),
         )
 
+    if tool_name == "session_search":
+        # Preserve the native tool's single-shape API instead of reducing it
+        # to the CLI's query-only convenience form. The Runtime MCP tool owns
+        # session/profile isolation and the browse, discover, read, and scroll
+        # shapes.
+        runtime_args = {
+            key: args[key]
+            for key in (
+                "query",
+                "role_filter",
+                "limit",
+                "session_id",
+                "around_message_id",
+                "window",
+                "sort",
+                "profile",
+            )
+            if key in args and args[key] is not None
+        }
+        return (
+            "simplicio_session_search",
+            runtime_args,
+            _decode_runtime_session_search,
+        )
+
     if tool_name in {"write_file", "patch"}:
         path = args.get("path")
         if not isinstance(path, str) or not path:
@@ -404,6 +429,17 @@ def _decode_runtime_read(value: Any, offset: int) -> str:
         end = offset + len(numbered)
         result["hint"] = f"Use offset={end + 1} to continue reading"
     return json.dumps(result, ensure_ascii=False)
+
+
+def _decode_runtime_session_search(value: Any) -> str:
+    """Validate and preserve the Runtime session-search result contract."""
+    payload = _json_value(value)
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        raise ValueError("simplicio_session_search did not return a successful result")
+    mode = payload.get("mode")
+    if mode is not None and mode not in {"browse", "discover", "read", "scroll"}:
+        raise ValueError(f"simplicio_session_search returned unknown mode: {mode}")
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _json_success(paths: list[str], *, include_bytes: bool, content: str = "") -> str:

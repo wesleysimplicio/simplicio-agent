@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -394,6 +395,52 @@ def test_concurrent_acquire_on_real_sqlite_file_yields_exactly_one_winner(
         t.join()
 
     assert len(winners) == 1
+
+
+def test_concurrent_first_comment_sync_creates_exactly_one_comment(
+    tmp_path: Path,
+) -> None:
+    """The durable CAS also covers the post-acquire comment critical section."""
+
+    class SlowComments(FakeComments):
+        started = threading.Event()
+        release = threading.Event()
+
+        def upsert(
+            self, issue: str, marker: str, body: str, comment_id: str | None
+        ) -> str:
+            if comment_id is None:
+                self.started.set()
+                assert self.release.wait(timeout=3)
+            return super().upsert(issue, marker, body, comment_id)
+
+    db_path = tmp_path / "comment-race.sqlite"
+    comments = SlowComments()
+    ClaimLeaseStore(db_path)
+    barrier = threading.Barrier(8)
+    attempts: list[str] = []
+    attempts_lock = threading.Lock()
+
+    def worker(name: str) -> None:
+        coordinator = ClaimCoordinator(ClaimLeaseStore(db_path), comments)
+        barrier.wait()
+        result = coordinator.acquire("315", name, now=10, ttl_s=30)
+        with attempts_lock:
+            attempts.append(result.status)
+
+    threads = [threading.Thread(target=worker, args=(f"worker-{i}",)) for i in range(8)]
+    for thread in threads:
+        thread.start()
+    assert comments.started.wait(timeout=3)
+    time.sleep(0.05)
+    comments.release.set()
+    for thread in threads:
+        thread.join(timeout=3)
+        assert not thread.is_alive()
+
+    assert attempts.count("acquired") == 1
+    assert attempts.count("already_claimed") == 7
+    assert len(comments.created) == 1
 
 
 # ---------------------------------------------------------------------------

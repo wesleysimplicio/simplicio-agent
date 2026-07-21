@@ -189,6 +189,8 @@ class ActivationRecord:
     previous_applied_migrations: tuple[str, ...] = ()
     rollback_migration_ids: tuple[str, ...] = ()
     previous_rollback_migration_ids: tuple[str, ...] = ()
+    active_sha256: str | None = None
+    previous_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -595,14 +597,24 @@ class UpdateContract:
         version = value.get("version")
         previous_slot = value.get("previous_slot")
         previous_version = value.get("previous_version")
+        active_sha256 = value.get("active_sha256")
+        previous_sha256 = value.get("previous_sha256")
         if (
             not isinstance(active_slot, str)
             or not active_slot
             or not isinstance(version, str)
             or (previous_slot is not None and not isinstance(previous_slot, str))
             or (previous_version is not None and not isinstance(previous_version, str))
+            or (active_sha256 is not None and not isinstance(active_sha256, str))
+            or (previous_sha256 is not None and not isinstance(previous_sha256, str))
         ):
             raise UpdateError("active.json contains an invalid slot record")
+        for field, digest in (
+            ("active_sha256", active_sha256),
+            ("previous_sha256", previous_sha256),
+        ):
+            if digest is not None and _SHA256.fullmatch(digest) is None:
+                raise UpdateError(f"active.json contains an invalid {field}")
         _validate_slot_name(active_slot)
         if previous_slot is not None:
             _validate_slot_name(previous_slot)
@@ -649,6 +661,8 @@ class UpdateContract:
             previous_applied_migrations,
             rollback_migration_ids,
             previous_rollback_migration_ids,
+            active_sha256,
+            previous_sha256,
         )
 
     def plan(
@@ -788,6 +802,8 @@ class UpdateContract:
             "old_active_slot": old.active_slot if old else None,
             "old_active_version": old.version if old else None,
             "old_previous_slot": old.previous_slot if old else None,
+            "old_active_sha256": old.active_sha256 if old else None,
+            "old_previous_sha256": old.previous_sha256 if old else None,
         })
         if interrupt_after == "state":
             raise UpdateInterrupted("interrupted after activation state")
@@ -796,14 +812,16 @@ class UpdateContract:
             plan.migration_ids if plan is not None else (),
         )
         record = ActivationRecord(
-            staged.slot,
-            staged.manifest.version,
-            old.active_slot if old else None,
-            old.version if old else None,
-            applied_migrations,
-            old.applied_migrations if old else (),
-            plan.rollback_migration_ids if plan is not None else (),
-            plan.migration_ids if plan is not None else (),
+            active_slot=staged.slot,
+            version=staged.manifest.version,
+            previous_slot=old.active_slot if old else None,
+            previous_version=old.version if old else None,
+            applied_migrations=applied_migrations,
+            previous_applied_migrations=old.applied_migrations if old else (),
+            rollback_migration_ids=plan.rollback_migration_ids if plan is not None else (),
+            previous_rollback_migration_ids=plan.migration_ids if plan is not None else (),
+            active_sha256=staged.manifest.sha256,
+            previous_sha256=old.active_sha256 if old else None,
         )
         self._write_active(record)
         if interrupt_after == "pointer":
@@ -831,9 +849,12 @@ class UpdateContract:
         self._finish_commit(record)
         return record
 
-    def rollback(self) -> ActivationRecord:
-        """Switch back to the preserved previous slot, if one exists."""
+    def rollback(self, *, interrupt_after: str | None = None) -> ActivationRecord:
+        """Switch back to a digest-verified previous slot, if one exists."""
         if self.state_path.exists():
+            pending = _read_json(self.state_path)
+            if pending.get("phase") == "rolling_back":
+                raise UpdateError("rollback is interrupted; refusing a second rollback")
             self.recover_interrupted()
         current = self.current()
         if current is None or current.previous_slot is None:
@@ -848,23 +869,41 @@ class UpdateContract:
         previous_path = self.slots / current.previous_slot
         if not previous_path.is_dir():
             raise UpdateError("previous slot is missing; refusing destructive rollback")
+        self._verify_slot_digest(current.active_slot, current.active_sha256)
+        self._verify_slot_digest(current.previous_slot, current.previous_sha256)
         record = ActivationRecord(
-            current.previous_slot,
-            current.previous_version or self._slot_version(previous_path),
-            current.active_slot,
-            current.version,
-            current.previous_applied_migrations,
-            current.applied_migrations,
-            current.previous_rollback_migration_ids,
-            current.rollback_migration_ids,
+            active_slot=current.previous_slot,
+            version=current.previous_version or self._slot_version(previous_path),
+            previous_slot=current.active_slot,
+            previous_version=current.version,
+            applied_migrations=current.previous_applied_migrations,
+            previous_applied_migrations=current.applied_migrations,
+            rollback_migration_ids=current.previous_rollback_migration_ids,
+            previous_rollback_migration_ids=current.rollback_migration_ids,
+            active_sha256=current.previous_sha256,
+            previous_sha256=current.active_sha256,
         )
+        self._write_state({
+            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "phase": "rolling_back",
+            "slot": record.active_slot,
+            "version": record.version,
+            "old_active_slot": current.active_slot,
+            "old_active_sha256": current.active_sha256,
+        })
+        if interrupt_after == "state":
+            raise UpdateInterrupted("interrupted after rollback state")
         self._write_active(record)
+        if interrupt_after == "pointer":
+            raise UpdateInterrupted("interrupted after rollback pointer")
         self._write_state({
             "schema_version": MANIFEST_SCHEMA_VERSION,
             "phase": "committed",
             "slot": record.active_slot,
             "version": record.version,
         })
+        if interrupt_after == "commit":
+            raise UpdateInterrupted("interrupted after rollback commit state")
         self._finish_commit(record)
         return record
 
@@ -899,6 +938,19 @@ class UpdateContract:
                 raise UpdateError("committed update has no active pointer")
             self._finish_commit(current)
             return current
+        if phase == "rolling_back":
+            current = self.current()
+            old_active_slot = state.get("old_active_slot")
+            if current is None or not isinstance(old_active_slot, str):
+                raise UpdateError("interrupted rollback has no valid prior pointer")
+            if current.active_slot == slot:
+                self._verify_slot_digest(current.active_slot, current.active_sha256)
+                self._finish_commit(current)
+                return current
+            if current.active_slot == old_active_slot:
+                self.state_path.unlink(missing_ok=True)
+                return current
+            raise UpdateError("interrupted rollback pointer is inconsistent")
         raise UpdateError(f"unknown update phase: {phase!r}")
 
     def _copy_bounded(
@@ -942,6 +994,8 @@ class UpdateContract:
                 "previous_rollback_migration_ids": list(
                     record.previous_rollback_migration_ids
                 ),
+                "active_sha256": record.active_sha256,
+                "previous_sha256": record.previous_sha256,
             },
         )
 
@@ -964,6 +1018,20 @@ class UpdateContract:
             if child.is_file() and child.name == "VERSION":
                 return child.read_text(encoding="utf-8").strip()
         return "unknown"
+
+    def _verify_slot_digest(self, slot_name: str, expected: str | None) -> None:
+        if expected is None or _SHA256.fullmatch(expected) is None:
+            raise UpdateError(
+                f"slot {slot_name} digest is unverified; refusing rollback"
+            )
+        slot = self.slots / _validate_slot_name(slot_name)
+        _, _, actual = _directory_stats(
+            slot, max_files=MAX_FILES, max_bytes=MAX_UNPACKED_BYTES
+        )
+        if actual != expected:
+            raise UpdateError(
+                f"slot {slot_name} digest mismatch; refusing rollback"
+            )
 
 
 def _merge_migrations(

@@ -5,7 +5,14 @@ runtime manager. A target must have an HTTPS asset URL, strict version, target
 metadata, positive size, and SHA-256. A local artifact is never executed by
 this validator; when supplied, its bytes are checked before readiness.
 
-`stable_ready` is false unless the metadata is structurally valid and the
-provenance declares `signature_status=verified`. This slice does not download
-release assets or prove GitHub signatures; those remain release/clean-machine
-work tracked by issue #127.
+`stable_ready` is false unless the metadata is structurally valid, the selected
+asset is at least `min_version`, any explicit release tag in its URL matches
+the asset version, and the provenance declares
+`signature_status=verified`. The runtime manager now gates both readiness and
+download on `stable_ready`, so `not-proven`, revoked, or malformed provenance
+cannot reach a Runtime handshake.
+
+This slice does not download release assets or prove GitHub signatures; the
+committed lock remains unchanged when no signed artifact is available. Those
+release/clean-machine artifacts are `UNVERIFIED` and remain tracked by issue
+#127.

@@ -17,6 +17,7 @@ from agent.event_store import (
     ExecutionContext,
     OperationalEventStore,
     OperationalEventStoreCorruptError,
+    OperationalScope,
     OperationalValueStatus,
     RunEvent,
 )
@@ -31,6 +32,9 @@ from agent.operational_now import (
 )
 
 
+COVERAGE_SCOPE = OperationalScope(profile_id="profile-1", tenant_id="tenant-1")
+
+
 def _receipt(**overrides: object) -> AwarenessReceipt:
     values = dict(
         receipt_id="r1",
@@ -41,6 +45,7 @@ def _receipt(**overrides: object) -> AwarenessReceipt:
         source="operator",
         source_event_id="src-1",
         recorded_at_ns=10,
+        payload={"profile_id": "profile-1", "tenant_id": "tenant-1"},
     )
     values.update(overrides)
     return AwarenessReceipt(**values)
@@ -168,7 +173,7 @@ def test_awareness_receipt_content_hash_is_stable_and_sensitive_to_value():
 
 
 def test_iter_receipts_returns_empty_list_when_file_absent(tmp_path):
-    store = OperationalEventStore(tmp_path / "missing.jsonl")
+    store = OperationalEventStore(tmp_path / "missing.jsonl", scope=COVERAGE_SCOPE)
     assert list(store.iter_receipts()) == []
 
 
@@ -179,7 +184,7 @@ def test_iter_receipts_skips_blank_lines(tmp_path):
         "\n" + json.dumps(receipt.to_dict()) + "\n\n",
         encoding="utf-8",
     )
-    store = OperationalEventStore(path)
+    store = OperationalEventStore(path, scope=COVERAGE_SCOPE)
     replayed = list(store.iter_receipts())
     assert replayed == [receipt]
 
@@ -187,7 +192,7 @@ def test_iter_receipts_skips_blank_lines(tmp_path):
 def test_iter_receipts_raises_on_corrupt_json_line(tmp_path):
     path = tmp_path / "events.jsonl"
     path.write_text("{not-json}\n", encoding="utf-8")
-    store = OperationalEventStore(path)
+    store = OperationalEventStore(path, scope=COVERAGE_SCOPE)
     with pytest.raises(OperationalEventStoreCorruptError, match="receipt log line 1"):
         list(store.iter_receipts())
 
@@ -195,13 +200,13 @@ def test_iter_receipts_raises_on_corrupt_json_line(tmp_path):
 def test_iter_receipts_raises_oserror_wrapped_when_path_is_a_directory(tmp_path):
     directory = tmp_path / "events.jsonl"
     directory.mkdir()
-    store = OperationalEventStore(directory)
+    store = OperationalEventStore(directory, scope=COVERAGE_SCOPE)
     with pytest.raises(OperationalEventStoreCorruptError, match="cannot read receipt log"):
         list(store.iter_receipts())
 
 
 def test_receipt_by_handle_returns_none_when_absent(tmp_path):
-    store = OperationalEventStore(tmp_path / "events.jsonl")
+    store = OperationalEventStore(tmp_path / "events.jsonl", scope=COVERAGE_SCOPE)
     store.append(_receipt(handle="goal.anchor"))
     assert store.receipt_by_handle("does.not.exist") is None
 
@@ -256,6 +261,7 @@ def _empty_snapshot(**overrides: object) -> OperationalNowSnapshot:
     values = dict(
         run_id="run-1",
         profile_id="profile-1",
+        tenant_id="tenant-1",
         fields={},
         beliefs={},
         materialized_at_ns=1,
@@ -461,6 +467,7 @@ def test_load_snapshot_reraises_file_not_found(tmp_path):
     store = OperationalNowStore(
         event_log_path=tmp_path / "events.jsonl",
         snapshot_path=tmp_path / "missing_snapshot.json",
+        scope=COVERAGE_SCOPE,
     )
     with pytest.raises(FileNotFoundError):
         store.load_snapshot()
@@ -470,6 +477,7 @@ def test_load_snapshot_rejects_tampered_hash(tmp_path):
     store = OperationalNowStore(
         event_log_path=tmp_path / "events.jsonl",
         snapshot_path=tmp_path / "snapshot.json",
+        scope=COVERAGE_SCOPE,
     )
     store.append(_receipt())
     snapshot = store.project()

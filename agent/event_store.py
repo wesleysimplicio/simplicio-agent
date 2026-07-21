@@ -54,6 +54,37 @@ def _fingerprint(value: Any) -> str:
     return hashlib.sha256(_stable_json(value).encode("utf-8")).hexdigest()
 
 
+class OperationalScopeError(ValueError):
+    """Raised when a receipt is not owned by the store's scope."""
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalScope:
+    """Fail-closed profile/tenant boundary for an awareness store."""
+
+    profile_id: str
+    tenant_id: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "profile_id", _text(self.profile_id, "profile_id"))
+        object.__setattr__(self, "tenant_id", _text(self.tenant_id, "tenant_id"))
+
+    def validate_payload(self, payload: Mapping[str, Any]) -> None:
+        if not isinstance(payload, Mapping):
+            raise OperationalScopeError("receipt payload is missing store scope")
+        for name, expected in (
+            ("profile_id", self.profile_id),
+            ("tenant_id", self.tenant_id),
+        ):
+            actual = payload.get(name)
+            if not isinstance(actual, str) or not actual.strip():
+                raise OperationalScopeError(f"receipt payload is missing {name}")
+            if actual != expected:
+                raise OperationalScopeError(
+                    f"receipt {name} does not match store scope"
+                )
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionContext:
     """Canonical identity shared by Agent, Runtime, tools and providers."""
@@ -306,10 +337,14 @@ class OperationalEventStoreCorruptError(ValueError):
 class OperationalEventStore:
     """Append-only JSONL journal for awareness receipts."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, scope: OperationalScope) -> None:
         self.path = Path(path)
+        if not isinstance(scope, OperationalScope):
+            raise TypeError("scope must be an OperationalScope")
+        self.scope = scope
 
     def append(self, receipt: AwarenessReceipt) -> AwarenessReceipt:
+        self.scope.validate_payload(receipt.payload)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(
@@ -331,7 +366,9 @@ class OperationalEventStore:
             if not line.strip():
                 continue
             try:
-                receipts.append(AwarenessReceipt.from_dict(json.loads(line)))
+                receipt = AwarenessReceipt.from_dict(json.loads(line))
+                self.scope.validate_payload(receipt.payload)
+                receipts.append(receipt)
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 raise OperationalEventStoreCorruptError(
                     f"receipt log line {line_no}: {exc}"
@@ -354,6 +391,8 @@ __all__ = [
     "ExecutionContext",
     "OperationalEventStore",
     "OperationalEventStoreCorruptError",
+    "OperationalScope",
+    "OperationalScopeError",
     "OperationalValueStatus",
     "RUN_EVENT_SCHEMA",
     "RunEvent",

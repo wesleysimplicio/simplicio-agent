@@ -48,6 +48,7 @@ def _write_lock(tmp_path, monkeypatch, **overrides):
         "min_version": "3.4.0",
         "release_repo": "wesleysimplicio/simplicio",
         "source_repo": "wesleysimplicio/simplicio-runtime",
+        "provenance": {"signature_status": "verified"},
         "assets": {
             target: {
                 "name": "simplicio-test",
@@ -114,16 +115,23 @@ class TestLoadRuntimeLock:
         monkeypatch.setattr(rm.sys, "prefix", str(prefix))
 
         assert rm.load_runtime_lock()["min_version"] == "8.2.1"
-    def test_missing_lock_degrades_to_defaults(self, tmp_path, monkeypatch):
+    def test_missing_lock_does_not_manufacture_a_pin(self, tmp_path, monkeypatch):
         monkeypatch.setattr(rm, "repo_root", lambda: tmp_path)
-        lock = rm.load_runtime_lock()
-        assert lock["min_version"] == "0.0.0"
-        assert lock["kernel"] == "simplicio"
+        assert rm.load_runtime_lock() == {}
 
-    def test_corrupt_lock_degrades_to_defaults(self, tmp_path, monkeypatch):
+    def test_corrupt_lock_does_not_manufacture_a_pin(self, tmp_path, monkeypatch):
         (tmp_path / "runtime.lock").write_text("{not json", encoding="utf-8")
         monkeypatch.setattr(rm, "repo_root", lambda: tmp_path)
-        assert rm.load_runtime_lock()["min_version"] == "0.0.0"
+        assert rm.load_runtime_lock() == {}
+
+    def test_missing_lock_blocks_resolution_before_any_fallback(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(rm, "repo_root", lambda: tmp_path)
+        with mock_patch.object(rm, "resolve_kernel") as resolve:
+            status = rm.runtime_status()
+        assert not status.satisfied
+        assert not status.lock_valid
+        assert "runtime lock invalid" in status.detail
+        resolve.assert_not_called()
 
     def test_real_repo_lock_is_valid(self):
         # The committed runtime.lock must always parse and carry a real pin.
@@ -301,6 +309,18 @@ class TestResolveKernel:
 # =========================================================================
 
 class TestRuntimeStatus:
+    def test_unverified_lock_blocks_before_binary_resolution(self, tmp_path, monkeypatch):
+        _write_lock(
+            tmp_path,
+            monkeypatch,
+            provenance={"signature_status": "not-proven"},
+        )
+        with mock_patch.object(rm, "resolve_kernel") as resolve:
+            st = rm.runtime_status()
+        assert not st.satisfied
+        assert "signature is not verified" in st.detail
+        resolve.assert_not_called()
+
     def test_satisfied(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch, min_version="3.4.0")
         binary = tmp_path / "simplicio"
@@ -496,6 +516,7 @@ class TestInstallFromReleaseSha256:
                 }
             },
             "release_repo": "wesleysimplicio/simplicio",
+            "provenance": {"signature_status": "verified"},
         }
 
     def _patched_platform(self):

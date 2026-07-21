@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { type CockpitEvent, type CockpitSession, eventTimeLabel, truncateHash } from '@/app/savings/cockpit'
-import { formatExactTokens, formatTimestamp, formatTokens } from '@/app/savings/format'
+import { formatExactTokens, formatTimestamp, formatTokens, formatUsd } from '@/app/savings/format'
 import type { ParsedSessions } from '@/app/savings/use-savings-data'
 import { NeonBurst } from '@/components/savings/neon-burst'
 import { ProofBadge } from '@/components/savings/proof-badge'
@@ -18,6 +18,20 @@ import { cn } from '@/lib/utils'
 // the data actually came from — provenance, not decoration.
 
 const UNKNOWN = '—'
+
+function formatCache(cache: CockpitEvent['cache']): string {
+  if (!cache) {
+    return UNKNOWN
+  }
+
+  const hit = cache.hit === null ? UNKNOWN : cache.hit ? 'yes' : 'no'
+
+  return `hit=${hit} read=${formatExactTokens(cache.readTokens)} write=${formatExactTokens(cache.writeTokens)}`
+}
+
+function formatList(values: readonly string[]): string {
+  return values.length > 0 ? values.join(', ') : UNKNOWN
+}
 
 function SavedBadge({ pct, saved }: { pct: null | number; saved: null | number }) {
   const { t } = useI18n()
@@ -90,6 +104,18 @@ function TimelineEvent({ event, isLast }: { event: CockpitEvent; isLast: boolean
             <span className="font-mono text-[0.6rem]">{[event.model, event.provider].filter(Boolean).join(' · ')}</span>
           )}
         </div>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[0.58rem] text-muted-foreground/60">
+          <span>session={event.sessionId ?? UNKNOWN}</span>
+          <span>cost={formatUsd(event.cost)}</span>
+          <span>cache={formatCache(event.cache)}</span>
+          <span>latency={event.latencyMs === null ? UNKNOWN : `${event.latencyMs}ms`}</span>
+          <span>tools={formatList(event.tools)}</span>
+          <span className="max-w-full truncate" title={formatList(event.evidenceRefs)}>
+            evidence={formatList(event.evidenceRefs)}
+          </span>
+          <span>hash={event.hashState}</span>
+          <span>price={event.priceState}</span>
+        </div>
       </div>
     </li>
   )
@@ -120,6 +146,7 @@ function SessionCard({ session, staggerMs }: { session: CockpitSession; staggerM
             {session.title ?? session.runId}
           </span>
           <span className="mt-0.5 block truncate text-[0.62rem] text-muted-foreground/70">
+            {`run=${session.runId} · `}
             {[session.repo, session.branch].filter(Boolean).join(' @ ') || UNKNOWN}
             {period ? ` · ${period}` : ''}
             {` · ${s.cockpit.eventsCount(session.events.length)}`}

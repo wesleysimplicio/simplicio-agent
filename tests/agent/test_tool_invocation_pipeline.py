@@ -148,6 +148,35 @@ def test_pipeline_complete_requires_checkpoint_trace_before_terminal_success():
     assert outcome.receipt is not None
 
 
+def test_pipeline_records_pre_dispatch_block_with_terminal_receipt_and_evidence():
+    receipts = []
+    pipeline = ToolInvocationPipeline(receipt_writer=receipts.append)
+
+    outcome = pipeline.block(
+        ToolInvocation("blocked.tool", {}, tool_call_id="blocked-1"),
+        result='{"error":"approval required"}',
+        blocked_by="action-gate",
+        reason="approval required",
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.result == '{"error":"approval required"}'
+    assert outcome.trace == [
+        "resolve",
+        "normalize",
+        "authorize",
+        "classify",
+        "guardrail",
+        "action-gate",
+        "persist",
+        "evidence",
+    ]
+    assert outcome.invocation.metadata.blocked_by == "action-gate"
+    assert outcome.evidence["blocked_by"] == "action-gate"
+    assert outcome.receipt is not None
+    assert len(receipts) == 1
+
+
 def test_pipeline_checkpoint_provenance_is_hashed_and_evidenced():
     checkpoint_payload = {"allow": True, "checkpoint_id": "opaque-secret-handle"}
     outcome = ToolInvocationPipeline(

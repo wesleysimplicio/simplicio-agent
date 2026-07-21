@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from agent.trust_boundary import (
     TrustClass,
     TrustProvenance,
     ProvenanceKind,
+    AuthorityPolicy,
     blocked_cognitive_integrity,
     enforce_control_event,
     enforce_receipt,
@@ -300,3 +302,93 @@ def test_issue_helpers_create_verifiable_objects():
     verified_receipt = verify_receipt(receipt)
 
     assert verified_receipt.trust_class is TrustClass.TRUSTED_RECEIPT
+
+
+def test_strict_boundary_requires_authority_and_freshness_for_control_events():
+    now = datetime(2026, 7, 21, 12, 0, tzinfo=timezone.utc)
+    event = issue_control_event(
+        event_id="evt-strict",
+        event_type="approval.grant",
+        actor="operator.console",
+        issued_at=(now - timedelta(seconds=10)).isoformat(),
+        nonce="nonce-strict",
+        payload={"action": "continue", "scope": "issue-185"},
+        key_id="ops-main",
+        secret="fixture-secret-main",
+    )
+    policy = AuthorityPolicy(
+        actors_by_event_type={"approval.grant": frozenset({"operator.console"})},
+        scopes_by_event_type={"approval.grant": frozenset({"issue-185"})},
+    )
+
+    provenance = enforce_control_event(
+        event,
+        keyring={"ops-main": "fixture-secret-main"},
+        authority_policy=policy,
+        now=now,
+        max_age_seconds=60,
+    )
+
+    assert provenance.trust_class is TrustClass.TRUSTED_CONTROL_PLANE
+
+
+def test_strict_boundary_blocks_unauthorized_and_stale_control_events():
+    now = datetime(2026, 7, 21, 12, 0, tzinfo=timezone.utc)
+    event = issue_control_event(
+        event_id="evt-strict-deny",
+        event_type="approval.grant",
+        actor="browser.page",
+        issued_at=(now - timedelta(minutes=5)).isoformat(),
+        nonce="nonce-strict-deny",
+        payload={"action": "continue", "scope": "issue-185"},
+        key_id="ops-main",
+        secret="fixture-secret-main",
+    )
+    policy = AuthorityPolicy(
+        actors_by_event_type={"approval.grant": frozenset({"operator.console"})},
+        scopes_by_event_type={"approval.grant": frozenset({"issue-185"})},
+    )
+
+    unauthorized = enforce_control_event(
+        event,
+        keyring={"ops-main": "fixture-secret-main"},
+        authority_policy=policy,
+        now=now,
+        max_age_seconds=60,
+    )
+    assert isinstance(unauthorized, BlockedCognitiveIntegrity)
+    assert unauthorized.reason is BlockedReason.UNAUTHORIZED_CONTROL_EVENT
+
+    event = issue_control_event(
+        event_id="evt-strict-stale",
+        event_type="approval.grant",
+        actor="operator.console",
+        issued_at=(now - timedelta(minutes=5)).isoformat(),
+        nonce="nonce-strict-stale",
+        payload={"action": "continue", "scope": "issue-185"},
+        key_id="ops-main",
+        secret="fixture-secret-main",
+    )
+    stale = enforce_control_event(
+        event,
+        keyring={"ops-main": "fixture-secret-main"},
+        authority_policy=policy,
+        now=now,
+        max_age_seconds=60,
+    )
+    assert isinstance(stale, BlockedCognitiveIntegrity)
+    assert stale.reason is BlockedReason.STALE_CONTROL_EVENT
+
+
+def test_strict_boundary_fails_closed_when_context_is_incomplete():
+    event = _load("control_event_valid.json")
+    result = enforce_control_event(
+        event,
+        keyring=_load("control_event_keyring.json"),
+        authority_policy=AuthorityPolicy(
+            actors_by_event_type={"approval.grant": frozenset({"operator.console"})}
+        ),
+    )
+    assert isinstance(result, BlockedCognitiveIntegrity)
+    assert result.reason is BlockedReason.MISSING_SECURITY_CONTEXT
+    assert "freshness context is required" in result.message

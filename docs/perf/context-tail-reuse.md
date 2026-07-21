@@ -8,6 +8,10 @@ slice for repeated context references.
 - Admission is capped by `max_resident` before materialization.
 - The first admitted emission contains the body; later emissions for the same
   content address contain only `⟦context:<digest>⟧`.
+- `PaidArtifactRegistry.expand(handle)` is the explicit lazy materialization
+  path for that marker; it remains admission-gated and resolves the private
+  full content address. Ambiguous 8-byte prefixes are rejected at registration
+  instead of selecting an arbitrary body.
 - `ContextReferenceResult.cache_hits`, `tokens_saved`, and
   `context_handles` expose local evidence. Receipts remain content-addressed
   and retain the original positive cost; cache hits are not reported as fake

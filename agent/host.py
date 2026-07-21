@@ -394,6 +394,19 @@ class AgentHost:
             if session is not None
             else None
         )
+        # Let AIAgent's existing conversation-loop boundary adopt the
+        # host-owned turn. This avoids opening a second lifecycle for the
+        # same request while keeping compatible facades unchanged.
+        previous_context = getattr(entry.agent, "_agent_session_context", None)
+        previous_session = getattr(entry.agent, "_agent_session", None)
+        if session is not None and context is not None:
+            try:
+                setattr(entry.agent, "_agent_session_context", context)
+                setattr(entry.agent, "_agent_session", session)
+            except (AttributeError, TypeError):
+                # Structural AgentProtocol implementations may use slots; the
+                # host lifecycle remains authoritative even without adoption.
+                pass
         try:
             result = entry.agent.run_conversation(
                 request.user_message,
@@ -403,8 +416,26 @@ class AgentHost:
             if session is not None and context is not None:
                 session.fail_turn(context)
             raise
+        finally:
+            if session is not None and context is not None:
+                try:
+                    if previous_context is None:
+                        delattr(entry.agent, "_agent_session_context")
+                    else:
+                        setattr(entry.agent, "_agent_session_context", previous_context)
+                    if previous_session is None:
+                        delattr(entry.agent, "_agent_session")
+                    else:
+                        setattr(entry.agent, "_agent_session", previous_session)
+                except (AttributeError, TypeError):
+                    pass
         if session is not None and context is not None:
-            session.complete_turn(context)
+            if isinstance(result, dict) and (
+                result.get("failed") or result.get("interrupted")
+            ):
+                session.fail_turn(context)
+            else:
+                session.complete_turn(context)
         return result
 
     @overload

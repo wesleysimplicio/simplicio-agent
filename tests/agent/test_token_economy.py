@@ -132,6 +132,45 @@ def test_render_emits_body_once_then_a_handle_with_measured_savings() -> None:
     assert registry.resident_tokens <= registry.max_resident
 
 
+def test_expand_handle_materializes_only_after_explicit_admission() -> None:
+    text = "explicitly expandable context body " * 10
+    calls = 0
+
+    def load() -> str:
+        nonlocal calls
+        calls += 1
+        return text
+
+    registry = PaidArtifactRegistry(max_resident=100)
+    handle = registry.register(_receipt(text), load)
+    opaque = registry.handle(handle)
+
+    with pytest.raises(RuntimeError, match="admitted"):
+        registry.expand(opaque)
+    assert calls == 0
+
+    assert registry.admit(handle).admitted
+    assert registry.expand(opaque) == text
+    assert registry.expand(opaque) == text
+    assert calls == 1
+
+
+def test_short_handle_collision_is_rejected_before_ambiguous_expansion() -> None:
+    registry = PaidArtifactRegistry(max_resident=10)
+    first = Receipt(
+        sha="00" * 8 + "11" * 24,
+        cost=Cost(tokens=1, tokens_raw=1),
+    )
+    second = Receipt(
+        sha="00" * 8 + "22" * 24,
+        cost=Cost(tokens=1, tokens_raw=1),
+    )
+
+    registry.register(first, lambda: "first")
+    with pytest.raises(ValueError, match="ambiguous context handle collision"):
+        registry.register(second, lambda: "second")
+
+
 def test_tail_is_bounded_and_lookup_remains_content_addressed() -> None:
     registry = PaidArtifactRegistry(max_resident=100, tail_capacity=2)
     handles = [

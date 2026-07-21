@@ -222,6 +222,8 @@ def _coerce_mapping(value: Any, *, stage: StageName) -> dict[str, Any]:
 
 def _canonical_trace_prefix(
     trace: list[str] | tuple[str, ...],
+    *,
+    ensure_execute: bool = True,
 ) -> tuple[StageName, ...]:
     """Return a bounded canonical trace prefix for split completion.
 
@@ -237,7 +239,12 @@ def _canonical_trace_prefix(
             prefix.append(stage)
         if stage == "execute":
             break
-    if "execute" not in seen and "persist" not in seen and "evidence" not in seen:
+    if (
+        ensure_execute
+        and "execute" not in seen
+        and "persist" not in seen
+        and "evidence" not in seen
+    ):
         prefix.append("execute")
     if "persist" in seen and "persist" not in prefix:
         prefix.append("persist")
@@ -415,18 +422,41 @@ class ToolInvocationPipeline:
         trace: list[str],
         *,
         status: str = "success",
+        blocked_by: str = "",
+        error_type: str = "",
+        error_message: str = "",
     ) -> ToolInvocationOutcome:
         trace = list(trace)
-        if "execute" not in trace and "persist" not in trace:
-            trace.append("execute")
         attempt = self._start_attempt(invocation)
+        explicit_block_result = bool(blocked_by)
+        if blocked_by:
+            attempt = attempt.with_metadata(
+                status="blocked",
+                blocked_by=blocked_by,
+                error_type=error_type or "policy",
+                error_message=error_message or blocked_by,
+            )
         finalized = self._finalized_by_attempt.get(attempt.metadata.attempt_id)
         if finalized is not None:
             return self._outcome(finalized)
-        canonical_trace = _canonical_trace_prefix(trace)
         incoming_blocked = (
             attempt.metadata.status == "blocked"
             or bool(attempt.metadata.blocked_by)
+        )
+        checkpoint_missing = (
+            attempt.metadata.requires_checkpoint and "checkpoint" not in trace
+        )
+        if (
+            "execute" not in trace
+            and "persist" not in trace
+            and not incoming_blocked
+            and not checkpoint_missing
+        ):
+            trace.append("execute")
+        canonical_trace = _canonical_trace_prefix(
+            trace,
+            ensure_execute=not incoming_blocked
+            and not checkpoint_missing,
         )
         checkpoint_ref = attempt.metadata.checkpoint_ref
         if not checkpoint_ref and "checkpoint" in canonical_trace:
@@ -451,7 +481,7 @@ class ToolInvocationPipeline:
             attempt = replace(
                 attempt,
                 trace=canonical_trace,
-                result=None if incoming_blocked else result,
+                result=result if explicit_block_result else None if incoming_blocked else result,
                 status=terminal_status,
                 classification=invocation.metadata.classification or "unknown",
                 checkpoint_ref=checkpoint_ref,
@@ -468,6 +498,54 @@ class ToolInvocationPipeline:
                 attempt = self._watch_result_boundary(attempt)
         attempt = self._persist_and_evidence(attempt)
         return self._outcome(attempt)
+
+    def block(
+        self,
+        invocation: ToolInvocation,
+        *,
+        result: Any = None,
+        blocked_by: str,
+        reason: str = "",
+        stage: StageName | None = None,
+        error_type: str = "policy",
+    ) -> ToolInvocationOutcome:
+        """Finalize a decision made before the executor is entered.
+
+        Scheduler-specific preflight (for example tool-scope or plugin
+        admission) must not create a second receipt path.  This adapter lets
+        that caller hand the already-made decision to the same terminal
+        persist/evidence machinery without executing the tool again.
+        """
+
+        attempt = self._start_attempt(invocation)
+        finalized = self._finalized_by_attempt.get(attempt.metadata.attempt_id)
+        if finalized is not None:
+            return self._outcome(finalized)
+
+        blocked_stage = stage or {
+            "guardrail": "guardrail",
+            "guardrail_block": "guardrail",
+            "action-gate": "action-gate",
+            "plugin_block": "action-gate",
+            "tool_scope_block": "authorize",
+            "tool-scope": "authorize",
+            "checkpoint": "checkpoint",
+        }.get(blocked_by, "action-gate")
+        stop_at = STAGES.index(blocked_stage)
+        attempt = replace(
+            attempt,
+            result=result,
+            status="blocked",
+            error_type=error_type,
+            error_message=reason or blocked_by,
+            trace=STAGES[: stop_at + 1],
+        ).with_metadata(
+            status="blocked",
+            blocked_by=blocked_by,
+            error_type=error_type,
+            error_message=reason or blocked_by,
+        )
+        return self._outcome(self._persist_and_evidence(attempt))
 
     def run(
         self,

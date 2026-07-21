@@ -153,6 +153,8 @@ class OperationalAwarenessCycle:
             payload={
                 "prediction_receipt_digest": evidence_digest,
                 "action_digest": assessed.action_digest,
+                "profile_id": self.store.scope.profile_id,
+                "tenant_id": self.store.scope.tenant_id,
             },
         )
         self.store.append(receipt)

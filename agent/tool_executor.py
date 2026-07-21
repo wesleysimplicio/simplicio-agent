@@ -219,6 +219,45 @@ def _emit_cancelled_terminal_post_tool_call(
     return result
 
 
+def _record_blocked_tool_invocation(
+    agent,
+    *,
+    function_name: str,
+    function_args: dict,
+    result: Any,
+    effective_task_id: str,
+    tool_call_id: str,
+    blocked_by: str,
+    reason: str,
+    stage: str,
+    error_type: str,
+) -> Any:
+    """Close a pre-dispatch block through the shared invocation pipeline."""
+    from agent.agent_runtime_helpers import record_tool_boundary_evidence
+    from agent.tool_invocation_pipeline import ToolInvocation, pipeline_for_agent
+
+    pipeline = pipeline_for_agent(agent, function_name)
+    outcome = pipeline.block(
+        ToolInvocation(
+            function_name,
+            function_args,
+            tool_call_id or "",
+            effective_task_id or "",
+        ),
+        result=result,
+        blocked_by=blocked_by,
+        reason=reason,
+        stage=stage,
+        error_type=error_type,
+    )
+    agent._last_tool_invocation_trace = list(outcome.trace)
+    agent._last_tool_invocation_receipt = (
+        outcome.receipt.to_dict() if outcome.receipt else {}
+    )
+    record_tool_boundary_evidence(agent, outcome)
+    return outcome.result
+
+
 def _tool_search_scoped_names(agent) -> frozenset:
     """Return the deferrable tool names the session may invoke via tool_call.
 
@@ -487,6 +526,38 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                         error_message=getattr(guardrail_decision, "message", None) or "Tool blocked by guardrail policy",
                         middleware_trace=list(middleware_trace),
                     )
+
+        if block_result is not None:
+            if _ts_scope_block is not None:
+                _blocked_by = "tool-scope"
+                _blocked_stage = "authorize"
+                _blocked_error_type = "tool_scope_block"
+                _blocked_reason = _ts_scope_block
+            elif blocked_by_guardrail:
+                _blocked_by = "guardrail"
+                _blocked_stage = "guardrail"
+                _blocked_error_type = "guardrail_block"
+                _blocked_reason = (
+                    getattr(guardrail_decision, "message", None)
+                    or "Tool blocked by guardrail policy"
+                )
+            else:
+                _blocked_by = "action-gate"
+                _blocked_stage = "action-gate"
+                _blocked_error_type = "plugin_block"
+                _blocked_reason = block_message or "Tool blocked by plugin policy"
+            block_result = _record_blocked_tool_invocation(
+                agent,
+                function_name=function_name,
+                function_args=function_args,
+                result=block_result,
+                effective_task_id=effective_task_id,
+                tool_call_id=getattr(tool_call, "id", "") or "",
+                blocked_by=_blocked_by,
+                reason=_blocked_reason,
+                stage=_blocked_stage,
+                error_type=_blocked_error_type,
+            )
 
         # ── Checkpoint preflight (only for tools that will execute) ──
         if block_result is None:
@@ -1007,12 +1078,22 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
         function_args = _invocation.args
         agent._last_tool_invocation_trace = list(_invocation_trace)
 
-        def _complete_invocation_pipeline(result: Any, *, status: str) -> Any:
+        def _complete_invocation_pipeline(
+            result: Any,
+            *,
+            status: str,
+            blocked_by: str = "",
+            error_type: str = "",
+            error_message: str = "",
+        ) -> Any:
             outcome = _invocation_pipeline.complete(
                 _invocation,
                 result,
                 _invocation_trace,
                 status=status,
+                blocked_by=blocked_by,
+                error_type=error_type,
+                error_message=error_message,
             )
             agent._last_tool_invocation_trace = list(outcome.trace)
             agent._last_tool_invocation_receipt = (
@@ -1575,9 +1656,27 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
         _pipeline_status = (
             "blocked" if _execution_blocked else "error" if _is_error_result else "success"
         )
+        _pipeline_blocked_by = ""
+        _pipeline_error_message = ""
+        if _execution_blocked:
+            if _ts_scope_block is not None:
+                _pipeline_blocked_by = "tool-scope"
+                _pipeline_error_message = _ts_scope_block
+            elif _guardrail_block_decision is not None:
+                _pipeline_blocked_by = "guardrail"
+                _pipeline_error_message = (
+                    getattr(_guardrail_block_decision, "message", None)
+                    or "Tool blocked by guardrail policy"
+                )
+            else:
+                _pipeline_blocked_by = "action-gate"
+                _pipeline_error_message = _block_msg or "Tool blocked by plugin policy"
         function_result = _complete_invocation_pipeline(
             function_result,
             status=_pipeline_status,
+            blocked_by=_pipeline_blocked_by,
+            error_type=_block_error_type if _execution_blocked else "",
+            error_message=_pipeline_error_message,
         )
         if not _execution_blocked:
             function_result = agent._append_guardrail_observation(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 from tools.runtime_native_tools import dispatch_native_tool
 from tools.simplicio_transport import SimplicioTransport, TransportReceipt
@@ -249,3 +250,50 @@ def test_transport_uses_runtime_cli_before_mcp_for_native_tool():
         "simplicio", "file", "read", "/repo/note.txt", "--json",
         "--repo", "/repo", "--start", "1", "--end", "1",
     ]
+
+
+def test_session_search_uses_cli_for_supported_shape_and_json_output():
+    import subprocess
+
+    process = subprocess.CompletedProcess(
+        ["simplicio"], 0, stdout='{"success":true,"mode":"discover","results":[]}', stderr=""
+    )
+    with patch("tools.simplicio_transport.subprocess.run", return_value=process) as run:
+        result = SimplicioTransport(cli_bin="simplicio").call_tool(
+            "simplicio_session_search",
+            {"query": "runtime parity", "limit": 5, "profile": "work"},
+        )
+
+    assert result.ok is True
+    assert result.transport == "cli"
+    assert run.call_args.args[0] == [
+        "simplicio", "session", "search", "runtime parity",
+        "--limit", "5", "--profile", "work", "--json",
+    ]
+
+
+def test_session_search_keeps_scroll_on_mcp_when_cli_cannot_preserve_shape():
+    calls = []
+    transport = SimplicioTransport(
+        cli_bin="simplicio",
+        mcp_call=lambda operation, args: calls.append((operation, args)) or {
+            "success": True, "mode": "scroll", "messages": []
+        },
+    )
+
+    with patch("tools.simplicio_transport.subprocess.run") as run:
+        result = transport.call_tool(
+            "simplicio_session_search",
+            {"session_id": "session-1", "around_message_id": 42, "window": 5},
+        )
+
+    assert result.ok is True
+    assert result.transport == "mcp"
+    run.assert_not_called()
+    assert calls == [(
+        "runtime_tool",
+        {
+            "name": "simplicio_session_search",
+            "arguments": {"session_id": "session-1", "around_message_id": 42, "window": 5},
+        },
+    )]

@@ -64,6 +64,12 @@ jobs:
     with:
       slice_count: 8
 
+  coverage:
+    name: Coverage threshold
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    uses: ./.github/workflows/coverage.yml
+
   lint:
     name: Python lints
     needs: detect
@@ -175,6 +181,7 @@ jobs:
     name: All required checks pass
     needs:
       - tests
+      - coverage
       - lint
       - perf-gate
       - js-tests
@@ -190,23 +197,23 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Evaluate job results
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "$NEEDS" | python3 -c "
-          import json, sys
-          needs = json.load(sys.stdin)
-          failed = [name for name, info in needs.items() if info['result'] == 'failure']
-          for name, info in sorted(needs.items()):
-              result = info['result']
-              icon = '✅' if result in ('success', 'skipped') else '❌'
-              print(f'{icon} {name}: {result}')
-          if failed:
-              print(f'::error::{len(failed)} job(s) failed: {\", \".join(failed)}')
-              sys.exit(1)
-          print('All checks passed (or were skipped)')
-          "
+          python3 scripts/ci/evaluate_gate.py \
+            --needs-json "$NEEDS" \
+            --receipt quality-gate-receipt.json
+      - name: Upload aggregate receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quality-gate-receipt
+          path: quality-gate-receipt.json
+          if-no-files-found: warn
+          retention-days: 14
 
   # ─────────────────────────────────────────────────────────────────────
   # CI timing report: collect per-job/step durations from the GitHub API,

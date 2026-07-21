@@ -1,0 +1,18 @@
+{
+  "issue": "498",
+  "domain": "mapper context contract adapter",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| sqlite_unavailable; simplicio memory init/query returned no indexed rows",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "simplicio-mapper-contracts",
+    "simplicio-runtime-sandbox",
+    "simplicio-runtime-evolution",
+    "test-driven-development",
+    "github-pr-workflow"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "runtime_evidence": "MEASURED| simplicio 1.6.4; runtime map completed with writable HOME; mapper adapter unresolved in runtime environment",
+  "agent": "wesleysimplicio"
+}

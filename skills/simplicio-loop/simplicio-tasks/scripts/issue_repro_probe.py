@@ -98,6 +98,8 @@ VALID_SUBS = {
 }
 
 DEFECT_LABELS = frozenset({"assert", "bug", "defect", "regression"})
+VERDICTS = frozenset({"PASS", "FAIL", "UNVERIFIED"})
+CLOSE_GATE_RECEIPT_SCHEMA = "simplicio-agent/issue-close-gate/v1"
 _REPORT_MARKER_RE = re.compile(
     r"\b(?:actual|fail(?:ed|ing|ure)?|repro(?:duce|duction)?|reported)\b"
     r"|command\s+to\s+reproduce",
@@ -112,13 +114,50 @@ class CloseGateDecision:
     allowed: bool
     status: str
     reason: str
+    verdict: str = "UNVERIFIED"
 
     def to_dict(self):
         return {
+            "schema": CLOSE_GATE_RECEIPT_SCHEMA,
             "allowed": self.allowed,
             "status": self.status,
+            "verdict": self.verdict,
             "reason": self.reason,
         }
+
+
+def verify_close_gate_receipt(receipt):
+    """Validate the shape and consistency of a serialized close-gate receipt."""
+
+    if not isinstance(receipt, dict):
+        return False
+    if receipt.get("schema") != CLOSE_GATE_RECEIPT_SCHEMA:
+        return False
+    if not isinstance(receipt.get("allowed"), bool):
+        return False
+    if receipt.get("status") not in {"closeable", "quarantined"}:
+        return False
+    if receipt.get("verdict") not in VERDICTS:
+        return False
+    if not isinstance(receipt.get("reason"), str) or not receipt["reason"].strip():
+        return False
+    return receipt["allowed"] is (receipt["status"] == "closeable") and (
+        receipt["allowed"] is (receipt["verdict"] == "PASS")
+    )
+
+
+def _receipt_verdict(value, label):
+    """Return a receipt verdict, rejecting legacy truthy flags as unverified."""
+
+    if not isinstance(value, dict):
+        return "UNVERIFIED", f"{label} receipt is missing or malformed"
+    verdict = value.get("status")
+    if verdict not in VERDICTS:
+        return "UNVERIFIED", f"{label} receipt status is unverified"
+    reference = value.get("receipt")
+    if not isinstance(reference, str) or not reference.strip():
+        return "UNVERIFIED", f"{label} receipt reference is missing"
+    return verdict, ""
 
 
 def _label_names(issue):
@@ -169,7 +208,7 @@ def extract_reported_cmds(body):
     return tuple(dict.fromkeys(reported))
 
 
-def evaluate_close_gate(issue, result, *, merged_pr=False, evidence=False):
+def evaluate_close_gate(issue, result, *, merged_pr=None, evidence=None):
     """Evaluate whether one probe result may support issue closure.
 
     The default is deliberately quarantine.  A passing command is insufficient
@@ -177,8 +216,8 @@ def evaluate_close_gate(issue, result, *, merged_pr=False, evidence=False):
     and independent evidence receipt.
     """
 
-    def quarantine(reason):
-        return CloseGateDecision(False, "quarantined", reason)
+    def quarantine(reason, verdict="UNVERIFIED"):
+        return CloseGateDecision(False, "quarantined", reason, verdict)
 
     if not has_defect_label(issue):
         return quarantine("missing defect label")
@@ -186,14 +225,26 @@ def evaluate_close_gate(issue, result, *, merged_pr=False, evidence=False):
     if command not in extract_reported_cmds(issue.get("body")):
         return quarantine("command is not the exact reported repro")
     if result.get("hang"):
-        return quarantine("reported repro hangs")
+        return quarantine("reported repro hangs", "FAIL")
+    if result.get("hang") is not False:
+        return quarantine("repro hang status is unverified")
+    if not isinstance(result.get("rc"), int) or isinstance(result.get("rc"), bool):
+        return quarantine("repro exit code is unverified")
     if result.get("rc") != 0:
-        return quarantine("reported repro does not pass")
-    if not merged_pr:
-        return quarantine("merged delivery evidence is missing")
-    if not evidence:
-        return quarantine("independent evidence receipt is missing")
-    return CloseGateDecision(True, "closeable", "all close-gate evidence is present")
+        return quarantine("reported repro does not pass", "FAIL")
+    delivery_verdict, delivery_reason = _receipt_verdict(
+        merged_pr, "merged delivery"
+    )
+    if delivery_verdict != "PASS":
+        return quarantine(delivery_reason, delivery_verdict)
+    evidence_verdict, evidence_reason = _receipt_verdict(
+        evidence, "independent evidence"
+    )
+    if evidence_verdict != "PASS":
+        return quarantine(evidence_reason, evidence_verdict)
+    return CloseGateDecision(
+        True, "closeable", "all close-gate evidence is present", "PASS"
+    )
 
 
 def extract_cmds(body):

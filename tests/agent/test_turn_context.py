@@ -177,6 +177,34 @@ def test_returns_turn_context_with_user_message_appended():
     assert ctx.messages[-1] == {"role": "user", "content": "hello"}
     assert ctx.current_turn_user_idx == len(ctx.messages) - 1
     assert ctx.active_system_prompt == "SYSTEM"
+    assert ctx.attention_context == ""
+
+
+def test_turn_context_wires_goal_scoped_attention_delta_without_mutating_transcript():
+    from agent.attention_runtime import get_attention_workspace
+    from agent.attention_schema import AttentionItem, AttentionReason
+
+    agent = _FakeAgent()
+    agent._attention_now = 10
+    workspace = get_attention_workspace(agent)
+    workspace.publish(
+        AttentionItem(
+            item_id="approval-1",
+            source="human-gate",
+            reason=AttentionReason.APPROVAL,
+            expires_at=100,
+            run_id="run-a",
+            goal_id="fixed-task",
+            created_at=0,
+        )
+    )
+
+    ctx = _build(agent, task_id="fixed-task")
+
+    assert '"authority":"observation_only"' in ctx.attention_context
+    assert '"reason":"approval"' in ctx.attention_context
+    assert '"receipt_id"' in ctx.attention_context
+    assert ctx.messages[-1] == {"role": "user", "content": "hello"}
 
 
 def test_applies_agent_side_effects():
@@ -416,4 +444,3 @@ def test_expired_cooldown_allows_preflight(tmp_path):
     assert isinstance(ctx, TurnContext)
     agent._emit_status.assert_called_once()
     agent._compress_context.assert_called()
-

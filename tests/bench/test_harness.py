@@ -76,7 +76,8 @@ def test_validate_report_rejects_weight_route_and_percentile_mismatch():
     row = report["categories"][0]
     row["weight_pct"] = row["weight_pct"] + 1
     row["route"] = "wrong-route"
-    row["latency_us"]["p50"] = row["latency_us"]["p95"] + 1000
+    row["latency_us"]["p50"] = 100
+    row["latency_us"]["p95"] = 50
 
     errors = validate_report(report, manifest)
 
@@ -244,9 +245,10 @@ def test_cli_compare_prints_gate_to_stdout_when_no_json_path(tmp_path, capsys):
 
     exit_code = main(["compare", "--before", str(before_path), "--after", str(before_path)])
 
-    assert exit_code == 0
+    assert exit_code == 1
     out = json.loads(capsys.readouterr().out)
     assert out["schema"] == "simplicio.bench-gate/v1"
+    assert out["status"] == "blocked"
 
 
 def test_cli_compare_returns_error_exit_code_on_unreadable_input(tmp_path, capsys):
@@ -316,8 +318,9 @@ def test_stub_report_has_token_latency_and_memory_metrics():
         assert category["sample_count"] == 10
         assert category["input_tokens"] > 0
         assert category["output_tokens"] > 0
-        assert category["latency_us"]["p50"] <= category["latency_us"]["p95"]
-        assert category["peak_memory_bytes"] > 0
+        assert category["latency_us"] == {"p50": None, "p95": None}
+        assert category["peak_memory_bytes"] is None
+        assert category["metric_evidence"]["latency_us"].startswith("UNVERIFIED|")
 
 
 def test_report_is_a_versioned_receipt_and_validates_against_manifest():
@@ -325,13 +328,18 @@ def test_report_is_a_versioned_receipt_and_validates_against_manifest():
 
     assert report["receipt_schema"] == RECEIPT_SCHEMA
     assert validate_report(report, load_manifest()) == []
-    assert report["evidence"].startswith("MEASURED|")
+    assert report["evidence"].startswith("UNVERIFIED|")
 
 
 def test_before_after_comparator_gates_token_and_latency_regressions():
     before = run_benchmark(repeats=1, warmup=0)
     after = deepcopy(before)
     after["categories"][0]["input_tokens"] *= 1.20
+    for receipt in (before, after):
+        receipt["categories"][0]["latency_us"] = {"p50": 10, "p95": 10}
+        receipt["categories"][0]["metric_evidence"]["latency_us"] = (
+            "MEASURED|executor timing supplied by test receipt"
+        )
     after["categories"][0]["latency_us"]["p95"] *= 1.50
 
     result = compare_reports(before, after, manifest=load_manifest())
@@ -339,7 +347,7 @@ def test_before_after_comparator_gates_token_and_latency_regressions():
     assert result["status"] == "blocked"
     assert "routine_deterministic.input_tokens" in result["regressions"]
     assert "routine_deterministic.latency_us.p95" in result["regressions"]
-    assert result["summary"]["metric_count"] == 32
+    assert result["summary"]["metric_count"] == 18
 
 
 def test_before_after_comparator_fails_closed_on_receipt_mismatch():
@@ -365,7 +373,8 @@ def test_unverified_receipt_provenance_is_preserved_in_gate():
 
     result = compare_reports(before, after, manifest=load_manifest())
 
-    assert result["status"] == "pass"
+    assert result["status"] == "blocked"
+    assert any("latency_us.p50 is unavailable" in error for error in result["errors"])
     assert result["evidence"].startswith("UNVERIFIED|")
 
 
@@ -388,11 +397,11 @@ def test_compare_cli_is_reusable_and_writes_gate_receipt(tmp_path):
             "--json",
             str(gate_path),
         ])
-        == 0
+        == 1
     )
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     assert gate["schema"] == "simplicio.bench-gate/v1"
-    assert gate["status"] == "pass"
+    assert gate["status"] == "blocked"
 
 
 def test_report_shape_is_reusable_across_runs():
@@ -415,6 +424,19 @@ def test_report_shape_is_reusable_across_runs():
     assert [row["route"] for row in first["categories"]] == [
         row["route"] for row in second["categories"]
     ]
+
+
+def test_stub_report_is_byte_for_byte_deterministic_and_offline(monkeypatch):
+    import socket
+
+    monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: (_ for _ in ()).throw(
+        AssertionError("stub attempted network access")
+    ))
+
+    first = run_benchmark(repeats=2, warmup=1)
+    second = run_benchmark(repeats=2, warmup=1)
+
+    assert first == second
 
 
 def test_manifest_rejects_modified_content_address(tmp_path):

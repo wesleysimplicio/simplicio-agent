@@ -1,0 +1,17 @@
+{
+  "issue": "169",
+  "domain": "attention agent turn-context integration",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| simplicio CLI e banco neural indisponiveis neste ambiente; issue, contratos locais e historico de slices auditados",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "test-driven-development",
+    "simplicio-runtime",
+    "github-pr-workflow"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "agent": "Codex /workspace/scratch/eaf577faa54e/issue-169-work",
+  "bounded_slice": "wire the existing deterministic attention workspace into the real per-turn user-context delta; preserve the cached system prompt and fail closed to the safe queue",
+  "runtime_status": "UNVERIFIED| simplicio runtime executor/binary unavailable; no runtime behavior reimplemented"
+}

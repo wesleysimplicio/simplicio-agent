@@ -1,0 +1,50 @@
+name: Coverage
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Python coverage threshold
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 8.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        uses: ./.github/actions/retry
+        with:
+          command: uv sync --locked --python 3.11 --extra all --extra dev
+
+      - name: Install coverage tool
+        run: uv pip install --python .venv/bin/python 'coverage==7.8.2'
+
+      - name: Run test suite with coverage
+        run: |
+          source .venv/bin/activate
+          coverage run --rcfile=.coveragerc.core -m pytest
+        env:
+          # Ensure tests don't accidentally call real APIs.
+          OPENROUTER_API_KEY: ""
+          OPENAI_API_KEY: ""
+          NOUS_API_KEY: ""
+
+      - name: Enforce coverage threshold
+        run: |
+          source .venv/bin/activate
+          coverage report --rcfile=.coveragerc.core

@@ -2737,6 +2737,29 @@ class TestConcurrentToolExecution:
         assert {entry[0] for entry in completes} == {"c1", "c2"}
         assert {entry[3] for entry in completes} == {'{"id":1}', '{"id":2}'}
 
+    def test_concurrent_pre_dispatch_blocks_publish_pipeline_receipts(self, agent, monkeypatch):
+        """Every concurrent admission block still closes the shared pipeline."""
+        tc1 = _mock_tool_call(name="web_search", arguments='{"query":"one"}', call_id="c1")
+        tc2 = _mock_tool_call(name="web_search", arguments='{"query":"two"}', call_id="c2")
+        mock_msg = _mock_assistant_msg(content="", tool_calls=[tc1, tc2])
+        messages = []
+
+        monkeypatch.setattr(
+            "hermes_cli.plugins.get_pre_tool_call_block_message",
+            lambda *args, **kwargs: "Blocked by test policy",
+        )
+        with patch("run_agent.handle_function_call", side_effect=AssertionError("should not run")):
+            agent._execute_tool_calls_concurrent(mock_msg, messages, "task-1")
+
+        assert len(messages) == 2
+        assert set(agent._tool_result_provenance) == {"c1", "c2"}
+        assert all(
+            agent._tool_result_provenance[call_id]["provenance"] == "UNVERIFIED"
+            for call_id in ("c1", "c2")
+        )
+        assert agent._last_tool_invocation_receipt["status"] == "blocked"
+        assert agent._last_tool_invocation_receipt["blocked_by"] == "action-gate"
+
     def test_concurrent_browser_type_callbacks_redact_api_key(self, agent):
         secret = "sk-proj-ABCD1234567890EFGH"
         tc = _mock_tool_call(

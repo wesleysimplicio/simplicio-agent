@@ -8,6 +8,7 @@ from typing import Any, Callable, Optional
 
 from .host import HostBackpressure, HostShutdown, SessionDirectory, SessionIdentity, SessionPool
 from .protocol import AgentConversationResult, AgentProtocol, AgentSessionProtocol, HostTurnRequest
+from .reasoning_worker import DeterministicEffect, SharedReasoningWorker
 from .runtime_context import AgentRuntimeContext, RuntimeBackpressure
 
 
@@ -24,10 +25,15 @@ class AsyncAgentHost:
         directory: Optional[SessionDirectory] = None,
         session_factory: Optional[Callable[[SessionIdentity], AgentSessionProtocol]] = None,
         runtime: AgentRuntimeContext | None = None,
+        deterministic_effect: DeterministicEffect | None = None,
     ) -> None:
         self.directory = directory or SessionDirectory()
         self.pool = SessionPool(agent_factory, max_sessions=max_sessions, session_factory=session_factory)
         self.runtime = runtime or AgentRuntimeContext(max_workers=max_workers, max_pending=max_pending)
+        self.worker = SharedReasoningWorker(
+            self.runtime,
+            deterministic_effect=deterministic_effect,
+        )
         self._stopping = False
 
     async def __aenter__(self) -> "AsyncAgentHost":
@@ -70,6 +76,24 @@ class AsyncAgentHost:
             raise HostShutdown("agent host is draining")
         if not self.runtime.started:
             await self.runtime.start()
+        plan = self.worker.plan(
+            request.user_message,
+            conversation_kwargs=request.conversation_kwargs,
+        )
+
+        # A deterministic result must not construct a logical Agent/session.
+        # Effects are admitted only through the explicit Runtime gate callback;
+        # without it, ``plan`` is blocked fail-closed by the worker.
+        if plan.receipt.route in {"deterministic", "blocked"}:
+            return await self.worker.submit(
+                task_id=request.turn_id,
+                key=None,
+                payload={"profile": request.profile, "session_id": request.session_id},
+                message=request.user_message,
+                conversation_kwargs=request.conversation_kwargs,
+                reasoning=lambda: self._raise_unreachable_route(plan),
+                plan=plan,
+            )
         identity = self.directory.resolve(
             request.profile,
             request.session_id,
@@ -86,11 +110,14 @@ class AsyncAgentHost:
                 lease.release()
                 return cached
         try:
-            future = await self.runtime.submit(
-                lambda: self._run_turn(entry, request),
+            future = await self.worker.submit(
                 task_id=request.turn_id,
                 key=f"{identity.profile}:{identity.session_id}:{identity.incarnation}:{identity.revision}",
                 payload={"profile": identity.profile, "session_id": identity.session_id},
+                message=request.user_message,
+                conversation_kwargs=request.conversation_kwargs,
+                reasoning=lambda: self._run_turn(entry, request),
+                plan=plan,
             )
         except (RuntimeBackpressure, RuntimeError):
             lease.release()
@@ -99,6 +126,10 @@ class AsyncAgentHost:
             entry.async_idempotent[key] = future
         future.add_done_callback(lambda _done: lease.release())
         return future
+
+    @staticmethod
+    def _raise_unreachable_route(_plan: Any) -> AgentConversationResult:
+        raise AssertionError("deterministic route must be handled by SharedReasoningWorker")
 
     async def run_turn(
         self,

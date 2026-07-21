@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agent.event_store import AwarenessReceipt, OperationalValueStatus
+from agent.event_store import AwarenessReceipt, OperationalScope, OperationalValueStatus
 from agent.belief_state import Freshness, SourceReliability
 from agent.operational_cycle import OperationalAwarenessCycle
 from agent.operational_now import Degradation, OperationalNowStore
@@ -15,6 +15,9 @@ from agent.prediction_receipts import (
     TimeoutReconciliation,
     Verifier,
 )
+
+
+SCOPE = OperationalScope(profile_id="profile-1", tenant_id="tenant-1")
 
 
 def _prediction(**changes: object) -> PredictionReceipt:
@@ -49,7 +52,11 @@ def _belief(*, freshness: Freshness = Freshness.FRESH) -> AwarenessReceipt:
         source_event_id="balance-event",
         recorded_at_ns=1,
         confidence=0.9,
-        payload={"run_id": "run-1", "profile_id": "profile-1"},
+        payload={
+            "run_id": "run-1",
+            "profile_id": "profile-1",
+            "tenant_id": "tenant-1",
+        },
     )
 
 
@@ -58,6 +65,7 @@ def test_cycle_authorizes_only_when_belief_precondition_is_fresh(tmp_path):
         OperationalNowStore(
             event_log_path=tmp_path / "events.jsonl",
             snapshot_path=tmp_path / "snapshot.json",
+            scope=SCOPE,
             source_reliability={"ledger": SourceReliability("ledger", "1", 1.0)},
         )
     )
@@ -74,6 +82,7 @@ def test_cycle_blocks_stale_or_missing_preconditions(tmp_path):
         OperationalNowStore(
             event_log_path=tmp_path / "events.jsonl",
             snapshot_path=tmp_path / "snapshot.json",
+            scope=SCOPE,
             source_reliability={"ledger": SourceReliability("ledger", "1", 1.0)},
         )
     )
@@ -88,7 +97,9 @@ def test_cycle_blocks_stale_or_missing_preconditions(tmp_path):
 
 def test_reconcile_persists_prediction_result_and_replays(tmp_path):
     store = OperationalNowStore(
-        event_log_path=tmp_path / "events.jsonl", snapshot_path=tmp_path / "snapshot.json"
+        event_log_path=tmp_path / "events.jsonl",
+        snapshot_path=tmp_path / "snapshot.json",
+        scope=SCOPE,
     )
     cycle = OperationalAwarenessCycle(store, clock_ns=lambda: 2)
     result = cycle.reconcile(_prediction(), [Observation.known("balance", 10)])
