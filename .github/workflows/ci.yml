@@ -64,6 +64,12 @@ jobs:
     with:
       slice_count: 8
 
+  coverage:
+    name: Coverage threshold
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    uses: ./.github/workflows/coverage.yml
+
   lint:
     name: Python lints
     needs: detect
@@ -175,6 +181,7 @@ jobs:
     name: All required checks pass
     needs:
       - tests
+      - coverage
       - lint
       - perf-gate
       - js-tests
