@@ -16,7 +16,7 @@ import subprocess
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 CLAIM_SCHEMA = "simplicio.lease/v1"
 CLAIM_MARKER = "<!-- simplicio-claim -->"
@@ -337,6 +337,71 @@ class ClaimLeaseStore:
             )
         return self.get(lease.issue) or lease
 
+    def sync_comment(
+        self,
+        lease: ClaimLease,
+        *,
+        marker: str,
+        body: str,
+        upsert: Callable[[str, str, str, str | None], str],
+    ) -> ClaimLease:
+        """Serialize marker discovery/mutation with durable lease state.
+
+        ``acquire`` commits before GitHub I/O so a slow network cannot hold the
+        claim transaction.  The follow-up comment operation still needs a
+        durable critical section: otherwise two workers can both observe a
+        missing ``comment_id`` and POST before either one attaches its result.
+        Holding ``BEGIN IMMEDIATE`` across this one existing sink call makes
+        the read/discover/upsert/attach sequence one per-issue operation.
+        """
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = connection.execute(
+                    "SELECT * FROM issue_claims WHERE issue = ?", (lease.issue,)
+                ).fetchone()
+                if not row:
+                    connection.commit()
+                    return lease
+                current = self._row_to_lease(row)
+                if (
+                    current.lease_id != lease.lease_id
+                    or current.holder != lease.holder
+                    or current.fencing_token != lease.fencing_token
+                ):
+                    connection.commit()
+                    return current
+                if lease.comment_id is None and current.comment_id is not None:
+                    # Another worker completed the same lease's first sync
+                    # while this attempt was waiting for the SQLite lock.
+                    connection.commit()
+                    return current
+                comment_id = self._require_text(
+                    upsert(current.issue, marker, body, current.comment_id),
+                    "comment_id",
+                )
+                connection.execute(
+                    """
+                    UPDATE issue_claims SET comment_id = ?
+                    WHERE issue = ? AND lease_id = ? AND holder = ?
+                      AND fencing_token = ?
+                    """,
+                    (
+                        comment_id,
+                        current.issue,
+                        current.lease_id,
+                        current.holder,
+                        current.fencing_token,
+                    ),
+                )
+                updated = ClaimLease(**{**current.__dict__, "comment_id": comment_id})
+                connection.commit()
+                return updated
+            except BaseException:
+                connection.rollback()
+                raise
+
 
 class ClaimCoordinator:
     """Pair lease transitions with marker-comment upserts, never posts retries."""
@@ -361,13 +426,14 @@ class ClaimCoordinator:
         lease = attempt.lease
         body = render_claim_comment(lease)
         try:
-            comment_id = self.comments.upsert(
-                lease.issue, CLAIM_MARKER, body, lease.comment_id
+            lease = self.store.sync_comment(
+                lease,
+                marker=CLAIM_MARKER,
+                body=body,
+                upsert=self.comments.upsert,
             )
         except Exception as error:  # comment failure must not create a second one
             return ClaimAttempt(attempt.status, lease, attempt.changed, str(error))
-        if comment_id != lease.comment_id:
-            lease = self.store.attach_comment(lease, comment_id)
         return ClaimAttempt(attempt.status, lease, attempt.changed)
 
     def acquire(self, *args: Any, **kwargs: Any) -> ClaimAttempt:
