@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from pathlib import Path
 
 from agent.tool_invocation_pipeline import (
@@ -11,6 +12,7 @@ from agent.tool_invocation_pipeline import (
     default_tool_invocation_receipt_writer,
     pipeline_for_agent,
 )
+from tools.watcher_gate import Verdict, watch_result_boundary
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "tool-pipeline"
@@ -451,6 +453,105 @@ def test_pipeline_converts_execution_exception_to_error_outcome():
     assert outcome.status == "error"
     assert outcome.error_type == "RuntimeError"
     assert outcome.trace[-2:] == ["persist", "evidence"]
+
+
+def test_pipeline_blocks_fabricated_result_at_tool_boundary_and_receipts_verdict():
+    receipts = []
+
+    def watcher(attempt):
+        return watch_result_boundary(
+            attempt.result,
+            lambda: {"ok": False},
+            kind="tool-result",
+            subject=attempt.resolved_name,
+        )
+
+    outcome = ToolInvocationPipeline(
+        watcher=watcher,
+        receipt_writer=receipts.append,
+    ).run(
+        ToolInvocation("demo.tool", {}),
+        lambda name, args: {"ok": True},
+    )
+
+    assert outcome.status == "blocked"
+    assert outcome.result["error"] == "watcher gate blocked fabricated result"
+    assert outcome.evidence["provenance"] == "UNVERIFIED"
+    assert outcome.evidence["watcher"]["verdict"] == Verdict.FABRICATED.value
+    assert outcome.invocation.metadata.blocked_by == "watcher-gate"
+    assert receipts[0].meta["provenance"] == "UNVERIFIED"
+    assert receipts[0].meta["watcher_verdict"] == Verdict.FABRICATED.value
+
+
+def test_pipeline_marks_missing_recompute_unverified_in_receipt_and_evidence():
+    receipts = []
+    outcome = ToolInvocationPipeline(receipt_writer=receipts.append).run(
+        ToolInvocation("remote.tool", {}),
+        lambda name, args: {"ok": True},
+    )
+
+    assert outcome.status == "success"
+    assert outcome.evidence["provenance"] == "UNVERIFIED"
+    assert outcome.evidence["watcher"]["verdict"] == Verdict.UNVERIFIED.value
+    assert receipts[0].meta["provenance"] == "UNVERIFIED"
+
+
+def test_pipeline_measured_watcher_provenance_is_available_to_trajectory():
+    def watcher(attempt):
+        return watch_result_boundary(
+            attempt.result,
+            lambda: {"ok": True},
+            kind="tool-result",
+            subject=attempt.resolved_name,
+        )
+
+    outcome = ToolInvocationPipeline(watcher=watcher).run(
+        ToolInvocation("demo.tool", {}, tool_call_id="call-1"),
+        lambda name, args: {"ok": True},
+    )
+
+    assert outcome.evidence["provenance"] == Verdict.MEASURED.value
+    assert outcome.evidence["watcher"]["matches"] is True
+
+
+def test_trajectory_carries_tool_boundary_provenance():
+    from agent.agent_runtime_helpers import convert_to_trajectory_format
+
+    agent = SimpleNamespace(
+        _tool_result_provenance={
+            "call-1": {
+                "provenance": "MEASURED",
+                "verdict": "MEASURED",
+                "matches": True,
+                "reason": "reported value matches the local recomputation",
+            }
+        },
+        _format_tools_for_system_message=lambda: "",
+        _toon_prompts_enabled=False,
+    )
+    messages = [
+        {"role": "user", "content": "check"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call-1",
+                    "function": {"name": "demo.tool", "arguments": "{}"},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": '{"ok": true}',
+        },
+    ]
+
+    trajectory = convert_to_trajectory_format(agent, messages, "check", True)
+
+    tool_value = trajectory[-1]["value"]
+    assert '"provenance": {"provenance": "MEASURED"' in tool_value
 
 
 def test_pipeline_for_agent_accepts_tool_name_from_tool_dispatch():

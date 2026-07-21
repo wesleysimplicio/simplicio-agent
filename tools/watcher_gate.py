@@ -38,13 +38,20 @@ class EvidenceKind(str, Enum):
     FILE = "file"
     HASH = "hash"
     COMMAND = "command"
+    RESULT = "result"
+    SUB_AGENT = "sub-agent"
 
 
 VerdictName = Literal["MEASURED", "CANON", "UNVERIFIED", "FABRICATED"]
 
-_UNVERIFIED_SOURCE_MARKERS = frozenset(
-    {"external", "network", "llm", "model", "remote", "web"}
-)
+_UNVERIFIED_SOURCE_MARKERS = frozenset({
+    "external",
+    "network",
+    "llm",
+    "model",
+    "remote",
+    "web",
+})
 
 
 def canonical_json(value: Any) -> str:
@@ -434,6 +441,77 @@ def watch_command(
     )
 
 
+def _boundary_kind(kind: str) -> EvidenceKind:
+    normalized = str(kind).strip().lower().replace("_", "-")
+    if normalized in {"sub-agent", "subagent", "child"}:
+        return EvidenceKind.SUB_AGENT
+    return EvidenceKind.RESULT
+
+
+def watch_result_boundary(
+    reported: Any,
+    recompute: Callable[[], Any] | None,
+    *,
+    kind: str = "tool-result",
+    subject: str = "result",
+    source: Any = "measured",
+) -> GateResult:
+    """Watch a tool or sub-agent result at its return boundary.
+
+    The caller supplies the independent recomputation callback.  This module
+    never executes a command, calls an LLM, or treats a self-reported result
+    as its own recomputation.  Missing callbacks therefore stay
+    ``UNVERIFIED``; a deterministic mismatch is ``FABRICATED`` and is safe
+    for the caller to block.
+    """
+
+    evidence_kind = _boundary_kind(kind)
+    if not str(subject).strip():
+        subject = "result"
+    if recompute is None:
+        return GateResult(
+            Verdict.UNVERIFIED,
+            matches=False,
+            consented=False,
+            reason="no independent recomputation is available at this boundary",
+            kind=evidence_kind,
+            subject=str(subject),
+        )
+    try:
+        recomputed = recompute()
+    except Exception as exc:  # noqa: BLE001 - a failed watcher is not a pass
+        return GateResult(
+            Verdict.UNVERIFIED,
+            matches=False,
+            consented=False,
+            reason=f"independent recomputation failed: {exc}",
+            kind=evidence_kind,
+            subject=str(subject),
+        )
+    return _with_context(
+        compare_reported_to_recomputed(
+            reported,
+            recomputed,
+            source=source,
+        ),
+        evidence_kind,
+        str(subject),
+    )
+
+
+def watcher_receipt(result: GateResult) -> dict[str, Any]:
+    """Return the stable boundary receipt used by trajectories and ledgers."""
+
+    provenance = (
+        result.verdict.value
+        if result.verdict in {Verdict.MEASURED, Verdict.CANON}
+        else Verdict.UNVERIFIED.value
+    )
+    payload = result.to_dict()
+    payload["provenance"] = provenance
+    return payload
+
+
 def authorize_action(
     action: str,
     *,
@@ -446,9 +524,7 @@ def authorize_action(
     if not has_explicit_consent(consent):
         raise ConsentRequiredError("explicit operator consent is required")
     if principal != "operator" or depth != 0:
-        raise RecursiveConsentError(
-            "only the depth-0 operator may authorize an action"
-        )
+        raise RecursiveConsentError("only the depth-0 operator may authorize an action")
     if not str(action).strip():
         raise ValueError("action must be non-empty")
     return ActionAuthorization(principal=principal, depth=depth, action=action)
@@ -478,4 +554,6 @@ __all__ = [
     "watch_command",
     "watch_file",
     "watch_hash",
+    "watch_result_boundary",
+    "watcher_receipt",
 ]

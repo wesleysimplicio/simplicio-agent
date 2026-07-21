@@ -20,6 +20,7 @@ from tools.watcher_gate import (
     watch_command,
     watch_file,
     watch_hash,
+    watch_result_boundary,
 )
 
 
@@ -188,6 +189,33 @@ def test_command_recompute_failure_is_unverified_not_fabricated():
 
     assert result.verdict is Verdict.UNVERIFIED
     assert "failed" in result.reason
+
+
+def test_result_boundary_without_recompute_is_unverified():
+    result = watch_result_boundary(
+        {"ok": True},
+        None,
+        kind="tool-result",
+        subject="demo.tool",
+    )
+
+    assert result.verdict is Verdict.UNVERIFIED
+    assert result.passed is False
+    assert result.kind is EvidenceKind.RESULT
+
+
+def test_result_boundary_recomputes_a_subagent_claim():
+    result = watch_result_boundary(
+        {"status": "completed", "summary": "tests pass"},
+        lambda: {"status": "failed", "summary": "tests fail"},
+        kind="sub-agent",
+        subject="child-1",
+    )
+
+    assert result.verdict is Verdict.FABRICATED
+    assert result.matches is False
+    assert result.passed is False
+    assert result.kind is EvidenceKind.SUB_AGENT
 
 
 def test_only_depth_zero_operator_can_authorize():

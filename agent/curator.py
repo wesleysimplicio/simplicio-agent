@@ -1822,6 +1822,18 @@ def _resolve_review_model(cfg: Dict[str, Any]) -> tuple[str, str]:
     return b.provider, b.model
 
 
+def build_curator_watcher_verdict() -> Dict[str, Any]:
+    """Return the conservative verdict for model-authored curator output."""
+
+    return {
+        "schema": "simplicio.watcher-verdict/v1",
+        "verdict": "UNVERIFIED",
+        "provenance": "UNVERIFIED",
+        "matches": False,
+        "reason": "curator output is model-authored and lacks independent recomputation",
+    }
+
+
 def _run_llm_review(prompt: str) -> Dict[str, Any]:
     """Spawn an AIAgent fork to run the curator review prompt.
 
@@ -1843,6 +1855,7 @@ def _run_llm_review(prompt: str) -> Dict[str, Any]:
         "provider": "",
         "tool_calls": [],
         "error": None,
+        "watcher": build_curator_watcher_verdict(),
     }
     try:
         from run_agent import AIAgent
