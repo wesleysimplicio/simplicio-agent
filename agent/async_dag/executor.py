@@ -17,9 +17,16 @@ short-circuit the level they happen on and surface as ``DagError``.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Sequence
+
+from agent.model_metadata import estimate_tokens_rough
+from agent.possibility_ledger import assert_shrinking_delegation
+from agent.telemetry.receipts import Receipt, record_receipt
 
 
 class DagError(RuntimeError):
@@ -43,6 +50,33 @@ class DagNode:
     tool: str
     args: Mapping[str, Any] = field(default_factory=dict)
     depends_on: tuple[str, ...] = ()
+    yool_id: str = "agent.async_dag"
+    depth: int = 0
+    input_context: str | None = None
+
+    @property
+    def tuple_hash(self) -> str:
+        """Return the deterministic tuple identity for this node."""
+
+        payload = json.dumps(
+            {
+                "yool_id": self.yool_id,
+                "node_id": self.node_id,
+                "tool": self.tool,
+                "args": self.args,
+                "depends_on": self.depends_on,
+                "depth": self.depth,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=repr,
+        ).encode("utf-8")
+        return hashlib.blake2b(payload, digest_size=32).hexdigest()
+
+    @property
+    def identity(self) -> str:
+        return f"{self.yool_id}:{self.tuple_hash}"
 
 
 @dataclass
@@ -51,6 +85,9 @@ class DagResult:
     errors: Dict[str, BaseException]
     levels: List[List[str]]
     elapsed_s: float
+    receipts: Dict[str, Receipt] = field(default_factory=dict)
+    max_resident: int = 0
+    peak_resident: int = 0
 
     @property
     def ok(self) -> bool:
@@ -63,6 +100,18 @@ class DagResult:
             "errors": {k: repr(v) for k, v in self.errors.items()},
             "levels": [list(level) for level in self.levels],
             "elapsed_s": round(self.elapsed_s, 4),
+            "max_resident": self.max_resident,
+            "peak_resident": self.peak_resident,
+            "receipts": {
+                node_id: {
+                    "sha": receipt.sha,
+                    "yool_id": receipt.yool_id,
+                    "tokens": receipt.cost.tokens,
+                    "tokens_raw": receipt.cost.tokens_raw,
+                    "tokens_saved": receipt.cost.tokens_saved,
+                }
+                for node_id, receipt in self.receipts.items()
+            },
         }
 
 
@@ -129,38 +178,138 @@ def build_dag(nodes: Sequence[DagNode]) -> List[List[str]]:
 class DagExecutor:
     dispatch: ToolCallable
     max_concurrency: int = 16
+    max_resident: Optional[int] = None
+    max_depth: Optional[int] = None
+    receipt_directory: Optional[Path] = None
 
     async def run(self, nodes: Sequence[DagNode]) -> DagResult:
+        if self.max_concurrency < 1:
+            raise ValueError("max_concurrency must be positive")
+        if self.max_resident is not None and self.max_resident < 1:
+            raise ValueError("max_resident must be positive")
+        resident_limit = (
+            self.max_resident if self.max_resident is not None else self.max_concurrency
+        )
+        if resident_limit < 1:
+            raise ValueError("max_resident must be positive")
+        if self.max_depth is not None and self.max_depth < 1:
+            raise ValueError("max_depth must be positive")
+
         loop = asyncio.get_event_loop()
         t0 = loop.time()
         by_id: Dict[str, DagNode] = {n.node_id: n for n in nodes}
         levels = _topo_levels(list(nodes))
-        sem = asyncio.Semaphore(self.max_concurrency)
         outputs: Dict[str, Any] = {}
         errors: Dict[str, BaseException] = {}
+        receipts: Dict[str, Receipt] = {}
+        state_lock = asyncio.Lock()
+        resident = 0
+        peak_resident = 0
 
         async def _run_one(node_id: str) -> None:
-            async with sem:
-                node = by_id[node_id]
-                if any(dep in errors for dep in node.depends_on):
-                    errors[node_id] = DagError(
-                        f"upstream dep failed for {node_id}",
-                    )
-                    return
+            nonlocal resident, peak_resident
+            node = by_id[node_id]
+            if self.max_depth is not None and node.depth >= self.max_depth:
+                errors[node_id] = DagError(
+                    f"recursion depth limit reached for {node_id}: "
+                    f"depth={node.depth}, max_depth={self.max_depth}"
+                )
+                return
+            if any(dep in errors for dep in node.depends_on):
+                errors[node_id] = DagError(f"upstream dep failed for {node_id}")
+                return
+            try:
+                resolved = _resolve_refs(node.args, outputs)
+                async with state_lock:
+                    resident += 1
+                    peak_resident = max(peak_resident, resident)
                 try:
-                    resolved = _resolve_refs(node.args, outputs)
                     result = await self.dispatch(node.tool, resolved)
-                except BaseException as exc:  # noqa: BLE001
-                    errors[node_id] = exc
-                    return
+                finally:
+                    async with state_lock:
+                        resident -= 1
+
+                if node.input_context is not None:
+                    summary = (
+                        result.get("summary") if isinstance(result, Mapping) else result
+                    )
+                    if not isinstance(summary, str):
+                        raise DagError(
+                            f"node {node_id} did not return a string summary"
+                        )
+                    try:
+                        assert_shrinking_delegation(
+                            node.input_context,
+                            summary,
+                            receipt_directory=self.receipt_directory,
+                        )
+                    except ValueError as exc:
+                        raise DagError(str(exc)) from exc
+
+                input_blob = json.dumps(
+                    {"identity": node.identity, "args": resolved},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=repr,
+                )
+                output_blob = json.dumps(
+                    result,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=repr,
+                )
+                raw_tokens = max(1, estimate_tokens_rough(input_blob + output_blob))
+                output_tokens = max(1, estimate_tokens_rough(output_blob))
+                receipts[node_id] = record_receipt(
+                    payload=input_blob + "\n" + output_blob,
+                    yool_id=node.yool_id,
+                    lane="fast",
+                    status="ok",
+                    tokens=output_tokens,
+                    tokens_raw=raw_tokens,
+                    tokens_saved=max(0, raw_tokens - output_tokens),
+                    directory=self.receipt_directory,
+                    meta={
+                        "proof_kind": "dag_node_execution",
+                        "node_id": node.node_id,
+                        "tuple_hash": node.tuple_hash,
+                    },
+                )
                 outputs[node_id] = result
+            except BaseException as exc:  # noqa: BLE001
+                errors[node_id] = exc
+
+        async def _run_level(level: List[str]) -> None:
+            queue: asyncio.Queue[str] = asyncio.Queue()
+            for node_id in level:
+                queue.put_nowait(node_id)
+
+            worker_count = min(self.max_concurrency, resident_limit, len(level))
+
+            async def worker() -> None:
+                while True:
+                    try:
+                        node_id = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        return
+                    try:
+                        await _run_one(node_id)
+                    finally:
+                        queue.task_done()
+
+            await asyncio.gather(*(worker() for _ in range(worker_count)))
 
         for level in levels:
-            await asyncio.gather(*(_run_one(nid) for nid in level))
+            await _run_level(level)
 
         return DagResult(
             outputs=outputs,
             errors=errors,
             levels=levels,
             elapsed_s=loop.time() - t0,
+            receipts=receipts,
+            max_resident=resident_limit,
+            peak_resident=peak_resident,
         )

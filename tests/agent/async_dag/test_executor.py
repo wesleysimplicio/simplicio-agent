@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 import pytest
 
@@ -93,3 +94,81 @@ def test_failed_node_short_circuits_dependents() -> None:
     assert "a" in result.errors
     assert "b" in result.errors
     assert "upstream dep failed" in repr(result.errors["b"])
+
+
+def test_executor_queues_adversarial_stream_under_resident_cap() -> None:
+    active = 0
+    peak = 0
+
+    async def tracked(tool: str, args):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return tool
+
+    ex = DagExecutor(dispatch=tracked, max_concurrency=16, max_resident=2)
+    result = asyncio.run(ex.run([DagNode(f"n{i}", "work") for i in range(12)]))
+
+    assert result.ok
+    assert peak == 2
+    assert result.peak_resident == 2
+    assert result.max_resident == 2
+
+
+def test_executor_rejects_nodes_at_recursion_limit() -> None:
+    ex = DagExecutor(dispatch=_dispatch, max_depth=2)
+    result = asyncio.run(ex.run([DagNode("deep", "echo", depth=2)]))
+
+    assert not result.ok
+    assert "deep" in result.errors
+    assert "recursion depth" in str(result.errors["deep"])
+
+
+def test_executor_enforces_strictly_shrinking_summary() -> None:
+    source = "context " * 100
+
+    async def summarize(tool: str, args):
+        return {"summary": args["summary"]}
+
+    ex = DagExecutor(dispatch=summarize)
+    passing = asyncio.run(
+        ex.run([
+            DagNode(
+                "summary",
+                "summarize",
+                args={"summary": "context " * 20},
+                input_context=source,
+            )
+        ])
+    )
+    failing = asyncio.run(
+        ex.run([
+            DagNode(
+                "summary",
+                "summarize",
+                args={"summary": source},
+                input_context=source,
+            )
+        ])
+    )
+
+    assert passing.ok
+    assert not failing.ok
+    assert "strictly shrink" in str(failing.errors["summary"])
+
+
+def test_executor_emits_tuple_identity_and_real_receipt(tmp_path: Path) -> None:
+    node = DagNode(
+        "read", "read_file", args={"path": "README.md"}, yool_id="agent.room"
+    )
+    ex = DagExecutor(dispatch=_dispatch, receipt_directory=tmp_path)
+    result = asyncio.run(ex.run([node]))
+
+    assert result.ok
+    receipt = result.receipts["read"]
+    assert node.tuple_hash in receipt.meta["tuple_hash"]
+    assert receipt.yool_id == "agent.room"
+    assert receipt.cost.tokens > 0
+    assert list(tmp_path.glob("*.json"))
