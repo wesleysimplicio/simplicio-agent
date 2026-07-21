@@ -51,12 +51,17 @@ def test_read_file_is_adapted_to_runtime_file_read(tmp_path, monkeypatch):
     assert args["repo"] == str(repo)
 
 
-def test_patch_replace_is_translated_to_runtime_edit(tmp_path):
+def test_patch_replace_is_translated_to_runtime_edit(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
     path = repo / "note.txt"
     path.write_text("old", encoding="utf-8")
-    runtime = StubRuntime({"simplicio_edit": {}})
+    runtime = StubRuntime({"simplicio_edit": {"applied": True}})
+    events = []
+    monkeypatch.setattr(
+        "tools.kernel_binding.emit_savings_event",
+        lambda source, outcome, detail="": events.append((source, outcome, detail)),
+    )
 
     result = dispatch_native_tool(
         "patch",
@@ -71,6 +76,7 @@ def test_patch_replace_is_translated_to_runtime_edit(tmp_path):
     plan = json.loads(args["plan"])
     assert plan["file"] == str(path)
     assert plan["operations"] == [{"op": "replace", "find": "old", "with": "new"}]
+    assert events == [("mechanical_edit", "applied", str(path))]
 
 
 def test_write_existing_file_reads_and_edits_through_runtime(tmp_path):
@@ -80,7 +86,7 @@ def test_write_existing_file_reads_and_edits_through_runtime(tmp_path):
     path.write_text("old", encoding="utf-8")
     runtime = StubRuntime({
         "simplicio_file_read": {"content": "old", "total_lines": 1, "truncated": False},
-        "simplicio_edit": {},
+        "simplicio_edit": {"applied": True},
     })
 
     result = dispatch_native_tool(
@@ -94,6 +100,45 @@ def test_write_existing_file_reads_and_edits_through_runtime(tmp_path):
     assert [name for name, _args in runtime.calls] == ["simplicio_file_read", "simplicio_edit"]
     plan = json.loads(runtime.calls[1][1]["plan"])
     assert plan["operations"] == [{"op": "replace", "find": "old", "with": "new"}]
+
+
+def test_patch_rejects_unacknowledged_runtime_edit(tmp_path):
+    path = tmp_path / "note.txt"
+    path.write_text("old", encoding="utf-8")
+    runtime = StubRuntime({"simplicio_edit": {}})
+
+    result = dispatch_native_tool(
+        "patch",
+        {"mode": "replace", "path": str(path), "old_string": "old", "new_string": "new"},
+        task_id="test",
+        transport=runtime,
+    )
+
+    assert result.status == "gap"
+    assert result.reason == "runtime_edit_unacknowledged"
+    assert result.runtime_tool == "simplicio_edit"
+
+
+def test_write_existing_file_rejects_unacknowledged_runtime_edit(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    path = repo / "note.txt"
+    path.write_text("old", encoding="utf-8")
+    runtime = StubRuntime({
+        "simplicio_file_read": {"content": "old", "total_lines": 1, "truncated": False},
+        "simplicio_edit": {"status": "ok-but-not-applied"},
+    })
+
+    result = dispatch_native_tool(
+        "write_file",
+        {"path": str(path), "content": "new"},
+        task_id="test",
+        transport=runtime,
+    )
+
+    assert result.status == "gap"
+    assert result.reason == "runtime_edit_unacknowledged"
+    assert path.read_text(encoding="utf-8") == "old"
 
 
 def test_write_new_file_is_an_explicit_runtime_gap(tmp_path):

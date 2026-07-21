@@ -115,6 +115,18 @@ def dispatch_native_tool(
             detail=receipt.error.message if receipt.error else None,
         )
 
+    # A zero-token mechanical edit is only successful when the Runtime
+    # explicitly acknowledges that it applied the plan.  A zero exit status,
+    # empty JSON object, or unrelated JSON must never be turned into a
+    # fabricated native-tool success (F2/#20, ADR-0020).
+    if runtime_tool == "simplicio_edit" and not _edit_acknowledged(receipt.value):
+        return _gap(
+            tool_name,
+            "runtime_edit_unacknowledged",
+            runtime_tool=runtime_tool,
+            receipt=receipt,
+        )
+
     try:
         result = decode(receipt.value)
     except Exception as exc:
@@ -125,6 +137,9 @@ def dispatch_native_tool(
             receipt=receipt,
             detail=str(exc),
         )
+
+    if runtime_tool == "simplicio_edit":
+        _emit_mechanical_edit_event(str(args.get("path") or ""))
 
     return RuntimeNativeDispatch(
         tool_name,
@@ -275,6 +290,14 @@ def _execute_write_route(route: _WriteRoute, transport: SimplicioTransport, tool
     )
     if not edit_receipt.ok:
         return _gap(tool_name, "runtime_edit_failed", runtime_tool="simplicio_edit", receipt=edit_receipt)
+    if not _edit_acknowledged(edit_receipt.value):
+        return _gap(
+            tool_name,
+            "runtime_edit_unacknowledged",
+            runtime_tool="simplicio_edit",
+            receipt=edit_receipt,
+        )
+    _emit_mechanical_edit_event(route.path)
     return RuntimeNativeDispatch(
         tool_name,
         "executed",
@@ -291,6 +314,30 @@ def _json_value(value: Any) -> Any:
         except json.JSONDecodeError:
             return value
     return value
+
+
+def _edit_acknowledged(value: Any) -> bool:
+    """Return whether a Runtime edit response proves the plan was applied."""
+    payload = _json_value(value)
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("applied") is True:
+        return True
+    return str(payload.get("status", "")).strip().lower() in {
+        "ok",
+        "applied",
+        "success",
+    }
+
+
+def _emit_mechanical_edit_event(path: str) -> None:
+    """Emit bounded F2 telemetry without coupling tool dispatch to logging."""
+    try:
+        from tools.kernel_binding import emit_savings_event
+
+        emit_savings_event("mechanical_edit", "applied", path[:300])
+    except Exception as exc:  # telemetry must never affect the edit result
+        logger.debug("mechanical edit telemetry unavailable: %s", exc)
 
 
 def _decode_runtime_read(value: Any, offset: int) -> str:
