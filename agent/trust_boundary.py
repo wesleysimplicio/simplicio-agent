@@ -13,6 +13,7 @@ import hmac
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 
@@ -69,6 +70,9 @@ class BlockedReason(str, Enum):
     REPLAYED_CONTROL_EVENT = "replayed_control_event"
     TAMPERED_RECEIPT = "tampered_receipt"
     UNTRUSTED_PROVENANCE = "untrusted_provenance"
+    STALE_CONTROL_EVENT = "stale_control_event"
+    UNAUTHORIZED_CONTROL_EVENT = "unauthorized_control_event"
+    MISSING_SECURITY_CONTEXT = "missing_security_context"
     MALFORMED_INPUT = "malformed_input"
 
 
@@ -282,6 +286,57 @@ class ControlEventReplayGuard:
             )
         self._seen_nonces.add(control_event.nonce)
         return provenance
+
+
+@dataclass(frozen=True)
+class AuthorityPolicy:
+    """Allow-list of actors and scopes for authenticated control events."""
+
+    actors_by_event_type: Mapping[str, frozenset[str]]
+    scopes_by_event_type: Mapping[str, frozenset[str]] = field(default_factory=dict)
+
+    def permits(self, event: ControlEvent) -> bool:
+        actors = self.actors_by_event_type.get(event.event_type)
+        if not actors or event.actor not in actors:
+            return False
+        allowed_scopes = self.scopes_by_event_type.get(event.event_type)
+        if allowed_scopes is None:
+            return True
+        scope = event.payload.get("scope")
+        return isinstance(scope, str) and scope in allowed_scopes
+
+
+def _ensure_fresh_control_event(
+    event: ControlEvent,
+    *,
+    now: datetime,
+    max_age_seconds: float,
+) -> None:
+    if max_age_seconds <= 0:
+        raise FailClosedTrustBoundaryError(
+            "control-event freshness window must be positive"
+        )
+    issued_at = _parse_utc(event.issued_at)
+    current = _aware_utc(now, "freshness reference time")
+    age_seconds = (current - issued_at).total_seconds()
+    if age_seconds < 0 or age_seconds > max_age_seconds:
+        raise FailClosedTrustBoundaryError("control event is outside freshness window")
+
+
+def _parse_utc(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise FailClosedTrustBoundaryError(
+            "control event issued_at is not valid UTC"
+        ) from exc
+    return _aware_utc(parsed, "control event issued_at")
+
+
+def _aware_utc(value: datetime, label: str) -> datetime:
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise FailClosedTrustBoundaryError(f"{label} must include timezone")
+    return value.astimezone(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -689,13 +744,48 @@ def enforce_control_event(
     *,
     keyring: Mapping[str, str | bytes],
     replay_guard: ControlEventReplayGuard | None = None,
+    authority_policy: AuthorityPolicy | None = None,
+    now: datetime | None = None,
+    max_age_seconds: float | None = None,
 ) -> TrustProvenance | BlockedCognitiveIntegrity:
-    """Verify a control event, returning a sanitized blocked result on failure."""
+    """Verify a control event and optional authority/freshness context.
+
+    Supplying the context is the strict vertical slice: an authenticated event
+    is still denied unless its actor/scope is authorized and its timestamp is
+    fresh. The legacy authentication-only call remains available to callers
+    that have not yet migrated their boundary.
+    """
 
     try:
         if replay_guard is not None:
-            return replay_guard.verify(event, keyring=keyring)
-        return verify_control_event(event, keyring=keyring)
+            provenance = replay_guard.verify(event, keyring=keyring)
+        else:
+            provenance = verify_control_event(event, keyring=keyring)
+        if (
+            authority_policy is not None
+            or now is not None
+            or max_age_seconds is not None
+        ):
+            if not isinstance(authority_policy, AuthorityPolicy):
+                raise FailClosedTrustBoundaryError("authority policy is required")
+            if now is None or max_age_seconds is None:
+                raise FailClosedTrustBoundaryError("freshness context is required")
+            control_event = (
+                event
+                if isinstance(event, ControlEvent)
+                else ControlEvent.from_dict(event)
+            )
+            if not authority_policy.permits(control_event):
+                return blocked_cognitive_integrity(
+                    BlockedReason.UNAUTHORIZED_CONTROL_EVENT,
+                    message="control event authority rejected",
+                    details={"event_id": _safe_lookup(event, "event_id")},
+                    source="control-event",
+                )
+            _ensure_fresh_control_event(
+                control_event, now=now, max_age_seconds=max_age_seconds
+            )
+        return provenance
     except ReplayDetectedTrustBoundaryError:
         return blocked_cognitive_integrity(
             BlockedReason.REPLAYED_CONTROL_EVENT,
@@ -704,8 +794,15 @@ def enforce_control_event(
             source="control-event",
         )
     except (TrustBoundaryError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        error_text = str(exc)
+        if "context is required" in error_text:
+            reason = BlockedReason.MISSING_SECURITY_CONTEXT
+        elif "freshness" in error_text or "outside freshness" in error_text:
+            reason = BlockedReason.STALE_CONTROL_EVENT
+        else:
+            reason = BlockedReason.UNAUTHENTICATED_CONTROL_EVENT
         return blocked_cognitive_integrity(
-            BlockedReason.UNAUTHENTICATED_CONTROL_EVENT,
+            reason,
             message=str(exc),
             details={
                 "event_id": _safe_lookup(event, "event_id"),
