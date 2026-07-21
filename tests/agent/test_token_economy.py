@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -117,6 +118,49 @@ def test_tail_is_bounded_and_lookup_remains_content_addressed() -> None:
     ]
     assert registry.lookup(handles[0].sha) is handles[0]
     assert registry.lookup(handles[2].sha) is handles[2]
+
+
+def test_handle_is_short_but_full_sha_remains_collision_safe() -> None:
+    text = "short handle with a full content address"
+    registry = PaidArtifactRegistry(max_resident=100)
+    handle = registry.register(_receipt(text), lambda: text)
+
+    assert len(handle.handle) == 8
+    assert handle.handle == bytes.fromhex(handle.sha)[:8]
+    assert len(handle.sha) == 64
+    assert registry.handle_marker(handle).startswith("⟦context:")
+
+
+def test_second_mention_is_a_zero_token_tail_cache_hit() -> None:
+    text = "the same paid context artifact"
+    registry = PaidArtifactRegistry(max_resident=100)
+    handle = registry.register(_receipt(text), lambda: text)
+
+    first = registry.mention(handle)
+    second = registry.mention(handle)
+
+    assert first.first
+    assert first.tokens == handle.token_cost
+    assert not second.first
+    assert second.tokens == 0
+    assert second.reason == "tail-o(1)-cache-hit"
+
+
+def test_concurrent_admission_never_exceeds_resident_cap() -> None:
+    registry = PaidArtifactRegistry(max_resident=8)
+    handles = [
+        registry.register(
+            _receipt(f"concurrent-{i}", tokens=1),
+            lambda i=i: f"concurrent-{i}",
+        )
+        for i in range(64)
+    ]
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        decisions = list(pool.map(registry.admit, handles))
+
+    assert sum(decision.admitted for decision in decisions) == 8
+    assert registry.resident_tokens == 8
 
 
 def test_summary_contract_shrinks_with_positive_measured_receipt(

@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
+import threading
 from typing import Callable
 
 from agent.context_references import ContextReference
@@ -19,6 +20,7 @@ from agent.model_metadata import estimate_tokens_rough
 from agent.telemetry.receipts import Receipt, content_hash, record_receipt
 
 Materializer = Callable[[], str | bytes]
+HANDLE_BYTES = 8
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class PaidArtifactHandle:
     """A receipt-backed artifact whose content is loaded only on demand."""
 
     sha: str
+    handle: bytes
     label: str
     token_cost: int
     receipt: Receipt = field(repr=False, compare=False)
@@ -40,6 +43,16 @@ class AdmissionDecision:
     admitted: bool
     resident_tokens: int
     max_resident: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class MentionDecision:
+    """Measured result for one context mention."""
+
+    handle: bytes
+    first: bool
+    tokens: int
     reason: str
 
 
@@ -63,12 +76,15 @@ class PaidArtifactRegistry:
         self._resident: set[str] = set()
         self._materialized: dict[str, str] = {}
         self._resident_tokens = 0
+        self._paid: set[str] = set()
+        self._lock = threading.RLock()
 
     @property
     def resident_tokens(self) -> int:
         """Return the measured token budget currently admitted."""
 
-        return self._resident_tokens
+        with self._lock:
+            return self._resident_tokens
 
     def register(
         self,
@@ -85,88 +101,125 @@ class PaidArtifactRegistry:
         if not callable(materializer):
             raise TypeError("materializer must be callable")
 
-        existing = self._entries.get(receipt.sha)
-        if existing is not None:
-            return existing
+        with self._lock:
+            existing = self._entries.get(receipt.sha)
+            if existing is not None:
+                return existing
 
-        handle = PaidArtifactHandle(
-            sha=receipt.sha,
-            label=label,
-            token_cost=receipt.cost.tokens,
-            receipt=receipt,
-            materializer=materializer,
-            reference=reference,
-        )
-        self._entries[handle.sha] = handle
-        self._tail.append(handle.sha)
-        return handle
+            handle = PaidArtifactHandle(
+                sha=receipt.sha,
+                handle=bytes.fromhex(receipt.sha)[:HANDLE_BYTES],
+                label=label,
+                token_cost=receipt.cost.tokens,
+                receipt=receipt,
+                materializer=materializer,
+                reference=reference,
+            )
+            self._entries[handle.sha] = handle
+            self._tail.append(handle.sha)
+            return handle
 
     def lookup(self, sha: str) -> PaidArtifactHandle | None:
         """Look up a handle by content address in O(1)."""
 
-        return self._entries.get(sha)
+        with self._lock:
+            return self._entries.get(sha)
+
+    def mention(self, handle_or_sha: PaidArtifactHandle | str) -> MentionDecision:
+        """Record a mention without reinjecting an already-paid body."""
+
+        with self._lock:
+            handle = self._resolve(handle_or_sha)
+            if handle is None:
+                raise KeyError("unknown artifact")
+            if handle.sha in self._paid:
+                return MentionDecision(
+                    handle=handle.handle,
+                    first=False,
+                    tokens=0,
+                    reason="tail-o(1)-cache-hit",
+                )
+            self._paid.add(handle.sha)
+            return MentionDecision(
+                handle=handle.handle,
+                first=True,
+                tokens=handle.token_cost,
+                reason="head-tax",
+            )
 
     def admit(self, handle_or_sha: PaidArtifactHandle | str) -> AdmissionDecision:
         """Admit one handle if its measured cost fits the resident budget."""
 
-        handle = self._resolve(handle_or_sha)
-        if handle is None:
-            return AdmissionDecision(
-                False, self._resident_tokens, self.max_resident, "unknown"
-            )
-        if handle.sha in self._resident:
-            return AdmissionDecision(
-                True, self._resident_tokens, self.max_resident, "already-resident"
-            )
-        if handle.token_cost > self.max_resident:
-            return AdmissionDecision(
-                False, self._resident_tokens, self.max_resident, "over-max-resident"
-            )
-        if self._resident_tokens + handle.token_cost > self.max_resident:
-            return AdmissionDecision(
-                False, self._resident_tokens, self.max_resident, "resident-budget"
-            )
+        with self._lock:
+            handle = self._resolve(handle_or_sha)
+            if handle is None:
+                return AdmissionDecision(
+                    False, self._resident_tokens, self.max_resident, "unknown"
+                )
+            if handle.sha in self._resident:
+                return AdmissionDecision(
+                    True, self._resident_tokens, self.max_resident, "already-resident"
+                )
+            if handle.token_cost > self.max_resident:
+                return AdmissionDecision(
+                    False, self._resident_tokens, self.max_resident, "over-max-resident"
+                )
+            if self._resident_tokens + handle.token_cost > self.max_resident:
+                return AdmissionDecision(
+                    False, self._resident_tokens, self.max_resident, "resident-budget"
+                )
 
-        self._resident.add(handle.sha)
-        self._resident_tokens += handle.token_cost
-        return AdmissionDecision(
-            True, self._resident_tokens, self.max_resident, "admitted"
-        )
+            self._resident.add(handle.sha)
+            self._resident_tokens += handle.token_cost
+            return AdmissionDecision(
+                True, self._resident_tokens, self.max_resident, "admitted"
+            )
 
     def materialize(self, handle_or_sha: PaidArtifactHandle | str) -> str:
         """Materialize an admitted artifact and verify its content address."""
 
-        handle = self._resolve(handle_or_sha)
-        if handle is None:
-            raise KeyError("unknown artifact")
-        if handle.sha not in self._resident:
-            raise RuntimeError("artifact must be admitted before materialization")
-        cached = self._materialized.get(handle.sha)
-        if cached is not None:
-            return cached
+        with self._lock:
+            handle = self._resolve(handle_or_sha)
+            if handle is None:
+                raise KeyError("unknown artifact")
+            if handle.sha not in self._resident:
+                raise RuntimeError("artifact must be admitted before materialization")
+            cached = self._materialized.get(handle.sha)
+            if cached is not None:
+                return cached
 
-        value = handle.materializer()
-        text = value.decode("utf-8") if isinstance(value, bytes) else str(value)
-        if content_hash(text) != handle.sha:
-            raise ValueError("materialized content hash does not match receipt")
-        self._materialized[handle.sha] = text
-        return text
+            value = handle.materializer()
+            text = value.decode("utf-8") if isinstance(value, bytes) else str(value)
+            if content_hash(text) != handle.sha:
+                raise ValueError("materialized content hash does not match receipt")
+            self._materialized[handle.sha] = text
+            return text
 
     def release(self, handle_or_sha: PaidArtifactHandle | str) -> bool:
         """Release resident content and its token admission."""
 
-        handle = self._resolve(handle_or_sha)
-        if handle is None or handle.sha not in self._resident:
-            return False
-        self._resident.remove(handle.sha)
-        self._resident_tokens -= handle.token_cost
-        self._materialized.pop(handle.sha, None)
-        return True
+        with self._lock:
+            handle = self._resolve(handle_or_sha)
+            if handle is None or handle.sha not in self._resident:
+                return False
+            self._resident.remove(handle.sha)
+            self._resident_tokens -= handle.token_cost
+            self._materialized.pop(handle.sha, None)
+            return True
 
     def tail(self) -> tuple[PaidArtifactHandle, ...]:
         """Return the bounded recent-registration tail in insertion order."""
 
-        return tuple(self._entries[sha] for sha in self._tail if sha in self._entries)
+        with self._lock:
+            return tuple(
+                self._entries[sha] for sha in self._tail if sha in self._entries
+            )
+
+    @staticmethod
+    def handle_marker(handle: PaidArtifactHandle) -> str:
+        """Return the short opaque handle safe to carry in a prompt."""
+
+        return f"⟦context:{handle.handle.hex()}⟧"
 
     def _resolve(
         self, handle_or_sha: PaidArtifactHandle | str
