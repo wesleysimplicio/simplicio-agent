@@ -22,10 +22,11 @@ Hard invariants enforced by this contract, not by convention:
 * **Diversity is measured, not assumed.**  Candidates declare structured
   ``approach_tags``/``operations`` (not free prose); diversity is a real
   Jaccard-distance computation over those structured facts.
-* **ACCEPT requires evidence, not plausibility.**  A candidate can only be
-  accepted when every required acceptance-criterion id is covered by a claim
-  that itself carries at least one evidence handle, and the critic recorded
-  zero unresolved findings.
+* **ACCEPT requires verified evidence, not plausibility.**  A candidate can
+  only be accepted when every required acceptance-criterion id is covered by
+  a claim whose evidence handle was explicitly verified by the caller, and
+  the critic recorded zero unresolved findings. An absent verification index
+  is fail-closed.
 * **REVISE is bounded and stall-detected.**  The loop never runs forever: a
   fixed round cap and a stagnation check on the leading score both terminate
   it with an auditable reason.
@@ -278,6 +279,11 @@ class Claim:
     def has_evidence(self) -> bool:
         return len(self.evidence_handles) > 0
 
+    def verified_handles(self, verified_evidence: frozenset[str]) -> tuple[str, ...]:
+        """Return only handles confirmed by an external evidence producer."""
+
+        return tuple(sorted(set(self.evidence_handles) & verified_evidence))
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "claim_id": self.claim_id,
@@ -478,6 +484,7 @@ class CriticReport:
     approach_id: str
     critic: RoleIdentity
     findings: tuple[CriticFinding, ...]
+    verified_evidence_handles: tuple[str, ...] = ()
 
     @property
     def clean(self) -> bool:
@@ -489,6 +496,7 @@ class CriticReport:
             "approach_id": self.approach_id,
             "critic": self.critic.to_dict(),
             "findings": [finding.to_dict() for finding in self.findings],
+            "verified_evidence_handles": list(self.verified_evidence_handles),
         }
 
 
@@ -496,6 +504,8 @@ def review_candidate(
     plan: PrototypePlan,
     candidate: PrototypeCandidate,
     critic: RoleIdentity,
+    *,
+    verified_evidence: Iterable[str] = (),
 ) -> CriticReport:
     """Adversarially review one candidate for injected defects.
 
@@ -503,8 +513,9 @@ def review_candidate(
     never free-text sentiment:
 
     * ``MISSING_EVIDENCE`` — an acceptance-criterion id the candidate claims
-      to cover has no claim referencing it, or that claim carries zero
-      evidence handles.
+      to cover has no claim referencing it, or that claim carries no evidence
+      handle verified by the caller. Handles absent from
+      ``verified_evidence`` are unavailable and therefore block the gate.
     * ``UNFOUNDED_CLAIM`` — any claim (regardless of AC linkage) with zero
       evidence handles.
     * ``SCOPE_DRIFT`` — a declared-scope path outside the plan's
@@ -514,6 +525,7 @@ def review_candidate(
     if critic.role is not RoleKind.CRITIC:
         raise ValueError("critic identity must declare role=critic")
 
+    verified = frozenset(_texts(verified_evidence, "verified_evidence"))
     findings: list[CriticFinding] = []
 
     claims_by_ac: dict[str, list[Claim]] = {}
@@ -524,6 +536,14 @@ def review_candidate(
                     DefectClass.UNFOUNDED_CLAIM,
                     "claim carries zero evidence handles",
                     claim.claim_id,
+                )
+            )
+        for handle in sorted(set(claim.evidence_handles) - verified):
+            findings.append(
+                CriticFinding(
+                    DefectClass.MISSING_EVIDENCE,
+                    "evidence handle is unavailable or unverified",
+                    handle,
                 )
             )
 
@@ -541,11 +561,11 @@ def review_candidate(
                 )
             )
             continue
-        if not any(claim.has_evidence for claim in matching):
+        if not any(claim.verified_handles(verified) for claim in matching):
             findings.append(
                 CriticFinding(
                     DefectClass.MISSING_EVIDENCE,
-                    "acceptance criterion's claim has zero evidence handles",
+                    "acceptance criterion's claim has no verified evidence handles",
                     ac_id,
                 )
             )
@@ -570,6 +590,15 @@ def review_candidate(
         critic=critic,
         findings=tuple(
             sorted(findings, key=lambda finding: (finding.defect_class.value, finding.related_id))
+        ),
+        verified_evidence_handles=tuple(
+            sorted(
+                {
+                    handle
+                    for claim in candidate.claims
+                    for handle in claim.verified_handles(verified)
+                }
+            )
         ),
     )
 
@@ -628,7 +657,7 @@ def score_candidate(
     covered = required & set(candidate.ac_covered)
     ac_coverage_ratio = len(covered) / len(required) if required else 0.0
 
-    evidence_present = len(candidate.evidence_handles) > 0
+    evidence_present = len(critic_report.verified_evidence_handles) > 0
     evidence_component = 1.0 if evidence_present else 0.0
 
     normalized_cost = (
@@ -688,6 +717,7 @@ class PrototypeDecision:
     round_number: int
     winner_approach_id: str | None
     verdicts: tuple[JudgeVerdict, ...]
+    judge: RoleIdentity
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -697,6 +727,7 @@ class PrototypeDecision:
             "round_number": self.round_number,
             "winner_approach_id": self.winner_approach_id,
             "verdicts": [verdict.to_dict() for verdict in self.verdicts],
+            "judge": self.judge.to_dict(),
         }
 
 
@@ -707,6 +738,7 @@ def decide_round(
     critic: RoleIdentity,
     *,
     round_number: int,
+    verified_evidence: Iterable[str] = (),
 ) -> tuple[PrototypeDecision, tuple[CriticReport, ...], DiversityReport]:
     """Run critic + judge over one round and return a bounded decision.
 
@@ -718,8 +750,12 @@ def decide_round(
     assert_no_self_judging(judge, candidates)
     diversity = measure_diversity(candidates)
 
+    verified = tuple(verified_evidence)
     critic_reports = tuple(
-        review_candidate(plan, candidate, critic) for candidate in candidates
+        review_candidate(
+            plan, candidate, critic, verified_evidence=verified
+        )
+        for candidate in candidates
     )
     critic_by_id = {report.approach_id: report for report in critic_reports}
 
@@ -744,6 +780,7 @@ def decide_round(
             round_number=round_number,
             winner_approach_id=best.approach_id,
             verdicts=verdicts,
+            judge=judge,
         )
     else:
         # Given review_candidate's invariant (a fully AC-covered, evidenced
@@ -760,6 +797,7 @@ def decide_round(
             round_number=round_number,
             winner_approach_id=None,
             verdicts=verdicts,
+            judge=judge,
         )
 
     return decision, critic_reports, diversity
@@ -773,6 +811,8 @@ class PrototypeGateReceipt:
     rounds: tuple[PrototypeDecision, ...]
     final: PrototypeDecision
     stalled: bool
+    critic_reports: tuple[tuple[CriticReport, ...], ...] = ()
+    diversity_reports: tuple[DiversityReport, ...] = ()
 
     @property
     def input_hash(self) -> str:
@@ -786,6 +826,13 @@ class PrototypeGateReceipt:
             "rounds": [decision.to_dict() for decision in self.rounds],
             "final": self.final.to_dict(),
             "stalled": self.stalled,
+            "critic_reports": [
+                [report.to_dict() for report in reports]
+                for reports in self.critic_reports
+            ],
+            "diversity_reports": [
+                report.to_dict() for report in self.diversity_reports
+            ],
         }
 
     @property
@@ -803,6 +850,7 @@ def run_bounded_revise(
     rounds: Sequence[Sequence[PrototypeCandidate]],
     *,
     max_rounds: int = MAX_REVISE_ROUNDS,
+    verified_evidence: Iterable[str] = (),
 ) -> PrototypeGateReceipt:
     """Drive the bounded REVISE loop across caller-supplied candidate rounds.
 
@@ -831,18 +879,33 @@ def run_bounded_revise(
         )
 
     decisions: list[PrototypeDecision] = []
+    critic_reports_by_round: list[tuple[CriticReport, ...]] = []
+    diversity_reports: list[DiversityReport] = []
     previous_best_score: float | None = None
     stalled = False
+    verified = tuple(verified_evidence)
 
     for index, candidates in enumerate(rounds, start=1):
-        decision, _critic_reports, _diversity = decide_round(
-            plan, candidates, judge, critic, round_number=index
+        decision, critic_reports, diversity = decide_round(
+            plan,
+            candidates,
+            judge,
+            critic,
+            round_number=index,
+            verified_evidence=verified,
         )
         decisions.append(decision)
+        critic_reports_by_round.append(critic_reports)
+        diversity_reports.append(diversity)
 
         if decision.kind is DecisionKind.ACCEPT:
             return PrototypeGateReceipt(
-                plan=plan, rounds=tuple(decisions), final=decision, stalled=False
+                plan=plan,
+                rounds=tuple(decisions),
+                final=decision,
+                stalled=False,
+                critic_reports=tuple(critic_reports_by_round),
+                diversity_reports=tuple(diversity_reports),
             )
 
         current_best_score = decision.verdicts[0].score if decision.verdicts else None
@@ -858,6 +921,7 @@ def run_bounded_revise(
                 round_number=decision.round_number,
                 winner_approach_id=None,
                 verdicts=decision.verdicts,
+                judge=judge,
             )
             decisions[-1] = stalled_decision
             return PrototypeGateReceipt(
@@ -865,6 +929,8 @@ def run_bounded_revise(
                 rounds=tuple(decisions),
                 final=stalled_decision,
                 stalled=True,
+                critic_reports=tuple(critic_reports_by_round),
+                diversity_reports=tuple(diversity_reports),
             )
 
         previous_best_score = current_best_score
@@ -882,14 +948,25 @@ def run_bounded_revise(
                 round_number=decision.round_number,
                 winner_approach_id=None,
                 verdicts=decision.verdicts,
+                judge=judge,
             )
             decisions[-1] = exhausted
             return PrototypeGateReceipt(
-                plan=plan, rounds=tuple(decisions), final=exhausted, stalled=stalled
+                plan=plan,
+                rounds=tuple(decisions),
+                final=exhausted,
+                stalled=stalled,
+                critic_reports=tuple(critic_reports_by_round),
+                diversity_reports=tuple(diversity_reports),
             )
 
     return PrototypeGateReceipt(
-        plan=plan, rounds=tuple(decisions), final=decisions[-1], stalled=stalled
+        plan=plan,
+        rounds=tuple(decisions),
+        final=decisions[-1],
+        stalled=stalled,
+        critic_reports=tuple(critic_reports_by_round),
+        diversity_reports=tuple(diversity_reports),
     )
 
 
