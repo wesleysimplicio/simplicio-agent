@@ -86,6 +86,10 @@ def dispatch_native_tool(
     if not is_runtime_native_tool(tool_name):
         return RuntimeNativeDispatch(tool_name, "not_applicable", reason="not_runtime_native")
 
+    gate = _gate_mutation(tool_name, args, task_id)
+    if gate is not None:
+        return gate
+
     route = _build_route(tool_name, args, task_id)
     if route is None:
         return _gap(tool_name, "no_runtime_parity")
@@ -147,6 +151,44 @@ def dispatch_native_tool(
         result=result,
         runtime_tool=runtime_tool,
         receipt=receipt,
+    )
+
+
+def _gate_mutation(
+    tool_name: str, args: dict[str, Any], task_id: str
+) -> Optional[RuntimeNativeDispatch]:
+    """Gate file mutations before resolving or invoking a Runtime edit."""
+    if tool_name not in {"write_file", "patch"}:
+        return None
+    path = args.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    action = f"{tool_name} {path}"
+    try:
+        from tools.kernel_binding import evaluate_action_gate
+
+        block = evaluate_action_gate(
+            action,
+            pattern_key=tool_name,
+            description=f"native {tool_name} mutation",
+            session_key=task_id,
+        )
+    except Exception as exc:
+        return _gap(
+            tool_name,
+            "runtime_action_gate_exception",
+            runtime_tool="simplicio_gate",
+            detail=str(exc),
+        )
+    if block is None:
+        return None
+    message = block.get("message") if isinstance(block, dict) else str(block)
+    return RuntimeNativeDispatch(
+        tool_name,
+        "blocked",
+        result=_json_error(message or "blocked by runtime action gate"),
+        runtime_tool="simplicio_gate",
+        reason="runtime_action_gate",
     )
 
 
