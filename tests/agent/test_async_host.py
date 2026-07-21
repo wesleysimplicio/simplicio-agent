@@ -30,7 +30,11 @@ async def test_async_host_preserves_idempotency_and_session_order():
         one = await host.submit("profile", "session", "first", idempotency_key="same", turn_id="one")
         duplicate = await host.submit("profile", "session", "different", idempotency_key="same", turn_id="duplicate")
         assert one is duplicate
-        assert await one == {"final_response": "first", "completed": True}
+        result = await one
+        assert result["final_response"] == "first"
+        assert result["completed"] is True
+        assert result["route_receipt"]["schema"] == "simplicio.agent-route/v1"
+        assert result["route_receipt"]["route"] == "frontier_reasoning"
         assert host.status()["runtime"]["metrics"]["completed"] == 1
 
     assert len(created) == 1
