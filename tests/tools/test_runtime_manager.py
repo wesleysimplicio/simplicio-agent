@@ -204,6 +204,16 @@ class TestVersionHandshake:
         with mock_patch("subprocess.run", return_value=proc):
             assert rm.kernel_version("/bin/simplicio") == "3.4.0"
 
+    def test_kernel_version_falls_back_to_legacy_version_command(self):
+        responses = [
+            subprocess.CompletedProcess([], 1, stdout="", stderr="unknown option"),
+            subprocess.CompletedProcess([], 0, stdout="simplicio-runtime 1.6.4\n", stderr=""),
+        ]
+        with mock_patch("subprocess.run", side_effect=responses) as run:
+            assert rm.kernel_version("/bin/simplicio") == "1.6.4"
+        assert run.call_args_list[0].args[0][-1] == "--version"
+        assert run.call_args_list[1].args[0][-1] == "version"
+
     def test_kernel_version_none_on_failure(self):
         proc = subprocess.CompletedProcess([], 1, stdout="", stderr="boom")
         with mock_patch("subprocess.run", return_value=proc):
@@ -413,10 +423,11 @@ class TestEnsureRuntime:
         absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
         with mock_patch.object(rm, "runtime_status", return_value=absent), \
              mock_patch.object(rm, "_install_from_release", return_value="no gh"), \
+             mock_patch.object(rm, "_install_from_pinned_url", return_value="no pinned url"), \
              mock_patch.object(rm, "_install_from_sibling", return_value="no cargo"):
             st = rm.ensure_runtime(install=True)
         assert not st.satisfied
-        assert "no gh" in st.detail and "no cargo" in st.detail
+        assert "no gh" in st.detail and "no pinned url" in st.detail and "no cargo" in st.detail
 
     def test_sibling_build_is_not_a_stable_fallback(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch)
@@ -424,6 +435,7 @@ class TestEnsureRuntime:
         absent = rm.RuntimeStatus(None, "absent", None, "3.4.0", False)
         with mock_patch.object(rm, "runtime_status", return_value=absent), \
              mock_patch.object(rm, "_install_from_release", return_value="no gh"), \
+             mock_patch.object(rm, "_install_from_pinned_url", return_value="no pinned url"), \
              mock_patch.object(rm, "_install_from_sibling") as sibling:
             st = rm.ensure_runtime(install=True)
         assert not st.satisfied
@@ -545,6 +557,32 @@ class TestInstallFromReleaseSha256:
         assert dest.read_bytes() == payload
         leftover = list(tmp_path.glob(".simplicio.download.*"))
         assert leftover == []
+
+    def test_pinned_url_download_verifies_and_installs(self, tmp_path):
+        payload = b"the-real-binary-bytes"
+        digest = hashlib.sha256(payload).hexdigest()
+        lock = self._lock(sha256=digest)
+        dest = tmp_path / "simplicio"
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self, _size):
+                nonlocal payload
+                value, payload = payload, b""
+                return value
+
+        p1, p2 = self._patched_platform()
+        with p1, p2, mock_patch.object(rm, "urlopen", return_value=Response()):
+            err = rm._install_from_pinned_url(lock, dest)
+
+        assert err is None
+        assert dest.read_bytes() == b"the-real-binary-bytes"
+        assert list(tmp_path.glob(".simplicio.url-download.*")) == []
 
     def test_legacy_plain_string_asset_has_no_pinned_hash(self, tmp_path):
         """Back-compat: a bare-string asset entry (no object) is treated as

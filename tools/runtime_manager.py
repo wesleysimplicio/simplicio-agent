@@ -21,8 +21,9 @@ Resolution order (first hit wins):
 
 Install strategies, in order:
 
-* ``gh release download`` of the platform asset from the release repo
-  (macOS/Linux — the release pipeline publishes those).
+* ``gh release download`` of the platform asset from the release repo.
+* the immutable HTTPS URL pinned in ``runtime.lock`` (used for tracked
+  binaries published from a version tag while release assets are promoted).
 * ``cargo build --release`` from the sibling ``simplicio-runtime`` checkout
   (the only path on Windows, which has no published binary asset).
 
@@ -42,6 +43,7 @@ import re
 import shutil
 import subprocess
 import sys
+from urllib.request import Request, urlopen
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -292,13 +294,15 @@ def version_satisfies(installed: str, minimum: str) -> bool:
 
 
 def kernel_version(bin_path: str) -> Optional[str]:
-    """Run ``<bin> --version`` and return the raw semver string, or None.
+    """Run the kernel version handshake and return its semver, or None.
 
     Validates *identity*, not just presence of a version-shaped substring:
     ``stdout`` must start with a ``simplicio``/``simplicio-runtime`` banner
     (see ``_KERNEL_BANNER_RE``). A binary that merely shares the name but
     prints an unrelated banner (or puts its version only in stderr) does not
-    satisfy the handshake and returns ``None``.
+    satisfy the handshake and returns ``None``. Older distributed kernels
+    expose ``version`` while newer builds expose ``--version``; both are
+    accepted across the release transition.
     """
     try:
         from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
@@ -306,23 +310,24 @@ def kernel_version(bin_path: str) -> Optional[str]:
         extra = {"creationflags": windows_hide_flags()} if IS_WINDOWS else {}
     except Exception:
         extra = {}
-    try:
-        proc = subprocess.run(
-            [bin_path, "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            **extra,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.debug("kernel --version failed for %s: %s", bin_path, exc)
-        return None
-    if proc.returncode != 0:
-        return None
-    m = _KERNEL_BANNER_RE.match(proc.stdout or "")
-    if not m:
-        return None
-    return f"{int(m.group(1))}.{int(m.group(2))}.{int(m.group(3))}"
+    for command in ("--version", "version"):
+        try:
+            proc = subprocess.run(
+                [bin_path, command],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                **extra,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            logger.debug("kernel %s failed for %s: %s", command, bin_path, exc)
+            continue
+        if proc.returncode != 0:
+            continue
+        m = _KERNEL_BANNER_RE.match(proc.stdout or "")
+        if m:
+            return f"{int(m.group(1))}.{int(m.group(2))}.{int(m.group(3))}"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +922,52 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
     return None
 
 
+def _install_from_pinned_url(lock: dict, dest: Path) -> Optional[str]:
+    """Download and verify the target at its immutable lock URL.
+
+    The public Simplicio distribution currently tracks platform binaries at
+    version tags before every GitHub release asset is promoted. This path is
+    therefore a bootstrap fallback, never an unverified fallback: URL,
+    SHA-256, and byte size are all required by the same lock validator used by
+    the release path.
+    """
+    validation = validate_runtime_lock(lock)
+    if not validation.valid:
+        return f"runtime lock invalid: {validation.detail}"
+    entry = validation.asset or {}
+    url = str(entry["url"])
+    pinned_sha256 = str(entry["sha256"])
+    expected_size = int(entry["size"])
+    tmp = dest.parent / f".{dest.name}.url-download.{os.getpid()}"
+    try:
+        request = Request(url, headers={"User-Agent": "simplicio-agent-runtime-bootstrap"})
+        with urlopen(request, timeout=300) as response, tmp.open("wb") as output:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                output.write(chunk)
+    except Exception as exc:
+        _cleanup_tmp(tmp)
+        return f"pinned asset download failed: {exc}"
+
+    digest = _sha256_file(tmp)
+    actual_size = tmp.stat().st_size
+    if digest.lower() != pinned_sha256.lower():
+        _cleanup_tmp(tmp)
+        return f"sha256 mismatch for {entry['name']}: expected {pinned_sha256}, got {digest}"
+    if actual_size != expected_size:
+        _cleanup_tmp(tmp)
+        return f"size mismatch for {entry['name']}: expected {expected_size}, got {actual_size}"
+    try:
+        tmp.chmod(0o755)
+        tmp.replace(dest)
+    except OSError as exc:
+        _cleanup_tmp(tmp)
+        return f"failed to move downloaded binary into place: {exc}"
+    return None
+
+
 def _install_from_sibling(lock: dict, dest: Path) -> Optional[str]:
     """``cargo build --release`` in the sibling checkout, then copy the
     binary into ``dest``. Returns an error string on failure, None on
@@ -1041,7 +1092,7 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
     dest = dest_dir / _bin_name(str(lock.get("kernel") or "simplicio"))
 
     developer_build = os.environ.get(_DEV_BUILD_ENV, "").strip() == "1"
-    strategies = [_install_from_release]
+    strategies = [_install_from_release, _install_from_pinned_url]
     if developer_build:
         strategies.append(_install_from_sibling)
     errors = []
