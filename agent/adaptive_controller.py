@@ -363,6 +363,25 @@ class AdaptiveController:
     # speak in terms of planning rather than bounding.
     plan_fan_out = bound_fan_out
 
+    def evaluate_proposal(
+        self,
+        proposal: "AdaptiveProposal",
+        *,
+        existing_fingerprints: Sequence[str] = (),
+    ) -> "ProposalGateReceipt":
+        """Evaluate a topology proposal without executing or mutating it.
+
+        Proposal validation remains on this existing controller boundary.  A
+        caller owns issue/RFC creation and Runtime execution; this method only
+        returns the receipt-backed gate outcome.
+        """
+
+        from agent.adaptive_architecture import evaluate_proposal_gate
+
+        return evaluate_proposal_gate(
+            proposal, existing_fingerprints=existing_fingerprints
+        )
+
 
 __all__ = [
     "ADAPTIVE_CONTROLLER_SCHEMA",
@@ -376,4 +395,40 @@ __all__ = [
     "ControllerAction",
     "FanOutPlan",
     "FanOutReceipt",
+]
+
+# Keep the existing controller as the public integration point while the
+# passive proposal contract lives in its own focused module.
+from agent.adaptive_architecture import (  # noqa: E402  (intentional re-export)
+    AdaptiveProposal,
+    ChangeType,
+    EvidenceKind,
+    EVIDENCE_SCHEMA,
+    GATE_SCHEMA,
+    GateCheck,
+    ProposalEvidence,
+    ProposalGateReceipt,
+    ProposalRisk,
+    PROPOSAL_SCHEMA,
+    SemanticChange,
+    Surface,
+    Verdict,
+    evaluate_proposal_gate,
+)
+
+__all__ += [
+    "AdaptiveProposal",
+    "ChangeType",
+    "EvidenceKind",
+    "EVIDENCE_SCHEMA",
+    "GATE_SCHEMA",
+    "GateCheck",
+    "ProposalEvidence",
+    "ProposalGateReceipt",
+    "ProposalRisk",
+    "PROPOSAL_SCHEMA",
+    "SemanticChange",
+    "Surface",
+    "Verdict",
+    "evaluate_proposal_gate",
 ]
