@@ -704,6 +704,7 @@ def run_conversation(
     _should_review_memory = _ctx.should_review_memory
     _plugin_user_context = _ctx.plugin_user_context
     _ext_prefetch_cache = _ctx.ext_prefetch_cache
+    _attention_context = getattr(_ctx, "attention_context", "")
 
     # The real production turn now enters the explicit lifecycle boundary.
     # This is shadow bookkeeping only: provider, tool, persistence, and public
@@ -945,6 +946,8 @@ def run_conversation(
                         _injections.append(_fenced)
                 if _plugin_user_context:
                     _injections.append(_plugin_user_context)
+                if _attention_context:
+                    _injections.append(_attention_context)
                 if _injections:
                     _base = api_msg.get("content", "")
                     if isinstance(_base, str):
