@@ -41,6 +41,10 @@ class UpdatePreflightError(RuntimeError):
 class UpdateLockError(UpdatePreflightError):
     """An update lock is already held or cannot be released safely."""
 
+    def __init__(self, message: str, *, holder: str | None = None) -> None:
+        super().__init__(message)
+        self.holder = holder
+
 
 class PreUpdateMetadataError(UpdatePreflightError):
     """Pre-update metadata is malformed or unavailable."""
@@ -209,7 +213,11 @@ class UpdateLock:
         try:
             descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         except FileExistsError as exc:
-            raise UpdateLockError("update lock is already held") from exc
+            holder = self._read_holder()
+            detail = f" by {holder}" if holder else ""
+            raise UpdateLockError(
+                f"update lock is already held{detail}", holder=holder
+            ) from exc
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
                 json.dump(payload, handle, sort_keys=True, separators=(",", ":"))
@@ -221,6 +229,19 @@ class UpdateLock:
             raise
         self._held = True
         return self
+
+    def _read_holder(self) -> str | None:
+        """Read a valid holder identity without weakening fail-closed locking."""
+        try:
+            value = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(value, dict) or value.get("schema") != LOCK_SCHEMA:
+            return None
+        owner = value.get("owner")
+        if not isinstance(owner, str) or not owner.strip() or "\n" in owner:
+            return None
+        return owner
 
     def release(self) -> None:
         if not self._held:
