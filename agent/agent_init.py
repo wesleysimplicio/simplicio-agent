@@ -33,6 +33,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse
 from agent.context_compressor import ContextCompressor
 from agent.iteration_budget import IterationBudget, resolve_max_iterations
 from agent.memory_manager import StreamingContextScrubber
+from agent.model_policy import enforce_model_policy
 from agent.model_metadata import (
     MINIMUM_CONTEXT_LENGTH,
     fetch_model_metadata,
@@ -403,7 +404,7 @@ def init_agent(
     """
     _install_safe_stdio()
 
-    agent.model = model
+    agent.model = enforce_model_policy(model, provider, base_url)
     # Lift the blind api-call ceiling via env override / headroom (Slice A, #244).
     # Resolves the gateway.log bottleneck where turns needing >90 API calls
     # stopped dead even with budget remaining. Unconfigured = unchanged (90).

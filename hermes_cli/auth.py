@@ -1227,6 +1227,22 @@ def is_known_auth_provider(provider_id: str) -> bool:
     return normalized in PROVIDER_REGISTRY or normalized in SERVICE_PROVIDER_NAMES
 
 
+def is_runtime_provider_routable(provider_id: str) -> bool:
+    """Return whether runtime resolution recognizes a provider identity."""
+    normalized = (provider_id or "").strip().lower()
+    if not normalized:
+        return False
+    if normalized in {"auto", "openrouter", "custom", "moa"}:
+        return True
+    if normalized.startswith("custom:"):
+        return True
+    try:
+        resolve_provider(normalized)
+    except AuthError:
+        return False
+    return True
+
+
 def get_auth_provider_display_name(provider_id: str) -> str:
     normalized = (provider_id or "").strip().lower()
     if normalized in PROVIDER_REGISTRY:

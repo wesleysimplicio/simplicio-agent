@@ -337,9 +337,35 @@ class _MatrixModelPickerPrompt:
     bot_reaction_events: dict[str, str] = field(default_factory=dict)
 
 
-# Matrix message size limit (4000 chars practical, spec has no hard limit
-# but clients render poorly above this).
-MAX_MESSAGE_LENGTH = 4000
+# Matrix message size limit. Keep a configurable ceiling below the protocol
+# maximum so clients do not receive oversized events or split Markdown tables.
+DEFAULT_MAX_MESSAGE_LENGTH = 16000
+MATRIX_MAX_MESSAGE_LENGTH_CEILING = 65535
+
+
+def _resolve_max_message_length(config) -> int:
+    extra = getattr(config, "extra", {}) or {}
+    raw = extra.get("max_message_length")
+    if raw is None:
+        raw = os.getenv("MATRIX_MAX_MESSAGE_LENGTH")
+    if raw is None:
+        try:
+            from gateway.platform_registry import platform_registry
+            entry = platform_registry.get("matrix")
+            if entry and entry.max_message_length:
+                raw = entry.max_message_length
+        except Exception:
+            pass
+    if raw is None:
+        return DEFAULT_MAX_MESSAGE_LENGTH
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_MESSAGE_LENGTH
+    return max(500, min(value, MATRIX_MAX_MESSAGE_LENGTH_CEILING))
+
+
+MAX_MESSAGE_LENGTH = DEFAULT_MAX_MESSAGE_LENGTH
 
 # Store directory for E2EE keys and sync state.
 # Uses get_hermes_home() so each profile gets its own Matrix store.
@@ -776,20 +802,22 @@ class MatrixAdapter(BasePlatformAdapter):
     """Gateway adapter for Matrix (any homeserver)."""
 
     supports_code_blocks = True  # Matrix renders fenced code blocks (HTML/markdown)
-    splits_long_messages = True  # send() chunks via truncate_message(MAX_MESSAGE_LENGTH)
+    splits_long_messages = True  # send() chunks via truncate_message(max_message_length)
 
     # Matrix clients commonly reserve typed "/" for client-local commands;
     # the adapter accepts "!command" as the alias that always reaches Hermes
     # (see _normalize_matrix_bang_command), so instruction text shows "!".
     typed_command_prefix = "!"
 
-    # Threshold for detecting Matrix client-side message splits.
-    # When a chunk is near the ~4000-char practical limit, a continuation
-    # is almost certain.
-    _SPLIT_THRESHOLD = 3900
+    max_message_length = DEFAULT_MAX_MESSAGE_LENGTH
+    _split_threshold = DEFAULT_MAX_MESSAGE_LENGTH - 100
 
     def __init__(self, config: PlatformConfig):
         super().__init__(config, Platform.MATRIX)
+
+        self.max_message_length = _resolve_max_message_length(config)
+        self.MAX_MESSAGE_LENGTH = self.max_message_length
+        self._split_threshold = max(100, self.max_message_length - 100)
 
         self._homeserver: str = (
             config.extra.get("homeserver", "") or os.getenv("MATRIX_HOMESERVER", "")
@@ -1588,7 +1616,7 @@ class MatrixAdapter(BasePlatformAdapter):
             return SendResult(success=True)
 
         formatted = self.format_message(content)
-        chunks = self.truncate_message(formatted, MAX_MESSAGE_LENGTH)
+        chunks = self.truncate_message(formatted, self.max_message_length)
 
         last_event_id = None
         for i, chunk in enumerate(chunks):
@@ -4572,6 +4600,8 @@ def _apply_yaml_config(yaml_cfg: dict, matrix_cfg: dict) -> dict | None:
         os.environ["MATRIX_AUTO_THREAD"] = str(matrix_cfg["auto_thread"]).lower()
     if "dm_mention_threads" in matrix_cfg and not os.getenv("MATRIX_DM_MENTION_THREADS"):
         os.environ["MATRIX_DM_MENTION_THREADS"] = str(matrix_cfg["dm_mention_threads"]).lower()
+    if "max_message_length" in matrix_cfg and not os.getenv("MATRIX_MAX_MESSAGE_LENGTH"):
+        os.environ["MATRIX_MAX_MESSAGE_LENGTH"] = str(matrix_cfg["max_message_length"])
     return None
 
 
@@ -4617,7 +4647,7 @@ def register(ctx) -> None:
         allow_all_env="MATRIX_ALLOW_ALL_USERS",
         cron_deliver_env_var="MATRIX_HOME_ROOM",
         standalone_sender_fn=_standalone_send,
-        max_message_length=4000,
+        max_message_length=DEFAULT_MAX_MESSAGE_LENGTH,
         emoji="🔐",
         allow_update_command=True,
     )

@@ -1258,6 +1258,17 @@ def switch_model(
     # --- Normalize model name for target provider ---
     new_model = normalize_model_for_provider(new_model, target_provider)
 
+    from agent.model_policy import is_nvidia_model, model_policy_error
+    if is_nvidia_model(new_model, target_provider, base_url):
+        return ModelSwitchResult(
+            success=False,
+            new_model=new_model,
+            target_provider=target_provider,
+            provider_label=provider_label,
+            is_global=is_global,
+            error_message=model_policy_error(new_model),
+        )
+
     # --- Validate ---
     try:
         validation = validate_requested_model(
@@ -1685,10 +1696,18 @@ def list_authenticated_providers(
             and _alias_target in _AGG_PROVIDERS
         ):
             continue
-        # Skip aliases that map to the same models.dev provider (e.g.
-        # kimi-coding and kimi-coding-cn both → kimi-for-coding).
-        # The first one with valid credentials wins (#10526).
-        if mdev_id in seen_mdev_ids:
+        # Skip provider aliases that resolve to another canonical profile
+        # (for example ``kimi`` -> ``kimi-coding``). Distinct profiles such
+        # as ``kimi-coding-cn`` must remain independently selectable.
+        _canonical = hermes_id
+        try:
+            from providers import get_provider_profile as _gpp
+            _profile = _gpp(hermes_id)
+            if _profile is not None:
+                _canonical = _profile.name
+        except Exception:
+            pass
+        if _canonical != hermes_id:
             continue
         pdata = data.get(mdev_id)
         if not isinstance(pdata, dict):

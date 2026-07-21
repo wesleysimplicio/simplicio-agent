@@ -2457,6 +2457,30 @@ def _load_gateway_runtime_config() -> dict:
     return expanded if isinstance(expanded, dict) else {}
 
 
+def _checkpoint_agent_kwargs(config: dict | None) -> dict:
+    """Translate gateway checkpoint config into ``AIAgent`` constructor args."""
+    cp_cfg = config.get("checkpoints", {}) if isinstance(config, dict) else {}
+    if isinstance(cp_cfg, bool):
+        cp_cfg = {"enabled": cp_cfg}
+    elif not isinstance(cp_cfg, dict):
+        cp_cfg = {}
+
+    from hermes_cli.config import DEFAULT_CONFIG
+    defaults = DEFAULT_CONFIG["checkpoints"]
+    return {
+        "checkpoints_enabled": cp_cfg.get("enabled", defaults["enabled"]),
+        "checkpoint_max_snapshots": cp_cfg.get(
+            "max_snapshots", defaults["max_snapshots"],
+        ),
+        "checkpoint_max_total_size_mb": cp_cfg.get(
+            "max_total_size_mb", defaults["max_total_size_mb"],
+        ),
+        "checkpoint_max_file_size_mb": cp_cfg.get(
+            "max_file_size_mb", defaults["max_file_size_mb"],
+        ),
+    }
+
+
 def _resolve_gateway_model(config: dict | None = None) -> str:
     """Read model from config.yaml — single source of truth.
 
@@ -2466,10 +2490,16 @@ def _resolve_gateway_model(config: dict | None = None) -> str:
     """
     cfg = config if config is not None else _load_gateway_config()
     model_cfg = cfg.get("model", {})
+    from agent.model_policy import enforce_model_policy
+
     if isinstance(model_cfg, str):
-        return model_cfg
+        return enforce_model_policy(model_cfg)
     elif isinstance(model_cfg, dict):
-        return model_cfg.get("default") or model_cfg.get("model") or ""
+        return enforce_model_policy(
+            model_cfg.get("default") or model_cfg.get("model") or "",
+            model_cfg.get("provider"),
+            model_cfg.get("base_url"),
+        )
     return ""
 
 
@@ -13731,6 +13761,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 agent = AIAgent(
                     model=turn_route["model"],
                     **turn_route["runtime"],
+                    **_checkpoint_agent_kwargs(user_config),
                     max_iterations=max_iterations,
                     quiet_mode=True,
                     verbose_logging=False,
@@ -18908,6 +18939,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 agent = AIAgent(
                     model=turn_route["model"],
                     **turn_route["runtime"],
+                    **_checkpoint_agent_kwargs(user_config),
                     max_iterations=max_iterations,
                     quiet_mode=True,
                     verbose_logging=False,
