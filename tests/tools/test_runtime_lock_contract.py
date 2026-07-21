@@ -49,6 +49,24 @@ def test_unverified_signature_is_not_stable_ready(tmp_path):
     assert receipt.stable_ready is False
 
 
+def test_asset_below_minimum_version_fails_closed(tmp_path):
+    lock, _ = _lock(tmp_path)
+    lock["min_version"] = "3.6.0"
+    receipt = validate_lock(lock, target="linux-x86_64")
+    assert receipt.valid is False
+    assert "asset.version must be >= min_version" in receipt.errors
+
+
+def test_asset_version_must_match_explicit_url_release_tag(tmp_path):
+    lock, _ = _lock(tmp_path)
+    lock["assets"]["linux-x86_64"]["url"] = (
+        "https://example.invalid/releases/download/v3.6.0/simplicio"
+    )
+    receipt = validate_lock(lock, target="linux-x86_64")
+    assert receipt.valid is False
+    assert "asset.version does not match URL release tag" in receipt.errors
+
+
 @pytest.mark.parametrize("field", ["sha256", "size", "url", "version"])
 def test_missing_pinned_metadata_fails_closed(tmp_path, field):
     lock, _ = _lock(tmp_path)

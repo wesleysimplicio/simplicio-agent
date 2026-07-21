@@ -88,6 +88,8 @@ class RuntimeLockValidation:
     target: str
     asset: Optional[dict]
     errors: tuple[str, ...] = ()
+    stable_ready: bool = False
+    signature_status: str = "unverified"
 
     @property
     def detail(self) -> str:
@@ -177,7 +179,14 @@ def validate_runtime_lock(
         )
         for error in result.errors
     )
-    return RuntimeLockValidation(result.valid, result.target, asset, errors)
+    return RuntimeLockValidation(
+        result.valid,
+        result.target,
+        asset,
+        errors,
+        result.stable_ready,
+        result.signature_status,
+    )
 
     errors: list[str] = []
     if not isinstance(lock, dict):
@@ -598,8 +607,15 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
     lock = lock or load_runtime_lock()
     minimum = str(lock.get("min_version") or "0.0.0")
     validation = validate_runtime_lock(lock)
-    if not validation.valid:
-        detail = f"runtime lock invalid: {validation.detail}"
+    if not validation.valid or not validation.stable_ready:
+        detail = (
+            f"runtime lock invalid: {validation.detail}"
+            if not validation.valid
+            else (
+                "runtime lock signature is not verified: "
+                f"{validation.signature_status}"
+            )
+        )
         release_repo = str(lock.get("release_repo") or "") or None
         source_repo = str(lock.get("source_repo") or "") or None
         return RuntimeStatus(
@@ -609,7 +625,7 @@ def runtime_status(lock: Optional[dict] = None) -> RuntimeStatus:
             min_version=minimum,
             satisfied=False,
             detail=detail,
-            lock_valid=False,
+            lock_valid=validation.valid,
             release_repo=release_repo,
             source_repo=source_repo,
             target=validation.target,
@@ -852,10 +868,12 @@ def _install_from_release(lock: dict, dest: Path) -> Optional[str]:
         return "no pinned sha256 for asset -- refusing unverified download"
 
     validation = validate_runtime_lock(lock)
-    if not validation.valid:
+    if not validation.valid or not validation.stable_ready:
         detail = validation.detail
         if "sha256" in detail or (legacy_asset and not legacy_sha256):
             detail += " (no pinned sha256 -- refusing unverified download)"
+        if validation.valid and not validation.stable_ready:
+            detail = f"signature is not verified: {validation.signature_status}"
         return f"runtime lock invalid: {detail}"
     entry = validation.asset or {}
     asset = str(entry["name"])
@@ -922,8 +940,11 @@ def _install_from_pinned_url(lock: dict, dest: Path) -> Optional[str]:
     the release path.
     """
     validation = validate_runtime_lock(lock)
-    if not validation.valid:
-        return f"runtime lock invalid: {validation.detail}"
+    if not validation.valid or not validation.stable_ready:
+        detail = validation.detail
+        if validation.valid and not validation.stable_ready:
+            detail = f"signature is not verified: {validation.signature_status}"
+        return f"runtime lock invalid: {detail}"
     entry = validation.asset or {}
     url = str(entry["url"])
     pinned_sha256 = str(entry["sha256"])
@@ -1059,8 +1080,13 @@ def ensure_runtime(*, install: bool = False) -> RuntimeStatus:
         return status
 
     validation = validate_runtime_lock(lock)
-    if not validation.valid:
+    if not validation.valid or not validation.stable_ready:
         status.detail = f"runtime lock invalid: {validation.detail}"
+        if validation.valid and not validation.stable_ready:
+            status.detail = (
+                "runtime lock signature is not verified: "
+                f"{validation.signature_status}"
+            )
         return status
 
     # Never overwrite a user-managed install (env/PATH) — the managed dir

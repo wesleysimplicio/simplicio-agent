@@ -211,6 +211,55 @@ def test_failed_health_check_rolls_back_without_losing_previous(tmp_path: Path) 
     assert not contract.state_path.exists()
 
 
+def test_rollback_rejects_tampered_previous_slot(tmp_path: Path) -> None:
+    contract = UpdateContract(tmp_path / "install")
+    first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
+    contract.activate(contract.stage(first_manifest, first_artifact))
+    second_artifact, second_manifest = _artifact(tmp_path, "2.0.0")
+    matrix, plan = _compatible_plan(contract, second_manifest)
+    second = contract.activate(
+        contract.stage(second_manifest, second_artifact), plan=plan, matrix=matrix
+    )
+    assert second.previous_slot is not None
+    (contract.slots / second.previous_slot / "VERSION").write_text(
+        "tampered", encoding="utf-8"
+    )
+
+    with pytest.raises(UpdateError, match="digest mismatch"):
+        contract.rollback()
+
+    assert contract.current() == second
+
+
+@pytest.mark.parametrize("boundary", ["state", "pointer", "commit"])
+def test_interrupted_rollback_recovers_fail_closed_at_each_boundary(
+    tmp_path: Path, boundary: str
+) -> None:
+    contract = UpdateContract(tmp_path / "install")
+    first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
+    first = contract.activate(contract.stage(first_manifest, first_artifact))
+    second_artifact, second_manifest = _artifact(tmp_path, "2.0.0")
+    matrix, plan = _compatible_plan(contract, second_manifest)
+    second = contract.activate(
+        contract.stage(second_manifest, second_artifact), plan=plan, matrix=matrix
+    )
+
+    with pytest.raises(UpdateInterrupted):
+        contract.rollback(interrupt_after=boundary)
+
+    restarted = UpdateContract(contract.root)
+    recovered = restarted.current()
+    assert recovered is not None
+    assert not restarted.state_path.exists()
+    if boundary == "state":
+        assert recovered.active_slot == second.active_slot
+        assert recovered.active_sha256 == second.active_sha256
+    else:
+        assert recovered.active_slot == first.active_slot
+        assert recovered.version == first.version
+        assert recovered.active_sha256 == first.active_sha256
+
+
 def test_plan_rejects_incompatible_downgrade(tmp_path: Path) -> None:
     contract = UpdateContract(tmp_path / "install")
     first_artifact, first_manifest = _artifact(tmp_path, "1.0.0")
