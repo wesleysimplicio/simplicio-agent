@@ -29,6 +29,11 @@ test('resolves and validates the checked-in desktop layout', () => {
   assert.equal(fs.existsSync(path.join(repoRoot, 'apps', 'desktop')), false)
 })
 
+test('root installs run the persisted desktop layout guard first', () => {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+  assert.equal(packageJson.scripts.preinstall, 'npm run check:desktop-layout')
+})
+
 test('rejects a stale apps/desktop reference in a declared consumer', () => {
   const root = makeFixture()
   fs.writeFileSync(path.join(root, '.envrc'), 'watch_file apps/desktop/package.json\n')

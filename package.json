@@ -10,6 +10,7 @@
     "tests-js"
   ],
   "scripts": {
+    "preinstall": "npm run check:desktop-layout",
     "postinstall": "echo '✅ Browser tools ready. Run: python run_agent.py --help'",
     "install:root": "npm install --workspaces=false",
     "install:web": "npm install --workspace web",
