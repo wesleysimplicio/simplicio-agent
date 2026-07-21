@@ -524,8 +524,23 @@ _ACTIVE_TURN_ENGINE_TOKEN: ContextVar = ContextVar(
 )
 
 
-def _start_turn_engine(*, turn_id: str, session_id: str, attempt_id: str = "0") -> EngineTurnContext:
+def _start_turn_engine(
+    *,
+    turn_id: str,
+    session_id: str,
+    attempt_id: str = "0",
+    agent: Any = None,
+) -> EngineTurnContext:
     """Enter the real conversation path through the TurnEngine boundary."""
+
+    # AgentHost may already have admitted this turn through AgentSession.
+    # Reuse that context rather than creating a second lifecycle for the same
+    # request. Direct AIAgent callers retain the local boundary below.
+    managed_context = getattr(agent, "_agent_session_context", None)
+    if managed_context is not None:
+        token = _ACTIVE_TURN_ENGINE_CONTEXT.set(managed_context)
+        _ACTIVE_TURN_ENGINE_TOKEN.set(token)
+        return managed_context
 
     context = EngineTurnContext(
         turn_id=turn_id,
@@ -551,6 +566,11 @@ def _finish_turn_engine(agent, result: Any, *, failed: bool) -> None:
         return
     try:
         if context.is_terminal:
+            return
+        # AgentHost owns completion/failure for an adopted AgentSession turn.
+        # The loop only clears its correlation context here; terminalizing it
+        # would double-apply the lifecycle transition.
+        if getattr(agent, "_agent_session_context", None) is context:
             return
         interrupted = bool(getattr(agent, "_interrupt_requested", False))
         if isinstance(result, dict):
@@ -692,6 +712,7 @@ def run_conversation(
         turn_id=turn_id,
         session_id=str(getattr(agent, "session_id", "") or ""),
         attempt_id=str(getattr(agent, "_turn_attempt_id", "0") or "0"),
+        agent=agent,
     )
 
     # Main conversation loop counters (pure locals consumed by the loop below).
