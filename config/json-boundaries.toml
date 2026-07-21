@@ -1,0 +1,334 @@
+# Reviewed inventory for issue #517.
+# Scope: every tracked .json/.jsonl/.ndjson file on the branch, plus audited producer/consumer modules.
+# This is an inventory slice, not a claim that the issue-wide migration is complete.
+format = "simplicio-agent.json-boundaries/v1"
+issue = 517
+source_extensions = [".json", ".jsonl", ".ndjson"]
+
+[[audit]]
+kind = "module"
+paths = [
+  "desktop/src/lib/persisted.ts",
+  "desktop/src/lib/json-format.ts",
+  "agent/serde/fast_json.py",
+  "agent/tool_call_json.py",
+  "agent/state_migration.py",
+  "agent/event_store.py",
+  "agent/memory_manager.py",
+  "agent/session_repositories.py",
+  "agent/benchmark_manifest.py",
+  "tools/runtime_manager.py",
+  "tools/kernel_binding.py",
+  "gateway/mirror.py",
+  "gateway/session.py",
+  "gateway/rich_sent_store.py"
+]
+producer = "Agent, desktop, gateway and adapter serializers/readers"
+consumer = "Agent state, desktop persistence, gateway mirrors, tools and Runtime handoff"
+lifecycle = "source module containing a JSON boundary; migrate only after producer/consumer and compatibility contract are verified"
+category = "owned internal boundary or adapter-contained external boundary"
+owner = "simplicio-agent; simplicio-runtime for Runtime-owned HBP/HBI contracts"
+target_format = "HBP/HBI/TOML according to ownership; raw external tool-call JSON remains adapter-contained"
+
+[[boundary]]
+category_id = "internal_state_evidence"
+paths = [
+  ".orchestrator-workitems-test.json",
+  ".orchestrator/evidence/desktop-computer-use/run.json",
+  ".orchestrator/evidence/desktop/run.json",
+  ".orchestrator/evidence/mcp-live/live-connection.json",
+  ".orchestrator/learn/lessons.jsonl",
+  ".orchestrator/learn/pending.jsonl",
+  ".orchestrator/loop-budget.json",
+  ".orchestrator/loop/archive/journal-desktop-cockpit-stale.jsonl",
+  ".orchestrator/loop/archive/watcher_challenge-stale.json",
+  ".orchestrator/loop/journal.jsonl",
+  ".orchestrator/loop/watcher_challenge.json",
+  ".orchestrator/loop/watcher_state.json",
+  ".orchestrator/pre-impl/17.json",
+  ".orchestrator/pre-impl/230.json",
+  ".orchestrator/pre-impl/400.json",
+  ".orchestrator/pre-impl/503.json",
+  ".orchestrator/work-items/canonical-state.json",
+  "desktop-layout.json",
+  "desktop/.orchestrator/learn/pending.jsonl"
+]
+producer = "agent, desktop, gateway and orchestrator state/evidence writers"
+consumer = "agent sessions, desktop stores, gateway readers and evidence tooling"
+lifecycle = "runtime state, cache, IPC or evidence; migration target must preserve atomicity and auditability"
+category = "internal persistence/cache/IPC/evidence"
+owner = "simplicio-agent; simplicio-runtime owns execution receipts and HBI conformance"
+target_format = "HBP for sessions/actions/receipts; HBI for indexes; TOML for human-editable configuration"
+rationale = "Owned internal state is migration scope; this inventory records it before any writer changes."
+
+[[boundary]]
+category_id = "generated_build_output"
+paths = [
+  "desktop/build/install-stamp.json",
+  "desktop/build/native-deps/node-pty/package.json"
+]
+producer = "desktop build and packaging pipeline"
+consumer = "installer/package assembly"
+lifecycle = "generated build artifact"
+category = "generated output"
+owner = "desktop build pipeline"
+target_format = "regenerate from migrated source; no source JSON contract"
+rationale = "Generated output is scanned and classified, but is not hand-migrated."
+
+[[boundary]]
+category_id = "historical_or_external_content"
+paths = [
+  "archive/desktop/components.json",
+  "archive/desktop/package.json",
+  "archive/desktop/src/components/chat/intro-copy.jsonl",
+  "archive/desktop/tsconfig.json",
+  "archive/web/package.json",
+  "archive/web/tsconfig.app.json",
+  "archive/web/tsconfig.json",
+  "archive/web/tsconfig.node.json",
+  "archive/website/docs/developer-guide/_category_.json",
+  "archive/website/docs/getting-started/_category_.json",
+  "archive/website/docs/guides/_category_.json",
+  "archive/website/docs/reference/_category_.json",
+  "archive/website/docs/user-guide/_category_.json",
+  "archive/website/docs/user-guide/features/_category_.json",
+  "archive/website/docs/user-guide/messaging/_category_.json",
+  "archive/website/package-lock.json",
+  "archive/website/package.json",
+  "archive/website/src/data/userStories.json",
+  "archive/website/static/api/model-catalog.json",
+  "archive/website/tsconfig.json",
+  "optional-skills/creative/meme-generation/scripts/templates.json",
+  "optional-skills/security/godmode/templates/prefill-subtle.json",
+  "optional-skills/security/godmode/templates/prefill.json",
+  "optional-skills/security/unbroker/references/brokers/addresses.json",
+  "optional-skills/security/unbroker/references/brokers/advancedbackgroundchecks.json",
+  "optional-skills/security/unbroker/references/brokers/beenverified.json",
+  "optional-skills/security/unbroker/references/brokers/clustal.json",
+  "optional-skills/security/unbroker/references/brokers/clustrmaps.json",
+  "optional-skills/security/unbroker/references/brokers/cyberbackgroundchecks.json",
+  "optional-skills/security/unbroker/references/brokers/familytreenow.json",
+  "optional-skills/security/unbroker/references/brokers/fastpeoplesearch.json",
+  "optional-skills/security/unbroker/references/brokers/intelius.json",
+  "optional-skills/security/unbroker/references/brokers/mylife.json",
+  "optional-skills/security/unbroker/references/brokers/nuwber.json",
+  "optional-skills/security/unbroker/references/brokers/peekyou.json",
+  "optional-skills/security/unbroker/references/brokers/peoplefinders.json",
+  "optional-skills/security/unbroker/references/brokers/radaris.json",
+  "optional-skills/security/unbroker/references/brokers/rehold.json",
+  "optional-skills/security/unbroker/references/brokers/searchpeoplefree.json",
+  "optional-skills/security/unbroker/references/brokers/socialcatfish.json",
+  "optional-skills/security/unbroker/references/brokers/spokeo.json",
+  "optional-skills/security/unbroker/references/brokers/thatsthem.json",
+  "optional-skills/security/unbroker/references/brokers/truepeoplesearch.json",
+  "optional-skills/security/unbroker/references/brokers/usphonebook.json",
+  "optional-skills/security/unbroker/references/brokers/whitepages.json",
+  "optional-skills/security/web-pentest/templates/exploitation-queue.json"
+]
+producer = "archived product, documentation or third-party content"
+consumer = "historical readers, documentation build or optional skill"
+lifecycle = "immutable historical/content input"
+category = "immutable historical documentation or external content"
+owner = "archive and skill owners"
+target_format = "preserve JSON; excluded from internal-state migration"
+rationale = "These files are not owned runtime persistence."
+
+[[boundary]]
+category_id = "test_benchmark_fixture"
+paths = [
+  "bench/agents/manifest.v1.example.json",
+  "bench/fixtures/manifest.json",
+  "benchmarks/snake_fixture/package-lock.json",
+  "benchmarks/snake_fixture/package.json",
+  "datagen-config-examples/example_browser_tasks.jsonl",
+  "fixtures/aliases/collision/one.json",
+  "fixtures/aliases/collision/two.json",
+  "fixtures/aliases/invalid/registry.json",
+  "fixtures/aliases/valid/registry.json",
+  "fixtures/bench/capability/capability-manifest.v1.json",
+  "fixtures/bench/perf/perf-integration-manifest.v1.json",
+  "fixtures/bench/program/baseline.v1.json",
+  "fixtures/bench/program/benchmark-program-manifest.v1.json",
+  "fixtures/bench/program/candidate.v1.json",
+  "fixtures/bench/program/local-echo.json",
+  "fixtures/bench/program/local-sort.json",
+  "fixtures/capabilities/repair.json",
+  "fixtures/capabilities/router.json",
+  "fixtures/capabilities/runtime-mcp-parity.v1.json",
+  "fixtures/cli-identity/invalid-legacy-message.json",
+  "fixtures/cli-identity/invalid-message-classification.json",
+  "fixtures/cli-identity/invalid-secret-receipt.json",
+  "fixtures/cli-identity/valid-manifest.json",
+  "fixtures/gateway/native_bridge_receipts.json",
+  "fixtures/goal-contract/v1-basic.json",
+  "fixtures/goal-contract/v1-resumable.json",
+  "fixtures/golden-path/scenario.json",
+  "fixtures/homeostasis/scenario.json",
+  "fixtures/identity/legacy-manifest.v1.json",
+  "fixtures/identity/namespace-inventory.v1.json",
+  "fixtures/integrity/control_event_keyring.json",
+  "fixtures/integrity/control_event_valid.json",
+  "fixtures/integrity/receipt_chain_valid.json",
+  "fixtures/locales/expected-inventory.json",
+  "fixtures/locales/expected-receipt.json",
+  "fixtures/machine-contracts/current-contract.json",
+  "fixtures/machine-contracts/legacy-contract.json",
+  "fixtures/machine-contracts/mcp-receipt-identity.json",
+  "fixtures/multirate/bounded_contract.json",
+  "fixtures/native/daemon_hot_path_contract.json",
+  "fixtures/release-gate/release-scan-contract.v1.json",
+  "fixtures/release-manifest/release-manifest.v1.json",
+  "fixtures/release-matrix/release-evidence.v1.json",
+  "fixtures/release-matrix/release-matrix.v1.json",
+  "fixtures/shadow/divergence_cases.json",
+  "fixtures/software-builder/v1-foundation.json",
+  "fixtures/tool-pipeline/external_result.json",
+  "fixtures/tool-pipeline/invocation.json",
+  "tests/fixtures/consciousness/attention_events.json",
+  "tests/fixtures/e2e/issue-348/scenario.json",
+  "tests/fixtures/issue-347/decision_paths.json",
+  "tests/fixtures/native/adaptive_controller_routes.json",
+  "tests/fixtures/native/prompt_microkernel_receipt.json",
+  "tests/fixtures/native/token_governor_routes.json",
+  "tests/fixtures/operational_awareness/replay_v1.jsonl",
+  "tests/fixtures/plugins/example-dashboard/dashboard/manifest.json",
+  "tests/fixtures/toon-golden/invalid/malformed-array-header/meta.json",
+  "tests/fixtures/toon-golden/invalid/row-field-count-mismatch/meta.json",
+  "tests/fixtures/toon-golden/invalid/truncated-tabular-nested/meta.json",
+  "tests/fixtures/toon-golden/invalid/truncated-tabular-root/meta.json",
+  "tests/fixtures/toon-golden/invalid/unterminated-quote/meta.json",
+  "tests/fixtures/toon-golden/manifest.json",
+  "tests/fixtures/toon-golden/valid/list-cell-scalars/input.json",
+  "tests/fixtures/toon-golden/valid/mapper-real-precedent-index-excerpt/input.json",
+  "tests/fixtures/toon-golden/valid/mapper-real-project-map-excerpt/input.json",
+  "tests/fixtures/toon-golden/valid/marketing-captions-representative/input.json",
+  "tests/fixtures/toon-golden/valid/nested-fallback-real/input.json",
+  "tests/fixtures/toon-golden/valid/prompt-fanout-aggregation-representative/input.json",
+  "tests/fixtures/toon-golden/valid/quoted-string-round-trip/input.json",
+  "tests/fixtures/toon-golden/valid/runtime-resource-map-representative/input.json",
+  "tests/fixtures/toon-golden/valid/scalar-one-element-list-ambiguity/input.json",
+  "tests/fixtures/toon-golden/valid/sprint-cards-representative/input.json"
+]
+producer = "test or benchmark fixture author; some fixtures model external protocol payloads"
+consumer = "test and benchmark harnesses"
+lifecycle = "versioned fixture input"
+category = "test/benchmark or protocol fixture"
+owner = "owning test or benchmark suite"
+target_format = "HBP/HBI/TOML when the fixture models internal state; otherwise preserve external JSON"
+rationale = "Fixtures are classified by the contract they exercise; this slice does not rewrite fixture schemas."
+
+[[boundary]]
+category_id = "external_manifest_or_plugin_contract"
+paths = [
+  "acp_registry/agent.json",
+  "plugins/hermes-achievements/dashboard/manifest.json",
+  "plugins/kanban/dashboard/manifest.json",
+  "plugins/platforms/photon/sidecar/package-lock.json",
+  "plugins/platforms/photon/sidecar/package.json"
+]
+producer = "ACP/plugin/sidecar manifest producer"
+consumer = "external host, plugin loader or sidecar toolchain"
+lifecycle = "versioned external manifest/contract"
+category = "external protocol/export"
+owner = "ACP/plugin integration owner"
+target_format = "preserve JSON at the adapter or manifest boundary"
+rationale = "External JSON is an explicit boundary exception, not internal state."
+
+[[boundary]]
+category_id = "skill_or_tooling_content"
+paths = [
+  "skills/close-autopilot-issues/references/edit-plan.json",
+  "skills/creative/comfyui/workflows/animatediff_video.json",
+  "skills/creative/comfyui/workflows/flux_dev_txt2img.json",
+  "skills/creative/comfyui/workflows/sd15_txt2img.json",
+  "skills/creative/comfyui/workflows/sdxl_img2img.json",
+  "skills/creative/comfyui/workflows/sdxl_inpaint.json",
+  "skills/creative/comfyui/workflows/sdxl_txt2img.json",
+  "skills/creative/comfyui/workflows/upscale_4x.json",
+  "skills/creative/comfyui/workflows/wan_video_t2v.json",
+  "skills/fix-enforcement/scripts/disable_plan.json",
+  "skills/fix-enforcement/scripts/edit-plan-add-mod.json",
+  "skills/fix-enforcement/scripts/edit-plan-chat-tools.json",
+  "skills/fix-enforcement/scripts/edit-plan-test.json",
+  "skills/fix-enforcement/scripts/plan-batch.json",
+  "skills/fix-enforcement/scripts/plan-fix-binary.json",
+  "skills/fix-enforcement/scripts/plan-op-patch.json",
+  "skills/fix-enforcement/scripts/plan-op-str-replace.json",
+  "skills/fix-enforcement/scripts/plan-v2.json",
+  "skills/fix-enforcement/scripts/plan-v3.json",
+  "skills/fix-enforcement/scripts/plan-v4.json",
+  "skills/fix-enforcement/scripts/plan-v5.json",
+  "skills/fix-enforcement/scripts/plan-v6.json",
+  "skills/index-cache/anthropics_skills_skills_.json",
+  "skills/index-cache/claude_marketplace_anthropics_skills.json",
+  "skills/index-cache/lobehub_index.json",
+  "skills/index-cache/openai_skills_skills_.json",
+  "skills/red-teaming/godmode/templates/prefill-subtle.json",
+  "skills/red-teaming/godmode/templates/prefill.json",
+  "skills/scripts/fix-enforcement-script/scripts/disable_plan.json",
+  "skills/scripts/fix-enforcement-script/scripts/disable_plan_v2.json",
+  "skills/scripts/fix-enforcement-script/scripts/fix_hook.json",
+  "skills/scripts/fix-enforcement-script/scripts/fix_hook_v2.json"
+]
+producer = "skill or deterministic tooling author"
+consumer = "skill/tooling runtime"
+lifecycle = "versioned reference or tool input"
+category = "toolchain or third-party content"
+owner = "skill/tooling owner"
+target_format = "preserve JSON; excluded from internal runtime state migration"
+rationale = "These files are content or deterministic tool inputs, not session persistence."
+
+[[boundary]]
+category_id = "toolchain_mandated"
+paths = [
+  "runtime.lock",
+  "apps/bootstrap-installer/package.json",
+  "apps/bootstrap-installer/src-tauri/capabilities/default.json",
+  "apps/bootstrap-installer/src-tauri/tauri.conf.json",
+  "apps/bootstrap-installer/tsconfig.json",
+  "apps/bootstrap-installer/tsconfig.node.json",
+  "apps/shared/package.json",
+  "apps/shared/tsconfig.json",
+  "desktop/components.json",
+  "desktop/package-lock.json",
+  "desktop/package.json",
+  "desktop/tsconfig.electron.json",
+  "desktop/tsconfig.json",
+  "package-lock.json",
+  "package.json",
+  "scripts/whatsapp-bridge/package-lock.json",
+  "scripts/whatsapp-bridge/package.json",
+  "tests-js/package.json",
+  "tests-js/tsconfig.json",
+  "ui-tui/package.json",
+  "ui-tui/packages/hermes-ink/package.json",
+  "ui-tui/packages/hermes-ink/tsconfig.json",
+  "ui-tui/tsconfig.build.json",
+  "ui-tui/tsconfig.json"
+]
+producer = "JavaScript/Tauri/build toolchain"
+consumer = "package manager, compiler, bundler or installer"
+lifecycle = "build-time configuration or package metadata"
+category = "toolchain-mandated"
+owner = "owning build/package toolchain"
+target_format = "preserve JSON where the external tool requires it"
+rationale = "Toolchain formats are exact exceptions and must not be mistaken for internal state."
+
+[[boundary]]
+category_id = "internal_tooling_or_evidence"
+paths = [
+  "desktop/src/components/chat/intro-copy.jsonl",
+  "scripts/turbo-speed/baselines/cold-start.json",
+  "scripts/turbo-speed/baselines/token-diet.json",
+  "tools/perf_gate/baseline_ci.json",
+  "tools/rename_guard/allowlist.json",
+  "tools/rename_guard/baseline.json",
+  "tools/rename_guard/config.json"
+]
+producer = "performance gate or rename/release tooling"
+consumer = "CI gates and maintainers"
+lifecycle = "measured baseline, allowlist or gate configuration"
+category = "internal evidence/tooling"
+owner = "CI and release tooling owners"
+target_format = "TOML for human-edited configuration; HBP for auditable evidence; preserve only exact tool-required JSON"
+rationale = "These paths require a follow-up owner decision; they are explicitly not unclassified."
