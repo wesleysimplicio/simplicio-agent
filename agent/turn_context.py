@@ -119,6 +119,8 @@ class TurnContext:
     plugin_user_context: str = ""
     # External-memory prefetch result, reused across loop iterations.
     ext_prefetch_cache: str = ""
+    # Goal-scoped attention delta injected into the API user context only.
+    attention_context: str = ""
 
 
 def build_turn_context(
@@ -608,6 +610,22 @@ def build_turn_context(
         except Exception:
             pass
 
+    # Attention is a per-turn observation delta.  It is deliberately computed
+    # after the stable system prompt is restored and is never written into the
+    # canonical transcript.  The adapter itself degrades to an explicit safe
+    # queue if selection fails.
+    attention_context = ""
+    try:
+        from agent.attention_runtime import build_attention_turn_context
+
+        attention_context = build_attention_turn_context(
+            agent, goal_id=effective_task_id
+        )
+    except Exception:
+        from agent.attention_runtime import degraded_attention_context
+
+        attention_context = degraded_attention_context(effective_task_id)
+
     return TurnContext(
         user_message=user_message,
         original_user_message=original_user_message,
@@ -620,4 +638,5 @@ def build_turn_context(
         should_review_memory=should_review_memory,
         plugin_user_context=plugin_user_context,
         ext_prefetch_cache=ext_prefetch_cache,
+        attention_context=attention_context,
     )
