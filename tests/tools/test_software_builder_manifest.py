@@ -9,6 +9,7 @@ from tools.software_builder_manifest import (
     OPERATORS,
     REPO_ROOT,
     SCHEMA,
+    audit_integration,
     generate_manifest,
     main,
     validate_manifest,
@@ -74,3 +75,35 @@ def test_cli_generates_and_validates(tmp_path: Path) -> None:
     assert main(["--generate", str(output)]) == 0
     assert main(["--validate", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8")) == generate_manifest()
+
+
+def test_audit_is_fail_closed_when_real_operators_are_unavailable(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    receipt = audit_integration(FIXTURE)
+
+    assert receipt["schema"] == "simplicio.software-builder-audit/v1"
+    assert receipt["status"] == "UNVERIFIED"
+    assert receipt["fail_closed"] is True
+    assert {check["name"] for check in receipt["checks"]} == {
+        "manifest",
+        "mapper",
+        "dev_cli",
+        "runtime",
+        "loop",
+    }
+    assert all(
+        check["status"] != "PASS"
+        for check in receipt["checks"]
+        if check["name"] in {"mapper", "dev_cli", "runtime"}
+    )
+
+
+def test_audit_cli_returns_nonzero_for_unverified_run(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert main(["--audit", str(FIXTURE)]) == 2
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["status"] == "UNVERIFIED"
