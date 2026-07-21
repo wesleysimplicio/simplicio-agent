@@ -49,6 +49,9 @@ The module also owns:
 - `ToolInvocationAttempt` as the immutable per-stage state carrier
 - `SerialToolExecutorAdapter` so synchronous executors can participate without
   modification
+- `block` as the terminal adapter for scheduler pre-dispatch denials, so
+  tool-scope, plugin, and guardrail blocks produce the same receipt/evidence
+  tail without invoking the tool a second time
 - split-completion trace canonicalization so replayed traces remain bounded to
   known stages, in canonical order, with duplicate/unknown entries ignored
 - external-result redaction inside evidence while preserving the live tool
@@ -65,6 +68,9 @@ The module also owns:
   before execution and `error` for an invalid terminal status)
 - sequential and special-tool dispatches begin and complete the same pipeline
   used by the concurrent adapter; scheduler selection remains unchanged
+- concurrent pre-dispatch denials close through the same pipeline receipt and
+  evidence path as executed calls; the denial trace stops at its decision stage
+  and never claims an `execute` stage
 - a required checkpoint with no checkpoint hook, or an explicit checkpoint
   denial, blocks before execution and still emits a receipt/evidence record
 - `default_tool_invocation_receipt_writer` stores only serialized provenance
