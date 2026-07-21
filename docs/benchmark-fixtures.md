@@ -23,17 +23,17 @@ python -m bench.harness run --fixtures bench/fixtures/manifest.json \
 ```
 
 The report uses `simplicio.bench-report/v1` and includes the exact fixture
-SHA-256, token counts, p50/p95 local latency, per-stage timings, and peak
-`tracemalloc` memory by category. Token counts use the documented portable
-UTF-8-bytes/4 ceiling proxy; latency is `MEASURED|` for local stub execution,
-not a claim about a remote model. The report's `fixture_sha256` and stable
-category/route fields are the handoff boundary for Native token/latency gates.
+SHA-256, deterministic token proxies, and stable category/route fields.
+Provider/runtime latency, stage timings, and peak memory are `null` with an
+`UNVERIFIED|` reason because the offline stub does not execute an executor or
+sample runner state. This prevents a local clock from being mistaken for an
+ADR-0023 latency measurement.
 
 ## Before/after local gate
 
 Each run report is also a `simplicio.bench-receipt/v1` receipt. The receipt is
 an aggregate over each category and records input/output token proxies plus
-local p50/p95 latency. `bench.harness` compares two receipts without importing
+nullable executor metrics. `bench.harness` compares two receipts without importing
 the agent runtime or contacting a provider:
 
 ```text
@@ -44,19 +44,18 @@ python -m bench.harness compare --before before.json --after after.json \
 ```
 
 The comparison receipt uses `simplicio.bench-gate/v1`. Exit status `0` means
-the receipts validate and no category's input/output tokens or p50/p95 local
-latency increased beyond the configured tolerance; status `1` is a regression
-or validation failure, and status `2` means an input file could not be read.
+the receipts validate and no available category metric increased beyond the
+configured tolerance; status `1` is a regression, validation failure, or
+unavailable metric, and status `2` means an input file could not be read.
 `--baseline`/`--candidate` are accepted aliases for `--before`/`--after`, so
 the command can be reused by CI jobs that already use baseline terminology.
 
 The gate is fail-closed: it rejects schema or evidence drift, missing or extra
 categories, mismatched fixture hashes, and non-numeric metrics. It reports
-`MEASURED|` when both inputs carry measured local stub provenance and
-`UNVERIFIED|` when either input is explicitly unverified. The stub's timings
-are measurements of this Python runner only; the fixture's receipt-derived
-weights remain `UNVERIFIED|` until scrubbed SessionDB receipts are mined, and
-neither result is evidence of remote-provider latency or agent capability.
+`MEASURED|` when both inputs carry measured provenance and `UNVERIFIED|` when
+either input is explicitly unverified. The fixture's receipt-derived weights
+remain `UNVERIFIED|` until scrubbed SessionDB receipts are mined, and the
+offline report is not evidence of runtime/provider latency or agent capability.
 
 ## Stability check (`bench.stability`)
 
@@ -65,11 +64,7 @@ python -m bench.stability --runs 3 --repeats 100 --warmup 5 --json out/stability
 ```
 
 Runs the stub baseline three times and reports `(max - min) / mean` variance
-per category/metric. Token proxies are deterministic (0% variance) since they
-are derived from fixture content, not timing. **Measured on this Windows dev
-runner, local wall-clock latency variance across 3 runs regularly exceeds 5%
-per category** (observed up to ~71% on `fanout_tools.latency_us.p95` in one
-run), so the <=5% stability target from the issue is **not met for latency on
-this shared, unpinned runner** — it would need a dedicated/pinned CI runner
-and more repeats to tighten. Token-metric stability is met. This is reported
-honestly rather than claimed as passing.
+for deterministic token proxies. Latency is recorded as `null` and the
+stability result is `unverified` because the stub does not execute a runtime
+clock; an executor receipt is required before the <=5% latency target can be
+evaluated.
