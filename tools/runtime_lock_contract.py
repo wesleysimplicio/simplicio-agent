@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 LOCK_SCHEMA = "runtime-lock/v2"
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
+_URL_VERSION = re.compile(r"/(?:v)(\d+\.\d+\.\d+)(?:/|$)")
 
 
 def target_key(system: str | None = None, machine: str | None = None) -> str:
@@ -62,6 +63,8 @@ class LockValidation:
     target: str
     asset: Mapping[str, Any] | None
     errors: tuple[str, ...] = ()
+    stable_ready: bool = False
+    signature_status: str = "unverified"
 
     @property
     def detail(self) -> str:
@@ -70,6 +73,11 @@ class LockValidation:
 
 def _semver(value: object) -> bool:
     return isinstance(value, str) and _SEMVER.fullmatch(value) is not None
+
+
+def _version_tuple(value: str) -> tuple[int, int, int]:
+    major, minor, patch = (int(part) for part in value.split("."))
+    return major, minor, patch
 
 
 def is_strict_semver(value: object) -> bool:
@@ -123,6 +131,8 @@ def validate_lock(
         errors.append("asset.name must be non-empty")
     if not _semver(selected.get("version")):
         errors.append("asset.version must be strict semver")
+    elif _semver(minimum) and _version_tuple(selected["version"]) < _version_tuple(minimum):
+        errors.append("asset.version must be >= min_version")
     url = selected.get("url")
     parsed = urlparse(url) if isinstance(url, str) else None
     if (
@@ -133,6 +143,10 @@ def validate_lock(
         or parsed.fragment
     ):
         errors.append("asset.url must be an immutable HTTPS URL")
+    elif _semver(selected.get("version")):
+        url_version = _URL_VERSION.search(parsed.path)
+        if url_version and url_version.group(1) != selected["version"]:
+            errors.append("asset.version does not match URL release tag")
     digest = selected.get("sha256")
     if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
         errors.append("asset.sha256 must be a 64-character hex digest")
@@ -157,9 +171,19 @@ def validate_lock(
             if _digest(artifact_path).lower() != str(digest).lower():
                 errors.append("artifact sha256 does not match lock")
 
-    signature_status = str(
-        payload.get("provenance", {}).get("signature_status", "unverified")
+    provenance = payload.get("provenance", {})
+    raw_signature_status = (
+        provenance.get("signature_status", "unverified")
+        if isinstance(provenance, Mapping)
+        else "unverified"
     )
+    signature_status = (
+        raw_signature_status if isinstance(raw_signature_status, str) else "invalid"
+    )
+    if not isinstance(provenance, Mapping):
+        errors.append("provenance must be an object")
+    if not isinstance(raw_signature_status, str) or not raw_signature_status.strip():
+        errors.append("provenance.signature_status must be a non-empty string")
     valid = not errors
     stable_ready = valid and signature_status == "verified"
     return RuntimeLockReceipt(
@@ -193,7 +217,14 @@ def validate_lock_manifest(
     if not isinstance(manifest, Mapping):
         return LockValidation(False, requested, None, ("lock is not an object",))
     receipt = validate_lock(manifest, target=requested)
-    return LockValidation(receipt.valid, receipt.target, receipt.asset, receipt.errors)
+    return LockValidation(
+        receipt.valid,
+        receipt.target,
+        receipt.asset,
+        receipt.errors,
+        receipt.stable_ready,
+        receipt.signature_status,
+    )
 
 
 validate_runtime_lock = validate_lock_manifest

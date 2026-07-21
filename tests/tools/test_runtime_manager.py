@@ -48,6 +48,7 @@ def _write_lock(tmp_path, monkeypatch, **overrides):
         "min_version": "3.4.0",
         "release_repo": "wesleysimplicio/simplicio",
         "source_repo": "wesleysimplicio/simplicio-runtime",
+        "provenance": {"signature_status": "verified"},
         "assets": {
             target: {
                 "name": "simplicio-test",
@@ -301,6 +302,18 @@ class TestResolveKernel:
 # =========================================================================
 
 class TestRuntimeStatus:
+    def test_unverified_lock_blocks_before_binary_resolution(self, tmp_path, monkeypatch):
+        _write_lock(
+            tmp_path,
+            monkeypatch,
+            provenance={"signature_status": "not-proven"},
+        )
+        with mock_patch.object(rm, "resolve_kernel") as resolve:
+            st = rm.runtime_status()
+        assert not st.satisfied
+        assert "signature is not verified" in st.detail
+        resolve.assert_not_called()
+
     def test_satisfied(self, tmp_path, monkeypatch):
         _write_lock(tmp_path, monkeypatch, min_version="3.4.0")
         binary = tmp_path / "simplicio"
@@ -496,6 +509,7 @@ class TestInstallFromReleaseSha256:
                 }
             },
             "release_repo": "wesleysimplicio/simplicio",
+            "provenance": {"signature_status": "verified"},
         }
 
     def _patched_platform(self):
