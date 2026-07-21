@@ -80,17 +80,6 @@ _KERNEL_BANNER_RE = re.compile(
     re.IGNORECASE,
 )
 
-_DEFAULT_LOCK = {
-    "schema": _LOCK_SCHEMA,
-    "kernel": "simplicio",
-    "min_version": "0.0.0",
-    "release_repo": "wesleysimplicio/simplicio",
-    "source_repo": "wesleysimplicio/simplicio-runtime",
-    "assets": {},
-    "sibling_checkout": "../simplicio-runtime",
-}
-
-
 @dataclass(frozen=True)
 class RuntimeLockValidation:
     """The bounded, read-only result of validating a runtime lock."""
@@ -131,24 +120,25 @@ def runtime_lock_path() -> Path:
 
 
 def load_runtime_lock() -> dict:
-    """Read ``runtime.lock`` from the repo root.
+    """Read ``runtime.lock`` without manufacturing a pin.
 
-    Returns the parsed dict merged over defaults. Missing, corrupt, or
-    incomplete locks are deliberately retained as invalid input: readiness
-    validates the result and fails closed instead of treating a missing lock
-    as permission to run any kernel.
+    Missing or unreadable lock data returns an empty object.  The caller then
+    runs the normal lock validator, which reports an invalid lock and blocks
+    runtime resolution/install.  Applying defaults here would silently turn
+    an unpinned installation into a usable one.
     """
     lock_path = runtime_lock_path()
-    merged = dict(_DEFAULT_LOCK)
     try:
         raw = json.loads(lock_path.read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            merged.update(raw)
+        if not isinstance(raw, dict):
+            logger.warning("runtime.lock must contain a JSON object: %s", lock_path)
+            return {}
+        return raw
     except FileNotFoundError:
-        logger.debug("runtime.lock not found at %s -- using defaults", lock_path)
-    except Exception as exc:
-        logger.warning("runtime.lock unreadable (%s) -- using defaults", exc)
-    return merged
+        logger.warning("runtime.lock not found at %s -- refusing unpinned runtime", lock_path)
+    except (OSError, ValueError) as exc:
+        logger.warning("runtime.lock unreadable (%s) -- refusing unpinned runtime", exc)
+    return {}
 
 
 def _normalize_machine(machine: str) -> str:
