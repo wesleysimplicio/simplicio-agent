@@ -39,7 +39,7 @@ def _run_launcher(home: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_no_arguments_start_gateway_without_entering_chat(tmp_path: Path) -> None:
+def test_no_arguments_open_agent_cli_without_starting_gateway(tmp_path: Path) -> None:
     home, _ = _fake_bundle(tmp_path)
 
     result = _run_launcher(home)
@@ -50,8 +50,6 @@ def test_no_arguments_start_gateway_without_entering_chat(tmp_path: Path) -> Non
         f"SIMPLICIO_AGENT_HOME={home}",
         "-m",
         "hermes_cli.main",
-        "gateway",
-        "start",
     ]
 
 

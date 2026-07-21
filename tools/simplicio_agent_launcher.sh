@@ -2,11 +2,10 @@
 # Simplicio Agent launcher used by the underscore-compatible `simplicio_agent`
 # command.
 #
-# The underscore command is the bot control surface, not the interactive chat
-# surface.  With no arguments it starts the supervised Simplicio bot gateway;
-# it must never fall through to the agent chat default (which may be a TUI).
-# Use `simplicio_agent chat` or `simplicio_agent --tui` when an interactive
-# session is explicitly wanted.
+# The underscore command is the interactive Simplicio Agent surface. With no
+# arguments it enters the Agent CLI's normal interactive mode (including its
+# TUI when configured). Bot gateway control remains available explicitly via
+# `simplicio_agent bot|start|status|restart|stop`.
 set -euo pipefail
 
 # This underscore launcher is reserved for the Simplicio bot.  Do not inherit
@@ -114,13 +113,9 @@ case "${1:-}" in
     [[ -f "$SIMPLICIO_AGENT_HOME/.active_bundle" ]] && cat "$SIMPLICIO_AGENT_HOME/.active_bundle"
     ;;
   "")
-    # Critical behavior: no args start the bot gateway and return; they do not
-    # enter `hermes_cli.main`'s interactive chat/TUI default.
-    if use_bot_launchd; then
-      bot_launchd_action start
-    else
-      run_cli gateway start
-    fi
+    # Critical behavior: no args open the Simplicio Agent CLI/TUI. The bot
+    # gateway is never started implicitly by this command.
+    run_cli
     ;;
   bot|start)
     shift
