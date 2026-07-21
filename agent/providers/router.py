@@ -1,4 +1,4 @@
-"""Provider-agnostic local-first router built on the existing fallback policy."""
+"""Provider routing with a fail-closed pause for local inference."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from agent.providers.fallback_chain import (
     ProviderChainMetrics,
     ProviderResult,
 )
+from agent.local_inference_policy import LOCAL_INFERENCE_PAUSED, local_inference_enabled
 
 Availability = Callable[[], bool]
 
@@ -35,7 +36,7 @@ class ProviderRoute:
 
 @dataclass
 class ProviderRouter:
-    """Try available local routes first, then use bounded provider fallback."""
+    """Use configured routes without starting paused local inference."""
 
     routes: Sequence[ProviderRoute] = ()
     prefer_local: bool = True
@@ -43,7 +44,10 @@ class ProviderRouter:
     metrics: ProviderChainMetrics = field(default_factory=ProviderChainMetrics)
 
     def ordered_routes(self) -> tuple[ProviderRoute, ...]:
-        available = [route for route in self.routes if route.available()]
+        available = [
+            route for route in self.routes
+            if route.available() and (route.kind != "local" or local_inference_enabled())
+        ]
         if self.prefer_local:
             available.sort(key=lambda route: (route.kind != "local", route.name))
         return tuple(available)
@@ -61,7 +65,12 @@ class ProviderRouter:
 
     def health(self) -> tuple[dict[str, object], ...]:
         return tuple(
-            {"name": route.name, "kind": route.kind, "available": bool(route.available())}
+            {
+                "name": route.name,
+                "kind": route.kind,
+                "available": bool(route.available()) and (route.kind != "local" or local_inference_enabled()),
+                "reason": LOCAL_INFERENCE_PAUSED if route.kind == "local" and not local_inference_enabled() else None,
+            }
             for route in self.routes
         )
 
@@ -76,7 +85,10 @@ class AsyncProviderRouter:
     metrics: ProviderChainMetrics = field(default_factory=ProviderChainMetrics)
 
     def _ordered(self) -> tuple[tuple[str, str, AsyncProviderCallable, Availability], ...]:
-        available = [route for route in self.routes if route[3]()]
+        available = [
+            route for route in self.routes
+            if route[3]() and (route[1] != "local" or local_inference_enabled())
+        ]
         if self.prefer_local:
             available.sort(key=lambda route: (route[1] != "local", route[0]))
         return tuple(available)
