@@ -13,16 +13,17 @@ from agent.local_inference_policy import (
 from agent.providers.router import AsyncProviderRouter, ProviderRoute, ProviderRouter
 
 
-def test_local_route_is_paused_without_runner_or_fallback(monkeypatch):
+def test_local_route_is_paused_without_runner_or_remote_fallback(monkeypatch):
     monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
     calls: list[str] = []
     router = ProviderRouter(routes=(
-        ProviderRoute("ollama", "local", lambda _: calls.append("local") or "local"),
+        ProviderRoute("ollama", "local", lambda _: calls.append("local") or "local", lambda: (_ for _ in ()).throw(AssertionError("local availability must not run"))),
         ProviderRoute("remote", "remote", lambda _: calls.append("remote") or "remote"),
     ))
 
-    assert router.call("safe").provider == "remote"
-    assert calls == ["remote"]
+    with pytest.raises(LocalInferencePausedError, match=LOCAL_INFERENCE_PAUSED):
+        router.call("safe")
+    assert calls == []
     assert router.health()[0] == {
         "name": "ollama", "kind": "local", "available": False,
         "reason": LOCAL_INFERENCE_PAUSED,
@@ -49,7 +50,19 @@ def test_only_exact_opt_in_reenables_a_local_route(monkeypatch):
     assert local_inference_receipt(provider="ollama")["enabled"] is True
 
 
-def test_async_router_does_not_invoke_paused_local_route(monkeypatch):
+def test_explicit_remote_selection_allows_remote_route(monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
+    calls: list[str] = []
+    router = ProviderRouter(routes=(
+        ProviderRoute("local", "local", lambda _: calls.append("local") or "local"),
+        ProviderRoute("remote", "remote", lambda _: calls.append("remote") or "remote"),
+    ), prefer_local=False)
+
+    assert router.call("safe").provider == "remote"
+    assert calls == ["remote"]
+
+
+def test_async_router_does_not_invoke_paused_local_or_remote_route(monkeypatch):
     monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
     calls: list[str] = []
 
@@ -61,10 +74,11 @@ def test_async_router_does_not_invoke_paused_local_route(monkeypatch):
         calls.append("remote")
         return "remote"
 
-    result = asyncio.run(AsyncProviderRouter(routes=(
+    router = AsyncProviderRouter(routes=(
         ("local", "local", local, lambda: True),
         ("remote", "remote", remote, lambda: True),
-    )).call("safe"))
+    ))
 
-    assert result.provider == "remote"
-    assert calls == ["remote"]
+    with pytest.raises(LocalInferencePausedError, match=LOCAL_INFERENCE_PAUSED):
+        asyncio.run(router.call("safe"))
+    assert calls == []
