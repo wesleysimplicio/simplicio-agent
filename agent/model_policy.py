@@ -1,10 +1,12 @@
-"""Central model safety policy shared by CLI and gateway entry points."""
+"""Central model safety policy shared by CLI and gateway entry points.
+
+This module does NOT hardcode any model ID — the model comes from config.yaml only.
+"""
 
 from __future__ import annotations
 
 from urllib.parse import urlparse
 
-DEFAULT_MODEL = "tencent/hy3:free"
 _NVIDIA_PROVIDER_IDS = frozenset({"nvidia", "nvidia-nim", "nvidia_nim", "nvidia nim"})
 
 
@@ -33,9 +35,12 @@ def enforce_model_policy(
     provider: str | None = None,
     base_url: str | None = None,
     *,
-    default_model: str = DEFAULT_MODEL,
+    default_model: str = "",
 ) -> str:
-    """Replace a temporarily forbidden NVIDIA selection with the default."""
+    """Replace a temporarily forbidden NVIDIA selection with the default.
+
+    The model is resolved from config.yaml — no model IDs are hardcoded here.
+    """
     requested = str(model or "").strip()
     if requested and is_nvidia_model(requested, provider, base_url):
         return default_model
@@ -47,5 +52,5 @@ def model_policy_error(model: str | None) -> str:
     return (
         f"Modelo '{str(model or '').strip()}' bloqueado temporariamente: "
         "modelos NVIDIA estão proibidos nos dois bots. "
-        f"Mantenha o padrão {DEFAULT_MODEL}."
+        "Configure outro modelo no config.yaml."
     )

@@ -64,7 +64,7 @@ seguindo arestas do grafo (1-hop/2-hop). É o equivalente Simplicio ao
 ## Modo deep (opcional, com tokens)
 
 `--mode deep` habilita inferência de arestas IMPLÍCITAS via LLM
-(OpenRouter `tencent/hy3:free`). Requer `OPENROUTER_API_KEY`. Sem credencial,
+(OpenRouter `deepseek/deepseek-v4-flash`). Requer `OPENROUTER_API_KEY`. Sem credencial,
 cai automaticamente no determinístico (já cobre a maioria das relações reais).
 
 ## Verificação

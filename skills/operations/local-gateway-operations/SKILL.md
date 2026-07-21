@@ -141,14 +141,14 @@ Symptom the user reports: bot takes ~5 min to answer, then on interrupt says
 
 Root cause (confirmed from `logs/agent.log`): a session whose history exceeds the model context window enters a **non-converging context-compression loop**. Signature in logs:
 ```
-Preflight compression: ~67,808 tokens >= 64,000 threshold (model tencent/hy3:free, ctx 65,536)
+Preflight compression: ~67,808 tokens >= 64,000 threshold
 context compression done: messages=41->40 rough_tokens=~72,146   ← INCREASED
 context compression started ...
 context compression done ... messages=40->38 rough_tokens=~71,105  ← still over
 ... (loops for 5 min, never reaches a response)
 Turn ended: reason=interrupted_by_user ... response_len=0
 ```
-The small free model (`tencent/hy3:free`, 65k ctx) makes compression fail to converge — tokens grow instead of shrink. This is NOT a code bug from repo edits; it is context overload on a low-limit model.
+The small model makes compression fail to converge — tokens grow instead of shrink. This is NOT a code bug from repo edits; it is context overload on a low-limit model.
 
 Mitigations:
 - Clear/trim the offending session transcript so the next turn starts under the threshold (the freeze is per-session history, not global).

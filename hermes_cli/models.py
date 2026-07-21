@@ -30,8 +30,8 @@ COPILOT_REASONING_EFFORTS_GPT5 = ["minimal", "low", "medium", "high"]
 COPILOT_REASONING_EFFORTS_O_SERIES = ["low", "medium", "high"]
 
 
-# Fallback OpenRouter snapshot used when the live catalog is unavailable.
-# (model_id, display description shown in menus)
+# Fallback OpenRouter snapshot — WILL BE REMOVED: model IDs should not live in code.
+# Use the live catalog or config.yaml instead.
 OPENROUTER_MODELS: list[tuple[str, str]] = [
     # Anthropic
     ("anthropic/claude-opus-4.8",              ""),
@@ -65,9 +65,7 @@ OPENROUTER_MODELS: list[tuple[str, str]] = [
     ("z-ai/glm-5.1",                           ""),
     # Xiaomi
     ("xiaomi/mimo-v2.5-pro",                   ""),
-    # Tencent
-    ("tencent/hy3",                            ""),
-    ("tencent/hy3-preview",                    ""),
+    # (removed: tencent/hy3, tencent/hy3-preview — removed from OpenRouter catalog)
     # StepFun
     ("stepfun/step-3.7-flash",                 ""),
     # NVIDIA
@@ -78,8 +76,6 @@ OPENROUTER_MODELS: list[tuple[str, str]] = [
     ("openrouter/elephant-alpha",              "free"),
     ("openrouter/owl-alpha",                   "free"),
     ("poolside/laguna-m.1:free",               "free"),
-    ("tencent/hy3:free",                       "free"),
-    ("tencent/hy3-preview:free",               "free"),
     ("nvidia/nemotron-3-super-120b-a12b:free", "free"),
     ("nvidia/nemotron-3-ultra-550b-a55b:free", "free"),
     ("inclusionai/ring-2.6-1t:free",           "free"),
@@ -208,8 +204,7 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "z-ai/glm-5.1",
         # Xiaomi
         "xiaomi/mimo-v2.5-pro",
-        # Tencent
-        "tencent/hy3-preview",
+        # (removed: tencent/hy3-preview)
         # StepFun
         "stepfun/step-3.7-flash",
         # NVIDIA

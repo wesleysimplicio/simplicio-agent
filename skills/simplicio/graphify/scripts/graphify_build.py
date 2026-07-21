@@ -13,7 +13,7 @@ CONCEITO (port do Graphify / Graphify-Labs):
          - detecção de símbolo: import X / def X / class X / call X colocalizado
        Custo: 0 tokens. Tempo: ~minutos (não segundos) em 35k itens.
     2. deep — como deterministic + inferência de arestas IMPLÍCITAS via LLM
-       (OpenRouter tencent/hy3:free). Opcional; respeita rate-limit.
+       (OpenRouter deepseek/deepseek-v4-flash). Opcional; respeita rate-limit.
     3. update — só reprocessa itens novos desde o último build (MERGE).
 
 MÉTRICAS (igual Graphify):
@@ -52,7 +52,7 @@ DEFAULT_OUT = os.path.expanduser("~/.simplicio/graphify-out")
 
 # usado só no modo deep
 OR_API = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("SIMPLICIO_OPENROUTER_KEY")
-OR_MODEL = os.environ.get("GRAPHIFY_MODEL", "tencent/hy3:free")
+OR_MODEL = os.environ.get("GRAPHIFY_MODEL", "deepseek/deepseek-v4-flash")
 
 DIM = 384  # all-MiniLM-L6-v2
 
