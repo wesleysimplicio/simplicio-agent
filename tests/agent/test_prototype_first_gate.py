@@ -30,6 +30,38 @@ from agent.prototype_first_gate import (
 )
 
 
+VERIFIED_EVIDENCE = frozenset(
+    {
+        "receipt:ac-1",
+        "receipt:ac-2",
+        "r",
+        "r1",
+        "r2",
+    }
+)
+
+# Existing fixtures model real runtime receipts. Keep that explicit at the
+# test boundary while retaining a direct handle for fail-closed tests.
+_review_candidate = review_candidate
+_decide_round = decide_round
+_run_bounded_revise = run_bounded_revise
+
+
+def review_candidate(*args: object, **kwargs: object) -> CriticReport:
+    kwargs.setdefault("verified_evidence", VERIFIED_EVIDENCE)
+    return _review_candidate(*args, **kwargs)  # type: ignore[arg-type]
+
+
+def decide_round(*args: object, **kwargs: object) -> tuple[object, ...]:
+    kwargs.setdefault("verified_evidence", VERIFIED_EVIDENCE)
+    return _decide_round(*args, **kwargs)  # type: ignore[arg-type,return-value]
+
+
+def run_bounded_revise(*args: object, **kwargs: object) -> PrototypeGateReceipt:
+    kwargs.setdefault("verified_evidence", VERIFIED_EVIDENCE)
+    return _run_bounded_revise(*args, **kwargs)  # type: ignore[arg-type]
+
+
 def planner_identity(identity: str = "planner-1") -> RoleIdentity:
     return RoleIdentity(identity=identity, role=RoleKind.PLANNER, capabilities=("plan",))
 
@@ -189,7 +221,9 @@ def test_critic_finds_missing_evidence_defect() -> None:
         ac_covered=("ac-1", "ac-2"),  # claims ac-2 covered but has no matching claim
     )
 
-    report = review_candidate(plan, candidate, critic_identity())
+    report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     assert isinstance(report, CriticReport)
     assert not report.clean
@@ -209,7 +243,9 @@ def test_critic_finds_unfounded_claim_defect() -> None:
         ),
     )
 
-    report = review_candidate(plan, candidate, critic_identity())
+    report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     classes = {finding.defect_class for finding in report.findings}
     assert DefectClass.UNFOUNDED_CLAIM in classes
@@ -219,7 +255,9 @@ def test_critic_finds_scope_drift_defect() -> None:
     plan = make_plan(allowed_scope=("lib/cache/",))
     candidate = make_candidate("a", declared_scope=("lib/cache/store.py", "lib/other/leak.py"))
 
-    report = review_candidate(plan, candidate, critic_identity())
+    report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     drift = [f for f in report.findings if f.defect_class is DefectClass.SCOPE_DRIFT]
     assert len(drift) == 1
@@ -230,17 +268,64 @@ def test_critic_reports_clean_for_well_formed_candidate() -> None:
     plan = make_plan()
     candidate = make_candidate("a")
 
-    report = review_candidate(plan, candidate, critic_identity())
+    report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     assert report.clean
     assert report.findings == ()
+
+
+def test_critic_blocks_unverified_handles_by_default() -> None:
+    plan = make_plan()
+    candidate = make_candidate("a")
+
+    # No runtime receipt index means no evidence is available to this gate.
+    report = _review_candidate(plan, candidate, critic_identity())
+
+    assert not report.clean
+    assert report.verified_evidence_handles == ()
+    assert any(
+        finding.detail == "evidence handle is unavailable or unverified"
+        for finding in report.findings
+    )
+
+    decision, _reports, _diversity = _decide_round(
+        plan,
+        (candidate, make_candidate("b", approach_tags=("stream",))),
+        judge_identity(),
+        critic_identity(),
+        round_number=1,
+    )
+    assert decision.kind is DecisionKind.REVISE
+
+
+def test_receipt_preserves_critic_diversity_and_judge_audit() -> None:
+    plan = make_plan()
+    receipt = run_bounded_revise(
+        plan,
+        judge_identity(),
+        critic_identity(),
+        [(make_candidate("good"), make_candidate("also-good"))],
+    )
+
+    assert len(receipt.critic_reports) == 1
+    assert len(receipt.critic_reports[0]) == 2
+    assert len(receipt.diversity_reports) == 1
+    assert receipt.final.judge.identity == "judge-1"
+    payload = receipt.to_dict()
+    assert payload["critic_reports"][0][0]["schema_version"] == "simplicio.prototype-critic/v1"
+    assert payload["diversity_reports"][0]["pairs"]
+    assert payload["final"]["judge"]["role"] == "judge"
 
 
 def test_critic_requires_critic_role() -> None:
     plan = make_plan()
     candidate = make_candidate("a")
     with pytest.raises(ValueError, match="role=critic"):
-        review_candidate(plan, candidate, judge_identity())
+        review_candidate(
+            plan, candidate, judge_identity(), verified_evidence=VERIFIED_EVIDENCE
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +354,14 @@ def test_self_judging_blocks_the_whole_round_decision() -> None:
     )
 
     with pytest.raises(SelfJudgingError):
-        decide_round(plan, (a, b), self_judge, critic_identity(), round_number=1)
+        decide_round(
+            plan,
+            (a, b),
+            self_judge,
+            critic_identity(),
+            round_number=1,
+            verified_evidence=VERIFIED_EVIDENCE,
+        )
 
 
 def test_independent_judge_with_distinct_identity_is_allowed() -> None:
@@ -293,7 +385,9 @@ def test_judge_requires_judge_role() -> None:
 def test_score_candidate_is_explainable_and_deterministic() -> None:
     plan = make_plan()
     candidate = make_candidate("a")
-    critic_report = review_candidate(plan, candidate, critic_identity())
+    critic_report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     verdict = score_candidate(plan, candidate, critic_report, max_cost=10.0)
 
@@ -325,7 +419,9 @@ def test_high_score_alone_does_not_grant_accept_without_evidence() -> None:
         risk_estimate=0.0,
         reversibility=1.0,
     )
-    critic_report = review_candidate(plan, candidate, critic_identity())
+    critic_report = review_candidate(
+        plan, candidate, critic_identity(), verified_evidence=VERIFIED_EVIDENCE
+    )
 
     verdict = score_candidate(plan, candidate, critic_report, max_cost=10.0)
 
@@ -516,11 +612,11 @@ def test_crash_mid_pipeline_then_retry_succeeds_identically() -> None:
     call_count = {"n": 0}
     real_review = review_candidate
 
-    def flaky_review(plan_arg, candidate_arg, critic_arg):
+    def flaky_review(plan_arg, candidate_arg, critic_arg, **kwargs):
         call_count["n"] += 1
         if call_count["n"] == 1:
             raise RuntimeError("simulated mid-pipeline crash")
-        return real_review(plan_arg, candidate_arg, critic_arg)
+        return real_review(plan_arg, candidate_arg, critic_arg, **kwargs)
 
     import agent.prototype_first_gate as gate_module
 
