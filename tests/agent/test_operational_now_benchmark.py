@@ -15,8 +15,16 @@ import statistics
 import time
 
 from agent.belief_state import Freshness
-from agent.event_store import AwarenessReceipt, OperationalEventStore, OperationalValueStatus
+from agent.event_store import (
+    AwarenessReceipt,
+    OperationalEventStore,
+    OperationalScope,
+    OperationalValueStatus,
+)
 from agent.operational_now import OperationalNowProjector, OperationalNowStore
+
+
+SCOPE = OperationalScope(profile_id="bench-profile", tenant_id="bench-tenant")
 
 
 def _make_receipts(count: int) -> list[AwarenessReceipt]:
@@ -33,7 +41,11 @@ def _make_receipts(count: int) -> list[AwarenessReceipt]:
                 source_event_id=f"event-{i}",
                 recorded_at_ns=1_000_000 + i,
                 confidence=0.9,
-                payload={"run_id": "bench-run", "profile_id": "bench-profile"},
+                payload={
+                    "run_id": "bench-run",
+                    "profile_id": "bench-profile",
+                    "tenant_id": "bench-tenant",
+                },
             )
         )
     return receipts
@@ -46,6 +58,7 @@ def test_append_and_projection_latency_and_snapshot_size_benchmark(tmp_path):
     store = OperationalNowStore(
         event_log_path=tmp_path / "events.jsonl",
         snapshot_path=tmp_path / "snapshot.json",
+        scope=SCOPE,
     )
 
     append_samples_us: list[float] = []
