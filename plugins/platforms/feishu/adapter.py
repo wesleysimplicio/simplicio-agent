@@ -152,11 +152,11 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _MARKDOWN_HINT_RE = re.compile(
-    r"(^#{1,6}\s)|(^\s*[-*]\s)|(^\s*\d+\.\s)|(^\s*---+\s*$)|(```)|(`[^`\n]+`)|(\*\*[^*\n].+?\*\*)|(~~[^~\n].+?~~)|(<u>.+?</u>)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)]+\))|(^>\s)",
+    r"(^\|.*\|\s*\n\|[-:|\s]+\|)"
+    r"|(^#{1,6}\s)|(^\s*[-*]\s)|(^\s*\d+\.\s)|(^\s*---+\s*$)|(```)|(`[^`\n]+`)|(\*\*[^*\n].+?\*\*)|(~~[^~\n].+?~~)|(<u>.+?</u>)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)]+\))|(^>\s)",
     re.MULTILINE,
 )
 # Detect markdown tables: a line starting with | followed by a separator line.
-# Feishu post-type 'md' elements do not render tables, so we force text mode.
 _MARKDOWN_TABLE_RE = re.compile(r"^\|.*\|\n\|[-|: ]+\|", re.MULTILINE)
 _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _MARKDOWN_FENCE_OPEN_RE = re.compile(r"^```([^\n`]*)\s*$")
@@ -1897,11 +1897,14 @@ class FeishuAdapter(BasePlatformAdapter):
 
         formatted = self.format_message(content)
         chunks = self.truncate_message(formatted, self.MAX_MESSAGE_LENGTH)
+        prefer_post = bool(_MARKDOWN_HINT_RE.search(formatted))
         last_response = None
 
         try:
             for chunk in chunks:
-                msg_type, payload = self._build_outbound_payload(chunk)
+                msg_type, payload = self._build_outbound_payload(
+                    chunk, prefer_post=prefer_post,
+                )
                 try:
                     response = await self._feishu_send_with_retry(
                         chat_id=chat_id,
@@ -4526,14 +4529,13 @@ class FeishuAdapter(BasePlatformAdapter):
     # Outbound payload construction and send pipeline
     # =========================================================================
 
-    def _build_outbound_payload(self, content: str) -> tuple[str, str]:
-        # Feishu post-type 'md' elements do not render markdown tables; sending
-        # table content as post causes the message to appear blank on the client.
-        # Force plain text for anything that looks like a markdown table.
-        if _MARKDOWN_TABLE_RE.search(content):
-            text_payload = {"text": content}
-            return "text", json.dumps(text_payload, ensure_ascii=False)
-        if _MARKDOWN_HINT_RE.search(content):
+    def _build_outbound_payload(
+        self, content: str, *, prefer_post: bool = False,
+    ) -> tuple[str, str]:
+        # Feishu renders markdown tables inside post-type md elements. Keep
+        # table content on the common markdown path instead of downgrading it
+        # to literal pipe-and-dash text.
+        if prefer_post or _MARKDOWN_HINT_RE.search(content):
             return "post", _build_markdown_post_payload(content)
         text_payload = {"text": content}
         return "text", json.dumps(text_payload, ensure_ascii=False)
