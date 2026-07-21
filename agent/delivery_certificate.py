@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -927,6 +928,19 @@ def verify_ledger(
     return LedgerVerification(not reasons, len(rows), tuple(reasons))
 
 
+def _main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if len(arguments) != 2 or arguments[0] != "verify-ledger":
+        print(
+            "usage: python -m agent.delivery_certificate verify-ledger PATH",
+            file=sys.stderr,
+        )
+        return 2
+    result = verify_ledger_file(arguments[1])
+    print(json.dumps(result.to_dict(), sort_keys=True, separators=(",", ":")))
+    return 0 if result.valid else 1
+
+
 __all__ = [
     "CERTIFICATE_SCHEMA",
     "GENESIS_HASH",
@@ -954,3 +968,7 @@ __all__ = [
 
 # Compatibility name for callers that describe the artifact by its wire role.
 DeliveryCertificate = TaskCertificate
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

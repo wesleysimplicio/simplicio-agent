@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 from agent.delivery_certificate import (
     CertificateLedger,
@@ -96,3 +99,43 @@ def test_replay_requires_byte_equal_diff_or_explicit_nondeterminism_reason():
     })
     explained = verify_replay(explained_manifest, "different")
     assert explained == ReplayVerification(True, False, True, ("provider sampling",))
+
+
+def test_verify_ledger_cli_reports_tampering(tmp_path: Path):
+    path = tmp_path / "ledger.jsonl"
+    store = SignedLedgerStore(path, Ed25519Signer.generate("operator-test"))
+    store.append(_certificate())
+
+    verified = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent.delivery_certificate",
+            "verify-ledger",
+            str(path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verified.returncode == 0
+    assert json.loads(verified.stdout)["valid"] is True
+
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("task-24", "tampered"),
+        encoding="utf-8",
+    )
+    tampered = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent.delivery_certificate",
+            "verify-ledger",
+            str(path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert tampered.returncode == 1
+    assert json.loads(tampered.stdout)["valid"] is False
