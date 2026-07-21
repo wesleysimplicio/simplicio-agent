@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from agent.belief_state import (
     BeliefDecision,
     BeliefObservation,
@@ -13,7 +15,12 @@ from agent.belief_state import (
     Freshness,
     SourceReliability,
 )
-from agent.event_store import AwarenessReceipt, OperationalEventStore
+from agent.event_store import (
+    AwarenessReceipt,
+    OperationalEventStore,
+    OperationalScope,
+    OperationalScopeError,
+)
 from agent.operational_now import (
     Degradation,
     FieldStatus,
@@ -23,6 +30,7 @@ from agent.operational_now import (
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "operational_awareness"
+SCOPE = OperationalScope(profile_id="profile-main", tenant_id="tenant-main")
 
 
 def load_receipts(name: str = "replay_v1.jsonl") -> list[AwarenessReceipt]:
@@ -34,7 +42,7 @@ def load_receipts(name: str = "replay_v1.jsonl") -> list[AwarenessReceipt]:
 
 
 def test_event_store_round_trip_preserves_receipts_and_handle_lookup(tmp_path):
-    store = OperationalEventStore(tmp_path / "awareness.jsonl")
+    store = OperationalEventStore(tmp_path / "awareness.jsonl", scope=SCOPE)
     receipts = load_receipts()
 
     for receipt in receipts:
@@ -135,7 +143,11 @@ def test_belief_engine_marks_conflict_staleness_and_missing_state_explicitly():
 def test_snapshot_rebuilds_when_persisted_snapshot_is_corrupt(tmp_path):
     event_log = tmp_path / "events.jsonl"
     snapshot_path = tmp_path / "snapshot.json"
-    store = OperationalNowStore(event_log_path=event_log, snapshot_path=snapshot_path)
+    store = OperationalNowStore(
+        event_log_path=event_log,
+        snapshot_path=snapshot_path,
+        scope=SCOPE,
+    )
 
     for receipt in load_receipts():
         store.append(receipt)
@@ -177,3 +189,26 @@ def test_snapshot_delta_is_small_deterministic_and_handle_safe():
     assert delta["removed"] == []
     assert "payload" not in delta["changed"]["goal.updated"]
     assert delta == current.delta(previous)
+
+
+def test_operational_store_rejects_receipt_outside_profile_tenant_scope(tmp_path):
+    scope = OperationalScope(profile_id="profile-main", tenant_id="tenant-main")
+    store = OperationalNowStore(
+        event_log_path=tmp_path / "events.jsonl",
+        snapshot_path=tmp_path / "snapshot.json",
+        scope=scope,
+    )
+    receipt = load_receipts()[0]
+    foreign = AwarenessReceipt.from_dict(
+        {
+            **receipt.to_dict(),
+            "payload": {
+                "profile_id": "profile-other",
+                "tenant_id": "tenant-other",
+                "run_id": "run-foreign",
+            },
+        }
+    )
+
+    with pytest.raises(OperationalScopeError, match="does not match store scope"):
+        store.append(foreign)
