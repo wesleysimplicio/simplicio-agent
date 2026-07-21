@@ -15,6 +15,8 @@ from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Protocol
 
+from tools.watcher_gate import GateResult, Verdict, watch_result_boundary, watcher_receipt
+
 
 StageName = Literal[
     "resolve",
@@ -89,6 +91,9 @@ class ToolInvocationMetadata:
     evidence_version: str = "tool-invocation/v1"
     extras: Mapping[str, Any] = field(default_factory=dict)
     checkpoint_ref: str = ""
+    provenance: str = Verdict.UNVERIFIED.value
+    watcher_verdict: str = Verdict.UNVERIFIED.value
+    watcher_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -119,6 +124,9 @@ class ToolInvocationReceipt:
     duration_ms: int
     args_hash: str
     result_hash: str
+    provenance: str = Verdict.UNVERIFIED.value
+    watcher_verdict: str = Verdict.UNVERIFIED.value
+    watcher_reason: str = ""
     error_type: str = ""
     blocked_by: str = ""
     meta: Mapping[str, Any] = field(default_factory=dict)
@@ -138,6 +146,9 @@ class ToolInvocationReceipt:
             "duration_ms": self.duration_ms,
             "args_hash": self.args_hash,
             "result_hash": self.result_hash,
+            "provenance": self.provenance,
+            "watcher_verdict": self.watcher_verdict,
+            "watcher_reason": self.watcher_reason,
             "error_type": self.error_type,
             "blocked_by": self.blocked_by,
             "meta": dict(self.meta),
@@ -361,6 +372,7 @@ class ToolInvocationPipeline:
         hooks: Mapping[StageName, StageHook] | None = None,
         receipt_writer: ReceiptWriter | None = None,
         redacted_result_keys: frozenset[str] | None = None,
+        watcher: Callable[[ToolInvocationAttempt], GateResult] | None = None,
     ):
         self.hooks = dict(hooks or {})
         self.receipt_writer = receipt_writer
@@ -369,6 +381,7 @@ class ToolInvocationPipeline:
             if redacted_result_keys is None
             else frozenset(str(key).lower() for key in redacted_result_keys)
         )
+        self.watcher = watcher
         self._receipts_by_attempt: dict[str, ToolInvocationReceipt] = {}
         self._receipt_errors: dict[str, BaseException] = {}
         self._receipts_written: set[str] = set()
@@ -451,6 +464,8 @@ class ToolInvocationPipeline:
                     or attempt.metadata.blocked_by
                     or "blocked",
                 )
+            elif terminal_status == "success":
+                attempt = self._watch_result_boundary(attempt)
         attempt = self._persist_and_evidence(attempt)
         return self._outcome(attempt)
 
@@ -496,6 +511,7 @@ class ToolInvocationPipeline:
             attempt = attempt.with_trace("execute")
             result = adapter.execute(attempt)
             attempt = replace(attempt, result=result, status="success")
+            attempt = self._watch_result_boundary(attempt)
             attempt = self._persist_and_evidence(attempt)
         except KeyboardInterrupt as exc:
             attempt = replace(
@@ -656,6 +672,79 @@ class ToolInvocationPipeline:
             )
         )
 
+    def _watch_result_boundary(self, attempt: ToolInvocationAttempt) -> ToolInvocationAttempt:
+        """Attach an independent verdict before persistence/evidence.
+
+        A missing watcher is intentionally ``UNVERIFIED``.  A fabricated
+        deterministic result is converted into a blocked outcome so the
+        reported payload cannot reach the next agent stage as a success.
+        """
+
+        if attempt.status != "success":
+            return attempt.with_metadata(
+                provenance=Verdict.UNVERIFIED.value,
+                watcher_verdict=Verdict.UNVERIFIED.value,
+                watcher_reason="result was not produced by a successful execution",
+            )
+        try:
+            observed = (
+                self.watcher(attempt)
+                if self.watcher is not None
+                else watch_result_boundary(
+                    attempt.result,
+                    None,
+                    kind="tool-result",
+                    subject=attempt.resolved_name,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - watcher failure is fail-closed
+            observed = watch_result_boundary(
+                attempt.result,
+                lambda: (_ for _ in ()).throw(exc),
+                kind="tool-result",
+                subject=attempt.resolved_name,
+            )
+        if not isinstance(observed, GateResult):
+            observed = watch_result_boundary(
+                attempt.result,
+                None,
+                kind="tool-result",
+                subject=attempt.resolved_name,
+            )
+        watcher_data = watcher_receipt(observed)
+        provenance = watcher_data["provenance"]
+        extras = dict(attempt.metadata.extras or {})
+        extras["watcher"] = watcher_data
+        extras["provenance"] = provenance
+        if observed.verdict is Verdict.FABRICATED:
+            blocked_result = {
+                "error": "watcher gate blocked fabricated result",
+                "provenance": Verdict.UNVERIFIED.value,
+                "watcher_verdict": Verdict.FABRICATED.value,
+            }
+            return replace(
+                attempt,
+                result=blocked_result,
+                status="blocked",
+                error_type="fabricated_result",
+                error_message=observed.reason,
+            ).with_metadata(
+                status="blocked",
+                blocked_by="watcher-gate",
+                error_type="fabricated_result",
+                error_message=observed.reason,
+                provenance=provenance,
+                watcher_verdict=observed.verdict.value,
+                watcher_reason=observed.reason,
+                extras=extras,
+            )
+        return replace(attempt, evidence={"watcher": watcher_data}).with_metadata(
+            provenance=provenance,
+            watcher_verdict=observed.verdict.value,
+            watcher_reason=observed.reason,
+            extras=extras,
+        )
+
     def _persist_and_evidence(
         self, attempt: ToolInvocationAttempt
     ) -> ToolInvocationAttempt:
@@ -781,7 +870,14 @@ class ToolInvocationPipeline:
                 "api_request_id": attempt.metadata.api_request_id,
                 "requires_checkpoint": attempt.metadata.requires_checkpoint,
                 "checkpoint_ref": attempt.checkpoint_ref,
+                "provenance": attempt.metadata.provenance,
+                "watcher_verdict": attempt.metadata.watcher_verdict,
+                "watcher_reason": attempt.metadata.watcher_reason,
+                "watcher": dict(attempt.metadata.extras.get("watcher", {})),
             },
+            provenance=attempt.metadata.provenance,
+            watcher_verdict=attempt.metadata.watcher_verdict,
+            watcher_reason=attempt.metadata.watcher_reason,
             checkpoint_ref=attempt.checkpoint_ref,
         )
         self._receipts_by_attempt[attempt_id] = receipt
@@ -816,6 +912,8 @@ class ToolInvocationPipeline:
             "error_message": attempt.error_message,
             "receipt_id": attempt.receipt.receipt_id if attempt.receipt else "",
             "external_result": external_result,
+            "provenance": attempt.metadata.provenance,
+            "watcher": dict(attempt.metadata.extras.get("watcher", {})),
             "requires_checkpoint": attempt.metadata.requires_checkpoint,
             "checkpoint_ref": attempt.checkpoint_ref,
             "result": evidence_result,
@@ -835,9 +933,14 @@ def pipeline_for_agent(
     del tool_name
     hooks = getattr(agent, "tool_invocation_pipeline_hooks", None)
     receipt_writer = getattr(agent, "tool_invocation_receipt_writer", None)
+    watcher = getattr(agent, "tool_result_watcher", None)
     if receipt_writer is None and hasattr(agent, "session_id"):
         receipt_writer = default_tool_invocation_receipt_writer
-    return ToolInvocationPipeline(hooks=hooks, receipt_writer=receipt_writer)
+    return ToolInvocationPipeline(
+        hooks=hooks,
+        receipt_writer=receipt_writer,
+        watcher=watcher if callable(watcher) else None,
+    )
 
 
 def default_tool_invocation_receipt_writer(receipt: ToolInvocationReceipt) -> Any:

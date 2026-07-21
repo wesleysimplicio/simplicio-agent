@@ -1018,6 +1018,8 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
             agent._last_tool_invocation_receipt = (
                 outcome.receipt.to_dict() if outcome.receipt else {}
             )
+            from agent.agent_runtime_helpers import record_tool_boundary_evidence
+            record_tool_boundary_evidence(agent, outcome)
             return outcome.result
 
         function_args, middleware_trace = _apply_tool_request_middleware_for_agent(

@@ -38,6 +38,7 @@ from toolsets import TOOLSETS
 _RUNTIME_PROVIDER_CUSTOM = "custom"
 from tools import file_state
 from tools.terminal_tool import set_approval_callback as _set_subagent_approval_cb
+from tools.watcher_gate import GateResult, Verdict, watch_result_boundary, watcher_receipt
 from utils import base_url_hostname, is_truthy_value
 
 
@@ -2366,6 +2367,58 @@ def _recover_tasks_from_json_string(
     return parsed, None
 
 
+def _watch_subagent_boundary(parent_agent: Any, entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach one independent verdict to an existing child-result boundary.
+
+    ``subagent_result_watcher`` is an optional supervisor callback.  It may
+    return the recomputed claim mapping; without it, the child self-report is
+    explicitly ``UNVERIFIED``.  This reuses the existing delegation path and
+    does not create another reviewer or recursive child.
+    """
+
+    # Read the concrete attribute dictionary so an unset attribute on a
+    # MagicMock/test double cannot masquerade as an independent watcher.
+    recompute = getattr(parent_agent, "__dict__", {}).get(
+        "subagent_result_watcher"
+    )
+    observed: GateResult
+    if callable(recompute):
+        try:
+            candidate = recompute(entry)
+            if isinstance(candidate, GateResult):
+                observed = candidate
+            else:
+                observed = watch_result_boundary(
+                    entry,
+                    lambda candidate=candidate: candidate,
+                    kind="sub-agent",
+                    subject=str(entry.get("task_index", "child")),
+                )
+        except Exception as exc:  # noqa: BLE001 - failed watcher is not green
+            observed = watch_result_boundary(
+                entry,
+                lambda: (_ for _ in ()).throw(exc),
+                kind="sub-agent",
+                subject=str(entry.get("task_index", "child")),
+            )
+    else:
+        observed = watch_result_boundary(
+            entry,
+            None,
+            kind="sub-agent",
+            subject=str(entry.get("task_index", "child")),
+        )
+    receipt = watcher_receipt(observed)
+    entry["watcher"] = receipt
+    entry["provenance"] = receipt["provenance"]
+    if observed.verdict is Verdict.FABRICATED:
+        entry["status"] = "failed"
+        entry["summary"] = None
+        entry["error"] = "watcher gate blocked fabricated sub-agent result"
+        entry["watcher_blocked"] = True
+    return entry
+
+
 def delegate_task(
     goal: Optional[str] = None,
     context: Optional[str] = None,
@@ -2677,6 +2730,12 @@ def delegate_task(
 
             # Sort by task_index so results match input order
             results.sort(key=lambda r: r["task_index"])
+
+        # Recompute each child claim before it is consumed by the parent.
+        # Existing delegation/review machinery remains the owner of child
+        # execution; this is only the independent return-boundary gate.
+        for entry in results:
+            _watch_subagent_boundary(parent_agent, entry)
 
         # Cap subagent summaries against the parent's remaining context
         # headroom (split across the batch) before they enter the parent's

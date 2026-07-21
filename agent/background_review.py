@@ -584,6 +584,25 @@ def summarize_background_review_actions(
     return actions
 
 
+def build_background_review_verdict(actions: List[str]) -> Dict[str, Any]:
+    """Return the structured verdict for the existing background reviewer.
+
+    Review actions are model-authored summaries.  They are therefore not a
+    deterministic recomputation and must remain ``UNVERIFIED`` until a later
+    local watcher checks each concrete effect.  Keeping this verdict beside
+    the existing action summary avoids introducing a second reviewer.
+    """
+
+    return {
+        "schema": "simplicio.watcher-verdict/v1",
+        "verdict": "UNVERIFIED",
+        "provenance": "UNVERIFIED",
+        "matches": False,
+        "reason": "background-review actions are model-authored and lack independent recomputation",
+        "action_count": len(actions),
+    }
+
+
 def build_memory_write_metadata(
     agent: Any,
     *,
@@ -906,6 +925,8 @@ def _run_review_in_thread(
             )
             actions = []
 
+        agent._last_background_review_verdict = build_background_review_verdict(actions)
+
         if actions:
             summary = " · ".join(dict.fromkeys(actions))
             agent._safe_print(
@@ -984,5 +1005,6 @@ __all__ = [
     "_COMBINED_REVIEW_PROMPT",
     "spawn_background_review_thread",
     "summarize_background_review_actions",
+    "build_background_review_verdict",
     "build_memory_write_metadata",
 ]

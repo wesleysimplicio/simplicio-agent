@@ -71,6 +71,34 @@ def agent_runtime_owns_post_tool_hook(agent: Any, function_name: str) -> bool:
     return bool(memory_manager and memory_manager.has_tool(function_name))
 
 
+def record_tool_boundary_evidence(agent: Any, outcome: Any) -> None:
+    """Expose the boundary verdict to receipts and trajectory conversion.
+
+    The live tool result remains separate from this compact metadata.  Missing
+    metadata is conservative and renders as ``UNVERIFIED`` downstream.
+    """
+
+    evidence = getattr(outcome, "evidence", {}) or {}
+    watcher = evidence.get("watcher") if isinstance(evidence, dict) else None
+    if not isinstance(watcher, dict):
+        watcher = {"verdict": "UNVERIFIED", "provenance": "UNVERIFIED"}
+    call_id = getattr(getattr(outcome, "invocation", None), "tool_call_id", "")
+    if not call_id:
+        return
+    by_call = getattr(agent, "_tool_result_provenance", None)
+    if not isinstance(by_call, dict):
+        by_call = {}
+        agent._tool_result_provenance = by_call
+    by_call[call_id] = {
+        "provenance": evidence.get("provenance", "UNVERIFIED"),
+        "verdict": watcher.get("verdict", "UNVERIFIED"),
+        "matches": bool(watcher.get("matches", False)),
+        "reason": watcher.get("reason", ""),
+        "kind": watcher.get("kind"),
+        "subject": watcher.get("subject", ""),
+    }
+
+
 def convert_to_trajectory_format(agent, messages: List[Dict[str, Any]], user_query: str, completed: bool) -> List[Dict[str, Any]]:
     """
     Convert internal message format to trajectory format for saving.
@@ -206,10 +234,20 @@ def convert_to_trajectory_format(agent, messages: List[Dict[str, Any]], user_que
                         if tool_index < len(msg["tool_calls"])
                         else "unknown"
                     )
+                    provenance = getattr(agent, "_tool_result_provenance", {}).get(
+                        tool_msg.get("tool_call_id", ""),
+                        {
+                            "provenance": "UNVERIFIED",
+                            "verdict": "UNVERIFIED",
+                            "matches": False,
+                            "reason": "missing watcher boundary receipt",
+                        },
+                    )
                     tool_response += json.dumps({
                         "tool_call_id": tool_msg.get("tool_call_id", ""),
                         "name": tool_name,
-                        "content": tool_content
+                        "content": tool_content,
+                        "provenance": provenance,
                     }, ensure_ascii=False)
                     tool_response += "\n</tool_response>"
                     tool_responses.append(tool_response)
@@ -2244,7 +2282,8 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
         )
         agent._last_tool_invocation_trace = list(outcome.trace)
         agent._last_tool_invocation_receipt = outcome.receipt.to_dict() if outcome.receipt else {}
-        return result
+        record_tool_boundary_evidence(agent, outcome)
+        return outcome.result
 
     if _invocation.metadata.status == "blocked":
         blocked_message = (

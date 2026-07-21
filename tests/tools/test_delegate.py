@@ -35,6 +35,7 @@ from tools.delegate_tool import (
     _resolve_child_credential_pool,
     _resolve_delegation_credentials,
     _inherit_parent_base_url,
+    _watch_subagent_boundary,
 )
 
 
@@ -87,6 +88,31 @@ class TestDelegateRequirements(unittest.TestCase):
         self.assertNotIn("acp_command", props["tasks"]["items"]["properties"])
         self.assertNotIn("acp_args", props["tasks"]["items"]["properties"])
         self.assertNotIn("maxItems", props["tasks"])  # removed — limit is now runtime-configurable
+
+    def test_subagent_boundary_defaults_to_unverified(self):
+        entry = {"task_index": 0, "status": "completed", "summary": "done"}
+
+        result = _watch_subagent_boundary(_make_mock_parent(), entry)
+
+        self.assertEqual(result["provenance"], "UNVERIFIED")
+        self.assertEqual(result["watcher"]["verdict"], "UNVERIFIED")
+        self.assertFalse(result["watcher"]["matches"])
+
+    def test_subagent_boundary_blocks_forged_claim(self):
+        parent = _make_mock_parent()
+        parent.subagent_result_watcher = lambda entry: {
+            "task_index": entry["task_index"],
+            "status": "failed",
+            "summary": "tests failed",
+        }
+        entry = {"task_index": 0, "status": "completed", "summary": "tests pass"}
+
+        result = _watch_subagent_boundary(parent, entry)
+
+        self.assertTrue(result["watcher_blocked"])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["provenance"], "UNVERIFIED")
+        self.assertEqual(result["watcher"]["verdict"], "FABRICATED")
 
     def test_schema_description_advertises_runtime_limits(self):
         """The model must see the user's actual concurrency / spawn-depth caps,
