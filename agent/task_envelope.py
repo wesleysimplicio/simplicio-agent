@@ -185,6 +185,8 @@ class CloseGateReason(str, Enum):
     DELIVERED_REQUIRED = "delivered_required"
     EVIDENCE_REQUIRED = "evidence_required"
     VERIFIED_EVIDENCE_MISSING = "verified_evidence_missing"
+    DELIVERY_CERTIFICATE_REQUIRED = "delivery_certificate_required"
+    DELIVERY_CERTIFICATE_INVALID = "delivery_certificate_invalid"
     VERIFIED = "verified"
 
 
@@ -194,6 +196,8 @@ _CLOSE_GATE_REASON_TEXT: Dict[CloseGateReason, str] = {
     CloseGateReason.VERIFIED_EVIDENCE_MISSING: (
         "close requires every evidence reference to be verified"
     ),
+    CloseGateReason.DELIVERY_CERTIFICATE_REQUIRED: "delivery certificate is required before task close",
+    CloseGateReason.DELIVERY_CERTIFICATE_INVALID: "delivery certificate failed verification",
     CloseGateReason.VERIFIED: "all required evidence references are verified",
 }
 
@@ -253,7 +257,10 @@ def _ledger_progression_allowed(from_state: TaskState, to_state: TaskState) -> b
         return True
     if from_state in CANONICAL_ORDER and to_state in CANONICAL_ORDER:
         return CANONICAL_ORDER.index(to_state) > CANONICAL_ORDER.index(from_state)
-    return from_state in (TaskState.BLOCKED, TaskState.FAILED) and to_state in CANONICAL_ORDER
+    return (
+        from_state in (TaskState.BLOCKED, TaskState.FAILED)
+        and to_state in CANONICAL_ORDER
+    )
 
 
 def _string_tuple(field_name: str, value: Any) -> tuple[str, ...]:
@@ -654,6 +661,7 @@ class TaskLedger:
     def __init__(self) -> None:
         self._records: Dict[str, List[Dict[str, Any]]] = {}
         self._quarantine_records: Dict[str, List[Dict[str, Any]]] = {}
+        self._delivery_certificates: Dict[str, Dict[str, Any]] = {}
 
     @staticmethod
     def _quarantine_record_key(record: Dict[str, Any]) -> tuple[Any, ...]:
@@ -673,8 +681,7 @@ class TaskLedger:
             # idempotent: the same envelope content was already recorded.
             return history[-1]
         if any(
-            existing["envelope_hash"] == record["envelope_hash"]
-            for existing in history
+            existing["envelope_hash"] == record["envelope_hash"] for existing in history
         ):
             raise ValueError("ledger transition was already recorded out of order")
         if history:
@@ -687,7 +694,9 @@ class TaskLedger:
             if previous_state in CANONICAL_ORDER and envelope.state in CANONICAL_ORDER:
                 start = CANONICAL_ORDER.index(previous_state) + 1
                 end = CANONICAL_ORDER.index(envelope.state) + 1
-                executing_entries = CANONICAL_ORDER[start:end].count(TaskState.EXECUTING)
+                executing_entries = CANONICAL_ORDER[start:end].count(
+                    TaskState.EXECUTING
+                )
             else:
                 executing_entries = int(envelope.state is TaskState.EXECUTING)
             expected_attempts = previous["attempts"] + executing_entries
@@ -709,6 +718,10 @@ class TaskLedger:
             "quarantine_records": {
                 task_id: [dict(record) for record in history]
                 for task_id, history in self._quarantine_records.items()
+            },
+            "delivery_certificates": {
+                task_id: dict(certificate)
+                for task_id, certificate in self._delivery_certificates.items()
             },
         }
 
@@ -733,6 +746,10 @@ class TaskLedger:
                     continue
                 current.append(dict(record))
                 seen_keys.add(key)
+
+        for task_id, certificate in snapshot.get("delivery_certificates", {}).items():
+            if task_id not in self._delivery_certificates:
+                self._delivery_certificates[task_id] = dict(certificate)
 
     @classmethod
     def from_snapshot(cls, snapshot: Dict[str, Any]) -> "TaskLedger":
@@ -826,6 +843,98 @@ class TaskLedger:
     def quarantine_history(self, task_id: str) -> tuple[Dict[str, Any], ...]:
         """Return close-gate quarantine records for ``task_id``."""
         return tuple(self._quarantine_records.get(task_id, ()))
+
+    def delivery_certificate(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Return the attached certificate snapshot for a task, if present."""
+        certificate = self._delivery_certificates.get(task_id)
+        return dict(certificate) if certificate is not None else None
+
+    def attach_delivery_certificate(
+        self,
+        envelope: TaskEnvelope,
+        delivery_certificate: Any,
+    ) -> Dict[str, Any]:
+        """Validate and attach a certificate before a compatibility close call."""
+        from agent.delivery_certificate import TaskCertificate
+
+        if isinstance(delivery_certificate, TaskCertificate):
+            certificate = delivery_certificate
+        elif isinstance(delivery_certificate, dict):
+            certificate = TaskCertificate.from_dict(delivery_certificate)
+        else:
+            certificate = None
+        if (
+            certificate is None
+            or certificate.task_id != envelope.task_id
+            or not certificate.is_verified
+        ):
+            raise ValueError(
+                "delivery certificate is invalid or does not match the task"
+            )
+        self._delivery_certificates[envelope.task_id] = certificate.to_dict()
+        return self._delivery_certificates[envelope.task_id]
+
+    def close_with_certificate(
+        self,
+        envelope: TaskEnvelope,
+        *,
+        delivery_certificate: Any,
+        verified_evidence_refs: Iterable[str] = (),
+    ) -> TaskEnvelope:
+        """Close only after a verified delivery certificate is attached."""
+        from agent.delivery_certificate import TaskCertificate
+
+        parse_failed = False
+        try:
+            if isinstance(delivery_certificate, TaskCertificate):
+                certificate = delivery_certificate
+            elif isinstance(delivery_certificate, dict):
+                certificate = TaskCertificate.from_dict(delivery_certificate)
+            else:
+                certificate = None
+        except (KeyError, TypeError, ValueError):
+            certificate = None
+            parse_failed = True
+
+        if (
+            certificate is None
+            or certificate.task_id != envelope.task_id
+            or not certificate.is_verified
+        ):
+            reason_code = (
+                CloseGateReason.DELIVERY_CERTIFICATE_REQUIRED
+                if certificate is None
+                and not parse_failed
+                and delivery_certificate is None
+                else CloseGateReason.DELIVERY_CERTIFICATE_INVALID
+            )
+            decision = CloseGateDecision(
+                allowed=False,
+                status=TaskState.QUARANTINED.value,
+                reason_code=reason_code,
+                reason=_CLOSE_GATE_REASON_TEXT[reason_code],
+                required_evidence_refs=tuple(dict.fromkeys(envelope.evidence_refs)),
+                verified_evidence_refs=tuple(verified_evidence_refs),
+            )
+            self._record_quarantine(envelope, decision)
+            raise CloseGateError(decision)
+
+        decision = self.evaluate_close_gate(
+            envelope,
+            verified_evidence_refs=verified_evidence_refs,
+        )
+        if not decision.allowed:
+            self._record_quarantine(envelope, decision)
+            raise CloseGateError(decision)
+
+        closed = (
+            envelope
+            if envelope.state is TaskState.CLOSED
+            else envelope.transition(TaskState.CLOSED)
+        )
+        self.append(closed)
+        self._delivery_certificates[envelope.task_id] = certificate.to_dict()
+        return closed
 
     def close_if_verified(
         self,
