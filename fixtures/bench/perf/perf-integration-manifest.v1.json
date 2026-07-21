@@ -1,129 +1,20 @@
 {
   "axes": [
     {
-      "call_sites": [
-        {
-          "path": "hermes_cli/main.py",
-          "symbol": "install_uvloop_policy()"
-        },
-        {
-          "path": "hermes_cli/gateway.py",
-          "symbol": "install_uvloop_policy()"
-        }
-      ],
-      "config": [
-        {
-          "key": "fast.uvloop",
-          "path": "pyproject.toml"
-        }
-      ],
-      "description": "Optional libuv event-loop policy for async entrypoints.",
-      "fallback": {
-        "available": true,
-        "description": "asyncio default policy",
-        "paths": [
-          "agent/uvloop_utils.py"
-        ]
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
       },
-      "name": "uvloop",
-      "ok": true,
-      "source": [
-        "agent/async_dag/uvloop_runner.py",
-        "agent/uvloop_utils.py"
-      ],
-      "source_sha256": {
-        "agent/async_dag/uvloop_runner.py": "48773c340dabe84acf9b55992b2552c6141c9f09c6c2d8823ba47278bb90635a",
-        "agent/uvloop_utils.py": "64274a9044d13dcfe8a8699f50556a39397f3c4177e5e5cdeac9d3274c090d19"
-      },
-      "stage_results": {
-        "BUILT": {
-          "evidence": [
-            "agent.uvloop_utils"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "DEFAULT": {
-          "evidence": [
-            "pyproject.toml:fast"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "E2E": {
-          "evidence": [
-            "hermes_cli/main.py:install_uvloop_policy()",
-            "hermes_cli/gateway.py:install_uvloop_policy()"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "GATED": {
-          "evidence": [
-            "hermes_cli/doctor.py:uvloop event loop"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "INSTALLED": {
-          "ok": true,
-          "reason": "uvloop importable",
-          "status": "pass"
-        },
-        "INVOKED": {
-          "evidence": [
-            "agent.uvloop_utils:install_uvloop_policy"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "PACKAGED": {
-          "evidence": [
-            "pyproject.toml:project.optional-dependencies.fast"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "PRESENT": {
-          "evidence": [
-            "agent/uvloop_utils.py",
-            "agent/async_dag/uvloop_runner.py"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "SAME_SOURCE": {
-          "evidence": [
-            "agent/uvloop_utils.py:install_uvloop_policy"
-          ],
-          "ok": true,
-          "status": "pass"
-        }
-      },
-      "stage_status": {
-        "BUILT": "pass",
-        "DEFAULT": "pass",
-        "E2E": "pass",
-        "GATED": "pass",
-        "INSTALLED": "pass",
-        "INVOKED": "pass",
-        "PACKAGED": "pass",
-        "PRESENT": "pass",
-        "SAME_SOURCE": "pass"
-      },
-      "stages": {
-        "BUILT": true,
-        "DEFAULT": true,
-        "E2E": true,
-        "GATED": true,
-        "INSTALLED": true,
-        "INVOKED": true,
-        "PACKAGED": true,
-        "PRESENT": true,
-        "SAME_SOURCE": true
-      }
-    },
-    {
       "call_sites": [
         {
           "path": "run_agent.py",
@@ -136,83 +27,98 @@
       ],
       "config": [
         {
-          "key": "fast.orjson",
+          "key": "orjson>=",
           "path": "pyproject.toml"
         },
         {
-          "key": "fast.msgspec",
+          "key": "msgspec>=",
           "path": "pyproject.toml"
         }
       ],
-      "description": "Fast JSON serialization with msgspec/orjson and stdlib fallback.",
+      "description": "orjson/msgspec serializer with stdlib fallback.",
       "fallback": {
         "available": true,
-        "description": "stdlib json",
+        "description": "documented fallback path; activation requires runtime receipt",
         "paths": [
           "agent/_fastjson.py"
         ]
       },
       "name": "fast-json",
-      "ok": true,
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#70"
+      ],
       "source": [
         "agent/_fastjson.py",
         "agent/serde/__init__.py",
         "agent/serde/fast_json.py"
       ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
       "source_sha256": {
         "agent/_fastjson.py": "faed372d5e0d98a6bebca5a37894d38a9725e29d3699b1d4e7d6429ce1f24b4d",
         "agent/serde/__init__.py": "dfa030f2022d8f4cedb6e86db006fea0b80620f48f75a46cf4d6162445561cbf",
         "agent/serde/fast_json.py": "6187c940d817d7844174ccaed3b8f88fc0d0ad0a1d4719434e70c9afb4454264"
       },
       "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
         "BUILT": {
-          "evidence": [
-            "agent.serde.fast_json"
-          ],
-          "ok": true,
-          "status": "pass"
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
         },
-        "DEFAULT": {
-          "evidence": [
-            "pyproject.toml:fast"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "E2E": {
+        "CALLED": {
           "evidence": [
             "run_agent.py:from agent._fastjson",
             "agent/telemetry/receipts.py:from agent.serde"
           ],
           "ok": true,
+          "reason": "static call-site markers found",
           "status": "pass"
         },
-        "GATED": {
+        "DEFAULT_ON": {
           "evidence": [
-            "hermes_cli/doctor.py:Fast JSON"
+            "pyproject.toml:orjson>=",
+            "pyproject.toml:msgspec>="
           ],
           "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.serde.fast_json",
+            "agent.serde.__init__",
+            "agent._fastjson"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
           "status": "pass"
         },
         "INSTALLED": {
-          "ok": true,
-          "reason": "orjson=True msgspec=True",
-          "status": "pass"
-        },
-        "INVOKED": {
-          "evidence": [
-            "agent.serde.fast_json:dumps/loads"
-          ],
-          "ok": true,
-          "reason": "backend=orjson; encode=called; decode=called; round_trip=pass",
-          "status": "pass"
-        },
-        "PACKAGED": {
-          "evidence": [
-            "pyproject.toml:project.optional-dependencies.fast"
-          ],
-          "ok": true,
-          "status": "pass"
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
         },
         "PRESENT": {
           "evidence": [
@@ -223,171 +129,2249 @@
           "ok": true,
           "status": "pass"
         },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
         "SAME_SOURCE": {
-          "evidence": [
-            "agent/serde/fast_json.py:has_msgspec"
-          ],
-          "ok": true,
-          "status": "pass"
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
         }
       },
       "stage_status": {
-        "BUILT": "pass",
-        "DEFAULT": "pass",
-        "E2E": "pass",
-        "GATED": "pass",
-        "INSTALLED": "pass",
-        "INVOKED": "pass",
-        "PACKAGED": "pass",
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
         "PRESENT": "pass",
-        "SAME_SOURCE": "pass"
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
       },
       "stages": {
-        "BUILT": true,
-        "DEFAULT": true,
-        "E2E": true,
-        "GATED": true,
-        "INSTALLED": true,
-        "INVOKED": true,
-        "PACKAGED": true,
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
         "PRESENT": true,
-        "SAME_SOURCE": true
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
       }
     },
     {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
       "call_sites": [
         {
-          "path": "agent/skill_commands.py",
-          "symbol": "prewarm_skill_payloads"
+          "path": "hermes_cli/main.py",
+          "symbol": "install_uvloop_policy"
         },
         {
-          "path": "hermes_cli/model_switch.py",
-          "symbol": "prewarm_picker_cache_async"
+          "path": "hermes_cli/gateway.py",
+          "symbol": "install_uvloop_policy"
         }
       ],
       "config": [
         {
-          "key": "prewarm_max_items",
-          "path": "hermes_cli/config.py"
-        },
-        {
-          "key": "prewarm_cache_max_entries",
-          "path": "hermes_cli/config.py"
+          "key": "uvloop>=",
+          "path": "pyproject.toml"
         }
       ],
-      "description": "Bounded background prewarm for skills and model picker caches.",
+      "description": "Optional libuv event-loop policy for async entrypoints.",
       "fallback": {
         "available": true,
-        "description": "bounded no-op on errors",
+        "description": "documented fallback path; activation requires runtime receipt",
         "paths": [
-          "agent/skill_commands.py"
+          "agent/uvloop_utils.py"
         ]
       },
-      "name": "prewarm",
-      "ok": true,
-      "source": [
-        "agent/agent_init.py",
-        "agent/skill_commands.py",
-        "hermes_cli/model_switch.py"
+      "name": "uvloop",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
       ],
+      "related_issues": [
+        "#220",
+        "#70"
+      ],
+      "source": [
+        "agent/async_dag/uvloop_runner.py",
+        "agent/uvloop_utils.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
       "source_sha256": {
-        "agent/agent_init.py": "baa07e8bd9926254e948d18e83634fc2985cda8f0f4047258245903e13e4bfd2",
-        "agent/skill_commands.py": "7b89220927ff6bd39efb7163ac280962ed4c1dbe06af8849548ac0d4e73a3e62",
-        "hermes_cli/model_switch.py": "6cfc4726f65325a23b8251f70fd70cfae27749c5492365518bdeebc04ad7c8e3"
+        "agent/async_dag/uvloop_runner.py": "48773c340dabe84acf9b55992b2552c6141c9f09c6c2d8823ba47278bb90635a",
+        "agent/uvloop_utils.py": "64274a9044d13dcfe8a8699f50556a39397f3c4177e5e5cdeac9d3274c090d19"
       },
       "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
         "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
           "evidence": [
-            "agent.skill_commands",
-            "hermes_cli.model_switch"
+            "hermes_cli/main.py:install_uvloop_policy",
+            "hermes_cli/gateway.py:install_uvloop_policy"
           ],
           "ok": true,
+          "reason": "static call-site markers found",
           "status": "pass"
         },
-        "DEFAULT": {
+        "DEFAULT_ON": {
           "evidence": [
-            "hermes_cli/config.py:prewarm_max_items",
-            "hermes_cli/config.py:prewarm_cache_max_entries"
+            "pyproject.toml:uvloop>="
           ],
           "ok": true,
+          "reason": "config/default marker present",
           "status": "pass"
         },
-        "E2E": {
-          "evidence": [
-            "agent/agent_init.py:_openrouter_prewarm_done"
-          ],
-          "ok": true,
-          "status": "pass"
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
         },
-        "GATED": {
+        "IMPORTABLE": {
           "evidence": [
-            "hermes_cli/config.py:prewarm"
+            "agent.uvloop_utils",
+            "agent.async_dag.uvloop_runner"
           ],
           "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
           "status": "pass"
         },
         "INSTALLED": {
-          "evidence": [
-            "prewarm_skill_payloads",
-            "prewarm_picker_cache_async"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "INVOKED": {
-          "evidence": [
-            "hermes_cli/model_switch.py:_picker_prewarm_done"
-          ],
-          "ok": true,
-          "status": "pass"
-        },
-        "PACKAGED": {
-          "evidence": [
-            "hermes_cli/config.py:prewarm_max_items",
-            "hermes_cli/config.py:prewarm_cache_max_entries"
-          ],
-          "ok": true,
-          "status": "pass"
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
         },
         "PRESENT": {
           "evidence": [
-            "agent/skill_commands.py",
-            "hermes_cli/model_switch.py",
-            "agent/agent_init.py"
+            "agent/uvloop_utils.py",
+            "agent/async_dag/uvloop_runner.py"
           ],
           "ok": true,
           "status": "pass"
         },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
         "SAME_SOURCE": {
-          "evidence": [
-            "agent/skill_commands.py:prewarm_skill_payloads",
-            "hermes_cli/model_switch.py:prewarm_picker_cache_async"
-          ],
-          "ok": true,
-          "status": "pass"
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
         }
       },
       "stage_status": {
-        "BUILT": "pass",
-        "DEFAULT": "pass",
-        "E2E": "pass",
-        "GATED": "pass",
-        "INSTALLED": "pass",
-        "INVOKED": "pass",
-        "PACKAGED": "pass",
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
         "PRESENT": "pass",
-        "SAME_SOURCE": "pass"
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
       },
       "stages": {
-        "BUILT": true,
-        "DEFAULT": true,
-        "E2E": true,
-        "GATED": true,
-        "INSTALLED": true,
-        "INVOKED": true,
-        "PACKAGED": true,
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
         "PRESENT": true,
-        "SAME_SOURCE": true
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "agent/_hermes_fast.py",
+          "symbol": "rust_ext"
+        },
+        {
+          "path": "scripts/importer/import.sh",
+          "symbol": "agent/_hermes_fast.py"
+        }
+      ],
+      "config": [
+        {
+          "key": "maturin",
+          "path": "rust_ext/pyproject.toml"
+        },
+        {
+          "key": "maturin",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "rust_ext and agent/_hermes_fast native hot path.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/_hermes_fast.py"
+        ]
+      },
+      "name": "rust-fast-path",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#113"
+      ],
+      "source": [
+        "agent/_hermes_fast.py",
+        "rust_ext/pyproject.toml",
+        "rust_ext/src/lib.rs"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/_hermes_fast.py": "6d754f138b77ac43ad6243c87c9fe843fa78596b7f2ea6935af62ff2f1736ed2",
+        "rust_ext/pyproject.toml": "5308fdb54f3203370df941464e852613f3d978fa47051b41ff7537761dab3c0f",
+        "rust_ext/src/lib.rs": "72550ee834317ddc89fd498364d251899d160c0548d8ad012607c5b2b0cba314"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "agent/_hermes_fast.py:rust_ext",
+            "scripts/importer/import.sh:agent/_hermes_fast.py"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "rust_ext/pyproject.toml:maturin",
+            "pyproject.toml:maturin"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent._hermes_fast"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "rust_ext/src/lib.rs",
+            "rust_ext/pyproject.toml",
+            "agent/_hermes_fast.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "stream"
+        },
+        {
+          "path": "agent/stream_diag.py",
+          "symbol": "stream"
+        }
+      ],
+      "config": [
+        {
+          "key": "stream",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Incremental/streaming parsing and stream diagnostics.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/stream_diag.py"
+        ]
+      },
+      "name": "streaming",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#18"
+      ],
+      "source": [
+        "agent/stream_diag.py",
+        "run_agent.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/stream_diag.py": "364370e1afd173c4588fb936338710b43a8db1d67f0851b89d01d4061995db39",
+        "run_agent.py": "7af6c7757cb3b01db543367f3a8f52284e4ea4fa8609943821af3f8397b4be83"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:stream",
+            "agent/stream_diag.py:stream"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:stream"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.stream_diag",
+            "run_agent"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/stream_diag.py",
+            "run_agent.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "agent/async_dag/executor.py",
+          "symbol": "ThreadPoolExecutor"
+        },
+        {
+          "path": "run_agent.py",
+          "symbol": "async_dag"
+        }
+      ],
+      "config": [
+        {
+          "key": "async_dag",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Async DAG executor and current thread-pool path.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/async_dag/executor.py"
+        ]
+      },
+      "name": "async-dag-thread-pool",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#22"
+      ],
+      "source": [
+        "agent/async_dag/__init__.py",
+        "agent/async_dag/executor.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/async_dag/__init__.py": "3e44058def859cf56d0616d9ac2bb9a6667c415f5541ea138da567105d98356a",
+        "agent/async_dag/executor.py": "8ea8e8c5b349ae51dbd31a4de8e1506183ab7d4d9f07cff00831a6f4e46a10c2"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "agent/async_dag/executor.py:ThreadPoolExecutor",
+            "run_agent.py:async_dag"
+          ],
+          "ok": false,
+          "reason": "static call-site marker missing",
+          "status": "fail"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:async_dag"
+          ],
+          "ok": false,
+          "reason": "config/default marker missing",
+          "status": "fail"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.async_dag.executor",
+            "agent.async_dag.__init__"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/async_dag/executor.py",
+            "agent/async_dag/__init__.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "fail",
+        "DEFAULT_ON": "fail",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": false,
+        "DEFAULT_ON": false,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "get_provider_request_timeout"
+        },
+        {
+          "path": "hermes_cli/timeouts.py",
+          "symbol": "timeout"
+        }
+      ],
+      "config": [
+        {
+          "key": "timeout",
+          "path": "hermes_cli/config.py"
+        }
+      ],
+      "description": "Timeout boundary for batched tool execution.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "hermes_cli/timeouts.py"
+        ]
+      },
+      "name": "tool-batch-timeout",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#70"
+      ],
+      "source": [
+        "hermes_cli/timeouts.py",
+        "run_agent.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "hermes_cli/timeouts.py": "731e886d67541b9b19363633c2435ebd5cbc423526c2634e9681fe267d829784",
+        "run_agent.py": "7af6c7757cb3b01db543367f3a8f52284e4ea4fa8609943821af3f8397b4be83"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:get_provider_request_timeout",
+            "hermes_cli/timeouts.py:timeout"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "hermes_cli/config.py:timeout"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "hermes_cli.timeouts",
+            "run_agent"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "hermes_cli/timeouts.py",
+            "run_agent.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "rate_limit"
+        },
+        {
+          "path": "hermes_cli/skills_hub.py",
+          "symbol": "deduped"
+        }
+      ],
+      "config": [
+        {
+          "key": "rate",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Rate limiter, rate tracking, and in-flight deduplication.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/rate_limit_tracker.py"
+        ]
+      },
+      "name": "rate-limit-dedup",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#70"
+      ],
+      "source": [
+        "agent/rate_limit_tracker.py",
+        "agent/tier_rate_limiter.py",
+        "hermes_cli/skills_hub.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/rate_limit_tracker.py": "38d7dab81a470f00bc45f3d0d58ecb5105035babeab80d8f5b45b812630e8756",
+        "agent/tier_rate_limiter.py": "166b278ae3fe6b9833d5c127f6f402e693e56f3bb4e21d361660650aaf73f560",
+        "hermes_cli/skills_hub.py": "e4d59a87f14209a2abaa322e9d6ecac0935fbe8305cf03379ee7d020a3272b86"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:rate_limit",
+            "hermes_cli/skills_hub.py:deduped"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:rate"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.tier_rate_limiter",
+            "agent.rate_limit_tracker",
+            "hermes_cli.skills_hub"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/tier_rate_limiter.py",
+            "agent/rate_limit_tracker.py",
+            "hermes_cli/skills_hub.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "http_client"
+        },
+        {
+          "path": "agent/net/http_pool.py",
+          "symbol": "Pool"
+        }
+      ],
+      "config": [
+        {
+          "key": "http",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Reusable HTTP connection pool path.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "urllib"
+        ]
+      },
+      "name": "http-pool",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#110"
+      ],
+      "source": [
+        "agent/net/__init__.py",
+        "agent/net/http_pool.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/net/__init__.py": "9d07089d8aea03302575098da3889d5cd4b2ac5f899e8a47b6fe38a701732e34",
+        "agent/net/http_pool.py": "1d14cd784759f1def7e85b77d01ac5c657f3832571f80a27cce830fc6c92ab09"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:http_client",
+            "agent/net/http_pool.py:Pool"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:http"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.net.http_pool",
+            "agent.net.__init__"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/net/http_pool.py",
+            "agent/net/__init__.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "hermes_cli/daemon.py",
+          "symbol": "daemon"
+        },
+        {
+          "path": "hermes_cli/main.py",
+          "symbol": "daemon"
+        }
+      ],
+      "config": [
+        {
+          "key": "daemon",
+          "path": "hermes_cli/config.py"
+        }
+      ],
+      "description": "Warm daemon/prewarm process path.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "hermes_cli/daemon.py"
+        ]
+      },
+      "name": "warm-daemon",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#110"
+      ],
+      "source": [
+        "fixtures/native/daemon_hot_path_contract.json",
+        "hermes_cli/daemon.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "fixtures/native/daemon_hot_path_contract.json": "759c7fd69386de83ebd0514e4bacdf9502c111031921b973a04c8d6b219e72a6",
+        "hermes_cli/daemon.py": "6d26d6957d438aded2e0cce23b81031bbb4a5a040693be315f60ade9ff12a88f"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "hermes_cli/daemon.py:daemon",
+            "hermes_cli/main.py:daemon"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "hermes_cli/config.py:daemon"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "hermes_cli.daemon"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "hermes_cli/daemon.py",
+            "fixtures/native/daemon_hot_path_contract.json"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "simplicio_prompt"
+        },
+        {
+          "path": "agent/prompt_builder.py",
+          "symbol": "transport"
+        }
+      ],
+      "config": [
+        {
+          "key": "prompt",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "simplicio_prompt and transport registry wiring.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/prompt_builder.py"
+        ]
+      },
+      "name": "prompt-transport-registry",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#18"
+      ],
+      "source": [
+        "agent/prompt_builder.py",
+        "agent/simplicio_prompt.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/prompt_builder.py": "a696e1889469c5b2da0c02a66ece71ab20955fcecdeffd14e7e7f0d3f972c716",
+        "agent/simplicio_prompt.py": "1998878eb61a4fba2e30791b4e6302291ecec5a581fb3f18adb49f2b8752aacd"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:simplicio_prompt",
+            "agent/prompt_builder.py:transport"
+          ],
+          "ok": false,
+          "reason": "static call-site marker missing",
+          "status": "fail"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:prompt"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.simplicio_prompt",
+            "agent.prompt_builder"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/simplicio_prompt.py",
+            "agent/prompt_builder.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "fail",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": false,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "_anthropic_prompt_cache_policy"
+        },
+        {
+          "path": "agent/prompt_caching.py",
+          "symbol": "cache"
+        }
+      ],
+      "config": [
+        {
+          "key": "prompt_cache",
+          "path": "hermes_cli/config.py"
+        }
+      ],
+      "description": "Prompt cache reuse and provider cache policy.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/prompt_caching.py"
+        ]
+      },
+      "name": "prompt-cache",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#22"
+      ],
+      "source": [
+        "agent/prompt_caching.py",
+        "run_agent.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/prompt_caching.py": "e1c30863596c508b8318c28830964b9e096b4029db48fc83bcc718a1913516ef",
+        "run_agent.py": "7af6c7757cb3b01db543367f3a8f52284e4ea4fa8609943821af3f8397b4be83"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:_anthropic_prompt_cache_policy",
+            "agent/prompt_caching.py:cache"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "hermes_cli/config.py:prompt_cache"
+          ],
+          "ok": false,
+          "reason": "config/default marker missing",
+          "status": "fail"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.prompt_caching",
+            "run_agent"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/prompt_caching.py",
+            "run_agent.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "fail",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": false,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "run_agent.py",
+          "symbol": "conversation_compression"
+        },
+        {
+          "path": "agent/toon_boundary.py",
+          "symbol": "toon"
+        }
+      ],
+      "config": [
+        {
+          "key": "toon",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Prompt compression, compression receipt, and TOON encoding.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/conversation_compression.py"
+        ]
+      },
+      "name": "compression-toon",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#112"
+      ],
+      "source": [
+        "agent/conversation_compression.py",
+        "agent/toon_boundary.py",
+        "agent/toon_codec.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/conversation_compression.py": "f0ff30b8016a6b7586a2bc2fb2e56864f8a81960064d28ab58e08db7704d976e",
+        "agent/toon_boundary.py": "fd0ec3889fd3d9312b4c0933b0182485289f0429122c9d533c7e9e86f5325d72",
+        "agent/toon_codec.py": "371714bbbc1f7b082ff3639079cc38b428efe8e735f4718dee8ff8432d4e59f6"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "run_agent.py:conversation_compression",
+            "agent/toon_boundary.py:toon"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:toon"
+          ],
+          "ok": false,
+          "reason": "config/default marker missing",
+          "status": "fail"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.conversation_compression",
+            "agent.toon_codec",
+            "agent.toon_boundary"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/conversation_compression.py",
+            "agent/toon_codec.py",
+            "agent/toon_boundary.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "fail",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": false,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "agent/golden_path.py",
+          "symbol": "checkpoint"
+        },
+        {
+          "path": "agent/golden_path.py",
+          "symbol": "ledger"
+        }
+      ],
+      "config": [
+        {
+          "key": "runtime",
+          "path": "runtime.lock"
+        }
+      ],
+      "description": "Gate, checkpoint, edit, orient, memory, and ledger bindings.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/reversible_path.py"
+        ]
+      },
+      "name": "kernel-binding",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#116"
+      ],
+      "source": [
+        "agent/golden_path.py",
+        "agent/reversible_path.py",
+        "agent/verification_evidence.py"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "agent/golden_path.py": "66d04b09bee929b532aea0acdeec8adc70c30cef9d261ce662459fd8d005c94d",
+        "agent/reversible_path.py": "9ef58f291a846667ede7b980e91e4c2e563507b133f131a6a60378f6e0887516",
+        "agent/verification_evidence.py": "6ad70d1e935f68c3812bfb38b02a6d54944246c41829ff70830785c0885e4a30"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "agent/golden_path.py:checkpoint",
+            "agent/golden_path.py:ledger"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "runtime.lock:runtime"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "evidence": [
+            "agent.golden_path",
+            "agent.reversible_path",
+            "agent.verification_evidence"
+          ],
+          "ok": true,
+          "reason": "source import path present; dependency import not runtime-proven",
+          "status": "pass"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "agent/golden_path.py",
+            "agent/reversible_path.py",
+            "agent/verification_evidence.py"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "pass",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": true,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "scripts/install.sh",
+          "symbol": "SIMPLICIO_AGENT_LEAN"
+        },
+        {
+          "path": "scripts/install.ps1",
+          "symbol": "Install"
+        }
+      ],
+      "config": [
+        {
+          "key": "optional-dependencies",
+          "path": "pyproject.toml"
+        },
+        {
+          "key": "Termux",
+          "path": "pyproject.toml"
+        }
+      ],
+      "description": "Official installer, wheels, Docker, Windows, and lean/Termux profiles.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/_fastjson.py"
+        ]
+      },
+      "name": "installation-profiles",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#187"
+      ],
+      "source": [
+        "docker/entrypoint.sh",
+        "pyproject.toml",
+        "scripts/install.ps1",
+        "scripts/install.sh"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "docker/entrypoint.sh": "5ef0f94195eb7aa1679baad8fe76d8e5d806b86eb3a41be7b52d4bc96abef5cb",
+        "pyproject.toml": "46bec553b00cdf02bf72f060c21bd332a3aaaa1382c52db514e3e3d7345d8fad",
+        "scripts/install.ps1": "c409a79378da16ac20e1663a4b90c0f72363626cffbfd39b0712054fbd1b86a8",
+        "scripts/install.sh": "f1f1b4d8bc16b72fa25070cb2c93511afc019f7c4f116be93ab790f645f35a7a"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "scripts/install.sh:SIMPLICIO_AGENT_LEAN",
+            "scripts/install.ps1:Install"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "pyproject.toml:optional-dependencies",
+            "pyproject.toml:Termux"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "ok": false,
+          "reason": "no Python source import path present",
+          "status": "fail"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "pyproject.toml",
+            "scripts/install.sh",
+            "scripts/install.ps1",
+            "docker/entrypoint.sh"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "fail",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": false,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
+      }
+    },
+    {
+      "benchmark": {
+        "baseline": null,
+        "candidate": null,
+        "cost": null,
+        "cpu": null,
+        "gain": null,
+        "kind": "E2E",
+        "p50": null,
+        "p95": null,
+        "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+        "rss": null,
+        "status": "UNVERIFIED",
+        "tokens": null
+      },
+      "call_sites": [
+        {
+          "path": "scripts/importer/import.sh",
+          "symbol": "Pipeline:"
+        },
+        {
+          "path": "docs/SYNC_PIPELINE.md",
+          "symbol": "Hermes Turbo Agent"
+        }
+      ],
+      "config": [
+        {
+          "key": "hermes-turbo-agent",
+          "path": "docs/SYNC_PIPELINE.md"
+        }
+      ],
+      "description": "Hermes \u2192 Hermes Turbo \u2192 Simplicio Agent provenance pipeline.",
+      "fallback": {
+        "available": true,
+        "description": "documented fallback path; activation requires runtime receipt",
+        "paths": [
+          "agent/"
+        ]
+      },
+      "name": "hermes-turbo-pipeline",
+      "ok": false,
+      "owner": "perf-audit",
+      "platforms": [
+        "linux",
+        "macos",
+        "windows",
+        "termux"
+      ],
+      "related_issues": [
+        "#220",
+        "#18",
+        "#158"
+      ],
+      "source": [
+        "docs/SYNC_PIPELINE.md",
+        "scripts/importer/import.sh",
+        "scripts/sync/ecosystem-sync.sh"
+      ],
+      "source_commit": {
+        "reason": "Hermes Turbo repository/commit was not supplied to this local audit",
+        "status": "UNVERIFIED",
+        "value": null
+      },
+      "source_sha256": {
+        "docs/SYNC_PIPELINE.md": "fdbe9b61c0835bbd553d90943c0c428aecbb672a7f033755d32ff80b1d5efbe4",
+        "scripts/importer/import.sh": "0d0ff63cec24755315eed003d16ba6af69991d2fdd5069b672b689e542830e78",
+        "scripts/sync/ecosystem-sync.sh": "9d1d1190cf8f96bc3f997162ad9879f7987bd0e502f72cbdca14b8aeea8a07dd"
+      },
+      "stage_results": {
+        "BENCHMARKED": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "BUILT": {
+          "ok": false,
+          "reason": "UNVERIFIED| no clean build receipt was supplied",
+          "status": "unknown"
+        },
+        "CALLED": {
+          "evidence": [
+            "scripts/importer/import.sh:Pipeline:",
+            "docs/SYNC_PIPELINE.md:Hermes Turbo Agent"
+          ],
+          "ok": true,
+          "reason": "static call-site markers found",
+          "status": "pass"
+        },
+        "DEFAULT_ON": {
+          "evidence": [
+            "docs/SYNC_PIPELINE.md:hermes-turbo-agent"
+          ],
+          "ok": true,
+          "reason": "config/default marker present",
+          "status": "pass"
+        },
+        "E2E_PROVEN": {
+          "ok": false,
+          "reason": "UNVERIFIED| runtime obrigat\u00f3rio ausente; nenhum Qwen/Ollama/llama.cpp/MiniCPM/LLM local dispon\u00edvel",
+          "status": "unknown"
+        },
+        "IMPORTABLE": {
+          "ok": false,
+          "reason": "no Python source import path present",
+          "status": "fail"
+        },
+        "INSTALLED": {
+          "ok": false,
+          "reason": "UNVERIFIED| checkout import is not an installed-artifact receipt",
+          "status": "unknown"
+        },
+        "PRESENT": {
+          "evidence": [
+            "scripts/importer/import.sh",
+            "scripts/sync/ecosystem-sync.sh",
+            "docs/SYNC_PIPELINE.md"
+          ],
+          "ok": true,
+          "status": "pass"
+        },
+        "REGRESSION_GATED": {
+          "ok": false,
+          "reason": "UNVERIFIED| no approved baseline and regression receipt supplied",
+          "status": "unknown"
+        },
+        "SAME_SOURCE": {
+          "ok": false,
+          "reason": "UNVERIFIED| Hermes Turbo checkout/commit was not supplied",
+          "status": "unknown"
+        }
+      },
+      "stage_status": {
+        "BENCHMARKED": "unknown",
+        "BUILT": "unknown",
+        "CALLED": "pass",
+        "DEFAULT_ON": "pass",
+        "E2E_PROVEN": "unknown",
+        "IMPORTABLE": "fail",
+        "INSTALLED": "unknown",
+        "PRESENT": "pass",
+        "REGRESSION_GATED": "unknown",
+        "SAME_SOURCE": "unknown"
+      },
+      "stages": {
+        "BENCHMARKED": false,
+        "BUILT": false,
+        "CALLED": true,
+        "DEFAULT_ON": true,
+        "E2E_PROVEN": false,
+        "IMPORTABLE": false,
+        "INSTALLED": false,
+        "PRESENT": true,
+        "REGRESSION_GATED": false,
+        "SAME_SOURCE": false
       }
     }
   ],
@@ -395,9 +2379,9 @@
   "repo": ".",
   "schema": "simplicio.perf-integration-manifest/v1",
   "summary": {
-    "axis_count": 3,
-    "failed": 0,
-    "ok": true
+    "axis_count": 15,
+    "failed": 15,
+    "ok": false
   },
   "version": 1
 }
