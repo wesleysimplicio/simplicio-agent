@@ -12,6 +12,7 @@ from agent.session import (
     SessionIdentity as SessionBoundaryIdentity,
     SessionSnapshot,
 )
+from agent.turn_engine import TurnPhase
 
 
 class RecordingSession:
@@ -264,6 +265,19 @@ def test_session_lifecycle_marks_failed_turn_and_releases_it():
 def test_agent_session_is_a_real_host_lifecycle_boundary():
     sessions = []
 
+    class SessionAwareAgent(FakeAgent):
+        def run_conversation(self, message, **kwargs):
+            from agent.conversation_loop import _finish_turn_engine, _start_turn_engine
+
+            self.adopted_context = _start_turn_engine(
+                turn_id="loop-local-id",
+                session_id=self.name,
+                agent=self,
+            )
+            self.adopted_history = tuple(self.adopted_context.history)
+            _finish_turn_engine(self, {"completed": True}, failed=False)
+            return super().run_conversation(message, **kwargs)
+
     def make_session(identity):
         snapshot = SessionSnapshot(
             SessionBoundaryIdentity(
@@ -280,13 +294,22 @@ def test_agent_session_is_a_real_host_lifecycle_boundary():
         sessions.append(session)
         return session
 
+    agents = []
+
+    def make_agent(identity):
+        agent = SessionAwareAgent(identity.session_id, Event())
+        agents.append(agent)
+        return agent
+
     host = AgentHost(
-        lambda identity: FakeAgent(identity.session_id, Event()),
+        make_agent,
         session_factory=make_session,
     )
     try:
         host.run_turn("p", "s", "hello", turn_id="turn-real")
         assert sessions[0].active_turns == 0
         assert not sessions[0].closed
+        assert agents[0].adopted_history == (TurnPhase.ACCEPTED,)
+        assert agents[0].adopted_context.phase is TurnPhase.COMPLETED
     finally:
         host.shutdown()
