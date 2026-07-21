@@ -108,10 +108,19 @@ def validate_manifest(document: Mapping[str, Any]) -> list[str]:
     else:
         if not _non_empty_strings(runtime.get("command")):
             errors.append("runtime.command must be a non-empty argv list")
-        elif "--" not in runtime["command"]:
-            errors.append(
-                "runtime.command must contain -- before the supervised command"
-            )
+        else:
+            executable = Path(runtime["command"][0]).name
+            if (
+                executable not in {"simplicio", "simplicio-runtime"}
+                and runtime.get("test_only") is not True
+            ):
+                errors.append(
+                    "runtime.command must invoke simplicio or simplicio-runtime"
+                )
+            if "--" not in runtime["command"]:
+                errors.append(
+                    "runtime.command must contain -- before the supervised command"
+                )
         if runtime.get("required") is not True:
             errors.append("runtime.required must be true")
 

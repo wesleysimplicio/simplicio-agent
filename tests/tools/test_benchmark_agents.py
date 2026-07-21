@@ -46,7 +46,7 @@ for event in (
         "version": 1,
         "benchmark_id": "test-benchmark",
         "description": "test",
-        "runtime": {"required": True, "command": command},
+        "runtime": {"required": True, "test_only": True, "command": command},
         "tokenizer": {"label": "runtime#2775"},
         "best_of_n": 2,
         "warmups": 1,
