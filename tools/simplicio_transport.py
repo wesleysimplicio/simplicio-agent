@@ -558,10 +558,40 @@ class SimplicioTransport:
             return ["edit", plan, "--json"], None
 
         if name == "simplicio_session_search":
-            query = tool_args.get("query")
-            if not isinstance(query, str) or not query:
+            # The CLI exposes the common browse/discover/read shapes. Keep
+            # scroll and extra filters on MCP so the adapter never silently
+            # drops native session-search semantics.
+            unsupported = {
+                key
+                for key in ("role_filter", "around_message_id", "window", "sort")
+                if key in tool_args
+            }
+            if unsupported:
                 return None
-            return ["session", "search", query], None
+
+            if tool_args.get("session_id") is not None:
+                session_id = tool_args.get("session_id")
+                if not isinstance(session_id, str) or not session_id:
+                    return None
+                argv = ["session", "read", session_id]
+            elif tool_args.get("query") is not None:
+                query = tool_args.get("query")
+                if not isinstance(query, str) or not query:
+                    return None
+                argv = ["session", "search", query]
+            else:
+                argv = ["session", "browse"]
+
+            limit = tool_args.get("limit")
+            if limit is not None:
+                argv += ["--limit", str(limit)]
+            profile = tool_args.get("profile")
+            if profile is not None:
+                if not isinstance(profile, str) or not profile:
+                    return None
+                argv += ["--profile", profile]
+            argv.append("--json")
+            return argv, None
 
         return None
 
