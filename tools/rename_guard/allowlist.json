@@ -2,6 +2,22 @@
   "schema": "simplicio.rename-guard.allowlist/v1",
   "entries": [
     {
+      "path_glob": ".orchestrator-workitems-test.json",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "tracked orchestration test fixture contains legacy-brand inputs for regression coverage; not user-facing documentation",
+      "owner": "issue-205",
+      "expiry": "2026-12-31"
+    },
+    {
+      "path_glob": "bench/agents/manifest.v1.example.json",
+      "term": null,
+      "class": "KEEP_INTERNAL",
+      "reason": "benchmark manifest preserves legacy agent IDs and command names as compatibility fixtures; not user-facing documentation",
+      "owner": "issue-205",
+      "expiry": "2026-12-31"
+    },
+    {
       "path_glob": "CHANGELOG.md",
       "term": null,
       "class": "credit",
