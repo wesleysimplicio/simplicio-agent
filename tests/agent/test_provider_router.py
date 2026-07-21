@@ -7,7 +7,8 @@ import pytest
 from agent.providers.router import AsyncProviderRouter, ProviderRoute, ProviderRouter
 
 
-def test_router_prefers_available_local_route():
+def test_router_skips_available_local_route_while_pause_is_active(monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
     calls: list[str] = []
     router = ProviderRouter(
         routes=(
@@ -18,15 +19,16 @@ def test_router_prefers_available_local_route():
 
     result = router.call("hello")
 
-    assert result.provider == "local"
-    assert calls == ["local"]
+    assert result.provider == "remote"
+    assert calls == ["remote"]
     assert router.health() == (
-        {"name": "remote", "kind": "remote", "available": True},
-        {"name": "local", "kind": "local", "available": True},
+        {"name": "remote", "kind": "remote", "available": True, "reason": None},
+        {"name": "local", "kind": "local", "available": False, "reason": "LOCAL_INFERENCE_PAUSED"},
     )
 
 
-def test_router_falls_back_when_local_fails():
+def test_router_does_not_invoke_paused_local_route(monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
     router = ProviderRouter(
         routes=(
             ProviderRoute("local", "local", lambda prompt: (_ for _ in ()).throw(RuntimeError("offline"))),
@@ -48,7 +50,8 @@ def test_router_fails_closed_without_available_routes():
         router.call("hello")
 
 
-def test_async_router_preserves_local_first_order():
+def test_async_router_skips_paused_local_route(monkeypatch):
+    monkeypatch.delenv("SIMPLICIO_AGENT_LOCAL_INFERENCE", raising=False)
     async def _async_value(value: str) -> str:
         return value
 
@@ -60,4 +63,4 @@ def test_async_router_preserves_local_first_order():
             )
         ).call("hello")
 
-    assert asyncio.run(invoke()).provider == "local"
+    assert asyncio.run(invoke()).provider == "remote"
