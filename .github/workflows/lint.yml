@@ -162,6 +162,10 @@ jobs:
         run: |
           python3 -m tools.rename_guard.scanner --root .
 
+      - name: rename inventory contract
+        run: |
+          python3 -m tools.rename_guard.inventory --root . --check
+
   windows-footguns:
     # Static guardrails on Windows-unsafe Python primitives — os.kill(pid, 0),
     # os.killpg, os.setsid, signal.SIGKILL without getattr fallback,

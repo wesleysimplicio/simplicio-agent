@@ -21,6 +21,7 @@ from tools.rename_guard.artifact_scan import (
     scan_archive,
     scan_members,
 )
+from tools.rename_guard.inventory import build_manifest, validate_manifest
 from tools.rename_guard.scanner import to_report
 
 
@@ -117,3 +118,21 @@ def test_scan_members_matches_scan_archive_for_zip(tmp_path):
         scan_members(iter_archive_members(wheel), {"exclude_globs": []}, [], {}, date(2026, 1, 1))
     )
     assert from_archive == from_members
+
+
+def test_inventory_artifact_record_uses_archive_resource(tmp_path):
+    wheel = _make_wheel(tmp_path, {"pkg-0.1.0.dist-info/METADATA": "Name: hermes-agent\n"})
+    allowlist = [{
+        "path_glob": "*.dist-info/METADATA", "term": None, "class": "credit",
+        "reason": "generated package metadata", "owner": "x", "issue": "#118",
+        "expiry": None,
+    }]
+    occurrences = scan_archive(
+        wheel, {"exclude_globs": []}, allowlist, {}, date(2026, 7, 21), "wheel:"
+    )
+    record = build_manifest(occurrences, allowlist, {})["records"][0]
+    assert record["artifact"] == "wheel"
+    assert record["line"] is None
+    assert record["resource"] == "pkg-0.1.0.dist-info/METADATA"
+    assert record["origin"] == "generated"
+    assert validate_manifest({"schema": "simplicio.rename-inventory/v1", "records": [record]}) == []
