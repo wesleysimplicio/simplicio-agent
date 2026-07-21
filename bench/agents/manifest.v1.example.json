@@ -1,0 +1,39 @@
+{
+  "schema": "simplicio.agent-benchmark-manifest/v1",
+  "version": 1,
+  "benchmark_id": "agent-comparison-v1",
+  "description": "Configured four-agent benchmark; commands must emit the documented JSONL events.",
+  "network_policy": "same-provider-and-model-configured-by-operator",
+  "runtime": {
+    "required": true,
+    "command": ["simplicio", "shell", "compact", "--"]
+  },
+  "tokenizer": {
+    "label": "runtime#2775"
+  },
+  "best_of_n": 5,
+  "warmups": 1,
+  "budgets_ms": {
+    "startup_ms_p95": 5000,
+    "ttft_ms_p95": 3000,
+    "roundtrip_ms_p95": 1000,
+    "watcher_gate_ms_p95": 25,
+    "kernel_bindings_ms_p95": 25,
+    "handles_lazy_ms_p95": 25,
+    "task_ms_p95": 60000
+  },
+  "agents": [
+    {"id": "simplicio-agent", "command": ["simplicio-agent", "benchmark-adapter"]},
+    {"id": "hermes-agent", "command": ["hermes", "benchmark-adapter"]},
+    {"id": "hermes-turbo-agent", "command": ["hermes-turbo-agent", "benchmark-adapter"]},
+    {"id": "openclaw", "command": ["openclaw", "benchmark-adapter"]}
+  ],
+  "tasks": [
+    {
+      "id": "coding.smoke",
+      "args": ["--benchmark-task", "coding.smoke"],
+      "timeout_s": 60,
+      "expected_exit_code": 0
+    }
+  ]
+}
