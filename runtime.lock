@@ -1,22 +1,50 @@
 {
   "schema": "runtime-lock/v2",
   "kernel": "simplicio",
-  "min_version": "3.5.3",
+  "min_version": "1.6.4",
   "release_repo": "wesleysimplicio/simplicio",
   "source_repo": "wesleysimplicio/simplicio-runtime",
   "assets": {
     "darwin-arm64": {
       "name": "simplicio-macos-arm64",
-      "version": "3.5.3",
-      "url": "https://github.com/wesleysimplicio/simplicio/releases/download/v3.5.3/simplicio-macos-arm64",
-      "sha256": "931bc6d8f45c1b1e586070f8f5ac4a762861bc9157c70f75aaa4ebfad8ff27bb",
-      "size": 26752208,
+      "version": "1.6.4",
+      "url": "https://raw.githubusercontent.com/wesleysimplicio/simplicio/v3.5.2/simplicio-macos-arm64",
+      "sha256": "53f62026df78942ca9acba7fd87498fbd6f007e54bd9e479b44407fe97b97dc9",
+      "size": 26752176,
       "target": {"os": "darwin", "arch": "arm64"}
+    },
+    "darwin-x86_64": {
+      "name": "simplicio-darwin-x64",
+      "version": "1.6.4",
+      "url": "https://raw.githubusercontent.com/wesleysimplicio/simplicio/v3.5.2/simplicio-darwin-x64",
+      "sha256": "7f1035be4cc2cf6a5053d894159622b233ca0fad00a5215f9ece3772fe462c42",
+      "size": 25489544,
+      "target": {"os": "darwin", "arch": "x86_64"}
+    },
+    "linux-x86_64": {
+      "name": "simplicio-linux-x64",
+      "version": "1.6.4",
+      "url": "https://raw.githubusercontent.com/wesleysimplicio/simplicio/v3.5.2/simplicio-linux-x64",
+      "sha256": "84d86fb1760c11e1e123c013174a712faff62468639f68a0173d53b6cbe99f29",
+      "size": 26784760,
+      "target": {"os": "linux", "arch": "x86_64"}
+    },
+    "windows-x86_64": {
+      "name": "simplicio-windows-x64.exe",
+      "version": "1.6.4",
+      "url": "https://raw.githubusercontent.com/wesleysimplicio/simplicio/v3.5.2/simplicio-windows-x64.exe",
+      "sha256": "ff1a1b6e30f809cf3afc28554ba385f51d1574a41438fcbbdc786267a8ba480c",
+      "size": 26918912,
+      "target": {"os": "windows", "arch": "x86_64"}
     }
   },
   "provenance": {
-    "source": "GitHub release asset metadata",
-    "signature_status": "not-proven"
+    "source": "tracked binaries in wesleysimplicio/simplicio tag v3.5.2",
+    "signature_status": "not-proven",
+    "source_commit": "19551ff9c0de12aff41d0a5d6d6a9307596362c8",
+    "artifact_source": "wesleysimplicio/simplicio@v3.5.2 tracked binaries",
+    "runtime_reported_version": "1.6.4",
+    "upgrade_note": "Promote min_version and replace assets only after a public signed 3.5.3+ artifact is available."
   },
   "sibling_checkout": "../simplicio-runtime"
 }
