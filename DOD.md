@@ -38,7 +38,9 @@ handshake/lifecycle slice, called out explicitly in Layer 2.
 - New/changed logic gets a same-PR unit test; no "will add tests later."
 - Coverage: `.coveragerc` (`tests/ci/`) and `.coveragerc.core`
   (`agent/`, `gateway/`, `tools/`, `hermes_cli/`, `cli.py`, `run_agent.py`)
-  both enforce `fail_under = 85`. Do not lower either threshold to land a PR.
+  both enforce `fail_under = 85`. The aggregated CI gate runs the full Python
+  suite with `.coveragerc.core` and blocks below that 85% threshold via the
+  reusable `coverage` workflow. Do not lower either threshold to land a PR.
 
 ### Layer 2 — Integration
 
