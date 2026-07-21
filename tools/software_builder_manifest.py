@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -27,6 +30,7 @@ from agent.task_envelope import TaskEnvelope, TaskState
 SCHEMA = "simplicio.software-builder-manifest/v1"
 OPERATORS = ("mapper", "dev_cli", "runtime", "loop")
 FOUNDATION_STATUS = "fixture_only"
+AUDIT_SCHEMA = "simplicio.software-builder-audit/v1"
 
 _SOURCE_CONTRACTS = {
     "agent/goal_contract.py": ("class GoalContract",),
@@ -318,11 +322,131 @@ def _load(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _probe_command(name: str, argv: tuple[str, ...]) -> dict[str, Any]:
+    """Probe a real operator without invoking a mutating operation."""
+
+    executable = shutil.which(argv[0])
+    if executable is None:
+        return {
+            "name": name,
+            "status": "UNVERIFIED",
+            "command": list(argv),
+            "reason": f"{argv[0]} is not available on PATH",
+        }
+    try:
+        result = subprocess.run(
+            [executable, *argv[1:]],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=os.environ.copy(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "name": name,
+            "status": "FAIL",
+            "command": list(argv),
+            "executable": executable,
+            "reason": f"probe failed: {exc}",
+        }
+    output = (result.stdout or result.stderr).strip().splitlines()
+    check: dict[str, Any] = {
+        "name": name,
+        "status": "PASS" if result.returncode == 0 else "FAIL",
+        "command": list(argv),
+        "executable": executable,
+        "returncode": result.returncode,
+    }
+    if output:
+        check["observed"] = output[0][:240]
+    if result.returncode != 0:
+        check["reason"] = "readiness probe returned non-zero"
+    return check
+
+
+def _probe_loop_contract(repo_root: Path) -> dict[str, Any]:
+    """Check the standalone loop contract that this repository owns."""
+
+    paths = (
+        "skills/simplicio-loop/simplicio-loop/SKILL.md",
+        "skills/simplicio-loop/simplicio-loop/references/bound-operators.md",
+        "tools/watcher_gate.py",
+    )
+    missing = [relative for relative in paths if not (repo_root / relative).is_file()]
+    if missing:
+        return {
+            "name": "loop",
+            "status": "UNVERIFIED",
+            "reason": "loop contract files are missing",
+            "missing": missing,
+        }
+    bound_operators = (repo_root / paths[1]).read_text(encoding="utf-8")
+    required_markers = ("simplicio-mapper", "simplicio-dev-cli")
+    missing_markers = [marker for marker in required_markers if marker not in bound_operators]
+    if missing_markers:
+        return {
+            "name": "loop",
+            "status": "FAIL",
+            "reason": "loop contract does not bind all required operators",
+            "missing_markers": missing_markers,
+        }
+    return {"name": "loop", "status": "PASS", "checked": list(paths)}
+
+
+def audit_integration(
+    manifest_path: Path, repo_root: Path = REPO_ROOT
+) -> dict[str, Any]:
+    """Return a fail-closed receipt for the real four-operator seam.
+
+    The audit never treats fixture receipt references as execution evidence.
+    Mapper, Dev CLI, and Runtime are probed by their real binaries, while the
+    loop is checked against its repository-owned standalone contract. A
+    missing external binary is ``UNVERIFIED`` and therefore non-success.
+    """
+
+    document = _load(manifest_path)
+    errors = validate_manifest(document, repo_root=repo_root)
+    checks: list[dict[str, Any]] = []
+    if errors:
+        checks.append({"name": "manifest", "status": "FAIL", "errors": errors})
+    else:
+        checks.append({"name": "manifest", "status": "PASS"})
+    checks.extend(
+        (
+            _probe_command("mapper", ("simplicio-mapper", "--version")),
+            _probe_command("dev_cli", ("simplicio-dev-cli", "--help")),
+            _probe_command("runtime", ("simplicio", "--version")),
+            _probe_loop_contract(repo_root),
+        )
+    )
+    statuses = {check["status"] for check in checks}
+    if "FAIL" in statuses:
+        status = "FAIL"
+    elif statuses != {"PASS"}:
+        status = "UNVERIFIED"
+    else:
+        status = "PASS"
+    return {
+        "schema": AUDIT_SCHEMA,
+        "status": status,
+        "fail_closed": status != "PASS",
+        "manifest": str(manifest_path),
+        "checks": checks,
+        "blockers": [
+            check.get("reason", "manifest validation failed")
+            for check in checks
+            if check["status"] != "PASS"
+        ],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--generate", metavar="PATH")
     group.add_argument("--validate", metavar="PATH")
+    group.add_argument("--audit", metavar="PATH")
     args = parser.parse_args(argv)
     if args.generate:
         output = Path(args.generate)
@@ -335,6 +459,10 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         return 0
+    if args.audit:
+        receipt = audit_integration(Path(args.audit))
+        print(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if receipt["status"] == "PASS" else 2
     document = _load(Path(args.validate))
     errors = validate_manifest(document)
     if errors:
