@@ -27,6 +27,10 @@ boundary instead of replacing `tools/checkpoint_manager.py`:
   reporting success (`status`/`applied` for edits, `appended`/`event_id` for
   ledger records). No successful runtime call is inferred from an empty or
   unrelated JSON response.
+- Runtime-first native `patch`/`write_file` calls use the same explicit edit
+  acknowledgement contract. An empty CLI response, `{}`, or unrelated JSON
+  produces an observable capability gap and never claims that a mechanical
+  edit was applied; an acknowledged edit emits `savings-event/v1` telemetry.
 
 The shared subprocess client rejects empty stdout. This is intentional: an
 empty response cannot prove that a deterministic operation happened.
