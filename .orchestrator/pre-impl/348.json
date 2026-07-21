@@ -1,0 +1,24 @@
+{
+  "issue": "348",
+  "domain": "agent orchestration runtime loop mapper tools autonomous E2E",
+  "neural_queried": true,
+  "neural_result": "UNVERIFIED| banco vazio/indisponivel: comando simplicio memory ausente (rc=127)",
+  "skills_loaded": [
+    "asolaria-agent-table",
+    "simplicio-loop",
+    "simplicio-orient",
+    "simplicio-review",
+    "simplicio-tasks",
+    "simplicio-learn",
+    "simplicio-compress",
+    "simplicio-runtime-sandbox",
+    "simplicio-mapper-contracts",
+    "test-driven-development",
+    "systematic-debugging",
+    "github-pr-workflow"
+  ],
+  "dod_achievable": false,
+  "blocker": "UNVERIFIED| executavel simplicio/simplicio-runtime ausente no PATH e sem checkout sibling; simplicio-loop, simplicio-mapper e simplicio-dev-cli tambem ausentes, portanto o E2E real cross-repo nao pode ser executado ou provado neste ambiente",
+  "agent": "Codex",
+  "note": "Issue #348 requires runtime-first Agent/tools execution plus real Mapper, Dev CLI and Loop contracts. Existing deterministic tests are preserved but cannot be promoted to live E2E evidence. No Qwen, Ollama, llama.cpp, MiniCPM or local LLM used. Gate intentionally fails closed; no implementation or PR is authorized while blocker remains."
+}
