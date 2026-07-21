@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,6 +55,61 @@ def test_update_lock_is_exclusive_and_releases_on_exception(tmp_path: Path) -> N
         with UpdateLock(path, token="third"):
             raise RuntimeError("stop")
     assert not path.exists()
+
+
+def test_update_lock_identifies_holder_across_processes(tmp_path: Path) -> None:
+    """A concurrent updater fails fast with the holder identity."""
+    path = tmp_path / "state" / "update.lock"
+    holder_script = """
+import sys
+import time
+from pathlib import Path
+from hermes_cli.update_preflight import UpdateLock
+
+with UpdateLock(Path(sys.argv[1]), owner="holder-process", token="holder-token"):
+    print("ready", flush=True)
+    while not Path(sys.argv[2]).exists():
+        time.sleep(0.01)
+"""
+    contender_script = """
+import sys
+from pathlib import Path
+from hermes_cli.update_preflight import UpdateLock, UpdateLockError
+
+try:
+    UpdateLock(Path(sys.argv[1]), owner="contender-process").acquire()
+except UpdateLockError as exc:
+    print(str(exc))
+    raise SystemExit(0)
+raise SystemExit(2)
+"""
+    repo_root = Path(__file__).resolve().parents[2]
+    holder = subprocess.Popen(
+        [sys.executable, "-c", holder_script, str(path), str(tmp_path / "release")],
+        cwd=repo_root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "ready"
+        started = time.monotonic()
+        contender = subprocess.run(
+            [sys.executable, "-c", contender_script, str(path)],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+        elapsed = time.monotonic() - started
+        assert contender.returncode == 0, contender.stderr
+        assert "holder-process" in contender.stdout
+        assert elapsed < 1
+    finally:
+        (tmp_path / "release").touch()
+        holder.wait(timeout=5)
 
 
 def test_lock_release_fails_closed_for_replaced_owner(tmp_path: Path) -> None:
