@@ -1258,7 +1258,7 @@ def switch_model(
     # --- Normalize model name for target provider ---
     new_model = normalize_model_for_provider(new_model, target_provider)
 
-    from agent.model_policy import is_nvidia_model, model_policy_error
+    from agent.model_policy import is_nvidia_model
     if is_nvidia_model(new_model, target_provider, base_url):
         return ModelSwitchResult(
             success=False,
@@ -1266,7 +1266,7 @@ def switch_model(
             target_provider=target_provider,
             provider_label=provider_label,
             is_global=is_global,
-            error_message=model_policy_error(new_model),
+            error_message="Modelo NVIDIA bloqueado. Configure outro modelo no config.yaml.",
         )
 
     # --- Validate ---
