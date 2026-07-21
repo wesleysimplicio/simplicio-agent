@@ -1,0 +1,12 @@
+{
+  "by_class": {},
+  "by_class_files": {},
+  "by_owning_issue": {},
+  "files": [],
+  "generated_from": "tools/rename_guard/scanner.py baseline occurrences",
+  "granularity": "file",
+  "schema": "simplicio.rename-inventory/v1",
+  "total_files": 0,
+  "total_occurrences": 0,
+  "unclassified_occurrences": 0
+}

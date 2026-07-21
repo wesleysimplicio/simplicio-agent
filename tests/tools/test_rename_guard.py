@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from tools.rename_guard.scanner import scan, to_report, tracked_files
+from tools.rename_guard.inventory import build_manifest, validate_allowlist, validate_manifest
 
 
 def _init_repo(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -234,3 +235,41 @@ def test_repo_baseline_and_allowlist_are_valid_and_guard_passes_on_head():
     assert DEFAULT_CONFIG.exists()
     exit_code = main(["--root", str(Path(__file__).resolve().parents[2])])
     assert exit_code == 0
+
+
+def test_allowlist_contract_requires_path_scoped_owned_exceptions():
+    import json as _json
+
+    from tools.rename_guard.scanner import DEFAULT_ALLOWLIST
+
+    entries = _json.loads(DEFAULT_ALLOWLIST.read_text(encoding="utf-8"))["entries"]
+    assert validate_allowlist(entries, date(2026, 7, 21)) == []
+    assert all(entry["path_glob"] not in {"*", "**"} for entry in entries)
+
+
+def test_inventory_preserves_compatibility_context_and_provenance(tmp_path):
+    repo = _init_repo(tmp_path, {"cli.py": "ALIASES = ['hermes-agent']\n"})
+    allowlist = [{
+        "path_glob": "cli.py", "term": None, "class": "compatibility-temporary",
+        "reason": "deprecated alias remains callable during migration", "owner": "x",
+        "issue": "#118", "expiry": "2026-12-31",
+    }]
+    occurrences = scan(repo, {"exclude_globs": []}, allowlist, {}, date(2026, 7, 21))
+    manifest = build_manifest(occurrences, allowlist, {})
+    record = manifest["records"][0]
+    assert record["path"] == "cli.py"
+    assert record["line"] == 1
+    assert record["token"] == "hermes"
+    assert record["context_class"] == "compatibility-temporary"
+    assert record["classification"] == "compatibility-temporary"
+    assert record["artifact"] == "source-tree"
+    assert record["origin"] == "source"
+    assert validate_manifest(manifest) == []
+
+
+def test_inventory_fails_closed_for_unclassified_baseline(tmp_path):
+    repo = _init_repo(tmp_path, {"legacy/old.py": "hermes_legacy = True\n"})
+    occurrences = scan(repo, {"exclude_globs": []}, [], {"legacy/old.py": 1}, date(2026, 7, 21))
+    manifest = build_manifest(occurrences, [], {})
+    errors = validate_manifest(manifest)
+    assert any("unclassified/error occurrence" in error for error in errors)

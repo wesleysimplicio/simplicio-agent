@@ -779,6 +779,26 @@
       "owner": "wesley.simplicio@evtit.com",
       "expiry": "2026-12-31",
       "issue": "#118"
+    },
+    {
+      "path_glob": ".orchestrator-workitems-test.json",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "generated read-only work-item snapshot from simplicio-runtime; legacy names are external issue titles and must not be rewritten in this repository",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31",
+      "issue": "#187",
+      "generated": true,
+      "source_of_generation": "simplicio-runtime work-item export"
+    },
+    {
+      "path_glob": "bench/agents/manifest.v1.example.json",
+      "term": null,
+      "class": "historical-fixture",
+      "reason": "tracked benchmark fixture intentionally compares the deprecated hermes-agent compatibility command; it is not a product identity declaration",
+      "owner": "wesley.simplicio@evtit.com",
+      "expiry": "2026-12-31",
+      "issue": "#187"
     }
   ]
 }
