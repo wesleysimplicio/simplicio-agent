@@ -27,6 +27,7 @@ from hermes_cli.env_loader import load_hermes_dotenv
 from utils import is_truthy_value
 from tools.environments.local import hermes_subprocess_env
 from agent.replay_cleanup import sanitize_replay_history
+from agent.host import AgentHost, HostBackpressure, HostShutdown
 from tui_gateway import git_probe
 from tui_gateway.transport import (
     StdioTransport,
@@ -127,6 +128,8 @@ from tui_gateway.render import make_stream_renderer, render_diff, render_message
 
 _sessions: dict[str, dict] = {}
 _methods: dict[str, callable] = {}
+_tui_agent_host: AgentHost | None = None
+_tui_agent_host_lock = threading.Lock()
 _pending: dict[str, tuple[str, threading.Event]] = {}
 _pending_prompt_payloads: dict[str, tuple[str, dict]] = {}
 _answers: dict[str, str] = {}
@@ -719,6 +722,7 @@ def _teardown_session(session: dict | None, *, end_reason: str = "tui_close") ->
     if not session:
         return
     _finalize_session(session, end_reason=end_reason)
+    _forget_tui_host_session(session)
     try:
         from tools.approval import unregister_gateway_notify
 
@@ -854,6 +858,11 @@ def _shutdown_sessions() -> None:
         sids = list(_sessions)
     for sid in sids:
         _close_session_by_id(sid, end_reason="tui_shutdown")
+    global _tui_agent_host
+    with _tui_agent_host_lock:
+        host, _tui_agent_host = _tui_agent_host, None
+    if host is not None:
+        host.shutdown()
 
 
 # Last-resort net for any disconnect path that slips past the WS finally. TTL is
@@ -987,6 +996,87 @@ _start_idle_reaper()
 
 
 # ── Plumbing ──────────────────────────────────────────────────────────
+
+
+def _tui_host_profile(session: dict) -> str:
+    """Return the non-secret profile key used by the shared host pool."""
+
+    profile_home = str(session.get("profile_home") or "").strip()
+    if profile_home:
+        return f"profile:{profile_home}"
+    return f"surface:{_session_source(session) or 'tui'}"
+
+
+def _tui_host_agent_factory(identity) -> Any:
+    """Resolve the already-built TUI agent for one host session.
+
+    TUI owns construction and model switching.  AgentHost owns only the
+    process-local lease, ordering, and bounded reuse around that object; it
+    must never build a second AIAgent with different credentials or prompt
+    state.
+    """
+
+    with _sessions_lock:
+        for session in _sessions.values():
+            if (
+                session.get("session_key") == identity.session_id
+                and _tui_host_profile(session) == identity.profile
+            ):
+                agent = session.get("agent")
+                if agent is None:
+                    break
+                return agent
+    raise RuntimeError("TUI session agent is not ready")
+
+
+def _get_tui_agent_host() -> AgentHost:
+    """Return the one AgentHost serving turns in this TUI process."""
+
+    global _tui_agent_host
+    with _tui_agent_host_lock:
+        if _tui_agent_host is None:
+            _tui_agent_host = AgentHost(
+                _tui_host_agent_factory,
+                max_sessions=32,
+                max_workers=4,
+                max_pending=64,
+            )
+        return _tui_agent_host
+
+
+def _forget_tui_host_session(session: dict) -> None:
+    """Drop a session's cached host entry before replacing/closing its agent."""
+
+    key = str(session.get("session_key") or "").strip()
+    if not key:
+        return
+    try:
+        _get_tui_agent_host().recover(_tui_host_profile(session), key)
+    except (HostBackpressure, HostShutdown):
+        # A live host lease is authoritative until its turn drains.  The
+        # existing TUI lifecycle still handles the agent teardown; do not
+        # invent a second cancellation path here.
+        logger.debug("TUI host session still leased during teardown", exc_info=True)
+    except Exception:
+        logger.debug("TUI host session recovery skipped", exc_info=True)
+
+
+def _run_tui_turn(
+    session: dict,
+    message: Any,
+    *,
+    turn_id: str,
+    conversation_kwargs: dict[str, Any],
+) -> Any:
+    """Execute one TUI turn through the shared AgentHost boundary."""
+
+    return _get_tui_agent_host().run_turn(
+        _tui_host_profile(session),
+        str(session["session_key"]),
+        message,
+        turn_id=turn_id,
+        **conversation_kwargs,
+    )
 
 
 def _get_db():
@@ -4394,6 +4484,7 @@ def _preview_restart_callbacks(parent: str, task_id: str) -> dict:
 
 
 def _reset_session_agent(sid: str, session: dict) -> dict:
+    _forget_tui_host_session(session)
     tokens = _set_session_context(session["session_key"])
     try:
         # Preserve this session's chosen model AND reasoning across /new so a
@@ -5112,6 +5203,7 @@ def _inflight_text(value: Any) -> str:
 def _start_inflight_turn(session: dict, text: Any) -> None:
     now = time.time()
     session["inflight_turn"] = {
+        "turn_id": uuid.uuid4().hex,
         "assistant": "",
         "started_at": now,
         "streaming": True,
@@ -5126,7 +5218,7 @@ def _append_inflight_delta(session: dict, delta: Any) -> None:
         return
     turn = session.get("inflight_turn")
     if not isinstance(turn, dict):
-        turn = {"assistant": "", "streaming": True, "user": ""}
+        turn = {"turn_id": uuid.uuid4().hex, "assistant": "", "streaming": True, "user": ""}
     turn["assistant"] = f"{turn.get('assistant') or ''}{text}"
     turn["streaming"] = True
     turn["updated_at"] = time.time()
@@ -9160,7 +9252,18 @@ def _run_prompt_submit(rid, sid: str, session: dict, text: Any) -> None:
                     run_kwargs["task_id"] = session["session_key"]
             except (TypeError, ValueError):
                 pass
-            result = agent.run_conversation(run_message, **run_kwargs)
+            inflight = session.get("inflight_turn")
+            turn_id = (
+                str(inflight.get("turn_id") or "")
+                if isinstance(inflight, dict)
+                else ""
+            ) or uuid.uuid4().hex
+            result = _run_tui_turn(
+                session,
+                run_message,
+                turn_id=turn_id,
+                conversation_kwargs=run_kwargs,
+            )
             if "moa_one_shot_restore" in session:
                 _restore = session.pop("moa_one_shot_restore", None)
                 # Restore the model the user was on before the /moa one-shot.
