@@ -10,7 +10,7 @@
   },
   "consumers": [
     ".envrc",
-    ".github/workflows/typecheck.yml",
+    ".github/workflows/ci.yml",
     "package.json",
     "desktop/README.md",
     "desktop/DESIGN.md"
