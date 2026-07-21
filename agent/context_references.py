@@ -9,10 +9,13 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 from agent.model_metadata import estimate_tokens_rough
 from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+
+if TYPE_CHECKING:
+    from agent.token_economy import PaidArtifactRegistry
 
 _QUOTED_REFERENCE_VALUE = r'(?:`[^`\n]+`|"[^"\n]+"|\'[^\'\n]+\')'
 REFERENCE_PATTERN = re.compile(
@@ -58,6 +61,9 @@ class ContextReferenceResult:
     injected_tokens: int = 0
     expanded: bool = False
     blocked: bool = False
+    context_handles: tuple[str, ...] = ()
+    cache_hits: int = 0
+    tokens_saved: int = 0
 
 
 def parse_context_references(message: str) -> list[ContextReference]:
@@ -110,6 +116,7 @@ def preprocess_context_references(
     context_length: int,
     url_fetcher: Callable[[str], str | Awaitable[str]] | None = None,
     allowed_root: str | Path | None = None,
+    artifact_registry: "PaidArtifactRegistry | None" = None,
 ) -> ContextReferenceResult:
     coro = preprocess_context_references_async(
         message,
@@ -117,6 +124,7 @@ def preprocess_context_references(
         context_length=context_length,
         url_fetcher=url_fetcher,
         allowed_root=allowed_root,
+        artifact_registry=artifact_registry,
     )
     # Safe for both CLI (no loop) and gateway (loop already running).
     try:
@@ -137,6 +145,7 @@ async def preprocess_context_references_async(
     context_length: int,
     url_fetcher: Callable[[str], str | Awaitable[str]] | None = None,
     allowed_root: str | Path | None = None,
+    artifact_registry: "PaidArtifactRegistry | None" = None,
 ) -> ContextReferenceResult:
     refs = parse_context_references(message)
     if not refs:
@@ -151,6 +160,9 @@ async def preprocess_context_references_async(
     warnings: list[str] = []
     blocks: list[str] = []
     injected_tokens = 0
+    context_handles: list[str] = []
+    cache_hits = 0
+    tokens_saved = 0
 
     # Expand all references concurrently. Each _expand_reference is independent
     # (no shared state during expansion) — a message with several @url: refs
@@ -169,10 +181,29 @@ async def preprocess_context_references_async(
             for ref in refs
         )
     )
-    for warning, block in expanded:
+    for ref, (warning, block) in zip(refs, expanded):
         if warning:
             warnings.append(warning)
         if block:
+            if artifact_registry is not None:
+                # Import lazily to avoid a module cycle: token_economy uses
+                # ContextReference as its registration metadata.
+                from agent.token_economy import register_context_artifact
+
+                handle = register_context_artifact(
+                    artifact_registry,
+                    ref,
+                    block,
+                )
+                emission = artifact_registry.render(handle)
+                block = emission.text
+                context_handles.append(emission.handle)
+                cache_hits += int(emission.cache_hit)
+                tokens_saved += emission.tokens_saved
+                if not emission.admitted:
+                    warnings.append(
+                        f"{ref.raw}: context admission refused ({emission.reason}); body omitted"
+                    )
             blocks.append(block)
             injected_tokens += estimate_tokens_rough(block)
 
@@ -190,6 +221,9 @@ async def preprocess_context_references_async(
             injected_tokens=injected_tokens,
             expanded=False,
             blocked=True,
+            context_handles=tuple(context_handles),
+            cache_hits=cache_hits,
+            tokens_saved=tokens_saved,
         )
 
     if injected_tokens > soft_limit:
@@ -212,6 +246,9 @@ async def preprocess_context_references_async(
         injected_tokens=injected_tokens,
         expanded=bool(blocks or warnings),
         blocked=False,
+        context_handles=tuple(context_handles),
+        cache_hits=cache_hits,
+        tokens_saved=tokens_saved,
     )
 
 
