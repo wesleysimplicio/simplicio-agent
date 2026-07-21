@@ -13,7 +13,11 @@ from agent.providers.fallback_chain import (
     ProviderChainMetrics,
     ProviderResult,
 )
-from agent.local_inference_policy import LOCAL_INFERENCE_PAUSED, local_inference_enabled
+from agent.local_inference_policy import (
+    LOCAL_INFERENCE_PAUSED,
+    LocalInferencePausedError,
+    local_inference_enabled,
+)
 
 Availability = Callable[[], bool]
 
@@ -36,23 +40,36 @@ class ProviderRoute:
 
 @dataclass
 class ProviderRouter:
-    """Use configured routes without starting paused local inference."""
+    """Route providers without silently changing a paused local selection.
+
+    ``prefer_local=False`` is the explicit remote-selection signal retained by
+    this small API.  With its default value, a configured local route remains
+    the requested route and raises ``LOCAL_INFERENCE_PAUSED`` rather than
+    falling through to a remote provider.
+    """
 
     routes: Sequence[ProviderRoute] = ()
     prefer_local: bool = True
     max_retries: int = 3
     metrics: ProviderChainMetrics = field(default_factory=ProviderChainMetrics)
 
+    def _local_pause_selected(self) -> bool:
+        return not local_inference_enabled() and self.prefer_local and any(
+            route.kind == "local" for route in self.routes
+        )
+
     def ordered_routes(self) -> tuple[ProviderRoute, ...]:
         available = [
             route for route in self.routes
-            if route.available() and (route.kind != "local" or local_inference_enabled())
+            if route.kind != "local" and route.available()
         ]
         if self.prefer_local:
             available.sort(key=lambda route: (route.kind != "local", route.name))
         return tuple(available)
 
     def call(self, prompt: str) -> ProviderResult:
+        if self._local_pause_selected():
+            raise LocalInferencePausedError(provider="local")
         routes = self.ordered_routes()
         if not routes:
             raise RuntimeError("ProviderRouter has no available providers")
@@ -68,7 +85,7 @@ class ProviderRouter:
             {
                 "name": route.name,
                 "kind": route.kind,
-                "available": bool(route.available()) and (route.kind != "local" or local_inference_enabled()),
+                "available": bool(route.available()) if route.kind != "local" else local_inference_enabled(),
                 "reason": LOCAL_INFERENCE_PAUSED if route.kind == "local" and not local_inference_enabled() else None,
             }
             for route in self.routes
@@ -77,23 +94,30 @@ class ProviderRouter:
 
 @dataclass
 class AsyncProviderRouter:
-    """Async counterpart with the same local-first ordering contract."""
+    """Async counterpart with the same explicit remote-selection contract."""
 
     routes: Sequence[tuple[str, str, AsyncProviderCallable, Availability]] = ()
     prefer_local: bool = True
     max_retries: int = 3
     metrics: ProviderChainMetrics = field(default_factory=ProviderChainMetrics)
 
+    def _local_pause_selected(self) -> bool:
+        return not local_inference_enabled() and self.prefer_local and any(
+            route[1] == "local" for route in self.routes
+        )
+
     def _ordered(self) -> tuple[tuple[str, str, AsyncProviderCallable, Availability], ...]:
         available = [
             route for route in self.routes
-            if route[3]() and (route[1] != "local" or local_inference_enabled())
+            if route[1] != "local" and route[3]()
         ]
         if self.prefer_local:
             available.sort(key=lambda route: (route[1] != "local", route[0]))
         return tuple(available)
 
     async def call(self, prompt: str) -> ProviderResult:
+        if self._local_pause_selected():
+            raise LocalInferencePausedError(provider="local")
         routes = self._ordered()
         if not routes:
             raise RuntimeError("AsyncProviderRouter has no available providers")
