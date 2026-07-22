@@ -111,6 +111,22 @@ class TestSignatureThreading:
         sig = inspect.signature(init_agent)
         assert "notice_clear_callback" in sig.parameters
 
+    def test_agent_init_exposes_reaction_callback(self):
+        sig = inspect.signature(AIAgent.__init__)
+        assert "reaction_callback" in sig.parameters
+
+    def test_init_agent_exposes_reaction_callback(self):
+        from agent.agent_init import init_agent
+        sig = inspect.signature(init_agent)
+        assert "reaction_callback" in sig.parameters
+
+    def test_agent_init_forwards_reaction_callback(self):
+        callback = object()
+        with patch("agent.agent_init.init_agent") as mock_init:
+            AIAgent(reaction_callback=callback)
+
+        assert mock_init.call_args.kwargs["reaction_callback"] is callback
+
 
 # ── C. TUI _agent_cbs binding ────────────────────────────────────────────────
 
