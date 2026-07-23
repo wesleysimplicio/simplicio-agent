@@ -696,7 +696,13 @@ def _serve(
     return 0
 
 
-def _client_request(sock_path: Path, payload: dict[str, Any], timeout: float = 2.0) -> dict[str, Any]:
+def _client_request(
+    sock_path: Path | str, payload: dict[str, Any], timeout: float = 2.0
+) -> dict[str, Any]:
+    # CLI callers receive the socket path as text while in-process callers
+    # commonly pass a Path. Normalize at the transport boundary so both
+    # paths share the same fail-closed daemon-not-running behavior.
+    sock_path = Path(sock_path)
     use_unix = _local_transport_available()
     endpoint = None if use_unix else _read_tcp_endpoint(sock_path)
     if use_unix and not sock_path.exists():

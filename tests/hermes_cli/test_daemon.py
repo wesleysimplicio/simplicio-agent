@@ -183,12 +183,18 @@ def test_windows_loopback_sidecars_are_private_and_reject_nonlocal_endpoints(tmp
     assert daemon_mod._read_tcp_token(sock_path) is None
 
 
-def test_daemon_host_status_round_trip_uses_authenticated_local_transport(monkeypatch, tmp_path):
+def test_daemon_host_status_round_trip_uses_authenticated_local_transport(monkeypatch):
     """A Windows AF_UNIX-less host is discoverable only through its tokenized loopback sidecars."""
     from hermes_cli import daemon as daemon_mod
 
     monkeypatch.setitem(daemon_mod.PROFILE_PRELOADS, "car", ())
-    sock_path = tmp_path / "daemon.sock"
+    # AF_UNIX paths are capped at roughly 104 bytes on macOS/BSD; pytest's
+    # nested tmp_path is long enough to make the daemon fail before transport
+    # authentication is exercised.
+    fd, raw_path = tempfile.mkstemp(prefix="agent-status-", suffix=".sock", dir="/tmp")
+    os.close(fd)
+    sock_path = Path(raw_path)
+    sock_path.unlink()
     result: list[int] = []
     worker = threading.Thread(
         target=lambda: result.append(daemon_mod._serve(sock_path, "car", idle_ttl_s=20)),
@@ -558,6 +564,13 @@ def test_daemon_restart_requires_explicit_cursor_zero_resync():
     assert resync["advisories"]["host_instance_id"] == new_instance
     assert resync["advisories"]["next_cursor"] == 1
     assert [event["kind"] for event in resync["advisories"]["events"]] == ["host.ready"]
+
+
+def test_client_request_accepts_cli_string_socket_path_when_daemon_is_missing(tmp_path):
+    from hermes_cli import daemon as daemon_mod
+
+    response = daemon_mod._client_request(str(tmp_path / "missing.sock"), {"op": "ping"})
+    assert response == {"ok": False, "error": "daemon not running", "fallback": "cold"}
 
 
 def test_daemon_rejects_non_object_json_requests_without_echoing_content():
