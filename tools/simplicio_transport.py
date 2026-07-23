@@ -593,6 +593,22 @@ class SimplicioTransport:
             argv.append("--json")
             return argv, None
 
+        if name == "simplicio_exec":
+            command = tool_args.get("command")
+            if (
+                not isinstance(command, str)
+                or not command.strip()
+                or any(char in command for char in ";&|><$" + chr(96) + "\x00\n\r")
+            ):
+                return None
+            argv = ["exec", command.strip()]
+            repo = tool_args.get("repo")
+            if isinstance(repo, str) and repo:
+                argv += ["--repo", repo]
+            if "--json" not in command.split():
+                argv.append("--json")
+            return argv, None
+
         return None
 
     # -- MCP -----------------------------------------------------------
