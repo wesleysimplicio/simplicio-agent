@@ -125,7 +125,7 @@ def _canonical(value: Any, *, key: str = "") -> Any:
     if isinstance(value, (list, tuple)):
         return [_canonical(item) for item in value]
     if isinstance(value, set):
-        return sorted(_canonical(item) for item in value)
+        return sorted((_canonical(item) for item in value), key=repr)
     if isinstance(value, float):
         return format(value, ".17g")
     if isinstance(value, (str, int, bool)) or value is None:
@@ -235,6 +235,14 @@ class NoProgressGuard:
                 notice="exact ineffective call vetoed before tool execution",
             )
         if entry.no_progress_count >= self.policy.warning_threshold:
+            if entry.replan_count >= self.policy.replan_threshold:
+                return self._decision(
+                    action=GuardAction.TERMINATE,
+                    reason=GuardReason.HARD_TERMINATION,
+                    entry=entry,
+                    notice="re-plan budget exhausted; stop honestly with evidence",
+                    terminal_status="blocked_no_progress",
+                )
             entry.replan_count += 1
             self._touch(entry)
             if entry.replan_count >= self.policy.replan_threshold:
