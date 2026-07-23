@@ -17,7 +17,7 @@ def default_log_path() -> Path:
     """Return the JSONL log path (env override or ``<HERMES_HOME>/...``).
 
     Delegates the base directory to ``hermes_constants.get_hermes_home()``
-    instead of hardcoding ``Path.home() / ".hermes"`` — the hardcoded form
+    instead of hardcoding ``Path.home() / ".simplicio_agent"`` — the hardcoded form
     silently ignored ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any future
     migration/default change in the accessor (issue #117).
     """

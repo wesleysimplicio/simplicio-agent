@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Master script: Cria todas as 12 issues de melhoria do Simplicio
-# Uso: bash ~/.hermes/skills/fix-enforcement/scripts/run-all-issues.sh [repo-slug]
+# Uso: bash ~/.simplicio_agent/skills/fix-enforcement/scripts/run-all-issues.sh [repo-slug]
 set -euo pipefail
 
 REPO="${1:-wesleysimplicio/simplicio-runtime}"

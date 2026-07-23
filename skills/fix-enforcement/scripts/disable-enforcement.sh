@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-PLUGIN_DIR="$HOME/.hermes/plugins/simplicio"
+PLUGIN_DIR="$HOME/.simplicio_agent/plugins/simplicio"
 cp "$PLUGIN_DIR/__init__.py" "$PLUGIN_DIR/__init__.py.bak.$(date +%s)"
 sed -i '' 's/ctx.register_hook("pre_tool_call"/# DISABLED: ctx.register_hook("pre_tool_call"/' "$PLUGIN_DIR/__init__.py"
 echo "RESULT:"

@@ -282,8 +282,8 @@ def _get_profiles_root() -> Path:
 def _get_default_hermes_home() -> Path:
     """Return the default (pre-profile) HERMES_HOME path.
 
-    In standard deployments this is ``~/.hermes``.
-    In Docker/custom deployments where HERMES_HOME is outside ``~/.hermes``
+    In standard deployments this is ``~/.simplicio_agent``.
+    In Docker/custom deployments where HERMES_HOME is outside ``~/.simplicio_agent``
     (e.g. ``/opt/data``), returns HERMES_HOME directly.
     """
     from hermes_constants import get_default_hermes_root
@@ -1845,8 +1845,8 @@ def set_active_profile(name: str) -> None:
 def get_active_profile_name() -> str:
     """Infer the current profile name from HERMES_HOME.
 
-    Returns ``"default"`` if HERMES_HOME is not set or points to ``~/.hermes``.
-    Returns the profile name if HERMES_HOME points into ``~/.hermes/profiles/<name>``.
+    Returns ``"default"`` if HERMES_HOME is not set or points to ``~/.simplicio_agent``.
+    Returns the profile name if HERMES_HOME points into ``~/.simplicio_agent/profiles/<name>``.
     Returns ``"custom"`` if HERMES_HOME is set to an unrecognized path.
     """
     from hermes_constants import get_hermes_home

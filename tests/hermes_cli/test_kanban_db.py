@@ -2963,7 +2963,7 @@ class TestSharedBoardPaths:
         # Docker / custom deployment: HERMES_HOME points outside ~/.hermes.
         # `get_default_hermes_root()` returns env_home directly when it
         # is not a `<root>/profiles/<name>` shape and not under
-        # `Path.home() / ".hermes"`.
+        # `Path.home() / ".simplicio_agent"`.
         custom_root = tmp_path / "opt" / "hermes"
         custom_root.mkdir(parents=True)
         self._set_home(monkeypatch, tmp_path, custom_root)

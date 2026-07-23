@@ -115,7 +115,7 @@ echo -e "\n8. HERMES_HOME"
 if [ -n "${HERMES_HOME:-}" ]; then
   info "HERMES_HOME=$HERMES_HOME"
 else
-  warn "HERMES_HOME não definido (pode estar usando ~/.hermes/)"
+  warn "HERMES_HOME não definido (pode estar usando ~/.simplicio_agent/)"
 fi
 
 echo -e "\n${B}=== Diagnóstico concluído ===${N}"

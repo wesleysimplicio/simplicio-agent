@@ -82,7 +82,7 @@ except (ModuleNotFoundError, ImportError):
     # _hermes_home.py shim).
     def get_hermes_home() -> Path:
         val = (os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME") or "").strip()
-        return Path(val) if val else Path.home() / ".hermes"
+        return Path(val) if val else Path.home() / ".simplicio_agent"
 
     def display_hermes_home() -> str:
         home = get_hermes_home()

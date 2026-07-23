@@ -37,7 +37,7 @@ def get_log_path() -> Path:
     """Resolve the active JSONL output path.
 
     The default is derived from ``hermes_constants.get_hermes_home()``
-    rather than a module-level ``Path.home() / ".hermes"`` constant, so it
+    rather than a module-level ``Path.home() / ".simplicio_agent"`` constant, so it
     always honors ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any migration
     the accessor performs (issue #117).
     """

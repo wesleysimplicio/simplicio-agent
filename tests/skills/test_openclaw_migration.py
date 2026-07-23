@@ -903,7 +903,7 @@ def test_rebrand_text_preserves_filesystem_path_casing():
     assert mod.rebrand_text("config is at ~/.openclaw/config.yaml") == \
         "config is at ~/.hermes/config.yaml"
     assert mod.rebrand_text("use .openclaw directory") == "use .hermes directory"
-    assert mod.rebrand_text("Path.home() / '.openclaw'") == "Path.home() / '.hermes'"
+    assert mod.rebrand_text("Path.home() / '.openclaw'") == "Path.home() / '.simplicio_agent'"
     # Sentence with both a bare lowercase prose mention and a lowercase path.
     # Consistent with the other bare-lowercase-prose case above
     # ("openclaw should always respond concisely" -> "hermes ..."): rebrand_text

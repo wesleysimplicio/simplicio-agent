@@ -72,7 +72,7 @@ def _resolve_hermes_home() -> Path:
     Delegates to ``hermes_constants.get_hermes_home()`` — the single source
     of truth for HOME resolution (override, ``SIMPLICIO_AGENT_HOME`` /
     ``HERMES_HOME`` aliasing, platform default, and migration state). Never
-    duplicates that default locally: a hardcoded ``Path.home() / ".hermes"``
+    duplicates that default locally: a hardcoded ``Path.home() / ".simplicio_agent"``
     here would silently drift once the accessor's default/migration logic
     changes (issue #117). ``ImportError`` only fires if ``hermes_constants``
     genuinely isn't on ``sys.path`` (e.g. this module run standalone outside
@@ -85,7 +85,7 @@ def _resolve_hermes_home() -> Path:
         return get_hermes_home()
     except ImportError:
         val = (os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME") or "").strip()
-        return Path(val) if val else Path.home() / ".hermes"
+        return Path(val) if val else Path.home() / ".simplicio_agent"
 
 
 def _get_sessions_dir() -> Path:

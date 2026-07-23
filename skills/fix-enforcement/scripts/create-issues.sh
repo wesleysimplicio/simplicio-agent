@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Create all Simplicio improvement issues on GitHub
-# Usage: bash ~/.hermes/skills/fix-enforcement/scripts/create-issues.sh
+# Usage: bash ~/.simplicio_agent/skills/fix-enforcement/scripts/create-issues.sh
 set -euo pipefail
 
 REPO="${1:-wesleysimplicio/simplicio-runtime}"

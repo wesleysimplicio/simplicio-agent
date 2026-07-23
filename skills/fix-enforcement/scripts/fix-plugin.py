@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fix plugin binary path."""
 import os
-d = os.path.expanduser("~/.hermes/plugins/simplicio")
+d = os.path.expanduser("~/.simplicio_agent/plugins/simplicio")
 t = os.path.join(d, "tools.py")
 with open(t) as f:
     c = f.read()
