@@ -123,7 +123,7 @@ def dispatch_native_tool(
     # explicitly acknowledges that it applied the plan.  A zero exit status,
     # empty JSON object, or unrelated JSON must never be turned into a
     # fabricated native-tool success (F2/#20, ADR-0020).
-    if runtime_tool == "simplicio_edit" and not _edit_acknowledged(receipt.value):
+    if runtime_tool in {"simplicio_edit", "simplicio_file_write"} and not _edit_acknowledged(receipt.value):
         return _gap(
             tool_name,
             "runtime_edit_unacknowledged",
@@ -142,7 +142,7 @@ def dispatch_native_tool(
             detail=str(exc),
         )
 
-    if runtime_tool == "simplicio_edit":
+    if runtime_tool in {"simplicio_edit", "simplicio_file_write"}:
         _emit_mechanical_edit_event(str(args.get("path") or ""))
 
     return RuntimeNativeDispatch(
@@ -304,9 +304,18 @@ def _build_write_route(args: dict[str, Any], task_id: str):
         return _gap("write_file", "invalid_content")
     resolved = _resolve_task_path(path, task_id)
     if not resolved.is_file():
-        # `simplicio edit` is intentionally mechanical and cannot create
-        # parent directories/files.  Keep the native create path explicit.
-        return _gap("write_file", "runtime_edit_does_not_create_files", runtime_tool="simplicio_edit")
+        if resolved.exists():
+            return _gap("write_file", "runtime_file_write_invalid_target", runtime_tool="simplicio_file_write")
+        return (
+            "simplicio_file_write",
+            {
+                "path": str(resolved),
+                "content": content,
+                "repo": _repo_for_task(task_id),
+                "create_parents": True,
+            },
+            lambda _value: _json_success([str(resolved)], include_bytes=True, content=content),
+        )
 
     # A full write is represented as a deterministic replace plan.  Read the
     # old body through Runtime as part of the same route; this prevents a
