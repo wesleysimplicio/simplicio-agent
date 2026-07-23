@@ -1,0 +1,18 @@
+{
+  "issue": "583",
+  "domain": "agent reliability architecture orchestration wave simplicio-loop",
+  "neural_queried": true,
+  "neural_result": "Existing Simplicio decisions require deterministic Runtime-first execution, one isolated issue slot, Loop-consumable typed signals, receipts, and no local LLM; current Agent already has closed-loop anti-oscillation primitives to extend.",
+  "skills_loaded": [
+    "senior-architect",
+    "asolaria-agent-table",
+    "real-agent-wave-engineering",
+    "simplicio-loop"
+  ],
+  "dod_achievable": true,
+  "blocker": null,
+  "agent": "codex",
+  "work_item": "agent-583",
+  "execution_mode": "deterministic; no local LLM",
+  "note": "Implement a pure guard module and focused tests; integration remains bounded to an explicit caller API so it does not create a second scheduler or bypass Runtime gates."
+}
