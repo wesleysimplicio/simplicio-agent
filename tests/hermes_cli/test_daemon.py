@@ -19,8 +19,10 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -196,6 +198,42 @@ def test_daemon_host_status_round_trip_uses_authenticated_local_transport(monkey
     assert stopped["ok"] is True
     worker.join(timeout=10)
     assert not worker.is_alive()
+    assert result == [0]
+
+
+def test_daemon_publishes_cancel_and_reconcile_capabilities(monkeypatch):
+    from hermes_cli import daemon as daemon_mod
+
+    monkeypatch.setitem(daemon_mod.PROFILE_PRELOADS, "car", ())
+    fd, raw_path = tempfile.mkstemp(prefix="agent-e2e-", suffix=".sock", dir="/tmp")
+    os.close(fd)
+    sock_path = Path(raw_path)
+    sock_path.unlink()
+    result: list[int] = []
+    worker = threading.Thread(
+        target=lambda: result.append(daemon_mod._serve(sock_path, "car", idle_ttl_s=20)),
+        daemon=True,
+    )
+    worker.start()
+    deadline = time.time() + 10
+    while time.time() < deadline and not sock_path.exists():
+        time.sleep(0.05)
+    status = daemon_mod._client_request(sock_path, {"op": "host.status"})
+    assert status["protocol_schema"] == "simplicio.agent-host/v1"
+    assert {"turn.cancel", "turn.reconcile"}.issubset(status["capabilities"])
+    identity = status["host_instance_id"]
+    cancel = daemon_mod._client_request(
+        sock_path,
+        {"op": "turn.cancel", "turn_id": "missing", "host_instance_id": identity},
+    )
+    reconcile = daemon_mod._client_request(
+        sock_path,
+        {"op": "turn.reconcile", "turn_id": "missing", "host_instance_id": identity},
+    )
+    assert cancel["status"] == "not_found"
+    assert reconcile["status"] == "not_found"
+    daemon_mod._client_request(sock_path, {"op": "shutdown"})
+    worker.join(timeout=10)
     assert result == [0]
 
 
