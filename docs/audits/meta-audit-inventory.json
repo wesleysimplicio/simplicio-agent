@@ -1,0 +1,2721 @@
+{
+  "schema": "simplicio-agent.meta-audit-inventory/v1",
+  "repository": "wesleysimplicio/simplicio-agent",
+  "source": "gh api --paginate",
+  "coverage": "issue_api_snapshot",
+  "issues": [
+    {
+      "number": 9,
+      "title": "Benchmark end-to-end comparando Simplicio vs Hermes upstream",
+      "state": "closed",
+      "created_at": "2026-07-02T05:19:51Z",
+      "updated_at": "2026-07-02T06:04:24Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/9"
+    },
+    {
+      "number": 10,
+      "title": "Documentar e revisar defaults dos módulos de performance (a maioria fica desligada por padrão)",
+      "state": "closed",
+      "created_at": "2026-07-02T05:20:11Z",
+      "updated_at": "2026-07-02T06:04:25Z",
+      "labels": [
+        "documentation",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/10"
+    },
+    {
+      "number": 11,
+      "title": "Implementar `asolaria-absorb --apply` (hoje é placeholder read-only)",
+      "state": "closed",
+      "created_at": "2026-07-02T05:20:25Z",
+      "updated_at": "2026-07-02T06:04:25Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/11"
+    },
+    {
+      "number": 12,
+      "title": "Decidir destino do `agent/net` (HttpPool): manter como API pública documentada ou remover",
+      "state": "closed",
+      "created_at": "2026-07-02T05:20:41Z",
+      "updated_at": "2026-07-02T06:04:25Z",
+      "labels": [
+        "performance",
+        "question"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/12"
+    },
+    {
+      "number": 14,
+      "title": "feat: converter JSON para TOON ao embutir dados estruturados em prompts de LLM",
+      "state": "closed",
+      "created_at": "2026-07-02T12:07:29Z",
+      "updated_at": "2026-07-02T19:20:49Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/14"
+    },
+    {
+      "number": 16,
+      "title": "feat: TOON no chokepoint do tool_executor (cache-safe) + reviver a stack de telemetria dormente (follow-up #14)",
+      "state": "closed",
+      "created_at": "2026-07-02T15:49:35Z",
+      "updated_at": "2026-07-03T13:06:59Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/16"
+    },
+    {
+      "number": 17,
+      "title": "🌌 Integração Asolaria: HRM (Hierarchical Reasoning Model) + N-Nest-Prime (Agentes Reflexivos Aninhados)",
+      "state": "open",
+      "created_at": "2026-07-02T15:57:16Z",
+      "updated_at": "2026-07-21T20:50:42Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/17"
+    },
+    {
+      "number": 18,
+      "title": "EPIC: Simplicio Agent unificado = Hermes Turbo (velocidade) + Simplicio Runtime (kernel determinístico) + ASOLARIA (verificação e economia por construção)",
+      "state": "open",
+      "created_at": "2026-07-02T17:55:18Z",
+      "updated_at": "2026-07-21T20:50:49Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/18"
+    },
+    {
+      "number": 19,
+      "title": "F1: inventário Hermes Turbo — auditoria diff hermes-turbo-agent × simplicio-agent, matriz de import com benchmark por item",
+      "state": "closed",
+      "created_at": "2026-07-02T17:55:46Z",
+      "updated_at": "2026-07-03T13:07:03Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/19"
+    },
+    {
+      "number": 20,
+      "title": "F2: kernel binding — simplicio-runtime como espinha determinística obrigatória do conversation_loop (gate, checkpoint, edição mecânica, memória, evidência)",
+      "state": "open",
+      "created_at": "2026-07-02T17:56:12Z",
+      "updated_at": "2026-07-21T20:50:40Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/20"
+    },
+    {
+      "number": 21,
+      "title": "F3: ASOLARIA/N-Nest — watcher-gate por nó: recompute independente (`reported == recomputed`), consent não-recursivo, detecção de resultado fabricado",
+      "state": "open",
+      "created_at": "2026-07-02T17:56:46Z",
+      "updated_at": "2026-07-21T20:50:43Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/21"
+    },
+    {
+      "number": 22,
+      "title": "F4: ASOLARIA/economia — \"possibility cheap, action gated\": materialização esparsa por handle, tail-O(1) de contexto, caps never-explode e recursão limitada",
+      "state": "open",
+      "created_at": "2026-07-02T17:57:12Z",
+      "updated_at": "2026-07-21T20:50:29Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/22"
+    },
+    {
+      "number": 23,
+      "title": "F5: programa de velocidade — budgets de latência por estágio + harness de benchmark contínuo (Simplicio Agent × Hermes Turbo × OpenClaw)",
+      "state": "closed",
+      "created_at": "2026-07-02T17:57:40Z",
+      "updated_at": "2026-07-21T05:20:40Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/23"
+    },
+    {
+      "number": 24,
+      "title": "F6: programa de garantia — delivery certificate por task, ledger assinado (cosign-chain), runs reproduzíveis e a regra anti-fake enforçada por construção",
+      "state": "closed",
+      "created_at": "2026-07-02T17:58:05Z",
+      "updated_at": "2026-07-21T06:20:29Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/24"
+    },
+    {
+      "number": 25,
+      "title": "[MESTRA] Simplicio Agent: A Unificacao Definitiva — Hermes Turbo × Simplicio Runtime × Asolaria",
+      "state": "closed",
+      "created_at": "2026-07-02T18:07:23Z",
+      "updated_at": "2026-07-03T13:06:39Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/25"
+    },
+    {
+      "number": 26,
+      "title": "⚙️ #02 Runtime Core Unificado — Rust + Hermes bindings",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:17Z",
+      "updated_at": "2026-07-02T21:56:53Z",
+      "labels": [
+        "enhancement",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/26"
+    },
+    {
+      "number": 27,
+      "title": "🔌 #03 MCP Server Unificado — Barramento Central",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:18Z",
+      "updated_at": "2026-07-21T20:50:54Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/27"
+    },
+    {
+      "number": 28,
+      "title": "🧠 #04 Memória Neural Unificada — FTS + Vector + ai-memory Rust",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:19Z",
+      "updated_at": "2026-07-02T21:56:56Z",
+      "labels": [
+        "enhancement",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/28"
+    },
+    {
+      "number": 29,
+      "title": "🤖 #05 LLM Local + Remoto Unificado",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:20Z",
+      "updated_at": "2026-07-21T20:50:27Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/29"
+    },
+    {
+      "number": 30,
+      "title": "🌐 #06 Gateway Unificado — Discord + Telegram + CLI",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:21Z",
+      "updated_at": "2026-07-21T20:50:33Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/30"
+    },
+    {
+      "number": 31,
+      "title": "🧩 #07 Skills System Unificado",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:22Z",
+      "updated_at": "2026-07-21T20:51:21Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/31"
+    },
+    {
+      "number": 32,
+      "title": "👥 #08 Multi-Agent Orchestration — BEHCS Supervisores",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:23Z",
+      "updated_at": "2026-07-21T20:51:17Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/32"
+    },
+    {
+      "number": 33,
+      "title": "👁️ #09 N-Nest-Prime — Watcher/Gate Corretivo",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:25Z",
+      "updated_at": "2026-07-02T21:57:00Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/33"
+    },
+    {
+      "number": 34,
+      "title": "🏗️ #10 HRM — Raciocínio Hierárquico Dual",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:26Z",
+      "updated_at": "2026-07-02T21:57:03Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/34"
+    },
+    {
+      "number": 35,
+      "title": "🛡️ #11 Shannon — Pipeline Adversarial (4 Fases)",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:27Z",
+      "updated_at": "2026-07-21T20:51:16Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/35"
+    },
+    {
+      "number": 36,
+      "title": "📐 #12 Algorithms — Addressing Geometry",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:28Z",
+      "updated_at": "2026-07-21T20:51:18Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/36"
+    },
+    {
+      "number": 37,
+      "title": "💿 #13 HYPER-BECHS — Host-8 Binary Protocol",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:29Z",
+      "updated_at": "2026-07-21T20:51:19Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/37"
+    },
+    {
+      "number": 38,
+      "title": "🔄 #14 ai-memory Cross-Vendor Handoff",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:30Z",
+      "updated_at": "2026-07-21T20:51:23Z",
+      "labels": [
+        "enhancement",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/38"
+    },
+    {
+      "number": 39,
+      "title": "✏️ #15 Edição Determinística Unificada",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:31Z",
+      "updated_at": "2026-07-02T21:57:08Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/39"
+    },
+    {
+      "number": 40,
+      "title": "✅ #16 Validação Unificada + Gates",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:31Z",
+      "updated_at": "2026-07-02T21:57:12Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/40"
+    },
+    {
+      "number": 41,
+      "title": "📋 #17 Sistema de Evidência Unificado",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:32Z",
+      "updated_at": "2026-07-02T21:57:17Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/41"
+    },
+    {
+      "number": 42,
+      "title": "💰 #18 Economia de Tokens Unificada",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:34Z",
+      "updated_at": "2026-07-02T21:57:21Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/42"
+    },
+    {
+      "number": 43,
+      "title": "🔧 #19 Sistema de Plugins Unificado",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:34Z",
+      "updated_at": "2026-07-21T20:51:22Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/43"
+    },
+    {
+      "number": 44,
+      "title": "⏰ #20 Cron/Scheduling Unificado",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:35Z",
+      "updated_at": "2026-07-21T20:51:24Z",
+      "labels": [
+        "enhancement",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/44"
+    },
+    {
+      "number": 45,
+      "title": "👤 #21 Sistema de Perfis Multi-Profile",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:36Z",
+      "updated_at": "2026-07-21T20:52:13Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/45"
+    },
+    {
+      "number": 46,
+      "title": "🔒 #22 Segurança Unificada",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:37Z",
+      "updated_at": "2026-07-21T20:52:26Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/46"
+    },
+    {
+      "number": 47,
+      "title": "🧪 #23 Testes Unificados",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:38Z",
+      "updated_at": "2026-07-21T20:52:20Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/47"
+    },
+    {
+      "number": 48,
+      "title": "🔄 #24 CI/CD Unificado",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:39Z",
+      "updated_at": "2026-07-21T20:52:15Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/48"
+    },
+    {
+      "number": 49,
+      "title": "📚 #25 Documentação Unificada",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:40Z",
+      "updated_at": "2026-07-03T13:06:39Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/49"
+    },
+    {
+      "number": 50,
+      "title": "📦 #26 Distribuição Unificada",
+      "state": "open",
+      "created_at": "2026-07-02T18:08:41Z",
+      "updated_at": "2026-07-21T20:52:28Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/50"
+    },
+    {
+      "number": 51,
+      "title": "🚀 #27 Instalação Unificada",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:41Z",
+      "updated_at": "2026-07-02T21:57:27Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/51"
+    },
+    {
+      "number": 52,
+      "title": "📣 #28 Marketing Unificado",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:42Z",
+      "updated_at": "2026-07-03T13:06:39Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/52"
+    },
+    {
+      "number": 53,
+      "title": "📊 #29 Benchmarking Unificado",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:43Z",
+      "updated_at": "2026-07-02T21:57:32Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/53"
+    },
+    {
+      "number": 54,
+      "title": "🏛️ #30 Governança Unificada",
+      "state": "closed",
+      "created_at": "2026-07-02T18:08:44Z",
+      "updated_at": "2026-07-03T13:06:40Z",
+      "labels": [
+        "enhancement",
+        "p3"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/54"
+    },
+    {
+      "number": 56,
+      "title": "refactor: Simplicio Agent é CLI-only — remover web, website, desktop e superfícies herdadas do Hermes (~2.100 arquivos, ~60MB)",
+      "state": "closed",
+      "created_at": "2026-07-02T19:24:47Z",
+      "updated_at": "2026-07-03T04:46:57Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/56"
+    },
+    {
+      "number": 57,
+      "title": "feat(gate): guarda anti-recrescimento CLI-only + install que resolve o kernel simplicio-runtime automaticamente",
+      "state": "closed",
+      "created_at": "2026-07-02T19:25:12Z",
+      "updated_at": "2026-07-03T04:49:33Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/57"
+    },
+    {
+      "number": 58,
+      "title": "turbo-speed 1: cold start — lazy imports e TTFP (time-to-first-prompt) medido contra o upstream NousResearch/hermes-agent",
+      "state": "closed",
+      "created_at": "2026-07-02T19:38:45Z",
+      "updated_at": "2026-07-03T13:25:55Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/58"
+    },
+    {
+      "number": 59,
+      "title": "turbo-speed 2: tool-loop — execução paralela de tool calls, streaming com despacho antecipado e connection pooling nos providers",
+      "state": "closed",
+      "created_at": "2026-07-02T19:39:00Z",
+      "updated_at": "2026-07-03T13:25:56Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/59"
+    },
+    {
+      "number": 60,
+      "title": "turbo-speed 3: hot paths — adotar a política de dispatch MEDIDA (orjson em todo per-message, Rust só onde o A/B prova, estimators em Python)",
+      "state": "closed",
+      "created_at": "2026-07-02T19:39:24Z",
+      "updated_at": "2026-07-03T13:25:57Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/60"
+    },
+    {
+      "number": 61,
+      "title": "turbo-speed 4: latência via dieta de tokens — layout cache-sacred garantido por teste, clamping de tool results e compressão de conversa no caminho quente",
+      "state": "closed",
+      "created_at": "2026-07-02T19:39:42Z",
+      "updated_at": "2026-07-03T13:25:57Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/61"
+    },
+    {
+      "number": 62,
+      "title": "turbo-speed 5 (governança): pipeline permanente turbo→simplicio — toda melhoria incorporada no Hermes Turbo flui para cá, com watch do upstream Nous por release",
+      "state": "closed",
+      "created_at": "2026-07-02T19:40:20Z",
+      "updated_at": "2026-07-03T13:25:56Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/62"
+    },
+    {
+      "number": 63,
+      "title": "feat(zero-touch): install + kernel + config seed numa tacada — \"já instalado e configurado\", com perfil pré-existente aplicado sem perguntar",
+      "state": "closed",
+      "created_at": "2026-07-02T20:45:59Z",
+      "updated_at": "2026-07-03T13:38:26Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/63"
+    },
+    {
+      "number": 64,
+      "title": "feat(provider-mode): contrato de 3 modos de operação — standalone / tool / delegated — com regra de credencial gated (provider do chamador só se passado e autorizado)",
+      "state": "closed",
+      "created_at": "2026-07-02T21:05:43Z",
+      "updated_at": "2026-07-03T13:38:11Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/64"
+    },
+    {
+      "number": 65,
+      "title": "feat(mcp-telemetry): capturar dados da sessão via MCP → relatório de uso + estimativa de economia de tokens por sessão/chamador (o entregável de valor)",
+      "state": "closed",
+      "created_at": "2026-07-02T21:06:06Z",
+      "updated_at": "2026-07-03T13:38:31Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/65"
+    },
+    {
+      "number": 66,
+      "title": "feat(importer): mecanismo executável do pipeline Hermes Original → Hermes Turbo → Simplicio Agent (+ integração dos operators do ecossistema)",
+      "state": "closed",
+      "created_at": "2026-07-02T21:07:07Z",
+      "updated_at": "2026-07-03T02:59:40Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/66"
+    },
+    {
+      "number": 68,
+      "title": "F1 import candidate (b): context_compressor.py — swap remaining json.loads/dumps to agent._fastjson",
+      "state": "closed",
+      "created_at": "2026-07-03T00:56:40Z",
+      "updated_at": "2026-07-08T21:41:55Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/68"
+    },
+    {
+      "number": 69,
+      "title": "F1 import candidate (b): tool_executor.py — timeout guard on concurrent tool-call batches",
+      "state": "closed",
+      "created_at": "2026-07-03T00:56:50Z",
+      "updated_at": "2026-07-08T21:42:05Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/69"
+    },
+    {
+      "number": 70,
+      "title": "F1 import candidate (c): tier_rate_limiter.py + dedup for subagent dispatch",
+      "state": "closed",
+      "created_at": "2026-07-03T00:57:04Z",
+      "updated_at": "2026-07-17T13:15:41Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/70"
+    },
+    {
+      "number": 73,
+      "title": "[PACKAGING] Compilar Agent com Nuitka → binário standalone",
+      "state": "open",
+      "created_at": "2026-07-03T02:06:27Z",
+      "updated_at": "2026-07-21T20:52:22Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/73"
+    },
+    {
+      "number": 74,
+      "title": "[LICENSING] License key + hardware fingerprint + ativação online",
+      "state": "open",
+      "created_at": "2026-07-03T02:06:28Z",
+      "updated_at": "2026-07-21T20:52:32Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/74"
+    },
+    {
+      "number": 75,
+      "title": "[SECURITY] Ofuscar bytecode com PyArmor (AES-256)",
+      "state": "open",
+      "created_at": "2026-07-03T02:06:30Z",
+      "updated_at": "2026-07-21T20:52:17Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/75"
+    },
+    {
+      "number": 76,
+      "title": "[DISTRIBUTION] Canais: Homebrew, npm, Docker, Electron, download direto",
+      "state": "open",
+      "created_at": "2026-07-03T02:06:31Z",
+      "updated_at": "2026-07-21T20:52:35Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/76"
+    },
+    {
+      "number": 96,
+      "title": "[Core] Bootstrap canônico do Simplicio — corrigir o binário e o PATH",
+      "state": "closed",
+      "created_at": "2026-07-07T15:00:39Z",
+      "updated_at": "2026-07-17T12:58:04Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/96"
+    },
+    {
+      "number": 97,
+      "title": "[EPIC] Paridade de cobertura MCP — matriz e roteador de capacidades",
+      "state": "open",
+      "created_at": "2026-07-07T15:00:41Z",
+      "updated_at": "2026-07-21T20:52:39Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/97"
+    },
+    {
+      "number": 98,
+      "title": "[Core] MCP High-Frequency Bridges — browser, computer-use e savings",
+      "state": "open",
+      "created_at": "2026-07-07T15:00:42Z",
+      "updated_at": "2026-07-21T20:52:37Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/98"
+    },
+    {
+      "number": 99,
+      "title": "[Core] MCP Low-Frequency Bridges — cron, gateway, workflow, issue-factory e afins",
+      "state": "open",
+      "created_at": "2026-07-07T15:00:44Z",
+      "updated_at": "2026-07-21T20:52:43Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/99"
+    },
+    {
+      "number": 100,
+      "title": "[Core] Política Hermes-native first — orientação nativa, runtime para execução",
+      "state": "open",
+      "created_at": "2026-07-07T15:00:45Z",
+      "updated_at": "2026-07-21T20:52:42Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/100"
+    },
+    {
+      "number": 109,
+      "title": "[Perf] kernel_binding warm mode — eliminar fork de processo por chamada ao kernel",
+      "state": "closed",
+      "created_at": "2026-07-08T21:39:04Z",
+      "updated_at": "2026-07-09T04:33:53Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/109"
+    },
+    {
+      "number": 110,
+      "title": "[Perf] Warm daemon auto-start com TTL de idle para perfis interativos",
+      "state": "open",
+      "created_at": "2026-07-08T21:39:22Z",
+      "updated_at": "2026-07-21T20:52:57Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/110"
+    },
+    {
+      "number": 111,
+      "title": "[Perf] Estimador de tokens do caminho de budget: delegar para fast_estimator/Rust com bench A/B",
+      "state": "closed",
+      "created_at": "2026-07-08T21:39:36Z",
+      "updated_at": "2026-07-17T12:40:24Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/111"
+    },
+    {
+      "number": 112,
+      "title": "[Perf] TOON default-on em sessões novas (economia de 60,9% já medida)",
+      "state": "closed",
+      "created_at": "2026-07-08T21:39:54Z",
+      "updated_at": "2026-07-17T13:14:30Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/112"
+    },
+    {
+      "number": 113,
+      "title": "[Perf] Wheels com a extensão Rust (maturin) no CI de release",
+      "state": "closed",
+      "created_at": "2026-07-08T21:40:05Z",
+      "updated_at": "2026-07-17T06:44:44Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/113"
+    },
+    {
+      "number": 115,
+      "title": "[Perf] Call site do async_dag no dispatch de tool-chains dependentes",
+      "state": "closed",
+      "created_at": "2026-07-08T21:40:22Z",
+      "updated_at": "2026-07-17T06:52:42Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/115"
+    },
+    {
+      "number": 116,
+      "title": "[Perf] Gate de regressão de performance no CI (benchmarks vs baselines commitados)",
+      "state": "closed",
+      "created_at": "2026-07-08T21:40:35Z",
+      "updated_at": "2026-07-17T06:48:57Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/116"
+    },
+    {
+      "number": 117,
+      "title": "[Identity A2] Migração de estado para ~/.simplicio/agent e env SIMPLICIO_AGENT_*",
+      "state": "open",
+      "created_at": "2026-07-08T21:40:58Z",
+      "updated_at": "2026-07-21T20:52:53Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/117"
+    },
+    {
+      "number": 118,
+      "title": "[EPIC][P0][Packaging/Rebrand] Distribuir Simplicio Agent completo: bundle, PyPI, Docker, Desktop, Homebrew e aliases",
+      "state": "open",
+      "created_at": "2026-07-08T21:41:14Z",
+      "updated_at": "2026-07-21T20:52:46Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/118"
+    },
+    {
+      "number": 119,
+      "title": "[Perf/B3] Telemetria TTFT/tool-loop por turno no ledger de savings (\"mais rápido\" measured, não estimated)",
+      "state": "closed",
+      "created_at": "2026-07-08T21:41:37Z",
+      "updated_at": "2026-07-17T04:43:56Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/119"
+    },
+    {
+      "number": 120,
+      "title": "chore: remover branch remota obsoleta claude/hermes-simplicio-agent-diff",
+      "state": "closed",
+      "created_at": "2026-07-09T00:32:06Z",
+      "updated_at": "2026-07-09T00:33:25Z",
+      "labels": [
+        "documentation"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/120"
+    },
+    {
+      "number": 121,
+      "title": "[Bug] _KERNEL_BANNER_RE rejects \"Simplicio Runtime X.Y.Z\" --version output (space, not hyphen)",
+      "state": "closed",
+      "created_at": "2026-07-09T04:05:45Z",
+      "updated_at": "2026-07-12T23:24:02Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/121"
+    },
+    {
+      "number": 123,
+      "title": "asolaria-patterns: depth-N (N PRIME) nested self-reflection — parity com Jesse nest-depthN-prime-verify.cjs",
+      "state": "closed",
+      "created_at": "2026-07-09T19:58:29Z",
+      "updated_at": "2026-07-17T05:21:58Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/123"
+    },
+    {
+      "number": 124,
+      "title": "asolaria-patterns: PRISM-COMB 0-loss law port (bijection + round-trip + CRT recombine)",
+      "state": "closed",
+      "created_at": "2026-07-09T19:58:36Z",
+      "updated_at": "2026-07-17T05:22:01Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/124"
+    },
+    {
+      "number": 125,
+      "title": "Integração dos padrões Asolaria (N-Nest e PRISM-COMB) no runtime",
+      "state": "closed",
+      "created_at": "2026-07-09T20:08:40Z",
+      "updated_at": "2026-07-17T05:20:53Z",
+      "labels": [
+        "asolaria",
+        "integration",
+        "patterns"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/125"
+    },
+    {
+      "number": 126,
+      "title": "[P0][Desktop] Restaurar layout canônico e contratos de caminho",
+      "state": "open",
+      "created_at": "2026-07-09T23:18:33Z",
+      "updated_at": "2026-07-21T20:53:22Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/126"
+    },
+    {
+      "number": 127,
+      "title": "[P0][Bundle/Runtime] Kernel simplicio obrigatório, pinado e verificado em todos os artefatos",
+      "state": "open",
+      "created_at": "2026-07-09T23:18:39Z",
+      "updated_at": "2026-07-21T20:53:32Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/127"
+    },
+    {
+      "number": 128,
+      "title": "[P1][Savings] Correlacionar workspace, sessão, run e economia medida no Desktop",
+      "state": "open",
+      "created_at": "2026-07-09T23:18:43Z",
+      "updated_at": "2026-07-21T20:53:27Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/128"
+    },
+    {
+      "number": 129,
+      "title": "[P0][Update/Flags] Auto-update instalado com rollback; Google/Stripe default-off",
+      "state": "open",
+      "created_at": "2026-07-09T23:18:44Z",
+      "updated_at": "2026-07-21T20:53:29Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/129"
+    },
+    {
+      "number": 130,
+      "title": "[P0][Desktop CI/Release] Build reproduzível, installers e matriz de evidências",
+      "state": "open",
+      "created_at": "2026-07-09T23:18:45Z",
+      "updated_at": "2026-07-21T20:53:34Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/130"
+    },
+    {
+      "number": 131,
+      "title": "FIXED: model switch herdava context_length hardcoded do modelo anterior (reportava 131k apos trocar p/ Qwen 1M)",
+      "state": "closed",
+      "created_at": "2026-07-10T02:28:18Z",
+      "updated_at": "2026-07-12T23:24:05Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/131"
+    },
+    {
+      "number": 132,
+      "title": "[P0][Desktop UX] Primeira execução funcional sem Google/Stripe, setup guiado e recuperação",
+      "state": "open",
+      "created_at": "2026-07-10T12:33:03Z",
+      "updated_at": "2026-07-21T20:53:37Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/132"
+    },
+    {
+      "number": 133,
+      "title": "[P0][Compatibility] Certificar MCP e CLI em Claude, Codex, Cursor, VS Code, Antigravity e Hermes",
+      "state": "open",
+      "created_at": "2026-07-10T12:33:04Z",
+      "updated_at": "2026-07-21T20:53:42Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/133"
+    },
+    {
+      "number": 134,
+      "title": "[P0][Security/Privacy] Hardening do Desktop: secrets, permissões, telemetria e ciclo de dados",
+      "state": "open",
+      "created_at": "2026-07-10T12:33:05Z",
+      "updated_at": "2026-07-21T20:53:40Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/134"
+    },
+    {
+      "number": 135,
+      "title": "[P1][Docs/Support] Pacote operacional para instalação, diagnóstico, backup e suporte",
+      "state": "open",
+      "created_at": "2026-07-10T12:33:06Z",
+      "updated_at": "2026-07-21T20:54:10Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/135"
+    },
+    {
+      "number": 136,
+      "title": "[P0][Physics Control] Governador adaptativo de fan-out com Amdahl, Little e PID",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:09Z",
+      "updated_at": "2026-07-21T20:54:05Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/136"
+    },
+    {
+      "number": 137,
+      "title": "[P0][Information Theory] Contexto rate-distortion com fidelity gate e CCR reversível",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:10Z",
+      "updated_at": "2026-07-21T20:54:09Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/137"
+    },
+    {
+      "number": 138,
+      "title": "[P1][Cognition] Controlador HRM de duas escalas com replanejamento por stall",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:11Z",
+      "updated_at": "2026-07-21T20:54:13Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/138"
+    },
+    {
+      "number": 139,
+      "title": "[P1][Operational Self] Self-model Agent-native, memória bitemporal e metacognição verificável",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:12Z",
+      "updated_at": "2026-07-21T20:54:15Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/139"
+    },
+    {
+      "number": 140,
+      "title": "[P1][J-Space] Espaço de estados tipado e trajetórias reproduzíveis para routing/recall",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:13Z",
+      "updated_at": "2026-07-21T20:54:12Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/140"
+    },
+    {
+      "number": 141,
+      "title": "[P0][Scientific Integrity] Gate para importar física/ASOLARIA com hipótese, falsificador e licença",
+      "state": "open",
+      "created_at": "2026-07-10T16:40:14Z",
+      "updated_at": "2026-07-21T20:54:07Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/141"
+    },
+    {
+      "number": 142,
+      "title": "[P1][Ops] Agent should expose canonical blocked-state receipts for artifacts and handoff readiness",
+      "state": "closed",
+      "created_at": "2026-07-10T18:22:03Z",
+      "updated_at": "2026-07-17T12:45:19Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/142"
+    },
+    {
+      "number": 144,
+      "title": "[HANDOFF] Auditoria Desktop/Agent e backlog restante para release (2026-07-10)",
+      "state": "open",
+      "created_at": "2026-07-10T19:31:12Z",
+      "updated_at": "2026-07-21T20:54:16Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/144"
+    },
+    {
+      "number": 146,
+      "title": "[EPIC][P0] Universal Operator — de pedido livre a resultado verificado no computador",
+      "state": "open",
+      "created_at": "2026-07-10T23:15:39Z",
+      "updated_at": "2026-07-21T20:54:37Z",
+      "labels": [
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/146"
+    },
+    {
+      "number": 147,
+      "title": "[P0][Universal Operator] Goal Contract — transformar pedido livre em conclusão verificável",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:55Z",
+      "updated_at": "2026-07-21T20:54:20Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/147"
+    },
+    {
+      "number": 148,
+      "title": "[P0][Universal Operator] Capability Registry e roteador com install/repair automático",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:56Z",
+      "updated_at": "2026-07-21T20:54:30Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/148"
+    },
+    {
+      "number": 149,
+      "title": "[P0][Universal Operator] Computer Use E2E multi-provider — CUA, UFO e UI-TARS",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:56Z",
+      "updated_at": "2026-07-21T20:54:33Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/149"
+    },
+    {
+      "number": 150,
+      "title": "[P0][Universal Operator] Browser E2E híbrido — DOM/CDP primeiro, visão como fallback",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:57Z",
+      "updated_at": "2026-07-21T20:54:25Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/150"
+    },
+    {
+      "number": 151,
+      "title": "[P0][Universal Operator] Software Builder E2E — Mapper + Dev CLI + Runtime + Loop",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:58Z",
+      "updated_at": "2026-07-21T20:54:28Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/151"
+    },
+    {
+      "number": 152,
+      "title": "[P1][Universal Operator] Media Factory — criar e editar imagem, áudio e vídeo",
+      "state": "open",
+      "created_at": "2026-07-10T23:16:59Z",
+      "updated_at": "2026-07-21T20:54:23Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/152"
+    },
+    {
+      "number": 153,
+      "title": "[P1][Universal Operator] Office, documentos, aplicativos e mobile por adapters",
+      "state": "open",
+      "created_at": "2026-07-10T23:17:00Z",
+      "updated_at": "2026-07-21T20:55:02Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/153"
+    },
+    {
+      "number": 154,
+      "title": "[P1][Universal Operator] Trajectory-to-Skill — aprender processos comprovados",
+      "state": "open",
+      "created_at": "2026-07-10T23:17:00Z",
+      "updated_at": "2026-07-21T20:54:35Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/154"
+    },
+    {
+      "number": 155,
+      "title": "[P0][Universal Operator] Runs persistentes — restart, pause, resume, cancel e handoff",
+      "state": "open",
+      "created_at": "2026-07-10T23:17:01Z",
+      "updated_at": "2026-07-21T20:55:07Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/155"
+    },
+    {
+      "number": 156,
+      "title": "[P0][Universal Operator] Modos de autonomia e política universal de ações",
+      "state": "open",
+      "created_at": "2026-07-10T23:17:02Z",
+      "updated_at": "2026-07-21T20:55:04Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/156"
+    },
+    {
+      "number": 157,
+      "title": "[P0][Universal Operator] Benchmark cross-domain e release gate de capacidade",
+      "state": "open",
+      "created_at": "2026-07-10T23:17:03Z",
+      "updated_at": "2026-07-21T20:55:10Z",
+      "labels": [
+        "epic",
+        "integration",
+        "p0",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/157"
+    },
+    {
+      "number": 158,
+      "title": "[P0][Discovery] Inventário verificável das capacidades Hermes antes da evolução do Universal Operator",
+      "state": "open",
+      "created_at": "2026-07-10T23:45:21Z",
+      "updated_at": "2026-07-21T20:55:12Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/158"
+    },
+    {
+      "number": 159,
+      "title": "[P0][Architecture] Unificação Agent–Runtime — managed kernel, protocolo tipado e event stream",
+      "state": "open",
+      "created_at": "2026-07-10T23:45:39Z",
+      "updated_at": "2026-07-21T20:55:21Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/159"
+    },
+    {
+      "number": 160,
+      "title": "[P0][Consciousness] Consciência operacional — self/world model, atenção e prediction receipts",
+      "state": "open",
+      "created_at": "2026-07-10T23:45:58Z",
+      "updated_at": "2026-07-21T20:55:17Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/160"
+    },
+    {
+      "number": 161,
+      "title": "[P1][Physics & Cybernetics] Operador closed-loop — state estimation, feedback e custo de ação",
+      "state": "open",
+      "created_at": "2026-07-10T23:46:20Z",
+      "updated_at": "2026-07-21T20:55:14Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/161"
+    },
+    {
+      "number": 162,
+      "title": "[P0][Agent–Runtime] Managed lifecycle e handshake de readiness verificável",
+      "state": "open",
+      "created_at": "2026-07-10T23:54:48Z",
+      "updated_at": "2026-07-21T20:55:53Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/162"
+    },
+    {
+      "number": 163,
+      "title": "[P0][Agent–Runtime] Execution Context, event stream causal e replay idempotente",
+      "state": "open",
+      "created_at": "2026-07-10T23:54:49Z",
+      "updated_at": "2026-07-21T20:55:56Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/163"
+    },
+    {
+      "number": 164,
+      "title": "[P0][Agent–Runtime] Projeção cross-surface do run e controles pause/resume/cancel",
+      "state": "open",
+      "created_at": "2026-07-10T23:54:49Z",
+      "updated_at": "2026-07-21T20:55:55Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/164"
+    },
+    {
+      "number": 165,
+      "title": "[P0][Agent–Runtime] Compatibilidade, migrations e atualização atômica com rollback",
+      "state": "open",
+      "created_at": "2026-07-10T23:54:50Z",
+      "updated_at": "2026-07-21T20:55:57Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/165"
+    },
+    {
+      "number": 166,
+      "title": "[P0][Consciousness] Operational Now — event-sourced awareness store e snapshot materializado",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:47Z",
+      "updated_at": "2026-07-21T20:55:59Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/166"
+    },
+    {
+      "number": 167,
+      "title": "[P0][Consciousness] Belief State — state estimation, freshness, conflito e incerteza calibrada",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:48Z",
+      "updated_at": "2026-07-21T20:56:01Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/167"
+    },
+    {
+      "number": 168,
+      "title": "[P0][Consciousness] Self-model e corpo digital — capacidades, limites, autoridade e saúde",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:49Z",
+      "updated_at": "2026-07-21T20:56:03Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/168"
+    },
+    {
+      "number": 169,
+      "title": "[P0][Consciousness] Attention Schema e workspace global funcional orientado ao objetivo",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:50Z",
+      "updated_at": "2026-07-21T20:56:05Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/169"
+    },
+    {
+      "number": 170,
+      "title": "[P0][Consciousness] Prediction Receipts, contrafactuais e aprendizagem por erro de previsão",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:50Z",
+      "updated_at": "2026-07-21T20:56:11Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/170"
+    },
+    {
+      "number": 171,
+      "title": "[P1][Consciousness] Memória autobiográfica causal e consolidação governada",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:51Z",
+      "updated_at": "2026-07-21T20:56:07Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/171"
+    },
+    {
+      "number": 172,
+      "title": "[P0][Consciousness] Continuum de identidade e compromissos através de restart/handoff",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:52Z",
+      "updated_at": "2026-07-21T20:56:14Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/172"
+    },
+    {
+      "number": 173,
+      "title": "[P1][Consciousness] Metacognição calibrada, introspecção verificável e estados explícitos de desconhecimento",
+      "state": "open",
+      "created_at": "2026-07-10T23:55:53Z",
+      "updated_at": "2026-07-21T20:56:23Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/173"
+    },
+    {
+      "number": 174,
+      "title": "[P0][Physics Control] Controller de referência closed-loop com receding horizon",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:50Z",
+      "updated_at": "2026-07-21T20:56:30Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/174"
+    },
+    {
+      "number": 175,
+      "title": "[P1][Physics/Active Inference] Value of Information e decisão observar-versus-agir",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:51Z",
+      "updated_at": "2026-07-21T20:56:17Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/175"
+    },
+    {
+      "number": 176,
+      "title": "[P0][Information Thermodynamics] Irreversibilidade e action-cost policy para efeitos digitais",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:52Z",
+      "updated_at": "2026-07-21T20:56:27Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/176"
+    },
+    {
+      "number": 177,
+      "title": "[P1][Statistical Mechanics] Ensemble de hipóteses, temperatura de exploração e poda por evidência",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:52Z",
+      "updated_at": "2026-07-21T20:56:20Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/177"
+    },
+    {
+      "number": 178,
+      "title": "[P0][Multiscale] Coarse-graining causal de eventos para contexto rápido e reversível",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:53Z",
+      "updated_at": "2026-07-21T20:56:32Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/178"
+    },
+    {
+      "number": 179,
+      "title": "[P0][Cybernetics] Homeostase e alostase de recursos, qualidade e segurança",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:54Z",
+      "updated_at": "2026-07-21T20:56:35Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/179"
+    },
+    {
+      "number": 180,
+      "title": "[P0][Performance/Cognition] Loops multi-rate: reflexo, atenção, deliberação e consolidação",
+      "state": "open",
+      "created_at": "2026-07-10T23:56:55Z",
+      "updated_at": "2026-07-21T20:56:39Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/180"
+    },
+    {
+      "number": 181,
+      "title": "[P0][Vertical Proof] Golden path local reversível — goal até resultado verificado e undo",
+      "state": "open",
+      "created_at": "2026-07-10T23:57:36Z",
+      "updated_at": "2026-07-21T20:56:40Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/181"
+    },
+    {
+      "number": 182,
+      "title": "[P0][Vertical Proof] Perturbação browser+desktop — stale state, modal e fallback sem efeito errado",
+      "state": "open",
+      "created_at": "2026-07-10T23:57:36Z",
+      "updated_at": "2026-07-21T20:56:37Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/182"
+    },
+    {
+      "number": 183,
+      "title": "[P0][Vertical Proof] Restart e efeito ambíguo — continuidade causal sem duplicação",
+      "state": "open",
+      "created_at": "2026-07-10T23:57:37Z",
+      "updated_at": "2026-07-21T20:56:42Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/183"
+    },
+    {
+      "number": 184,
+      "title": "[P0][Benchmark] Consciência operacional, presença e coerência causal — indicadores e falsificadores",
+      "state": "closed",
+      "created_at": "2026-07-10T23:57:38Z",
+      "updated_at": "2026-07-12T22:44:09Z",
+      "labels": [
+        "integration",
+        "p0",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/184"
+    },
+    {
+      "number": 185,
+      "title": "[P0][Security] Integridade cognitiva — belief, attention, memory e self-model poisoning",
+      "state": "closed",
+      "created_at": "2026-07-10T23:57:39Z",
+      "updated_at": "2026-07-21T12:25:51Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/185"
+    },
+    {
+      "number": 186,
+      "title": "[EPIC][P0][Identity] Migração completa da identidade upstream para Simplicio Agent",
+      "state": "open",
+      "created_at": "2026-07-11T00:00:32Z",
+      "updated_at": "2026-07-21T20:56:45Z",
+      "labels": [
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/186"
+    },
+    {
+      "number": 187,
+      "title": "[P0][Rename] Inventário machine-readable de arquivos/termos Hermes e allowlist interna",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:34Z",
+      "updated_at": "2026-07-21T20:56:43Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/187"
+    },
+    {
+      "number": 188,
+      "title": "[P0][Rename] CLI, TUI, Desktop e gateways — identidade pública e mensagens Simplicio Agent",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:35Z",
+      "updated_at": "2026-07-21T20:57:13Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/188"
+    },
+    {
+      "number": 189,
+      "title": "[P0][Rename] Documentação, website, exemplos, prompts, skills e assets públicos",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:36Z",
+      "updated_at": "2026-07-21T20:57:09Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/189"
+    },
+    {
+      "number": 190,
+      "title": "[P0][Rename] Arquivos, diretórios, public APIs e imports — move-with-shim sem quebra",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:37Z",
+      "updated_at": "2026-07-21T20:57:05Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/190"
+    },
+    {
+      "number": 191,
+      "title": "[P0][Rename] MCP, schemas, telemetry, receipts e machine identities públicas",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:37Z",
+      "updated_at": "2026-07-21T20:57:26Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/191"
+    },
+    {
+      "number": 192,
+      "title": "[P1][Rename] Locales e linguagem de produto em todos os idiomas",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:38Z",
+      "updated_at": "2026-07-21T20:57:23Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/192"
+    },
+    {
+      "number": 193,
+      "title": "[P0][Rename] Compatibilidade upstream, aliases depreciados e isolamento do fork",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:39Z",
+      "updated_at": "2026-07-21T20:57:19Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/193"
+    },
+    {
+      "number": 194,
+      "title": "[P0][Rename] CI guard — impedir regressão de branding no source e artefatos empacotados",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:40Z",
+      "updated_at": "2026-07-21T20:57:16Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/194"
+    },
+    {
+      "number": 195,
+      "title": "[P0][Rename/Release Gate] Máquina limpa, upgrade e rollback da identidade Simplicio Agent",
+      "state": "open",
+      "created_at": "2026-07-11T00:01:41Z",
+      "updated_at": "2026-07-21T20:57:02Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/195"
+    },
+    {
+      "number": 196,
+      "title": "[P0][Prompt Economy] Cut fixed system-prompt and tool-schema tax with progressive disclosure",
+      "state": "open",
+      "created_at": "2026-07-11T07:26:39Z",
+      "updated_at": "2026-07-21T20:57:29Z",
+      "labels": [
+        "enhancement",
+        "epic",
+        "integration",
+        "p0",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/196"
+    },
+    {
+      "number": 197,
+      "title": "[P0][Installer/Onboarding] Gate de ativação transacional, durável e retomável",
+      "state": "closed",
+      "created_at": "2026-07-11T07:30:08Z",
+      "updated_at": "2026-07-11T14:46:53Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/197"
+    },
+    {
+      "number": 200,
+      "title": "[Rename][P1] User-facing strings 'Hermes' em banner/cli output (banner.py, tips.py, doctor.py, uninstall.py)",
+      "state": "closed",
+      "created_at": "2026-07-11T23:50:20Z",
+      "updated_at": "2026-07-17T05:07:14Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/200"
+    },
+    {
+      "number": 201,
+      "title": "[Rename][P1] Superfície Web/Desktop expõe 'Hermes' (web_server.py: 330 ocorrências)",
+      "state": "open",
+      "created_at": "2026-07-11T23:50:22Z",
+      "updated_at": "2026-07-21T20:57:31Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/201"
+    },
+    {
+      "number": 202,
+      "title": "[Rename][P2] Skills docs vazam 'Hermes' (gif-search, songsee, petdex, youtube-content, etc.)",
+      "state": "closed",
+      "created_at": "2026-07-11T23:50:23Z",
+      "updated_at": "2026-07-17T05:17:49Z",
+      "labels": [
+        "documentation",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/202"
+    },
+    {
+      "number": 203,
+      "title": "[Rename][P2] Arquivos/pastas com nome 'Hermes' expostos no root e docs/",
+      "state": "closed",
+      "created_at": "2026-07-11T23:50:24Z",
+      "updated_at": "2026-07-17T03:58:20Z",
+      "labels": [
+        "documentation",
+        "p2"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/203"
+    },
+    {
+      "number": 204,
+      "title": "[Rename][P1] Nome do MCP server 'hermes' exposto em clientes (Claude/Codex/Cursor/etc.)",
+      "state": "closed",
+      "created_at": "2026-07-11T23:50:26Z",
+      "updated_at": "2026-07-17T05:03:50Z",
+      "labels": [
+        "enhancement",
+        "integration",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/204"
+    },
+    {
+      "number": 205,
+      "title": "[Rename][P1] README/CONTRIBUTING/SECURITY expõem 'Hermes' (primeiras páginas do projeto)",
+      "state": "closed",
+      "created_at": "2026-07-11T23:50:28Z",
+      "updated_at": "2026-07-21T12:26:24Z",
+      "labels": [
+        "documentation",
+        "p1"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/205"
+    },
+    {
+      "number": 209,
+      "title": "[P0][Architecture] TaskEnvelope e máquina de estados única para tarefas",
+      "state": "open",
+      "created_at": "2026-07-12T00:19:31Z",
+      "updated_at": "2026-07-21T20:57:33Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/209"
+    },
+    {
+      "number": 210,
+      "title": "[P0][Architecture] CLI primário, MCP fallback e kernel_binding fino",
+      "state": "open",
+      "created_at": "2026-07-12T00:19:33Z",
+      "updated_at": "2026-07-21T20:57:41Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/210"
+    },
+    {
+      "number": 211,
+      "title": "[P1][Architecture] Golden path E2E do pedido até delivery verificável",
+      "state": "open",
+      "created_at": "2026-07-12T00:19:35Z",
+      "updated_at": "2026-07-21T21:00:06Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/211"
+    },
+    {
+      "number": 212,
+      "title": "[P0][Docs] Consolidar routing CLI-first/MCP-fallback sem contradições",
+      "state": "closed",
+      "created_at": "2026-07-12T00:19:37Z",
+      "updated_at": "2026-07-17T04:35:34Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/212"
+    },
+    {
+      "number": 220,
+      "title": "[P0][Perf Audit] Provar incorporação, wiring, ativação e ganho real de cada otimização Hermes Turbo",
+      "state": "open",
+      "created_at": "2026-07-12T05:11:20Z",
+      "updated_at": "2026-07-21T21:00:04Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/220"
+    },
+    {
+      "number": 221,
+      "title": "[EPIC][P0][Architecture] Modularizar AIAgent sem desmontar o Agent — Session, Turn, Provider, Tool, Cognition e Bridge",
+      "state": "open",
+      "created_at": "2026-07-12T05:11:21Z",
+      "updated_at": "2026-07-21T21:00:03Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/221"
+    },
+    {
+      "number": 222,
+      "title": "[P0][SimplicioBridge] Runtime quente, CLI-primary e seis bindings realmente integrados",
+      "state": "open",
+      "created_at": "2026-07-12T05:11:22Z",
+      "updated_at": "2026-07-21T21:00:00Z",
+      "labels": [
+        "enhancement",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/222"
+    },
+    {
+      "number": 223,
+      "title": "[P0][Session Core/Perf] Modularizar SessionDB e recuperar turns sem perder memória conversacional",
+      "state": "closed",
+      "created_at": "2026-07-12T05:11:22Z",
+      "updated_at": "2026-07-12T22:44:16Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/223"
+    },
+    {
+      "number": 224,
+      "title": "[P0][ProviderRuntime/Perf] Lifecycle, streaming, retry, pooling e wiring produtivo",
+      "state": "closed",
+      "created_at": "2026-07-12T05:11:23Z",
+      "updated_at": "2026-07-16T18:09:33Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/224"
+    },
+    {
+      "number": 225,
+      "title": "[P1][AgentProtocol/Surfaces] Eventos tipados e latência comum em CLI, TUI, Desktop, Gateway e ACP",
+      "state": "closed",
+      "created_at": "2026-07-12T05:11:24Z",
+      "updated_at": "2026-07-12T22:44:14Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/225"
+    },
+    {
+      "number": 226,
+      "title": "[P1][Perf/Discovery] Cache incremental de skills, plugins, MCP e tool registry para startup rápido e correto",
+      "state": "closed",
+      "created_at": "2026-07-12T05:11:24Z",
+      "updated_at": "2026-07-12T22:44:19Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/226"
+    },
+    {
+      "number": 227,
+      "title": "[P0][Architecture/TurnEngine] Máquina de estados explícita para um turno sem quebrar AIAgent",
+      "state": "open",
+      "created_at": "2026-07-12T06:17:10Z",
+      "updated_at": "2026-07-21T20:59:57Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/227"
+    },
+    {
+      "number": 228,
+      "title": "[P0][Architecture/ToolPipeline] Um único pipeline de invocation, safety, checkpoint e evidence",
+      "state": "open",
+      "created_at": "2026-07-12T06:17:10Z",
+      "updated_at": "2026-07-21T20:59:55Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/228"
+    },
+    {
+      "number": 229,
+      "title": "[P0][Install/Bundle] Bundle assinado Agent + Runtime + fast stack + assets com rollback atômico",
+      "state": "open",
+      "created_at": "2026-07-12T06:17:11Z",
+      "updated_at": "2026-07-21T20:59:52Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/229"
+    },
+    {
+      "number": 230,
+      "title": "[P0][Architecture/AgentHost] Host quente de sessões e turns para CLI, TUI, Desktop, Gateway e ACP",
+      "state": "open",
+      "created_at": "2026-07-12T06:17:12Z",
+      "updated_at": "2026-07-21T20:59:48Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/230"
+    },
+    {
+      "number": 252,
+      "title": "[QUARANTINE-LEDGER] 116 issues sem AC de bug — wave 2026-07-12 (loop honest close-gate)",
+      "state": "open",
+      "created_at": "2026-07-12T23:24:20Z",
+      "updated_at": "2026-07-21T20:59:45Z",
+      "labels": [
+        "documentation",
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/252"
+    },
+    {
+      "number": 257,
+      "title": "[Loop Audit] Issue #221 closed without verified evidence",
+      "state": "closed",
+      "created_at": "2026-07-13T01:49:31Z",
+      "updated_at": "2026-07-17T04:04:57Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/257"
+    },
+    {
+      "number": 258,
+      "title": "[Loop Audit] Issue #196 closed without verified evidence",
+      "state": "closed",
+      "created_at": "2026-07-13T01:49:38Z",
+      "updated_at": "2026-07-17T04:05:05Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/258"
+    },
+    {
+      "number": 259,
+      "title": "[Loop Audit] Issue #220 closed without verified evidence",
+      "state": "closed",
+      "created_at": "2026-07-13T01:49:45Z",
+      "updated_at": "2026-07-17T04:05:11Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/259"
+    },
+    {
+      "number": 260,
+      "title": "[Loop Audit] Issue #228 closed without verified evidence",
+      "state": "closed",
+      "created_at": "2026-07-13T01:49:51Z",
+      "updated_at": "2026-07-17T04:04:52Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/260"
+    },
+    {
+      "number": 261,
+      "title": "[Loop Audit] Issue #222 closed without verified evidence",
+      "state": "closed",
+      "created_at": "2026-07-13T01:49:57Z",
+      "updated_at": "2026-07-17T04:04:43Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/261"
+    },
+    {
+      "number": 266,
+      "title": "[P0][Benchmark] Snake browser fixture with top-10 scoreboard and proof",
+      "state": "open",
+      "created_at": "2026-07-13T02:48:04Z",
+      "updated_at": "2026-07-21T20:59:42Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/266"
+    },
+    {
+      "number": 314,
+      "title": "[EPIC][Future] Simplicio Native — transformação inside-out, zero-legado e fast path quase zero-token",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:42Z",
+      "updated_at": "2026-07-21T20:59:40Z",
+      "labels": [
+        "epic",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/314"
+    },
+    {
+      "number": 315,
+      "title": "[Native 1] Kernel de auto-modificação transacional e shadow equivalence",
+      "state": "closed",
+      "created_at": "2026-07-14T02:10:43Z",
+      "updated_at": "2026-07-16T13:22:33Z",
+      "labels": [
+        "epic"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/315"
+    },
+    {
+      "number": 316,
+      "title": "[Native 2] Updater transacional source/release → staging → bot ativo",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:44Z",
+      "updated_at": "2026-07-21T20:59:22Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/316"
+    },
+    {
+      "number": 317,
+      "title": "[Native 3] Token governor L0–L3 com orçamento e escalada por entropia",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:46Z",
+      "updated_at": "2026-07-21T20:59:28Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/317"
+    },
+    {
+      "number": 318,
+      "title": "[Native 4] Prompt microkernel e cinco primitivas lazy",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:47Z",
+      "updated_at": "2026-07-21T20:59:25Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/318"
+    },
+    {
+      "number": 319,
+      "title": "[Native 5] Daemon Rust sempre quente para o hot path",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:48Z",
+      "updated_at": "2026-07-21T20:59:19Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/319"
+    },
+    {
+      "number": 320,
+      "title": "[Native 6] Controlador físico adaptativo de contexto e concorrência",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:49Z",
+      "updated_at": "2026-07-21T20:59:16Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/320"
+    },
+    {
+      "number": 321,
+      "title": "[Native 7] Gateway nativo e bridge legado isolado",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:50Z",
+      "updated_at": "2026-07-21T20:59:06Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/321"
+    },
+    {
+      "number": 322,
+      "title": "[Native 8] Migração total para namespaces e identidade Simplicio",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:51Z",
+      "updated_at": "2026-07-21T20:59:11Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/322"
+    },
+    {
+      "number": 323,
+      "title": "[Native 9] Release gate zero-legado, zero-token e atualização viva",
+      "state": "open",
+      "created_at": "2026-07-14T02:10:52Z",
+      "updated_at": "2026-07-21T20:59:13Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/323"
+    },
+    {
+      "number": 334,
+      "title": "[P0][Architecture/Governance] Reconciliar o programa Simplicio Native (#314) com o cluster P0 de arquitetura (#209, #210, #211, #220, #221, #222, #228)",
+      "state": "open",
+      "created_at": "2026-07-14T05:08:58Z",
+      "updated_at": "2026-07-21T20:58:52Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/334"
+    },
+    {
+      "number": 335,
+      "title": "[P0][Orchestration/Leases] Claim de issue idempotente — CAS no lease, um comentário por lease, renovação edita em vez de repostar",
+      "state": "open",
+      "created_at": "2026-07-14T05:10:18Z",
+      "updated_at": "2026-07-21T20:58:54Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/335"
+    },
+    {
+      "number": 336,
+      "title": "[P1][Docs/ADR] Eliminar colisões de numeração de ADR (duas ADR-0021, duas ADR-0023), criar índice canônico e gate de unicidade no CI",
+      "state": "closed",
+      "created_at": "2026-07-14T05:10:40Z",
+      "updated_at": "2026-07-17T04:35:29Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/336"
+    },
+    {
+      "number": 337,
+      "title": "[P0][Benchmark/Fixtures] Fixture representativa e harness de benchmark before/after — fundação dos gates de token/latência da ADR-0023",
+      "state": "open",
+      "created_at": "2026-07-14T05:11:07Z",
+      "updated_at": "2026-07-21T20:58:49Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/337"
+    },
+    {
+      "number": 338,
+      "title": "[Native 1.1] Snapshot content-addressed e journal transacional de mutações",
+      "state": "open",
+      "created_at": "2026-07-14T05:11:42Z",
+      "updated_at": "2026-07-21T20:58:42Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/338"
+    },
+    {
+      "number": 339,
+      "title": "[Native 1.2] Shadow-run com interceptação de efeitos — mesma entrada, zero efeito duplicado",
+      "state": "closed",
+      "created_at": "2026-07-14T05:12:08Z",
+      "updated_at": "2026-07-17T20:26:09Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/339"
+    },
+    {
+      "number": 340,
+      "title": "[Native 1.3] Gate de equivalência multi-dimensão e canary fail-closed por perfil/sessão",
+      "state": "closed",
+      "created_at": "2026-07-14T05:12:31Z",
+      "updated_at": "2026-07-17T20:43:36Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/340"
+    },
+    {
+      "number": 341,
+      "title": "[Native 1.4] Promoção atômica, health-check do processo vivo e rollback automático",
+      "state": "open",
+      "created_at": "2026-07-14T05:12:57Z",
+      "updated_at": "2026-07-21T20:58:44Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/341"
+    },
+    {
+      "number": 342,
+      "title": "[Native 2.1] Detecção de tipo de instalação, lock de update e snapshot pre-update",
+      "state": "open",
+      "created_at": "2026-07-14T05:13:36Z",
+      "updated_at": "2026-07-21T20:58:47Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/342"
+    },
+    {
+      "number": 343,
+      "title": "[Native 2.2] Preservação content-addressed de mudanças locais e staging com fetch ff-only",
+      "state": "open",
+      "created_at": "2026-07-14T05:13:59Z",
+      "updated_at": "2026-07-21T20:58:39Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/343"
+    },
+    {
+      "number": 344,
+      "title": "[Native 2.3] Gates de staging, sync condicional de dependências, ponteiro `current` atômico e restart destacado",
+      "state": "closed",
+      "created_at": "2026-07-14T05:14:22Z",
+      "updated_at": "2026-07-17T20:36:42Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/344"
+    },
+    {
+      "number": 345,
+      "title": "[Native 2.4] Attestation de live-commit, rollback do update e detecção de `git pull` manual como update pendente",
+      "state": "closed",
+      "created_at": "2026-07-14T05:14:48Z",
+      "updated_at": "2026-07-17T16:44:33Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/345"
+    },
+    {
+      "number": 346,
+      "title": "[P1][Backlog/Governance] Varredura superseded — mapear todas as issues abertas contra o programa Native (#314) e atualizar o ledger #252",
+      "state": "open",
+      "created_at": "2026-07-14T05:15:34Z",
+      "updated_at": "2026-07-21T20:58:36Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/346"
+    },
+    {
+      "number": 347,
+      "title": "[Unit Tests] Cobrir planejamento, memória, ferramentas, autoridade e decisões do agente",
+      "state": "closed",
+      "created_at": "2026-07-14T05:18:41Z",
+      "updated_at": "2026-07-17T13:01:11Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/347"
+    },
+    {
+      "number": 348,
+      "title": "[Integration/System/E2E] Validar execução autônoma completa com runtime, loop, mapper e ferramentas",
+      "state": "open",
+      "created_at": "2026-07-14T05:19:07Z",
+      "updated_at": "2026-07-21T20:58:15Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/348"
+    },
+    {
+      "number": 349,
+      "title": "[CI Quality Gate] Bloquear regressões funcionais, comportamentais, de segurança e custo",
+      "state": "closed",
+      "created_at": "2026-07-14T05:19:22Z",
+      "updated_at": "2026-07-21T12:26:00Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/349"
+    },
+    {
+      "number": 376,
+      "title": "agent.host import failure under system python3 (3.9) — root cause: requires-python >=3.11 not enforced",
+      "state": "closed",
+      "created_at": "2026-07-15T03:03:52Z",
+      "updated_at": "2026-07-15T03:04:01Z",
+      "labels": [
+        "bug"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/376"
+    },
+    {
+      "number": 398,
+      "title": "[P0][Invocation Coverage] 100% dos comandos anunciados funcionais e integrados ao fluxo canônico",
+      "state": "closed",
+      "created_at": "2026-07-15T14:01:13Z",
+      "updated_at": "2026-07-23T23:18:36Z",
+      "labels": [
+        "integration",
+        "priority:high"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/398"
+    },
+    {
+      "number": 400,
+      "title": "[P0][Process] Carregar skills de arquitetura + banco neural ANTES de implementar qualquer issue",
+      "state": "closed",
+      "created_at": "2026-07-15T18:45:41Z",
+      "updated_at": "2026-07-15T19:52:33Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/400"
+    },
+    {
+      "number": 441,
+      "title": "[P1][Continuous Evolution] Coordenador descobrir, priorizar e abrir issues de evolução e melhoria",
+      "state": "closed",
+      "created_at": "2026-07-17T05:30:53Z",
+      "updated_at": "2026-07-21T12:26:09Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/441"
+    },
+    {
+      "number": 442,
+      "title": "[P1][Adaptive Architecture] Coordenador propor novos stages, agents e ajustes amplos do fluxo",
+      "state": "closed",
+      "created_at": "2026-07-17T05:30:54Z",
+      "updated_at": "2026-07-21T12:26:18Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/442"
+    },
+    {
+      "number": 451,
+      "title": "[Windows][Test Infrastructure] Fix WinError 6 from subprocess guard under Python 3.14",
+      "state": "closed",
+      "created_at": "2026-07-17T06:58:33Z",
+      "updated_at": "2026-07-17T20:15:34Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/451"
+    },
+    {
+      "number": 458,
+      "title": "[Test Portability] Make live-system guard self-tests pass on Windows and POSIX",
+      "state": "closed",
+      "created_at": "2026-07-17T15:38:56Z",
+      "updated_at": "2026-07-17T20:16:43Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/458"
+    },
+    {
+      "number": 462,
+      "title": "[Performance] Unificar concorrência Python com AnyIO/asyncio, uvloop opcional e adapter para Loop Hub",
+      "state": "closed",
+      "created_at": "2026-07-17T19:28:13Z",
+      "updated_at": "2026-07-19T05:09:55Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/462"
+    },
+    {
+      "number": 482,
+      "title": "[P0][Token Economy] Operar Agent como reasoning worker compartilhado com rota determinística primeiro",
+      "state": "open",
+      "created_at": "2026-07-18T02:47:58Z",
+      "updated_at": "2026-07-21T20:58:05Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/482"
+    },
+    {
+      "number": 483,
+      "title": "[P0][Release Train] Atualizar Runtime/Loop automaticamente com lock assinado e rollback atômico",
+      "state": "closed",
+      "created_at": "2026-07-18T03:05:47Z",
+      "updated_at": "2026-07-21T12:31:36Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/483"
+    },
+    {
+      "number": 484,
+      "title": "[P0][Prototype-First][Loop #568] Materializar planner, candidate agents, critic e judge independente",
+      "state": "closed",
+      "created_at": "2026-07-18T13:16:47Z",
+      "updated_at": "2026-07-21T12:30:50Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/484"
+    },
+    {
+      "number": 485,
+      "title": "feat(token-observability): medir prompt/stream/tool-loop com tiktoken e reconciliar usage do provedor",
+      "state": "closed",
+      "created_at": "2026-07-18T14:17:41Z",
+      "updated_at": "2026-07-18T14:25:58Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/485"
+    },
+    {
+      "number": 488,
+      "title": "proposta: teste por propriedade/fuzzing + revisão por invariante (herdar do runtime)",
+      "state": "closed",
+      "created_at": "2026-07-19T00:23:01Z",
+      "updated_at": "2026-07-19T01:20:57Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/488"
+    },
+    {
+      "number": 489,
+      "title": "DoD framework rollout: this repo is NOT a thin wrapper — full 4-layer DoD landed, runtime-integration gap scoped",
+      "state": "open",
+      "created_at": "2026-07-19T00:44:22Z",
+      "updated_at": "2026-07-21T20:58:22Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/489"
+    },
+    {
+      "number": 493,
+      "title": "[Audit #582] Enforce coverage threshold in the aggregated CI gate",
+      "state": "closed",
+      "created_at": "2026-07-19T03:35:13Z",
+      "updated_at": "2026-07-21T12:30:41Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/493"
+    },
+    {
+      "number": 494,
+      "title": "[Async Migration] Converter providers e tools bloqueantes para async nativo",
+      "state": "open",
+      "created_at": "2026-07-19T05:08:26Z",
+      "updated_at": "2026-07-21T20:58:09Z",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/494"
+    },
+    {
+      "number": 496,
+      "title": "[P0][AgentHost] Versionar handshake e expor replay operacional bounded",
+      "state": "closed",
+      "created_at": "2026-07-20T00:10:37Z",
+      "updated_at": "2026-07-20T00:16:10Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/496"
+    },
+    {
+      "number": 498,
+      "title": "[P0][Mapper Adapter] Consumir e validar ContextSnapshot/ContextGraph v1 por handle",
+      "state": "open",
+      "created_at": "2026-07-20T00:40:51Z",
+      "updated_at": "2026-07-21T20:57:59Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/498"
+    },
+    {
+      "number": 499,
+      "title": "[P0][Context Wiring] Ligar ContextGraph ao TurnEngine e CognitiveContext",
+      "state": "open",
+      "created_at": "2026-07-20T00:47:43Z",
+      "updated_at": "2026-07-21T20:58:12Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/499"
+    },
+    {
+      "number": 500,
+      "title": "[P0][Architecture Drift] Reconciliar Agent com o contrato de coordenadores independentes",
+      "state": "open",
+      "created_at": "2026-07-20T00:48:12Z",
+      "updated_at": "2026-07-21T20:58:01Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/500"
+    },
+    {
+      "number": 501,
+      "title": "[P0][AgentHost] workspace.observe metadata-only e advisory bounded",
+      "state": "closed",
+      "created_at": "2026-07-20T00:50:25Z",
+      "updated_at": "2026-07-20T01:25:28Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/501"
+    },
+    {
+      "number": 503,
+      "title": "[P0][AgentHost/Protocol] Recuperar cursor de advisory após reinício com host_instance_id",
+      "state": "open",
+      "created_at": "2026-07-20T01:32:12Z",
+      "updated_at": "2026-07-23T07:10:37Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/503"
+    },
+    {
+      "number": 514,
+      "title": "[P0][Local Inference Pause] Desabilitar Qwen/llama.cpp por padrão no Agent",
+      "state": "closed",
+      "created_at": "2026-07-21T02:40:12Z",
+      "updated_at": "2026-07-21T04:45:29Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/514"
+    },
+    {
+      "number": 517,
+      "title": "[Binary formats] Migrate internal JSON state to HBP, HBI and TOML",
+      "state": "open",
+      "created_at": "2026-07-21T04:45:04Z",
+      "updated_at": "2026-07-21T20:57:50Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/517"
+    },
+    {
+      "number": 518,
+      "title": "[Quality] Enforce no-internal-JSON and prove binary-format migration E2E",
+      "state": "open",
+      "created_at": "2026-07-21T04:45:52Z",
+      "updated_at": "2026-07-21T20:57:47Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/518"
+    },
+    {
+      "number": 520,
+      "title": "Close Runtime parity gaps for native execution tools",
+      "state": "closed",
+      "created_at": "2026-07-21T05:06:48Z",
+      "updated_at": "2026-07-23T23:18:36Z",
+      "labels": [
+        "enhancement"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/520"
+    },
+    {
+      "number": 563,
+      "title": "[META-AUDIT] Revisar todas as issues — objetivos, fluxo de testes e critérios de aceite",
+      "state": "closed",
+      "created_at": "2026-07-21T20:43:07Z",
+      "updated_at": "2026-07-23T23:30:32Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/563"
+    },
+    {
+      "number": 573,
+      "title": "[P0][#520] Close Runtime parity gaps for native execution tools",
+      "state": "closed",
+      "created_at": "2026-07-23T03:23:41Z",
+      "updated_at": "2026-07-23T06:59:04Z",
+      "labels": [
+        "enhancement",
+        "p0"
+      ],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/573"
+    },
+    {
+      "number": 577,
+      "title": "[Epic] Cache-aware local agent loop with constrained parallel tool calls",
+      "state": "open",
+      "created_at": "2026-07-23T11:54:46Z",
+      "updated_at": "2026-07-23T11:59:07Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/577"
+    },
+    {
+      "number": 578,
+      "title": "[Local loop] Formalize byte-stable prompt zones and bind sessions to Runtime inference leases",
+      "state": "closed",
+      "created_at": "2026-07-23T11:57:21Z",
+      "updated_at": "2026-07-23T23:18:36Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/578"
+    },
+    {
+      "number": 579,
+      "title": "[Local loop] Add grammar-constrained JSON array tool-call transport",
+      "state": "closed",
+      "created_at": "2026-07-23T11:57:22Z",
+      "updated_at": "2026-07-23T23:12:55Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/579"
+    },
+    {
+      "number": 580,
+      "title": "[Prompt economy] Tier frequent and rare tool schemas with deterministic lazy expansion",
+      "state": "open",
+      "created_at": "2026-07-23T11:57:23Z",
+      "updated_at": "2026-07-23T11:57:23Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/580"
+    },
+    {
+      "number": 581,
+      "title": "[Evaluation] Add reproducible GAIA and repository-task matrix for local agent-loop changes",
+      "state": "closed",
+      "created_at": "2026-07-23T11:57:24Z",
+      "updated_at": "2026-07-23T23:17:33Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/581"
+    },
+    {
+      "number": 582,
+      "title": "[Browser economy] Make compact accessibility state the default with bounded vision escalation",
+      "state": "closed",
+      "created_at": "2026-07-23T11:57:24Z",
+      "updated_at": "2026-07-23T23:18:36Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/582"
+    },
+    {
+      "number": 583,
+      "title": "[Reliability] Add semantic no-progress guard with bounded recovery and graceful termination",
+      "state": "closed",
+      "created_at": "2026-07-23T11:57:25Z",
+      "updated_at": "2026-07-23T18:31:23Z",
+      "labels": [],
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/583"
+    }
+  ],
+  "summary": {
+    "total": 241,
+    "by_state": {
+      "open": 139,
+      "closed": 102
+    }
+  }
+}
