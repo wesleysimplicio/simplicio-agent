@@ -4253,7 +4253,12 @@ def cmd_daemon(args):
     sock = _socket_path(getattr(args, "socket", None))
 
     if sub == "start":
-        return _serve(sock, getattr(args, "profile", "desktop"), idle_ttl_s=getattr(args, "idle_ttl_s", None))
+        return _serve(
+            sock,
+            getattr(args, "profile", "desktop"),
+            idle_ttl_s=getattr(args, "idle_ttl_s", None),
+            deterministic_e2e=getattr(args, "deterministic_e2e", False),
+        )
     if sub == "stop":
         resp = _client_request(sock, {"op": "shutdown"})
         print(_json.dumps(resp))
