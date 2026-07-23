@@ -22,6 +22,14 @@ TOKENS = re.compile(
 )
 SKIP = {".git", "node_modules", "target", "dist", "build", ".venv", "__pycache__", ".orchestrator"}
 SOURCE_SUFFIXES = {".py", ".mjs", ".js", ".ts", ".tsx", ".rs", ".go", ".java", ".cs"}
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+LINE_COMMENT = re.compile(r"(?<!:)//.*$|^\s*#.*$", re.MULTILINE)
+
+
+def _without_comments(text: str) -> str:
+    """Keep executable text while avoiding comment-only JSON false positives."""
+    text = BLOCK_COMMENT.sub(lambda match: "".join("\n" if char == "\n" else " " for char in match.group()), text)
+    return LINE_COMMENT.sub(lambda match: "".join("\n" if char == "\n" else " " for char in match.group()), text)
 
 
 def load_inventory(path: pathlib.Path) -> dict[str, dict]:
@@ -71,7 +79,7 @@ def findings(root: pathlib.Path) -> list[tuple[str, int, str]]:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        matches = [m for m in TOKENS.finditer(text)]
+        matches = [m for m in TOKENS.finditer(_without_comments(text))]
         if matches:
             rel = path.relative_to(root).as_posix()
             out.extend((rel, text.count("\n", 0, m.start()) + 1, m.group(0)) for m in matches)

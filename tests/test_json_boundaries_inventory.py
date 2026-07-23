@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
+
+from scripts.check_json_boundaries import findings, load_inventory, main
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +32,7 @@ def _tracked_json_paths() -> set[str]:
         ["git", "ls-files"],
         cwd=ROOT,
         text=True,
+        close_fds=False,
     )
     return {
         path
@@ -71,3 +75,38 @@ def test_audited_modules_are_present_and_target_runtime_owned_state() -> None:
     assert "HBP" in audit["target_format"]
     assert "HBI" in audit["target_format"]
     assert "TOML" in audit["target_format"]
+
+
+def test_comment_only_json_mentions_are_not_findings(tmp_path: Path) -> None:
+    source = tmp_path / "adapter.py"
+    source.write_text("# json.loads(payload)\n# sessions.json is legacy\n", encoding="utf-8")
+
+    assert findings(tmp_path) == []
+
+
+def test_external_adapter_is_an_exact_strict_mode_exception(
+    tmp_path: Path, monkeypatch
+) -> None:
+    adapter = tmp_path / "adapter.py"
+    adapter.write_text("import json\njson.loads(payload)\n", encoding="utf-8")
+    inventory = tmp_path / "inventory.toml"
+    inventory.write_text(
+        """format = 'test'\n\n[[audit]]\nkind = 'adapter'\npaths = ['adapter.py']\nproducer = 'external protocol'\nconsumer = 'adapter'\nlifecycle = 'wire format'\ncategory = 'external protocol adapter'\nowner = 'test owner'\ntarget_format = 'preserve external JSON'\nstatus = 'exception'\nreason = 'protocol-owned wire format'\nexpires = '2099-12-31'\n""",
+        encoding="utf-8",
+    )
+
+    assert load_inventory(inventory)["adapter.py"]["status"] == "exception"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_json_boundaries.py",
+            "--root",
+            str(tmp_path),
+            "--inventory",
+            str(inventory),
+            "--mode",
+            "strict",
+        ],
+    )
+    assert main() == 0
