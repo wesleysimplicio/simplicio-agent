@@ -20,6 +20,9 @@ RECEIPT_SCHEMA = "machine-contracts/receipt-metadata/v1"
 MATRIX_SCHEMA = "machine-contracts/compatibility-matrix/v1"
 LEGACY_SCHEMAS = frozenset({"machine_contract", "machine-contract", "legacy-machine-contract"})
 CURRENT_CONTRACT_VERSION = 1
+DEFAULT_COORDINATOR_KIND = "simplicio-agent"
+DEFAULT_COORDINATOR_ID = "simplicio-agent"
+DEFAULT_COORDINATOR_AUTHORITY = "session"
 
 
 def _trim(value: str | None) -> str:
@@ -94,6 +97,9 @@ class MachineContract:
     agent: ComponentIdentity
     runtime: ComponentIdentity
     compatibility: dict[str, Any]
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND
+    coordinator_id: str = DEFAULT_COORDINATOR_ID
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY
     contract_version: int = CURRENT_CONTRACT_VERSION
     schema: str = PRODUCT_SCHEMA
 
@@ -105,6 +111,9 @@ class MachineContract:
             "agent": self.agent.to_dict(),
             "runtime": self.runtime.to_dict(),
             "compatibility": dict(self.compatibility),
+            "coordinator_kind": self.coordinator_kind,
+            "coordinator_id": self.coordinator_id,
+            "authority": self.authority,
         }
 
 
@@ -120,6 +129,9 @@ class ReceiptMetadata:
     path: str | None = None
     environment: str | None = None
     raw_metadata: Mapping[str, Any] = field(default_factory=dict)
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND
+    coordinator_id: str = DEFAULT_COORDINATOR_ID
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY
 
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
@@ -194,6 +206,9 @@ def build_machine_contract(
     runtime_version: str,
     agent_features: tuple[str, ...] = (),
     runtime_features: tuple[str, ...] = (),
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND,
+    coordinator_id: str = DEFAULT_COORDINATOR_ID,
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY,
 ) -> MachineContract:
     product = make_product_identity(product_version)
     agent = make_component_identity(
@@ -216,6 +231,9 @@ def build_machine_contract(
         agent=agent,
         runtime=runtime,
         compatibility=compatibility,
+        coordinator_kind=coordinator_kind,
+        coordinator_id=coordinator_id,
+        authority=authority,
     )
 
 
@@ -312,6 +330,9 @@ def upcast_legacy_contract(payload: Mapping[str, Any]) -> dict[str, Any]:
 __all__ = [
     "COMPONENT_SCHEMA",
     "CURRENT_CONTRACT_VERSION",
+    "DEFAULT_COORDINATOR_AUTHORITY",
+    "DEFAULT_COORDINATOR_ID",
+    "DEFAULT_COORDINATOR_KIND",
     "ENVELOPE_SCHEMA",
     "LEGACY_SCHEMAS",
     "MATRIX_SCHEMA",

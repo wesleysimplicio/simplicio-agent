@@ -42,6 +42,35 @@ def test_build_machine_contract_separates_agent_and_runtime_identities():
     assert contract["runtime"]["boundary"] == "deterministic_kernel"
     assert contract["agent"]["capability_envelope"]["features"] == ["chat_ux", "autonomy"]
     assert contract["runtime"]["capability_envelope"]["features"] == ["action_gate", "checkpoint"]
+    assert contract["coordinator_kind"] == "simplicio-agent"
+    assert contract["coordinator_id"] == "simplicio-agent"
+    assert contract["authority"] == "session"
+
+
+def test_machine_contract_and_receipt_metadata_preserve_coordinator_identity():
+    contract = build_machine_contract(
+        product_version="3.40.0",
+        agent_version="3.40.1",
+        runtime_version="3.40.9",
+        coordinator_kind="external-coordinator",
+        coordinator_id="coord-123",
+        authority="turn",
+    ).to_dict()
+    metadata = ReceiptMetadata(
+        request_id="req-123",
+        transport="mcp",
+        redaction_applied=False,
+        coordinator_kind=contract["coordinator_kind"],
+        coordinator_id=contract["coordinator_id"],
+        authority=contract["authority"],
+    ).redacted()
+
+    assert contract["coordinator_kind"] == "external-coordinator"
+    assert contract["coordinator_id"] == "coord-123"
+    assert contract["authority"] == "turn"
+    assert metadata["coordinator_kind"] == "external-coordinator"
+    assert metadata["coordinator_id"] == "coord-123"
+    assert metadata["authority"] == "turn"
 
 
 def test_capability_envelope_declares_schema_producer_window():
