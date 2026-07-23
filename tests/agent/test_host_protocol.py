@@ -106,6 +106,27 @@ def test_host_and_workspace_replays_are_bound_to_the_same_incarnation() -> None:
         workspace_events.replay(workspace_id="workspace-a", after=2)
 
 
+def test_restart_requires_new_incarnation_and_explicit_cursor_zero_resync() -> None:
+    old_instance = new_host_instance_id()
+    new_instance = new_host_instance_id()
+    old_events = HostAdvisoryBuffer(host_instance_id=old_instance)
+    new_events = HostAdvisoryBuffer(host_instance_id=new_instance)
+    old_events.publish("host.ready")
+    new_events.publish("host.ready")
+
+    old_page = old_events.replay(after=0)
+    assert old_page["host_instance_id"] == old_instance
+    assert old_page["next_cursor"] == 1
+
+    with pytest.raises(ValueError, match="does not match"):
+        require_current_host_instance(old_instance, current=new_instance)
+
+    resync = new_events.replay(after=0)
+    assert resync["host_instance_id"] == new_instance
+    assert resync["next_cursor"] == 1
+    assert [event["kind"] for event in resync["events"]] == ["host.ready"]
+
+
 def test_advisory_buffer_replays_after_cursor_without_user_payload() -> None:
     advisories = HostAdvisoryBuffer(max_events=4)
     first = advisories.publish("host.ready")
