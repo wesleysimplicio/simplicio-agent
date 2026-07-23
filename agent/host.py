@@ -59,6 +59,12 @@ class _SessionEntry:
     idempotent_lock: Lock = field(default_factory=Lock)
 
 
+@dataclass(frozen=True)
+class _CorrelatedTurn:
+    identity: SessionIdentity
+    future: Future[AgentConversationResult]
+
+
 class SessionDirectory:
     """Resolve surface identity into a profile-isolated session identity."""
 
@@ -265,9 +271,9 @@ class AgentHost:
         # Only explicitly correlated turns are addressable for cancellation.
         # A running provider call cannot be truthfully reported as cancelled;
         # callers receive ``running`` and must reconcile its terminal receipt.
-        self._turns: dict[str, Future[AgentConversationResult]] = {}
-        self._terminal_turns: dict[str, Future[AgentConversationResult]] = {}
+        self._turns: "OrderedDict[str, _CorrelatedTurn]" = OrderedDict()
         self._turns_lock = Lock()
+        self._max_tracked_turns = max_pending + max_workers
 
     def _track_turn(
         self,
@@ -276,20 +282,59 @@ class AgentHost:
     ) -> Future[AgentConversationResult]:
         if request.turn_id is None:
             return future
+        identity = self.directory.resolve(
+            request.profile,
+            request.session_id,
+            incarnation=request.incarnation,
+            revision=request.revision,
+        )
         with self._turns_lock:
-            self._turns[request.turn_id] = future
-
-        def forget(done: Future[AgentConversationResult]) -> None:
-            with self._turns_lock:
-                if self._turns.get(request.turn_id) is done:
-                    self._turns.pop(request.turn_id, None)
-                    if not done.cancelled():
-                        self._terminal_turns[request.turn_id] = done
-
-        future.add_done_callback(forget)
+            if request.turn_id in self._turns:
+                raise ValueError("turn_id is already tracked")
+            # Retain terminal receipts for reconciliation, but bound them. A
+            # running turn is never evicted merely to make room for a receipt.
+            while len(self._turns) >= self._max_tracked_turns:
+                terminal_id = next(
+                    (key for key, turn in self._turns.items() if turn.future.done()),
+                    None,
+                )
+                if terminal_id is None:
+                    raise HostBackpressure(
+                        "correlated turn ledger is saturated; retry later"
+                    )
+                self._turns.pop(terminal_id)
+            self._turns[request.turn_id] = _CorrelatedTurn(identity, future)
         return future
 
-    def cancel_turn(self, turn_id: str) -> str:
+    def _correlated_turn(
+        self,
+        turn_id: str,
+        *,
+        profile: str,
+        session_id: str,
+        incarnation: str = "default",
+        revision: int = 0,
+    ) -> _CorrelatedTurn | None:
+        if not isinstance(turn_id, str) or not turn_id.strip():
+            raise ValueError("turn_id must be non-empty")
+        expected = self.directory.resolve(
+            profile, session_id, incarnation=incarnation, revision=revision
+        )
+        with self._turns_lock:
+            turn = self._turns.get(turn_id)
+        if turn is not None and turn.identity != expected:
+            raise ValueError("turn identity does not match the correlated request")
+        return turn
+
+    def cancel_turn(
+        self,
+        turn_id: str,
+        *,
+        profile: str,
+        session_id: str,
+        incarnation: str = "default",
+        revision: int = 0,
+    ) -> str:
         """Cancel a queued correlated turn without misreporting a running one.
 
         Returns one of ``cancelled``, ``running``, ``terminal`` or
@@ -297,31 +342,54 @@ class AgentHost:
         provider/tool operation must be reconciled through its final receipt,
         never retried as if cancellation had succeeded.
         """
-        if not isinstance(turn_id, str) or not turn_id.strip():
-            raise ValueError("turn_id must be non-empty")
-        with self._turns_lock:
-            future = self._turns.get(turn_id)
-        if future is None:
+        turn = self._correlated_turn(
+            turn_id,
+            profile=profile,
+            session_id=session_id,
+            incarnation=incarnation,
+            revision=revision,
+        )
+        if turn is None:
             return "not_found"
+        future = turn.future
         if future.cancel():
             return "cancelled"
         if future.done():
             return "terminal"
         return "running"
 
-    def reconcile_turn(self, turn_id: str) -> str:
-        """Return the authoritative lifecycle state for a correlated turn."""
-        if not isinstance(turn_id, str) or not turn_id.strip():
-            raise ValueError("turn_id must be non-empty")
-        with self._turns_lock:
-            future = self._turns.get(turn_id) or self._terminal_turns.get(turn_id)
-        if future is None:
-            return "not_found"
-        if future.cancelled():
-            return "cancelled"
+    def reconcile_turn(
+        self,
+        turn_id: str,
+        *,
+        profile: str,
+        session_id: str,
+        incarnation: str = "default",
+        revision: int = 0,
+    ) -> dict[str, Any]:
+        """Return an authoritative correlated-turn receipt without effects."""
+        turn = self._correlated_turn(
+            turn_id,
+            profile=profile,
+            session_id=session_id,
+            incarnation=incarnation,
+            revision=revision,
+        )
+        if turn is None:
+            return {"state": "not_found"}
+        future = turn.future
         if not future.done():
-            return "running"
-        return "completed" if future.exception() is None else "failed"
+            return {"state": "running"}
+        if future.cancelled():
+            return {"state": "terminal", "outcome": "cancelled"}
+        error = future.exception()
+        if error is not None:
+            return {
+                "state": "terminal",
+                "outcome": "failed",
+                "error": type(error).__name__,
+            }
+        return {"state": "terminal", "result": future.result()}
 
     @staticmethod
     def _coerce_turn_request(

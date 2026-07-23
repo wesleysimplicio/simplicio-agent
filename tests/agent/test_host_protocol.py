@@ -33,6 +33,7 @@ def test_host_protocol_metadata_is_generic_and_code_independent() -> None:
     assert {"workspace.observe", "workspace.advisory"}.issubset(
         metadata["capabilities"]
     )
+    assert {"turn.cancel", "turn.reconcile"}.issubset(metadata["capabilities"])
     assert "code" not in repr(metadata).lower()
 
 
