@@ -474,7 +474,25 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
     def make_agent(identity: Any) -> Any:
         from run_agent import AIAgent
 
-        return AIAgent(session_id=identity.session_id)
+        # AgentHost owns the lifecycle, but the provider/model selection still
+        # comes from the installed Hermes configuration.  Constructing a bare
+        # AIAgent leaves model/provider empty and makes a productive daemon
+        # turn fail before the external request is attempted.
+        from hermes_cli.config import load_config
+
+        config = load_config() or {}
+        model_config = config.get("model", {})
+        if not isinstance(model_config, dict):
+            model_config = {}
+        model = str(model_config.get("default") or "").strip()
+        provider = str(model_config.get("provider") or "").strip() or None
+        base_url = str(model_config.get("base_url") or "").strip() or None
+        return AIAgent(
+            model=model,
+            provider=provider,
+            base_url=base_url,
+            session_id=identity.session_id,
+        )
 
     host = AgentHost(make_agent, max_sessions=32, max_workers=4, max_pending=64)
     host_instance_id = new_host_instance_id()
