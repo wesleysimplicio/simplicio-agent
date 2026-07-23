@@ -67,6 +67,16 @@ except ImportError:  # pragma: no cover - only during isolated/partial checkouts
 PROFILES = ("desktop", "car")
 
 
+def _host_response(
+    payload: dict[str, Any], *, profile: str, host_instance_id: str
+) -> dict[str, Any]:
+    """Attach the versioned discovery envelope to any daemon response."""
+    return {
+        **payload,
+        **host_protocol_metadata(profile, host_instance_id=host_instance_id),
+    }
+
+
 def _hermes_home() -> Path:
     if get_hermes_home is not None:
         try:
@@ -398,6 +408,48 @@ def _handle_host_advisory_request(
         return {"ok": False, "error": str(exc)}
 
 
+def _handle_turn_control_request(
+    request: dict[str, Any],
+    host: AgentHost,
+    *,
+    host_instance_id: str,
+) -> dict[str, Any] | None:
+    """Dispatch fenced, effectful operations on correlated host turns."""
+    op = request.get("op")
+    if op not in {"turn.cancel", "turn.reconcile"}:
+        return None
+    try:
+        allowed = {
+            "op",
+            "host_instance_id",
+            "turn_id",
+            "profile",
+            "session_id",
+            "incarnation",
+            "revision",
+        }
+        if set(request) - allowed:
+            raise ValueError(f"{op} fields must match the allowlist")
+        require_current_host_instance(
+            request.get("host_instance_id"), current=host_instance_id
+        )
+        identity = {
+            "profile": str(request["profile"]),
+            "session_id": str(request["session_id"]),
+            "incarnation": str(request.get("incarnation", "default")),
+            "revision": int(request.get("revision", 0)),
+        }
+        turn_id = request["turn_id"]
+        if op == "turn.cancel":
+            return {
+                "ok": True,
+                "turn": {"state": host.cancel_turn(turn_id, **identity)},
+            }
+        return {"ok": True, "turn": host.reconcile_turn(turn_id, **identity)}
+    except (KeyError, TypeError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> int:
     if profile not in PROFILES:
         print(f"unknown profile: {profile}", file=sys.stderr)
@@ -469,10 +521,9 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
 
     def response(payload: dict[str, Any]) -> dict[str, Any]:
         """Attach discovery data to every daemon response, including errors."""
-        return {
-            **payload,
-            **host_protocol_metadata(profile, host_instance_id=host_instance_id),
-        }
+        return _host_response(
+            payload, profile=profile, host_instance_id=host_instance_id
+        )
 
     try:
         while True:
@@ -517,10 +568,17 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                     advisories,
                     host_instance_id=host_instance_id,
                 )
+                turn_control_resp = _handle_turn_control_request(
+                    req,
+                    host,
+                    host_instance_id=host_instance_id,
+                )
                 if workspace_resp is not None:
                     resp = workspace_resp
                 elif host_advisory_resp is not None:
                     resp = host_advisory_resp
+                elif turn_control_resp is not None:
+                    resp = turn_control_resp
                 elif op == "status":
                     resp = {
                         "ok": True,
@@ -549,10 +607,15 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                     }
                 elif op == "turn.start":
                     try:
+                        require_current_host_instance(
+                            req.get("host_instance_id"), current=host_instance_id
+                        )
                         request = HostTurnRequest.from_mapping(
                             req,
                             default_profile=profile,
                         )
+                        if request.profile != profile:
+                            raise ValueError("profile does not match the active daemon")
                         future = host.submit(request)
                         result = future.result(timeout=float(req.get("timeout", 300)))
                         resp = {"ok": True, "result": result}
@@ -570,19 +633,6 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                         # details remain in the existing AIAgent logs.
                         resp = {"ok": False, "error": type(exc).__name__}
                         advisories.publish("turn.failed")
-                elif op in {"turn.cancel", "turn.reconcile"}:
-                    try:
-                        require_current_host_instance(
-                            req.get("host_instance_id"), current=host_instance_id
-                        )
-                        turn_id = req.get("turn_id")
-                        if op == "turn.cancel":
-                            turn_status = host.cancel_turn(turn_id)
-                        else:
-                            turn_status = host.reconcile_turn(turn_id)
-                        resp = {"ok": True, "status": turn_status, "turn_id": turn_id}
-                    except (TypeError, ValueError) as exc:
-                        resp = {"ok": False, "error": str(exc)}
                 elif op == "shutdown":
                     advisories.publish("host.draining")
                     conn.sendall(json.dumps(response({"ok": True, "bye": True})).encode())

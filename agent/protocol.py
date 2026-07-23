@@ -96,6 +96,7 @@ class HostTurnRequest:
                 "incarnation",
                 "revision",
                 "timeout",
+                "host_instance_id",
             }
         }
         return cls(

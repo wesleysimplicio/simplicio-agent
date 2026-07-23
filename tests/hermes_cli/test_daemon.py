@@ -224,14 +224,26 @@ def test_daemon_publishes_cancel_and_reconcile_capabilities(monkeypatch):
     identity = status["host_instance_id"]
     cancel = daemon_mod._client_request(
         sock_path,
-        {"op": "turn.cancel", "turn_id": "missing", "host_instance_id": identity},
+        {
+            "op": "turn.cancel",
+            "turn_id": "missing",
+            "host_instance_id": identity,
+            "profile": "car",
+            "session_id": "test-session",
+        },
     )
     reconcile = daemon_mod._client_request(
         sock_path,
-        {"op": "turn.reconcile", "turn_id": "missing", "host_instance_id": identity},
+        {
+            "op": "turn.reconcile",
+            "turn_id": "missing",
+            "host_instance_id": identity,
+            "profile": "car",
+            "session_id": "test-session",
+        },
     )
-    assert cancel["status"] == "not_found"
-    assert reconcile["status"] == "not_found"
+    assert cancel["turn"]["state"] == "not_found"
+    assert reconcile["turn"]["state"] == "not_found"
     daemon_mod._client_request(sock_path, {"op": "shutdown"})
     worker.join(timeout=10)
     assert result == [0]
@@ -353,6 +365,108 @@ def test_daemon_replay_handlers_bind_both_streams_to_one_host_incarnation():
     )
     assert workspace_reply["ok"] is True
     assert workspace_reply["workspace_advisories"]["host_instance_id"] == host_instance_id
+
+
+def test_daemon_turn_control_is_productive_and_fenced():
+    from threading import Event
+
+    from agent.host import AgentHost
+    from hermes_cli import daemon as daemon_mod
+
+    started = Event()
+    release = Event()
+
+    class BlockingAgent:
+        def run_conversation(self, message, **kwargs):
+            started.set()
+            release.wait(timeout=2)
+            return {"final_response": message}
+
+    host = AgentHost(lambda identity: BlockingAgent(), max_workers=1)
+    instance = "process-incarnation-000001"
+    try:
+        running = host.submit("desktop", "session-a", "one", turn_id="turn-running")
+        assert started.wait(timeout=1)
+        queued = host.submit("desktop", "session-a", "two", turn_id="turn-queued")
+        base = {
+            "host_instance_id": instance,
+            "profile": "desktop",
+            "session_id": "session-a",
+        }
+        running_cancel = daemon_mod._handle_turn_control_request(
+            {**base, "op": "turn.cancel", "turn_id": "turn-running"},
+            host,
+            host_instance_id=instance,
+        )
+        assert running_cancel == {"ok": True, "turn": {"state": "running"}}
+        queued_cancel = daemon_mod._handle_turn_control_request(
+            {**base, "op": "turn.cancel", "turn_id": "turn-queued"},
+            host,
+            host_instance_id=instance,
+        )
+        assert queued_cancel == {"ok": True, "turn": {"state": "cancelled"}}
+        terminal = daemon_mod._handle_turn_control_request(
+            {**base, "op": "turn.reconcile", "turn_id": "turn-queued"},
+            host,
+            host_instance_id=instance,
+        )
+        assert terminal == {
+            "ok": True,
+            "turn": {"state": "terminal", "outcome": "cancelled"},
+        }
+        missing = daemon_mod._handle_turn_control_request(
+            {**base, "op": "turn.reconcile", "turn_id": "missing"},
+            host,
+            host_instance_id=instance,
+        )
+        assert missing == {"ok": True, "turn": {"state": "not_found"}}
+        stale = daemon_mod._handle_turn_control_request(
+            {
+                **base,
+                "host_instance_id": "process-incarnation-000002",
+                "op": "turn.cancel",
+                "turn_id": "turn-running",
+            },
+            host,
+            host_instance_id=instance,
+        )
+        assert stale["ok"] is False
+        assert "does not match" in stale["error"]
+        assert "process-incarnation-000002" not in stale["error"]
+        release.set()
+        assert running.result(timeout=2)["final_response"] == "one"
+    finally:
+        release.set()
+        host.shutdown()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"ok": True, "pong": True},
+        {"ok": True, "host": {"ready": True}},
+        {"ok": True, "advisories": {"events": []}},
+        {"ok": True, "result": {"final_response": "done"}},
+        {"ok": True, "turn": {"state": "terminal"}},
+    ],
+)
+def test_daemon_responses_include_the_versioned_host_envelope(payload):
+    from hermes_cli import daemon as daemon_mod
+
+    response = daemon_mod._host_response(
+        payload,
+        profile="desktop",
+        host_instance_id="process-incarnation-000001",
+    )
+
+    assert response["protocol_schema"] == "simplicio.agent-host/v1"
+    assert response["protocol_version"] == 1
+    assert response["agent_protocol"] == "agent/v1"
+    assert response["profile"] == "desktop"
+    assert response["host_instance_id"] == "process-incarnation-000001"
+    assert {"turn.start", "turn.cancel", "turn.reconcile"}.issubset(
+        response["capabilities"]
+    )
 
 
 @pytest.mark.parametrize("op", ["host.advisories", "workspace.advisory"])
