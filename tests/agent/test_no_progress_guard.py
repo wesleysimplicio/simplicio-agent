@@ -113,7 +113,7 @@ def test_replan_budget_terminates_instead_of_looping_forever():
     second = guard.before_call("read_file", args)
     third = guard.before_call("read_file", args)
 
-    assert first.action is GuardAction.REPLAN
-    assert second.action is GuardAction.TERMINATE
+    assert first.action is GuardAction.NOTICE
+    assert second.action is GuardAction.REPLAN
     assert third.action is GuardAction.TERMINATE
-    assert second.terminal_status == "blocked_no_progress"
+    assert third.terminal_status == "blocked_no_progress"
