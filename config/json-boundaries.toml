@@ -4,6 +4,30 @@
 format = "simplicio-agent.json-boundaries/v1"
 issue = 517
 source_extensions = [".json", ".jsonl", ".ndjson"]
+reviewed_at = "2026-07-23"
+expires_at = "2026-10-21"
+scan_roots = [
+  ".orchestrator",
+  "apps",
+  "archive",
+  "bench",
+  "benchmarks",
+  "config",
+  "desktop",
+  "docs",
+  "fixtures",
+  "gateway",
+  "optional-skills",
+  "plugins",
+  "scripts",
+  "skills",
+  "tests",
+  "tests-js",
+  "tools",
+  "ui-tui",
+]
+max_files = 10000
+max_bytes = 4194304
 
 [[audit]]
 kind = "module"
@@ -45,10 +69,14 @@ paths = [
   ".orchestrator/loop/journal.jsonl",
   ".orchestrator/loop/watcher_challenge.json",
   ".orchestrator/loop/watcher_state.json",
+  ".orchestrator/pre-impl/169.json",
   ".orchestrator/pre-impl/17.json",
   ".orchestrator/pre-impl/230.json",
   ".orchestrator/pre-impl/400.json",
+  ".orchestrator/pre-impl/493.json",
+  ".orchestrator/pre-impl/498.json",
   ".orchestrator/pre-impl/503.json",
+  ".orchestrator/pre-impl/583.json",
   ".orchestrator/work-items/canonical-state.json",
   "desktop-layout.json",
   "desktop/.orchestrator/learn/pending.jsonl"
@@ -155,6 +183,7 @@ paths = [
   "fixtures/capabilities/repair.json",
   "fixtures/capabilities/router.json",
   "fixtures/capabilities/runtime-mcp-parity.v1.json",
+  "fixtures/evaluation/gaia-repository-task.v1.json",
   "fixtures/cli-identity/invalid-legacy-message.json",
   "fixtures/cli-identity/invalid-message-classification.json",
   "fixtures/cli-identity/invalid-secret-receipt.json",
@@ -322,8 +351,10 @@ paths = [
   "scripts/turbo-speed/baselines/token-diet.json",
   "tools/perf_gate/baseline_ci.json",
   "tools/rename_guard/allowlist.json",
+  "tools/rename_guard/baseline-classification.json",
   "tools/rename_guard/baseline.json",
-  "tools/rename_guard/config.json"
+  "tools/rename_guard/config.json",
+  "docs/rename-inventory-issue-205.json"
 ]
 producer = "performance gate or rename/release tooling"
 consumer = "CI gates and maintainers"
