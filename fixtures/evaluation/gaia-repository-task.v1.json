@@ -1,0 +1,32 @@
+{
+  "schema": "simplicio.evaluation-manifest/v1",
+  "fixture_set": "gaia-repository-task-v1-scrubbed",
+  "controls": {
+    "model_artifact": "fixture-model-sha256:synthetic",
+    "quantization": "fixture-quant-v1",
+    "hardware": "local-runner-recorded-by-caller",
+    "tool_access": "repository-tools-v1",
+    "timeout_seconds": 120,
+    "step_budget": 12,
+    "warmup": 1,
+    "seeds": [7, 11],
+    "workspace_policy": "fresh-isolated-workspace-per-task"
+  },
+  "configurations": [
+    {"id": "agent-current-compat", "agent_variant": "current", "backend": "compatibility", "profile": "default"},
+    {"id": "agent-cache-compat", "agent_variant": "cache-aware", "backend": "compatibility", "profile": "default"},
+    {"id": "agent-cache-turboquant", "agent_variant": "cache-aware", "backend": "compatibility", "profile": "turboquant"},
+    {"id": "agent-cache-speculative", "agent_variant": "cache-aware", "backend": "compatibility", "profile": "speculative"},
+    {"id": "reference-adapter", "agent_variant": "reference", "backend": "reference-adapter", "profile": "default"}
+  ],
+  "comparisons": [
+    {"id": "current-vs-cache", "before": "agent-current-compat", "after": "agent-cache-compat", "changed_variables": ["agent_variant"]},
+    {"id": "compat-vs-turboquant", "before": "agent-cache-compat", "after": "agent-cache-turboquant", "changed_variables": ["profile"]},
+    {"id": "compat-vs-speculative", "before": "agent-cache-compat", "after": "agent-cache-speculative", "changed_variables": ["profile"]},
+    {"id": "cache-vs-reference", "before": "agent-cache-compat", "after": "reference-adapter", "changed_variables": ["agent_variant"]}
+  ],
+  "tasks": [
+    {"id": "gaia-synthetic-multistep-001", "lane": "gaia", "prompt": "Combine the two scrubbed clues and return the expected token.", "expected_answer": "42"},
+    {"id": "repository-task-validation-001", "lane": "repository-task", "prompt": "Make the smallest safe change and report the validation receipt.", "expected_answer": "validated"}
+  ]
+}
