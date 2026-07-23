@@ -154,24 +154,53 @@ def test_write_existing_file_rejects_unacknowledged_runtime_edit(tmp_path, monke
     assert path.read_text(encoding="utf-8") == "old"
 
 
-def test_write_new_file_is_an_explicit_runtime_gap(tmp_path, monkeypatch):
+def test_write_new_file_and_parent_directories_use_runtime_file_write(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    runtime = StubRuntime({})
+    monkeypatch.setenv("TERMINAL_CWD", str(repo))
+    runtime = StubRuntime({"simplicio_file_write": {"applied": True}})
     monkeypatch.setattr(
         "tools.kernel_binding.evaluate_action_gate", lambda *args, **kwargs: None
     )
 
     result = dispatch_native_tool(
         "write_file",
-        {"path": "new.txt", "content": "new"},
+        {"path": "nested/new.txt", "content": "new"},
         task_id="test",
         transport=runtime,
     )
 
-    assert result.status == "gap"
-    assert result.reason == "runtime_edit_does_not_create_files"
-    assert runtime.calls == []
+    assert result.status == "executed"
+    assert json.loads(result.result)["files_modified"] == [str(repo / "nested" / "new.txt")]
+    assert runtime.calls == [(
+        "simplicio_file_write",
+        {
+            "path": str(repo / "nested" / "new.txt"),
+            "content": "new",
+            "repo": str(repo),
+            "create_parents": True,
+        },
+    )]
+
+
+def test_runtime_file_write_cli_contract_is_explicit():
+    import subprocess
+
+    process = subprocess.CompletedProcess(
+        ["simplicio"], 0, stdout='{"applied":true}', stderr=""
+    )
+    with patch("tools.simplicio_transport.subprocess.run", return_value=process) as run:
+        result = SimplicioTransport(cli_bin="simplicio").call_tool(
+            "simplicio_file_write",
+            {"path": "/repo/nested/new.txt", "content": "new", "repo": "/repo", "create_parents": True},
+        )
+
+    assert result.ok is True
+    assert result.transport == "cli"
+    assert run.call_args.args[0] == [
+        "simplicio", "file", "write", "/repo/nested/new.txt", "--content", "new", "--json",
+        "--repo", "/repo", "--create-parents",
+    ]
 
 
 def test_tools_without_parity_report_a_gap_before_native_fallback():

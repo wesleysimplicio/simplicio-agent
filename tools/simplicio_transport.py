@@ -551,6 +551,19 @@ class SimplicioTransport:
                     argv += [flag, str(value)]
             return argv, None
 
+        if name == "simplicio_file_write":
+            path = tool_args.get("path")
+            content = tool_args.get("content")
+            if not isinstance(path, str) or not path or not isinstance(content, str):
+                return None
+            argv = ["file", "write", path, "--content", content, "--json"]
+            repo = tool_args.get("repo")
+            if isinstance(repo, str) and repo:
+                argv += ["--repo", repo]
+            if tool_args.get("create_parents") is True:
+                argv.append("--create-parents")
+            return argv, None
+
         if name == "simplicio_edit":
             plan = tool_args.get("plan")
             if not isinstance(plan, str) or not plan:
