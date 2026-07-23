@@ -261,11 +261,21 @@ def test_host_turn_request_does_not_forward_transport_fencing_metadata():
             "session_id": "session-a",
             "message": "hello",
             "host_instance_id": "process-incarnation-000001",
+            "workspace_id": "workspace-a",
+            "run_id": "run-a",
+            "stage_id": "conversation",
+            "fence": "7",
+            "provider_kwarg": "keep-me",
         },
         default_profile="desktop",
     )
 
     assert "host_instance_id" not in request.conversation_kwargs
+    assert all(
+        field not in request.conversation_kwargs
+        for field in ("workspace_id", "run_id", "stage_id", "fence")
+    )
+    assert request.conversation_kwargs["provider_kwarg"] == "keep-me"
 
 
 def test_session_lifecycle_wraps_turn_with_correlation_ids_and_closes_on_eviction():

@@ -97,6 +97,12 @@ class HostTurnRequest:
                 "revision",
                 "timeout",
                 "host_instance_id",
+                # Control-plane identity belongs to AgentHost fencing and
+                # must never leak into AIAgent.run_conversation kwargs.
+                "workspace_id",
+                "run_id",
+                "stage_id",
+                "fence",
             }
         }
         return cls(
