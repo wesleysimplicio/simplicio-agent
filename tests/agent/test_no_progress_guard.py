@@ -99,3 +99,21 @@ def test_journal_is_bounded_and_serialization_has_no_reasoning():
         guard.before_call("read_file", {"path": f"{index}.txt"})
     assert len(guard.snapshot()) == 3
     assert "reasoning" not in guard.before_call("read_file", {"path": "last.txt"}).to_dict()
+
+def test_replan_budget_terminates_instead_of_looping_forever():
+    guard = NoProgressGuard(
+        GuardPolicy(warning_threshold=1, veto_threshold=6, hard_threshold=8, replan_threshold=2)
+    )
+    args = {"path": "unchanged.txt"}
+    guard.before_call("read_file", args)
+    for _ in range(3):
+        guard.record_result("read_file", args, {"content": "same"}, failure_code="unchanged")
+
+    first = guard.before_call("read_file", args)
+    second = guard.before_call("read_file", args)
+    third = guard.before_call("read_file", args)
+
+    assert first.action is GuardAction.REPLAN
+    assert second.action is GuardAction.TERMINATE
+    assert third.action is GuardAction.TERMINATE
+    assert second.terminal_status == "blocked_no_progress"
