@@ -35,7 +35,6 @@ paths = [
   "desktop/src/lib/persisted.ts",
   "desktop/src/lib/json-format.ts",
   "agent/serde/fast_json.py",
-  "agent/tool_call_json.py",
   "agent/state_migration.py",
   "agent/event_store.py",
   "agent/memory_manager.py",
@@ -53,6 +52,19 @@ lifecycle = "source module containing a JSON boundary; migrate only after produc
 category = "owned internal boundary or adapter-contained external boundary"
 owner = "simplicio-agent; simplicio-runtime for Runtime-owned HBP/HBI contracts"
 target_format = "HBP/HBI/TOML according to ownership; raw external tool-call JSON remains adapter-contained"
+
+[[audit]]
+kind = "adapter"
+paths = ["agent/tool_call_json.py"]
+producer = "OpenAI-style tool-call adapter"
+consumer = "external tool-call protocol"
+lifecycle = "third-party JSON at an explicit adapter boundary"
+category = "external protocol adapter"
+owner = "simplicio-agent tool adapter maintainers"
+target_format = "preserve external JSON at adapter boundary"
+status = "exception"
+reason = "JSON is the wire format owned by the external tool-call protocol; it must not enter internal state types."
+expires = "2099-12-31"
 
 [[boundary]]
 category_id = "internal_state_evidence"
@@ -363,3 +375,17 @@ category = "internal evidence/tooling"
 owner = "CI and release tooling owners"
 target_format = "TOML for human-edited configuration; HBP for auditable evidence; preserve only exact tool-required JSON"
 rationale = "These paths require a follow-up owner decision; they are explicitly not unclassified."
+
+[[boundary]]
+category_id = "repository_manifest_or_fixture"
+paths = [
+  "docs/rename-inventory-issue-205.json",
+  "fixtures/evaluation/gaia-repository-task.v1.json"
+]
+producer = "repository audit and evaluation fixture maintainers"
+consumer = "rename audit tooling and evaluation harness"
+lifecycle = "versioned audit manifest or benchmark fixture"
+category = "test/benchmark or internal evidence"
+owner = "repository quality and evaluation maintainers"
+target_format = "preserve JSON as the versioned manifest or fixture contract"
+rationale = "These JSON files are explicit audit/evaluation inputs, not agent runtime persistence."
