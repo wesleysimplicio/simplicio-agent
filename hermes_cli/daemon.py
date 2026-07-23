@@ -12,6 +12,7 @@ isn't available in a given environment.
 
 Subcommands:
     simplicio-agent daemon start [--profile desktop|car] [--socket PATH] [--idle-ttl-s N]
+        [--deterministic-e2e]
     simplicio-agent daemon stop  [--socket PATH]
     simplicio-agent daemon status [--socket PATH]
 
@@ -65,6 +66,25 @@ except ImportError:  # pragma: no cover - only during isolated/partial checkouts
     get_hermes_home = None  # type: ignore[assignment]
 
 PROFILES = ("desktop", "car")
+
+
+class DeterministicE2EAgent:
+    """Provider-free AgentProtocol implementation for installed contract tests.
+
+    This is deliberately opt-in at the daemon CLI boundary. It exercises the
+    real AgentHost lifecycle, identity fencing, cancellation, and replay
+    surfaces without selecting a provider or embedding an LLM in Runtime.
+    """
+
+    def run_conversation(self, user_message: str, **kwargs: Any) -> dict[str, Any]:
+        return {
+            "final_response": f"deterministic-e2e:{user_message}",
+            "messages": [],
+            "api_calls": 0,
+            "completed": True,
+            "failed": False,
+            "interrupted": False,
+        }
 
 
 def _host_response(
@@ -450,7 +470,13 @@ def _handle_turn_control_request(
         return {"ok": False, "error": str(exc)}
 
 
-def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> int:
+def _serve(
+    sock_path: Path,
+    profile: str,
+    idle_ttl_s: float | None = None,
+    *,
+    deterministic_e2e: bool = False,
+) -> int:
     if profile not in PROFILES:
         print(f"unknown profile: {profile}", file=sys.stderr)
         return 2
@@ -472,6 +498,8 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
     # The warm daemon is a real AgentHost surface.  The host owns identity,
     # leases, and turn ordering while AIAgent remains the execution engine.
     def make_agent(identity: Any) -> Any:
+        if deterministic_e2e:
+            return DeterministicE2EAgent()
         from run_agent import AIAgent
 
         # AgentHost owns the lifecycle, but the provider/model selection still
@@ -716,6 +744,11 @@ def build_parser() -> argparse.ArgumentParser:
             "(default: $SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S or 1800)"
         ),
     )
+    s.add_argument(
+        "--deterministic-e2e",
+        action="store_true",
+        help="Use the provider-free AgentProtocol fixture for installed contract E2E only",
+    )
 
     st = sub.add_parser("stop", help="Stop the warm daemon")
     st.add_argument("--socket", default=None)
@@ -735,7 +768,12 @@ def main(argv: list[str] | None = None) -> int:
     sock = _socket_path(args.socket)
 
     if args.cmd == "start":
-        return _serve(sock, args.profile, idle_ttl_s=args.idle_ttl_s)
+        return _serve(
+            sock,
+            args.profile,
+            idle_ttl_s=args.idle_ttl_s,
+            deterministic_e2e=args.deterministic_e2e,
+        )
     if args.cmd == "stop":
         resp = _client_request(sock, {"op": "shutdown"})
         print(json.dumps(resp))

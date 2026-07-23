@@ -48,6 +48,11 @@ def build_daemon_parser(subparsers, *, cmd_daemon: Callable) -> None:
             "(default: $SIMPLICIO_AGENT_DAEMON_IDLE_TTL_S or 1800)"
         ),
     )
+    daemon_start.add_argument(
+        "--deterministic-e2e",
+        action="store_true",
+        help="Use the provider-free AgentProtocol fixture for installed contract E2E only",
+    )
 
     # daemon stop
     daemon_stop = daemon_subparsers.add_parser("stop", help="Stop the warm daemon")

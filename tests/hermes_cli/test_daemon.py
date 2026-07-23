@@ -149,6 +149,19 @@ def test_daemon_start_help_uses_warm_profile_flag_not_global_profile():
     assert "--warm-profile" in result.stdout
 
 
+def test_deterministic_e2e_mode_is_explicit_and_provider_free():
+    from hermes_cli.daemon import DeterministicE2EAgent
+
+    result = DeterministicE2EAgent().run_conversation("contract probe")
+    assert result["completed"] is True
+    assert result["api_calls"] == 0
+    assert result["final_response"] == "deterministic-e2e:contract probe"
+
+    help_result = _run_cli("daemon", "start", "--help")
+    assert help_result.returncode == 0, help_result.stderr
+    assert "--deterministic-e2e" in help_result.stdout
+
+
 def test_daemon_status_help_reachable():
     result = _run_cli("daemon", "status", "--help")
     assert result.returncode == 0, result.stderr
