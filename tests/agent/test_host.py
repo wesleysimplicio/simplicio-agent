@@ -110,15 +110,44 @@ def test_cancel_turn_cancels_only_a_queued_correlated_turn():
     try:
         running = host.submit("p", "s", "running", turn_id="running")
         assert started.wait(timeout=1)
-        assert host.cancel_turn("running") == "running"
+        assert host.cancel_turn("running", profile="p", session_id="s") == "running"
         queued = host.submit("p", "s", "queued", turn_id="queued")
-        assert host.cancel_turn("queued") == "cancelled"
+        assert host.cancel_turn("queued", profile="p", session_id="s") == "cancelled"
         with pytest.raises(CancelledError):
             queued.result(timeout=1)
-        assert host.cancel_turn("queued") == "not_found"
+        assert (
+            host.reconcile_turn("queued", profile="p", session_id="s")["state"]
+            == "terminal"
+        )
         gate.set()
-        running.result(timeout=2)
-        assert host.cancel_turn("running") == "not_found"
+        result = running.result(timeout=2)
+        receipt = host.reconcile_turn("running", profile="p", session_id="s")
+        assert receipt == {"state": "terminal", "result": result}
+    finally:
+        gate.set()
+        host.shutdown()
+
+
+def test_correlated_turn_operations_fail_closed_on_identity_mismatch():
+    gate = Event()
+    started = Event()
+    host = AgentHost(lambda identity: FakeAgent(identity.session_id, started, gate))
+    try:
+        future = host.submit(
+            "p", "s", "running", turn_id="turn-1", incarnation="inc-1", revision=2
+        )
+        assert started.wait(timeout=1)
+        with pytest.raises(ValueError, match="identity"):
+            host.cancel_turn("turn-1", profile="p", session_id="other")
+        with pytest.raises(ValueError, match="identity"):
+            host.reconcile_turn(
+                "turn-1", profile="p", session_id="s", incarnation="inc-1", revision=3
+            )
+        assert host.reconcile_turn(
+            "turn-1", profile="p", session_id="s", incarnation="inc-1", revision=2
+        )["state"] == "running"
+        gate.set()
+        future.result(timeout=2)
     finally:
         gate.set()
         host.shutdown()
@@ -224,6 +253,19 @@ def test_typed_host_turn_request_preserves_existing_host_behavior():
         assert created[0].calls == [("hello", {"task_id": "task-1"})]
     finally:
         host.shutdown()
+
+
+def test_host_turn_request_does_not_forward_transport_fencing_metadata():
+    request = HostTurnRequest.from_mapping(
+        {
+            "session_id": "session-a",
+            "message": "hello",
+            "host_instance_id": "process-incarnation-000001",
+        },
+        default_profile="desktop",
+    )
+
+    assert "host_instance_id" not in request.conversation_kwargs
 
 
 def test_session_lifecycle_wraps_turn_with_correlation_ids_and_closes_on_eviction():

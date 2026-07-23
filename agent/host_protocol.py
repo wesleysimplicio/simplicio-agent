@@ -34,6 +34,8 @@ HOST_CAPABILITIES: Final = (
     "ping",
     "shutdown",
     "turn.start",
+    "turn.cancel",
+    "turn.reconcile",
     "workspace.advisory",
     "workspace.observe",
 )
