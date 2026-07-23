@@ -144,6 +144,62 @@ def _ra():
 def _is_interpreter_shutdown_submit_error(exc: RuntimeError) -> bool:
     return "cannot schedule new futures after interpreter shutdown" in str(exc)
 
+def _no_progress_guard_for(agent):
+    guard = getattr(agent, "_no_progress_guard", None)
+    if guard is None:
+        from agent.no_progress_guard import NoProgressGuard
+
+        guard = NoProgressGuard()
+        agent._no_progress_guard = guard
+    return guard
+
+
+def _before_no_progress_guard(agent, function_name: str, function_args: dict):
+    """Run the semantic guard before any checkpoint or tool side effect."""
+    try:
+        from agent.no_progress_guard import GuardAction
+
+        declared_polling = bool(function_args.get("declared_polling")) or function_name in {
+            "get_status",
+            "poll",
+            "wait_for",
+        }
+        decision = _no_progress_guard_for(agent).before_call(
+            function_name,
+            function_args,
+            declared_polling=declared_polling,
+            user_requested_wait=bool(function_args.get("user_requested_wait")),
+        )
+        agent._last_no_progress_guard_receipt = decision.to_dict()
+        if decision.action in {
+            GuardAction.VETO,
+            GuardAction.REPLAN,
+            GuardAction.TERMINATE,
+        }:
+            return decision
+    except Exception as exc:
+        # The guard is additive; an import/configuration failure must remain
+        # visible without creating a second execution path.
+        logger.warning("UNVERIFIED| no-progress guard unavailable: %s", exc)
+    return None
+
+
+def _record_no_progress_guard_result(agent, function_name: str, function_args: dict, result: Any) -> None:
+    """Record a bounded post-call observation without exposing tool arguments."""
+    try:
+        is_error, failure_code = _detect_tool_failure(function_name, result)
+        decision = _no_progress_guard_for(agent).record_result(
+            function_name,
+            function_args,
+            result,
+            failure_code=str(failure_code or "") if is_error else "",
+            result_category="error" if is_error else "success",
+            declared_polling=function_name in {"get_status", "poll", "wait_for"},
+        )
+        agent._last_no_progress_guard_receipt = decision.to_dict()
+    except Exception as exc:
+        logger.warning("UNVERIFIED| no-progress guard result unavailable: %s", exc)
+
 
 def _emit_terminal_post_tool_call(
     agent,
@@ -464,7 +520,29 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
         # checkpoint state (dedup slot, real snapshots).
         block_result = None
         blocked_by_guardrail = False
-        if _ts_scope_block is not None:
+        _no_progress_block = _before_no_progress_guard(agent, function_name, function_args)
+        if _no_progress_block is not None:
+            block_result = json.dumps(
+                {
+                    "error": _no_progress_block.notice or "tool call blocked by no-progress guard",
+                    "reason_code": _no_progress_block.reason.value,
+                    "receipt": _no_progress_block.receipt,
+                },
+                ensure_ascii=False,
+            )
+            _emit_terminal_post_tool_call(
+                agent,
+                function_name=function_name,
+                function_args=function_args,
+                result=block_result,
+                effective_task_id=effective_task_id,
+                tool_call_id=getattr(tool_call, "id", "") or "",
+                status="blocked",
+                error_type="no_progress_guard",
+                error_message=_no_progress_block.notice,
+                middleware_trace=list(middleware_trace),
+            )
+        elif _ts_scope_block is not None:
             # Out-of-scope tool_call: reject before hooks/guardrails/dispatch.
             block_result = _ts_scope_block
             _emit_terminal_post_tool_call(
@@ -528,7 +606,12 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                     )
 
         if block_result is not None:
-            if _ts_scope_block is not None:
+            if _no_progress_block is not None:
+                _blocked_by = "no-progress-guard"
+                _blocked_stage = "no-progress"
+                _blocked_error_type = "no_progress_guard"
+                _blocked_reason = _no_progress_block.notice
+            elif _ts_scope_block is not None:
                 _blocked_by = "tool-scope"
                 _blocked_stage = "authorize"
                 _blocked_error_type = "tool_scope_block"
@@ -697,6 +780,7 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
             except Exception as tool_error:
                 result = f"Error executing tool '{function_name}': {tool_error}"
                 logger.error("_invoke_tool raised for %s: %s", function_name, tool_error, exc_info=True)
+            _record_no_progress_guard_result(agent, function_name, function_args, result)
             duration = time.time() - start
             is_error, _ = _detect_tool_failure(function_name, result)
             if is_error:
@@ -1146,6 +1230,20 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 or "tool invocation blocked by pipeline"
             )
             _block_error_type = "pipeline_gate"
+
+        _no_progress_block = None
+        if _block_msg is None and _guardrail_block_decision is None:
+            _no_progress_block = _before_no_progress_guard(agent, function_name, function_args)
+            if _no_progress_block is not None:
+                _block_msg = json.dumps(
+                    {
+                        "error": _no_progress_block.notice or "tool call blocked by no-progress guard",
+                        "reason_code": _no_progress_block.reason.value,
+                        "receipt": _no_progress_block.receipt,
+                    },
+                    ensure_ascii=False,
+                )
+                _block_error_type = "no_progress_guard"
 
         _execution_blocked = _block_msg is not None or _guardrail_block_decision is not None
 
@@ -1614,6 +1712,8 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 logger.error("handle_function_call raised for %s: %s", function_name, tool_error, exc_info=True)
             tool_duration = time.time() - tool_start_time
 
+        _record_no_progress_guard_result(agent, function_name, function_args, function_result)
+
         if isinstance(function_result, str):
             result_preview = function_result if agent.verbose_logging else (
                 function_result[:200] if len(function_result) > 200 else function_result
@@ -1659,7 +1759,10 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
         _pipeline_blocked_by = ""
         _pipeline_error_message = ""
         if _execution_blocked:
-            if _ts_scope_block is not None:
+            if _no_progress_block is not None:
+                _pipeline_blocked_by = "no-progress-guard"
+                _pipeline_error_message = _no_progress_block.notice
+            elif _ts_scope_block is not None:
                 _pipeline_blocked_by = "tool-scope"
                 _pipeline_error_message = _ts_scope_block
             elif _guardrail_block_decision is not None:
