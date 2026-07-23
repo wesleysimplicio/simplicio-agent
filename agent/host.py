@@ -266,6 +266,7 @@ class AgentHost:
         # A running provider call cannot be truthfully reported as cancelled;
         # callers receive ``running`` and must reconcile its terminal receipt.
         self._turns: dict[str, Future[AgentConversationResult]] = {}
+        self._terminal_turns: dict[str, Future[AgentConversationResult]] = {}
         self._turns_lock = Lock()
 
     def _track_turn(
@@ -282,6 +283,8 @@ class AgentHost:
             with self._turns_lock:
                 if self._turns.get(request.turn_id) is done:
                     self._turns.pop(request.turn_id, None)
+                    if not done.cancelled():
+                        self._terminal_turns[request.turn_id] = done
 
         future.add_done_callback(forget)
         return future
@@ -305,6 +308,20 @@ class AgentHost:
         if future.done():
             return "terminal"
         return "running"
+
+    def reconcile_turn(self, turn_id: str) -> str:
+        """Return the authoritative lifecycle state for a correlated turn."""
+        if not isinstance(turn_id, str) or not turn_id.strip():
+            raise ValueError("turn_id must be non-empty")
+        with self._turns_lock:
+            future = self._turns.get(turn_id) or self._terminal_turns.get(turn_id)
+        if future is None:
+            return "not_found"
+        if future.cancelled():
+            return "cancelled"
+        if not future.done():
+            return "running"
+        return "completed" if future.exception() is None else "failed"
 
     @staticmethod
     def _coerce_turn_request(

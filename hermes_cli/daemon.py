@@ -570,6 +570,19 @@ def _serve(sock_path: Path, profile: str, idle_ttl_s: float | None = None) -> in
                         # details remain in the existing AIAgent logs.
                         resp = {"ok": False, "error": type(exc).__name__}
                         advisories.publish("turn.failed")
+                elif op in {"turn.cancel", "turn.reconcile"}:
+                    try:
+                        require_current_host_instance(
+                            req.get("host_instance_id"), current=host_instance_id
+                        )
+                        turn_id = req.get("turn_id")
+                        if op == "turn.cancel":
+                            turn_status = host.cancel_turn(turn_id)
+                        else:
+                            turn_status = host.reconcile_turn(turn_id)
+                        resp = {"ok": True, "status": turn_status, "turn_id": turn_id}
+                    except (TypeError, ValueError) as exc:
+                        resp = {"ok": False, "error": str(exc)}
                 elif op == "shutdown":
                     advisories.publish("host.draining")
                     conn.sendall(json.dumps(response({"ok": True, "bye": True})).encode())
