@@ -36,7 +36,7 @@ def _default_ledger_path() -> Path:
     """Return ``<HERMES_HOME>/telemetry/turn_metrics.jsonl``.
 
     Derived from ``hermes_constants.get_hermes_home()`` instead of a
-    hardcoded ``Path.home() / ".hermes"`` so it honors
+    hardcoded ``Path.home() / ".simplicio_agent"`` so it honors
     ``SIMPLICIO_AGENT_HOME``/``HERMES_HOME`` and any migration (issue #117).
     """
     from hermes_constants import get_hermes_home

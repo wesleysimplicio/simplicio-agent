@@ -1,10 +1,10 @@
 #!/bin/bash
 # Fix the Simplicio enforcement plugin
-# This script edits ~/.hermes/plugins/simplicio/tools.py to:
+# This script edits ~/.simplicio_agent/plugins/simplicio/tools.py to:
 # 1. Fix the register_tool argument schemas
 # 2. Remove or disable the pre_tool_call enforcement hook
 
-PLUGIN_DIR="$HOME/.hermes/plugins/simplicio"
+PLUGIN_DIR="$HOME/.simplicio_agent/plugins/simplicio"
 TOOLS_PY="$PLUGIN_DIR/tools.py"
 BACKUP="$TOOLS_PY.bak.$(date +%s)"
 
@@ -23,7 +23,7 @@ cp "$TOOLS_PY" "$BACKUP"
 python3 << 'PYFIX'
 import re
 
-with open("$HOME/.hermes/plugins/simplicio/tools.py", "r") as f:
+with open("$HOME/.simplicio_agent/plugins/simplicio/tools.py", "r") as f:
     content = f.read()
 
 # Show what's in the file (first 50 lines)
@@ -40,7 +40,7 @@ content = content.replace("register_hook", "# DISABLED: register_hook")
 # Fix empty arguments dicts in register_tool calls
 content = content.replace("arguments={}", 'arguments={"task": {"type": "string", "description": "Command or task to execute"}}')
 
-with open("$HOME/.hermes/plugins/simplicio/tools.py", "w") as f:
+with open("$HOME/.simplicio_agent/plugins/simplicio/tools.py", "w") as f:
     f.write(content)
 
 print("File updated")

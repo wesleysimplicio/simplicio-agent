@@ -108,7 +108,7 @@ def _disk_cache_path(home_path: Optional[Path] = None) -> Path:
     """Return the disk cache path under hermes_home/cache/.
 
     Thin wrapper over the shared DiskCache, kept for tests and any direct
-    callers; falls back to `$HERMES_HOME` / `~/.hermes` when home is None.
+    callers; falls back to `$HERMES_HOME` / `~/.simplicio_agent` when home is None.
     """
     return _DISK_CACHE.path(home_path)
 
@@ -373,7 +373,7 @@ def fetch_bitwarden_secrets(
     ``<hermes_home>/cache/bws_cache.json`` (for back-to-back CLI invocations).
     Both share the same TTL.  Pass ``home_path`` so disk cache lookups find
     the right directory in tests / non-standard installs; otherwise we fall
-    back to ``$HERMES_HOME`` / ``~/.hermes``.
+    back to ``$HERMES_HOME`` / ``~/.simplicio_agent``.
 
     Raises :class:`RuntimeError` for fatal conditions (missing binary,
     auth failure, unparseable output).  Callers in the env_loader path

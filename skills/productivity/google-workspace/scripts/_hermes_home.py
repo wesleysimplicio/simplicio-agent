@@ -29,7 +29,7 @@ except (ModuleNotFoundError, ImportError):
 
         Mirrors ``hermes_constants.get_hermes_home()``."""
         val = (os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME") or "").strip()
-        return Path(val) if val else Path.home() / ".hermes"
+        return Path(val) if val else Path.home() / ".simplicio_agent"
 
     def display_hermes_home() -> str:
         """Return a user-friendly ``~/``-shortened display string.

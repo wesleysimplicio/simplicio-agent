@@ -35,7 +35,7 @@ except Exception:  # pragma: no cover — plugin may load before constants resol
 
     def get_hermes_home() -> Path:  # type: ignore[no-redef]
         val = (os.environ.get("SIMPLICIO_AGENT_HOME") or os.environ.get("HERMES_HOME") or "").strip()
-        return Path(val).resolve() if val else (Path.home() / ".hermes").resolve()
+        return Path(val).resolve() if val else (Path.home() / ".simplicio_agent").resolve()
 
 
 logger = logging.getLogger(__name__)

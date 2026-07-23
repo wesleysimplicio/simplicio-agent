@@ -113,8 +113,8 @@ def _get_platform_default_hermes_home() -> Path:
         base = (
             Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
         )
-        return base / "hermes"
-    return Path.home() / ".hermes"
+        return base / "simplicio_agent"
+    return Path.home() / ".simplicio_agent"
 
 
 def get_hermes_home() -> Path:

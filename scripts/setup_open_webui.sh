@@ -31,14 +31,14 @@ OPEN_WEBUI_ENABLE_SIGNUP="${OPEN_WEBUI_ENABLE_SIGNUP:-true}"
 OPEN_WEBUI_ENABLE_SERVICE="${OPEN_WEBUI_ENABLE_SERVICE:-auto}"
 OPEN_WEBUI_VENV="${OPEN_WEBUI_VENV:-$HOME/.local/open-webui-venv}"
 OPEN_WEBUI_DATA_DIR="${OPEN_WEBUI_DATA_DIR:-$HOME/.local/share/open-webui/data}"
-HERMES_ENV_FILE="${HERMES_ENV_FILE:-$HOME/.hermes/.env}"
+HERMES_ENV_FILE="${HERMES_ENV_FILE:-$HOME/.simplicio_agent/.env}"
 HERMES_API_PORT="${HERMES_API_PORT:-8642}"
 HERMES_API_HOST="${HERMES_API_HOST:-127.0.0.1}"
 HERMES_API_CONNECT_HOST="${HERMES_API_CONNECT_HOST:-127.0.0.1}"
 HERMES_API_MODEL_NAME="${HERMES_API_MODEL_NAME:-Hermes Agent}"
 HERMES_API_BASE_URL="http://${HERMES_API_CONNECT_HOST}:${HERMES_API_PORT}/v1"
 LAUNCHER_PATH="$HOME/.local/bin/start-open-webui-hermes.sh"
-LOG_DIR="$HOME/.hermes/logs"
+LOG_DIR="$HOME/.simplicio_agent/logs"
 
 log() {
   printf '[open-webui-bootstrap] %s\n' "$*"
@@ -184,7 +184,7 @@ set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 API_KEY=\$(python3 - <<'PY'
 from pathlib import Path
-p = Path.home()/'.hermes'/'.env'
+p = Path.home()/'.simplicio_agent'/'.env'
 for raw in p.read_text().splitlines():
     line = raw.strip()
     if line.startswith('API_SERVER_KEY='):
@@ -271,8 +271,8 @@ ExecStart=/bin/bash %h/.local/bin/start-open-webui-hermes.sh
 Restart=always
 RestartSec=3
 WorkingDirectory=%h
-StandardOutput=append:%h/.hermes/logs/openwebui.log
-StandardError=append:%h/.hermes/logs/openwebui.error.log
+StandardOutput=append:%h/.simplicio_agent/logs/openwebui.log
+StandardError=append:%h/.simplicio_agent/logs/openwebui.error.log
 
 [Install]
 WantedBy=default.target

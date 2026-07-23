@@ -78,11 +78,11 @@ def resolve_cache_home(home_path: Optional[Path] = None) -> Path:
     """Resolve the Hermes home used for cache paths.
 
     ``home_path`` is whatever ``load_hermes_dotenv()`` already resolved;
-    falling back to ``$HERMES_HOME`` / ``~/.hermes`` keeps direct callers
+    falling back to ``$HERMES_HOME`` / ``~/.simplicio_agent`` keeps direct callers
     (and tests that don't thread a home through) working.
     """
     if home_path is None:
-        home_path = Path(os.getenv("HERMES_HOME", Path.home() / ".hermes"))
+        home_path = Path(os.getenv("HERMES_HOME", Path.home() / ".simplicio_agent"))
     return home_path
 
 

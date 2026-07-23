@@ -562,7 +562,7 @@ def _legacy_platform_home() -> Path:
             Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
         )
         return base / "hermes"
-    return Path.home() / ".hermes"
+    return Path.home() / ".simplicio_agent"
 
 
 @dataclass(frozen=True)

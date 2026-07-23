@@ -73,7 +73,7 @@ def _hermes_home() -> Path:
             return get_hermes_home()
         except Exception:  # pragma: no cover - defensive, never block on this
             pass
-    return Path.home() / ".hermes"
+    return Path.home() / ".simplicio_agent"
 
 
 DEFAULT_SOCKET = _hermes_home() / "daemon.sock"

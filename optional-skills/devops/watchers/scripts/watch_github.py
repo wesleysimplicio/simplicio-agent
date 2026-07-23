@@ -9,7 +9,7 @@ Usage (via cron with --no-agent):
       --script-args "--name hermes-issues --repo NousResearch/hermes-agent --scope issues"
 
 Set GITHUB_TOKEN (or GH_TOKEN) in the Hermes .env file
-(``${HERMES_HOME:-~/.hermes}/.env``) to avoid the 60 req/hr
+(``${HERMES_HOME:-~/.simplicio_agent}/.env``) to avoid the 60 req/hr
 anonymous rate limit.
 
 Scopes: issues | pulls | releases | commits.  Or pass --search QUERY to
