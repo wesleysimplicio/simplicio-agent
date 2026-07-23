@@ -142,6 +142,11 @@ from plugins.browser.firecrawl.provider import (  # noqa: F401
     FirecrawlBrowserProvider as FirecrawlProvider,
 )
 from tools.tool_backend_helpers import normalize_browser_cloud_provider
+from tools.browser_interaction_contract import (
+    browser_state_exists,
+    register_browser_snapshot,
+    resolve_browser_ref,
+)
 # Camofox local anti-detection browser backend (optional).
 # When CAMOFOX_URL is set, all browser operations route through the
 # camofox REST API instead of the agent-browser CLI.
@@ -2906,6 +2911,9 @@ def browser_navigate(url: str, task_id: Optional[str] = None) -> str:
                     snapshot_text = _truncate_snapshot(snapshot_text)
                 response["snapshot"] = _redact_browser_output(snapshot_text)
                 response["element_count"] = len(refs) if refs else 0
+                response["compact_state"] = register_browser_snapshot(
+                    nav_session_key, snapshot_text, refs, url=url
+                )
                 if snap_result.get("fallback_warning") and not response.get("fallback_warning"):
                     _copy_fallback_warning(response, snap_result)
         except Exception as e:
@@ -2995,6 +3003,9 @@ def browser_snapshot(
             "snapshot": _redact_browser_output(snapshot_text),
             "element_count": len(refs) if refs else 0
         }
+        response["compact_state"] = register_browser_snapshot(
+            effective_task_id, snapshot_text, refs
+        )
         _copy_fallback_warning(response, result)
 
         # Merge supervisor state (pending dialogs + frame tree) when a CDP
@@ -3017,6 +3028,18 @@ def browser_snapshot(
             "error": result.get("error", "Failed to get snapshot")
         }
         return fastjson.dumps(_copy_fallback_warning(response, result), ensure_ascii=False)
+
+
+def _refresh_compact_browser_state(task_id: str) -> None:
+    """Refresh the generation after an interaction changed page state."""
+    try:
+        refreshed = _run_browser_command(task_id, "snapshot", ["-c"])
+        if not refreshed.get("success"):
+            return
+        data = refreshed.get("data", {})
+        register_browser_snapshot(task_id, data.get("snapshot", ""), data.get("refs", {}))
+    except Exception as exc:
+        logger.debug("compact browser state refresh failed: %s", exc)
 
 
 def browser_click(ref: str, task_id: Optional[str] = None) -> str:
@@ -3043,6 +3066,11 @@ def browser_click(ref: str, task_id: Optional[str] = None) -> str:
     if not ref.startswith("@"):
         ref = f"@{ref}"
 
+    resolved_ref, ref_error = resolve_browser_ref(effective_task_id, ref)
+    if ref_error:
+        return fastjson.dumps({"success": False, "error": ref_error}, ensure_ascii=False)
+    ref = resolved_ref or ref
+
     result = _run_browser_command(effective_task_id, "click", [ref])
 
     if result.get("success"):
@@ -3050,6 +3078,8 @@ def browser_click(ref: str, task_id: Optional[str] = None) -> str:
             "success": True,
             "clicked": ref
         }
+        if browser_state_exists(effective_task_id):
+            _refresh_compact_browser_state(effective_task_id)
         return fastjson.dumps(_copy_fallback_warning(response, result), ensure_ascii=False)
     else:
         response = {
@@ -3084,6 +3114,11 @@ def browser_type(ref: str, text: str, task_id: Optional[str] = None) -> str:
     if not ref.startswith("@"):
         ref = f"@{ref}"
 
+    resolved_ref, ref_error = resolve_browser_ref(effective_task_id, ref)
+    if ref_error:
+        return fastjson.dumps({"success": False, "error": ref_error}, ensure_ascii=False)
+    ref = resolved_ref or ref
+
     # Use fill command (clears then types)
     result = _run_browser_command(effective_task_id, "fill", [ref, text])
 
@@ -3104,6 +3139,8 @@ def browser_type(ref: str, text: str, task_id: Optional[str] = None) -> str:
             "typed": display_text,
             "element": ref
         }
+        if browser_state_exists(effective_task_id):
+            _refresh_compact_browser_state(effective_task_id)
         response = _copy_fallback_warning(response, result)
         response = redact_browser_typed_text_for_display(response, text)
         return fastjson.dumps(response, ensure_ascii=False)
