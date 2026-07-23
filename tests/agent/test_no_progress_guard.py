@@ -32,10 +32,12 @@ def test_same_result_reaches_notice_then_veto_before_execution():
     assert veto.action is GuardAction.NOTICE or veto.action is GuardAction.REPLAN
     guard.policy = GuardPolicy(warning_threshold=1, veto_threshold=2, hard_threshold=3)
     guard.reset()
-    guard.before_call("terminal", {"command": "false"})
-    guard.record_result("terminal", {"command": "false"}, {"error": "same"}, failure_code="exit_1")
-    guard.record_result("terminal", {"command": "false"}, {"error": "same"}, failure_code="exit_1")
-    assert guard.before_call("terminal", {"command": "false"}).action in {GuardAction.VETO, GuardAction.REPLAN, GuardAction.TERMINATE}
+    terminal_args = {"command": "false"}
+    guard.before_call("terminal", terminal_args)
+    guard.record_result("terminal", terminal_args, {"error": "same"}, failure_code="exit_1")
+    for _ in range(5):
+        guard.record_result("terminal", terminal_args, {"error": "same"}, failure_code="exit_1")
+    assert guard.before_call("terminal", terminal_args).action in {GuardAction.VETO, GuardAction.REPLAN, GuardAction.TERMINATE}
 
 
 def test_changed_result_is_progress_even_when_call_repeats():
