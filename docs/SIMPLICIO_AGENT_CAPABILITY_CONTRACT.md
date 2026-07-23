@@ -199,6 +199,24 @@ simplicio shell -- <command>
 | `workflow` | Process GitHub issues autonomously via Simplicio's issue-factory pipeline: discover, worktree, sprint, validate, PR handoff. | `.simplicio_agent/skills/workflow/simplicio-issue-automation/SKILL.md` |
 | `yuanbao` | Yuanbao (元宝) groups: @mention users, query info/members. | `.simplicio_agent/skills/yuanbao/SKILL.md` |
 
+## Coordinator identity in public contracts and receipts
+
+The versioned machine contract and receipt metadata identify the coordinator
+without granting it global ownership. New payloads carry:
+
+- `coordinator_kind`: coordinator implementation kind; Agent defaults to
+  `simplicio-agent`.
+- `coordinator_id`: the coordinator identity for the current contract path;
+  Agent's stable default is `simplicio-agent`.
+- `authority`: the bounded authority scope; Agent defaults to `session`.
+
+These fields are additive to `machine-contracts/product/v1` and
+`machine-contracts/receipt-metadata/v1`. Legacy machine contracts remain
+upcastable and receive the safe Agent/session defaults. This local contract
+slice does not prove Agent-to-Runtime interoperability or cross-repository
+receipt propagation; those criteria remain `UNVERIFIED` until exercised with
+the Runtime implementation.
+
 ## AgentHost boundary
 
 - O Agent é um produto independente. O host publica um contrato neutro para
