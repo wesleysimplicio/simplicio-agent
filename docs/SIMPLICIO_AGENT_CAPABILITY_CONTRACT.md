@@ -235,6 +235,7 @@ simplicio shell -- <command>
   `workspace_id`. O daemon retém no máximo 32 workspaces e 64 eventos por
   workspace; cursor futuro é erro e cursor anterior à janela retorna
   `truncated=true` com os eventos ainda retidos, sem salto silencioso.
+- A recuperação do consumidor após restart é explícita: ao descobrir um novo host_instance_id válido, o cliente descarta cursor/incarnation anteriores, pede replay desde cursor=0 e ignora respostas atrasadas da geração antiga. O Agent não persiste nem zera cursores silenciosamente; mismatch continua fail-closed.
 - Este slice é volátil e local: restart reinicia streams. Watcher/polling,
   leitura automática, persistência, liberação de workspace, approval/execução,
   UI e suporte IPC cross-platform continuam fora de escopo. O transporte atual

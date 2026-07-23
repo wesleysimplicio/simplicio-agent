@@ -516,6 +516,50 @@ def test_daemon_replay_handlers_reject_a_stale_host_incarnation(op, stale):
         assert stale not in response["error"]
 
 
+def test_daemon_restart_requires_explicit_cursor_zero_resync():
+    from agent.host_protocol import HostAdvisoryBuffer
+    from hermes_cli import daemon as daemon_mod
+
+    old_instance = "process-incarnation-000001"
+    new_instance = "process-incarnation-000002"
+    assert old_instance != new_instance
+
+    old_advisories = HostAdvisoryBuffer(host_instance_id=old_instance)
+    old_advisories.publish("host.ready")
+    old_page = daemon_mod._handle_host_advisory_request(
+        {"op": "host.advisories", "cursor": 0, "host_instance_id": old_instance},
+        old_advisories,
+        host_instance_id=old_instance,
+    )
+    old_cursor = old_page["advisories"]["next_cursor"]
+
+    # A new process has a new stream. Reusing the old identity/cursor is
+    # rejected rather than silently resetting or replaying the wrong stream.
+    new_advisories = HostAdvisoryBuffer(host_instance_id=new_instance)
+    new_advisories.publish("host.ready")
+    stale = daemon_mod._handle_host_advisory_request(
+        {"op": "host.advisories", "cursor": old_cursor, "host_instance_id": old_instance},
+        new_advisories,
+        host_instance_id=new_instance,
+    )
+    assert stale == {
+        "ok": False,
+        "error": "host_instance_id does not match the active host incarnation",
+    }
+
+    # Recovery is explicit: the consumer renews the discovered identity and
+    # starts the new stream at cursor zero.
+    resync = daemon_mod._handle_host_advisory_request(
+        {"op": "host.advisories", "cursor": 0, "host_instance_id": new_instance},
+        new_advisories,
+        host_instance_id=new_instance,
+    )
+    assert resync["ok"] is True
+    assert resync["advisories"]["host_instance_id"] == new_instance
+    assert resync["advisories"]["next_cursor"] == 1
+    assert [event["kind"] for event in resync["advisories"]["events"]] == ["host.ready"]
+
+
 def test_daemon_rejects_non_object_json_requests_without_echoing_content():
     from hermes_cli import daemon as daemon_mod
 
