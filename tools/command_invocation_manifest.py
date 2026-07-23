@@ -71,6 +71,13 @@ UNCLASSIFIED_REASON = (
 PASSING_STATUSES = frozenset(("pass", "not_applicable"))
 VALID_STATUSES = frozenset(("pass", "fail", "not_applicable", "unknown"))
 CLASS_NAME = "agent_tool"
+COVERAGE_SCENARIOS = (
+    "positive",
+    "unknown_command",
+    "unavailable_capability",
+)
+COVERAGE_MATRIX_FIELDS = frozenset(("scenario", "tool", "expected_status", "stages"))
+MATRIX_STATUS_VALUES = frozenset(("pass", "fail", "not_applicable"))
 
 
 @dataclass(frozen=True)
@@ -303,6 +310,45 @@ def probe_runtime_reachability(
     }
 
 
+def build_coverage_matrix(runtime_reachability: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return the bounded invocation matrix covered by this manifest slice."""
+
+    unknown = _failed_reachability_probe(
+        "__definitely_not_a_registered_tool__", "tool is not registered"
+    )
+    return [
+        {
+            "scenario": "positive",
+            "tool": runtime_reachability["tool"],
+            "expected_status": runtime_reachability["status"],
+            "stages": {
+                stage: runtime_reachability["stage_status"][stage]
+                for stage in RUNTIME_EVIDENCE_STAGES
+            },
+        },
+        {
+            "scenario": "unknown_command",
+            "tool": unknown["tool"],
+            "expected_status": unknown["status"],
+            "stages": {
+                stage: unknown["stage_status"][stage]
+                for stage in RUNTIME_EVIDENCE_STAGES
+            },
+        },
+        {
+            "scenario": "unavailable_capability",
+            "tool": "__unavailable_capability__",
+            "expected_status": "fail",
+            "stages": {
+                "ROUTED": "fail",
+                "INVOKED": "not_applicable",
+                "RESULT_NORMALIZED": "not_applicable",
+                "EVIDENCED": "not_applicable",
+            },
+        },
+    ]
+
+
 def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Generate the agent_tool slice of the v1 manifest from the live registry.
 
@@ -349,6 +395,7 @@ def generate_manifest(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         },
         "axes": axes,
         "runtime_reachability": runtime_reachability,
+        "coverage_matrix": build_coverage_matrix(runtime_reachability),
         "summary": {
             "axis_count": len(axes),
             "failed": failed,
@@ -408,6 +455,32 @@ def validate_manifest(document: Mapping[str, Any]) -> list[str]:
             errors.append("runtime_reachability.stage_status has an invalid status value")
         if not isinstance(runtime.get("tool"), str) or not runtime["tool"]:
             errors.append("runtime_reachability.tool must be a non-empty string")
+    matrix = document.get("coverage_matrix")
+    if not isinstance(matrix, list) or len(matrix) != len(COVERAGE_SCENARIOS):
+        errors.append("coverage_matrix must contain exactly the bounded scenarios")
+    else:
+        scenarios = []
+        for index, entry in enumerate(matrix):
+            prefix = f"coverage_matrix[{index}]"
+            if not isinstance(entry, Mapping):
+                errors.append(f"{prefix} must be an object")
+                continue
+            scenarios.append(entry.get("scenario"))
+            if set(entry) != COVERAGE_MATRIX_FIELDS:
+                errors.append(f"{prefix} has invalid fields")
+            if entry.get("scenario") not in COVERAGE_SCENARIOS:
+                errors.append(f"{prefix}.scenario is invalid")
+            if not isinstance(entry.get("tool"), str) or not entry["tool"]:
+                errors.append(f"{prefix}.tool must be a non-empty string")
+            if entry.get("expected_status") not in MATRIX_STATUS_VALUES:
+                errors.append(f"{prefix}.expected_status is invalid")
+            stages = entry.get("stages")
+            if not isinstance(stages, Mapping) or set(stages) != set(RUNTIME_EVIDENCE_STAGES):
+                errors.append(f"{prefix}.stages has an invalid shape")
+            elif any(stages[stage] not in VALID_STATUSES for stage in RUNTIME_EVIDENCE_STAGES):
+                errors.append(f"{prefix}.stages has an invalid status value")
+        if scenarios != list(COVERAGE_SCENARIOS):
+            errors.append("coverage_matrix scenarios must be ordered and unique")
     return sorted(set(errors))
 
 

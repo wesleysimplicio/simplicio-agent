@@ -8,6 +8,7 @@ from pathlib import Path
 from tools.command_invocation_manifest import (
     CLASS_NAME,
     CLASSIFIED_STAGES,
+    COVERAGE_SCENARIOS,
     REPO_ROOT,
     REACHABILITY_PROBE_TOOL,
     RUNTIME_EVIDENCE_STAGES,
@@ -87,6 +88,32 @@ def test_validator_rejects_bad_schema() -> None:
 def test_validator_accepts_generated_manifest() -> None:
     document = generate_manifest(REPO_ROOT)
     assert validate_manifest(document) == []
+
+
+def test_coverage_matrix_records_positive_unknown_and_unavailable_paths() -> None:
+    document = generate_manifest(REPO_ROOT)
+    matrix = document["coverage_matrix"]
+
+    assert [entry["scenario"] for entry in matrix] == list(COVERAGE_SCENARIOS)
+    assert matrix[0]["expected_status"] == "pass"
+    assert matrix[0]["stages"]["INVOKED"] == "pass"
+    assert matrix[1]["expected_status"] == "fail"
+    assert matrix[1]["stages"]["ROUTED"] == "fail"
+    assert matrix[2]["expected_status"] == "fail"
+    assert matrix[2]["stages"]["ROUTED"] == "fail"
+    assert matrix[2]["stages"]["INVOKED"] == "not_applicable"
+    assert validate_manifest(document) == []
+
+
+def test_validator_rejects_duplicate_or_malformed_coverage_matrix_entries() -> None:
+    document = generate_manifest(REPO_ROOT)
+    document["coverage_matrix"][1]["scenario"] = "positive"
+    document["coverage_matrix"][2]["stages"] = {"ROUTED": "pass"}
+
+    errors = validate_manifest(document)
+
+    assert "coverage_matrix scenarios must be ordered and unique" in errors
+    assert "coverage_matrix[2].stages has an invalid shape" in errors
 
 
 def test_validator_reports_structural_manifest_errors() -> None:
