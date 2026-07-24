@@ -12,6 +12,8 @@ import hashlib
 import importlib
 import importlib.resources
 import json
+import posixpath
+import re
 import subprocess
 import time
 from collections import OrderedDict
@@ -615,6 +617,12 @@ class MapperClient:
     def resolve_source_handle(
         self, handle: ContextSnapshotHandle, source: Mapping[str, Any]
     ) -> MapperResult[Mapping[str, Any]]:
+        if not _valid_source_handle(source):
+            return MapperResult.failure(
+                AdapterStatus.INCOMPATIBLE_SCHEMA,
+                "SOURCE_HANDLE_INVALID",
+                "source handle is not a safe reversible handle",
+            )
         entry = self._cache.find_handle(handle)
         if entry is None:
             return MapperResult.failure(
@@ -873,6 +881,36 @@ def _graph_rows(
         tuple(row for row in rows if isinstance(row, Mapping))
         if isinstance(rows, list)
         else ()
+    )
+
+
+def _valid_source_handle(source: Mapping[str, Any]) -> bool:
+    if not isinstance(source, Mapping) or set(source).difference({"file", "line", "span"}):
+        return False
+    file_name = source.get("file")
+    if not isinstance(file_name, str) or not file_name or "\x00" in file_name or "\\" in file_name:
+        return False
+    if file_name != "<unknown>" and not file_name.startswith(("module:", "layer:", "adr:")):
+        if (
+            file_name.startswith("/")
+            or re.match(r"^[A-Za-z]:/", file_name)
+            or posixpath.normpath(file_name) != file_name
+            or file_name == ".."
+            or file_name.startswith("../")
+        ):
+            return False
+    line = source.get("line")
+    if line is not None and (not isinstance(line, int) or isinstance(line, bool) or line < 1):
+        return False
+    span = source.get("span")
+    return not (
+        span is not None
+        and (
+            not isinstance(span, list)
+            or len(span) != 2
+            or any(not isinstance(value, int) or isinstance(value, bool) or value < 1 for value in span)
+            or span[0] > span[1]
+        )
     )
 
 
