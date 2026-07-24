@@ -195,7 +195,6 @@ paths = [
   "fixtures/capabilities/repair.json",
   "fixtures/capabilities/router.json",
   "fixtures/capabilities/runtime-mcp-parity.v1.json",
-  "fixtures/evaluation/gaia-repository-task.v1.json",
   "fixtures/cli-identity/invalid-legacy-message.json",
   "fixtures/cli-identity/invalid-message-classification.json",
   "fixtures/cli-identity/invalid-secret-receipt.json",
@@ -365,8 +364,7 @@ paths = [
   "tools/rename_guard/allowlist.json",
   "tools/rename_guard/baseline-classification.json",
   "tools/rename_guard/baseline.json",
-  "tools/rename_guard/config.json",
-  "docs/rename-inventory-issue-205.json"
+  "tools/rename_guard/config.json"
 ]
 producer = "performance gate or rename/release tooling"
 consumer = "CI gates and maintainers"
@@ -379,6 +377,7 @@ rationale = "These paths require a follow-up owner decision; they are explicitly
 [[boundary]]
 category_id = "repository_manifest_or_fixture"
 paths = [
+  "docs/audits/meta-audit-inventory.json",
   "docs/rename-inventory-issue-205.json",
   "fixtures/evaluation/gaia-repository-task.v1.json"
 ]
