@@ -61,6 +61,31 @@ def _tavily_request(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return response.json()
 
 
+async def _tavily_request_async(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """POST to Tavily without blocking the event loop."""
+    import httpx
+
+    from agent.web_search_provider import get_provider_env
+
+    api_key = get_provider_env("TAVILY_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "TAVILY_API_KEY environment variable not set. "
+            "Get your API key at https://app.tavily.com/home"
+        )
+
+    base_url = get_provider_env("TAVILY_BASE_URL") or "https://api.tavily.com"
+    request_payload = dict(payload)
+    request_payload["api_key"] = api_key
+    url = f"{base_url}/{endpoint.lstrip('/')}"
+    logger.info("Tavily async %s request to %s", endpoint, url)
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(url, json=request_payload)
+        response.raise_for_status()
+        return response.json()
+
+
 def _normalize_tavily_search_results(response: Dict[str, Any]) -> Dict[str, Any]:
     """Map Tavily ``/search`` response to ``{success, data: {web: [...]}}``."""
     web_results = []
@@ -175,11 +200,11 @@ class TavilyWebSearchProvider(WebSearchProvider):
             logger.warning("Tavily search error: %s", exc)
             return {"success": False, "error": f"Tavily search failed: {exc}"}
 
-    def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
+    async def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
         """Extract content from one or more URLs via Tavily.
 
-        Sync — the underlying call is httpx.post(...). Returns the legacy
-        list-of-results shape; per-URL failures become items with ``error``.
+        Returns the legacy list-of-results shape; per-URL failures become items
+        with ``error``.
         """
         try:
             from tools.interrupt import is_interrupted
@@ -190,7 +215,7 @@ class TavilyWebSearchProvider(WebSearchProvider):
                 ]
 
             logger.info("Tavily extract: %d URL(s)", len(urls))
-            raw = _tavily_request(
+            raw = await _tavily_request_async(
                 "extract",
                 {
                     "urls": urls,

@@ -11,7 +11,7 @@ import json
 import os
 import asyncio
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from tests.tools.conftest import register_all_web_providers
 
@@ -212,10 +212,14 @@ class TestWebExtractTavily:
             "results": [{"url": "https://example.com", "raw_content": "Extracted content", "title": "Page"}]
         }
         mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=mock_response)
 
         with patch("tools.web_tools._get_backend", return_value="tavily"), \
              patch.dict(os.environ, {"TAVILY_API_KEY": "tvly-test"}), \
-             patch("tools.web_tools.httpx.post", return_value=mock_response):
+             patch("httpx.AsyncClient", return_value=mock_client):
             from tools.web_tools import web_extract_tool
             result = json.loads(asyncio.get_event_loop().run_until_complete(
                 web_extract_tool(["https://example.com"])
@@ -224,4 +228,41 @@ class TestWebExtractTavily:
             assert len(result["results"]) == 1
             assert result["results"][0]["url"] == "https://example.com"
             assert "Extracted content" in result["results"][0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_extract_uses_native_async_http(self):
+        from plugins.web.tavily.provider import TavilyWebSearchProvider
+
+        class AsyncResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"results": [{"url": "https://example.com", "raw_content": "async content"}]}
+
+        class AsyncClient:
+            calls = []
+
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def post(self, url, json):
+                self.calls.append((url, json))
+                return AsyncResponse()
+
+        with patch.dict(os.environ, {"TAVILY_API_KEY": "tvly-test"}), \
+             patch("httpx.AsyncClient", AsyncClient):
+            results = await TavilyWebSearchProvider().extract(["https://example.com"])
+
+        assert results[0]["content"] == "async content"
+        assert AsyncClient.calls == [(
+            "https://api.tavily.com/extract",
+            {"urls": ["https://example.com"], "include_images": False, "api_key": "tvly-test"},
+        )]
 
