@@ -106,6 +106,36 @@ def test_host_and_workspace_replays_are_bound_to_the_same_incarnation() -> None:
         workspace_events.replay(workspace_id="workspace-a", after=2)
 
 
+def test_workspace_replay_rejects_a_stale_host_incarnation() -> None:
+    current = new_host_instance_id()
+    stale = new_host_instance_id()
+    store = host_protocol.WorkspaceAdvisoryStore(host_instance_id=current)
+    store.observe(
+        workspace_id="workspace-a",
+        revision=1,
+        snapshot={
+            "changed_files": 0,
+            "diagnostic_errors": 0,
+            "diagnostic_warnings": 0,
+            "test_status": "passing",
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not match") as rejected:
+        store.replay(
+            workspace_id="workspace-a",
+            after=0,
+            host_instance_id=stale,
+        )
+
+    assert stale not in str(rejected.value)
+    assert store.replay(
+        workspace_id="workspace-a",
+        after=0,
+        host_instance_id=current,
+    )["host_instance_id"] == current
+
+
 def test_restart_requires_new_incarnation_and_explicit_cursor_zero_resync() -> None:
     old_instance = new_host_instance_id()
     new_instance = new_host_instance_id()
