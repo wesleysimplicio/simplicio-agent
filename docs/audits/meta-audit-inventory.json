@@ -1,5 +1,5 @@
 {
-  "schema": "simplicio-agent.meta-audit-inventory/v1",
+  "schema": "simplicio-agent.meta-audit-inventory/v2",
   "repository": "wesleysimplicio/simplicio-agent",
   "source": "gh api --paginate",
   "coverage": "issue_api_snapshot",
@@ -14,7 +14,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/9"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/9",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 10,
@@ -26,7 +28,9 @@
         "documentation",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/10"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/10",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 11,
@@ -37,7 +41,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/11"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/11",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 12,
@@ -49,7 +55,9 @@
         "performance",
         "question"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/12"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/12",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 14,
@@ -60,7 +68,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/14"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/14",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 16,
@@ -71,7 +81,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/16"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/16",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 17,
@@ -82,7 +94,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/17"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/17",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 18,
@@ -94,7 +108,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/18"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/18",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 19,
@@ -105,7 +121,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/19"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/19",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 20,
@@ -117,7 +135,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/20"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/20",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 21,
@@ -129,7 +149,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/21"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/21",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 22,
@@ -140,7 +162,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/22"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/22",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 23,
@@ -152,7 +176,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/23"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/23",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 24,
@@ -164,7 +190,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/24"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/24",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 25,
@@ -175,7 +203,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/25"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/25",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 26,
@@ -187,7 +217,9 @@
         "enhancement",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/26"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/26",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 27,
@@ -200,7 +232,9 @@
         "epic",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/27"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/27",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 28,
@@ -212,7 +246,9 @@
         "enhancement",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/28"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/28",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 29,
@@ -225,7 +261,9 @@
         "epic",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/29"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/29",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 30,
@@ -238,7 +276,9 @@
         "epic",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/30"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/30",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 31,
@@ -251,7 +291,9 @@
         "epic",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/31"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/31",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 32,
@@ -264,7 +306,9 @@
         "epic",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/32"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/32",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 33,
@@ -276,7 +320,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/33"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/33",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 34,
@@ -288,7 +334,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/34"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/34",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 35,
@@ -300,7 +348,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/35"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/35",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 36,
@@ -312,7 +362,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/36"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/36",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 37,
@@ -324,7 +376,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/37"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/37",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 38,
@@ -336,7 +390,9 @@
         "enhancement",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/38"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/38",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 39,
@@ -348,7 +404,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/39"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/39",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 40,
@@ -360,7 +418,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/40"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/40",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 41,
@@ -372,7 +432,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/41"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/41",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 42,
@@ -384,7 +446,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/42"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/42",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 43,
@@ -396,7 +460,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/43"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/43",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 44,
@@ -408,7 +474,9 @@
         "enhancement",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/44"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/44",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 45,
@@ -420,7 +488,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/45"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/45",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 46,
@@ -432,7 +502,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/46"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/46",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 47,
@@ -444,7 +516,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/47"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/47",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 48,
@@ -456,7 +530,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/48"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/48",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 49,
@@ -468,7 +544,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/49"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/49",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 50,
@@ -480,7 +558,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/50"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/50",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 51,
@@ -492,7 +572,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/51"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/51",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 52,
@@ -504,7 +586,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/52"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/52",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 53,
@@ -516,7 +600,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/53"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/53",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 54,
@@ -528,7 +614,9 @@
         "enhancement",
         "p3"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/54"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/54",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 56,
@@ -539,7 +627,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/56"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/56",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 57,
@@ -550,7 +640,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/57"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/57",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 58,
@@ -562,7 +654,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/58"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/58",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 59,
@@ -574,7 +668,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/59"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/59",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 60,
@@ -586,7 +682,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/60"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/60",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 61,
@@ -598,7 +696,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/61"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/61",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 62,
@@ -609,7 +709,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/62"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/62",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 63,
@@ -620,7 +722,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/63"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/63",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 64,
@@ -631,7 +735,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/64"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/64",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 65,
@@ -642,7 +748,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/65"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/65",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 66,
@@ -653,7 +761,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/66"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/66",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 68,
@@ -662,7 +772,9 @@
       "created_at": "2026-07-03T00:56:40Z",
       "updated_at": "2026-07-08T21:41:55Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/68"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/68",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 69,
@@ -671,7 +783,9 @@
       "created_at": "2026-07-03T00:56:50Z",
       "updated_at": "2026-07-08T21:42:05Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/69"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/69",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 70,
@@ -680,7 +794,9 @@
       "created_at": "2026-07-03T00:57:04Z",
       "updated_at": "2026-07-17T13:15:41Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/70"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/70",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 73,
@@ -691,7 +807,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/73"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/73",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 74,
@@ -702,7 +820,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/74"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/74",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 75,
@@ -713,7 +833,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/75"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/75",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 76,
@@ -724,7 +846,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/76"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/76",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 96,
@@ -735,7 +859,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/96"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/96",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 97,
@@ -747,7 +873,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/97"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/97",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 98,
@@ -758,7 +886,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/98"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/98",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 99,
@@ -769,7 +899,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/99"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/99",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 100,
@@ -780,7 +912,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/100"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/100",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 109,
@@ -789,7 +923,9 @@
       "created_at": "2026-07-08T21:39:04Z",
       "updated_at": "2026-07-09T04:33:53Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/109"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/109",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 110,
@@ -798,7 +934,9 @@
       "created_at": "2026-07-08T21:39:22Z",
       "updated_at": "2026-07-21T20:52:57Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/110"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/110",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 111,
@@ -807,7 +945,9 @@
       "created_at": "2026-07-08T21:39:36Z",
       "updated_at": "2026-07-17T12:40:24Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/111"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/111",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 112,
@@ -816,7 +956,9 @@
       "created_at": "2026-07-08T21:39:54Z",
       "updated_at": "2026-07-17T13:14:30Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/112"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/112",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 113,
@@ -825,7 +967,9 @@
       "created_at": "2026-07-08T21:40:05Z",
       "updated_at": "2026-07-17T06:44:44Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/113"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/113",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 115,
@@ -834,7 +978,9 @@
       "created_at": "2026-07-08T21:40:22Z",
       "updated_at": "2026-07-17T06:52:42Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/115"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/115",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 116,
@@ -843,7 +989,9 @@
       "created_at": "2026-07-08T21:40:35Z",
       "updated_at": "2026-07-17T06:48:57Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/116"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/116",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 117,
@@ -852,7 +1000,9 @@
       "created_at": "2026-07-08T21:40:58Z",
       "updated_at": "2026-07-21T20:52:53Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/117"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/117",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 118,
@@ -863,7 +1013,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/118"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/118",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 119,
@@ -872,7 +1024,9 @@
       "created_at": "2026-07-08T21:41:37Z",
       "updated_at": "2026-07-17T04:43:56Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/119"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/119",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 120,
@@ -883,7 +1037,9 @@
       "labels": [
         "documentation"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/120"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/120",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 121,
@@ -892,7 +1048,9 @@
       "created_at": "2026-07-09T04:05:45Z",
       "updated_at": "2026-07-12T23:24:02Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/121"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/121",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 123,
@@ -901,7 +1059,9 @@
       "created_at": "2026-07-09T19:58:29Z",
       "updated_at": "2026-07-17T05:21:58Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/123"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/123",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 124,
@@ -910,7 +1070,9 @@
       "created_at": "2026-07-09T19:58:36Z",
       "updated_at": "2026-07-17T05:22:01Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/124"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/124",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 125,
@@ -923,7 +1085,9 @@
         "integration",
         "patterns"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/125"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/125",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 126,
@@ -934,7 +1098,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/126"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/126",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 127,
@@ -945,7 +1111,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/127"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/127",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 128,
@@ -954,7 +1122,9 @@
       "created_at": "2026-07-09T23:18:43Z",
       "updated_at": "2026-07-21T20:53:27Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/128"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/128",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 129,
@@ -965,7 +1135,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/129"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/129",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 130,
@@ -976,7 +1148,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/130"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/130",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 131,
@@ -985,7 +1159,9 @@
       "created_at": "2026-07-10T02:28:18Z",
       "updated_at": "2026-07-12T23:24:05Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/131"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/131",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 132,
@@ -996,7 +1172,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/132"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/132",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 133,
@@ -1007,7 +1185,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/133"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/133",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 134,
@@ -1018,7 +1198,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/134"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/134",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 135,
@@ -1029,7 +1211,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/135"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/135",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 136,
@@ -1041,7 +1225,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/136"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/136",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 137,
@@ -1053,7 +1239,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/137"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/137",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 138,
@@ -1065,7 +1253,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/138"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/138",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 139,
@@ -1077,7 +1267,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/139"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/139",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 140,
@@ -1089,7 +1281,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/140"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/140",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 141,
@@ -1101,7 +1295,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/141"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/141",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 142,
@@ -1110,7 +1306,9 @@
       "created_at": "2026-07-10T18:22:03Z",
       "updated_at": "2026-07-17T12:45:19Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/142"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/142",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 144,
@@ -1121,7 +1319,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/144"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/144",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 146,
@@ -1134,7 +1334,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/146"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/146",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 147,
@@ -1148,7 +1350,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/147"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/147",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 148,
@@ -1162,7 +1366,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/148"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/148",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 149,
@@ -1176,7 +1382,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/149"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/149",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 150,
@@ -1190,7 +1398,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/150"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/150",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 151,
@@ -1204,7 +1414,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/151"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/151",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 152,
@@ -1218,7 +1430,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/152"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/152",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 153,
@@ -1232,7 +1446,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/153"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/153",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 154,
@@ -1246,7 +1462,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/154"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/154",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 155,
@@ -1260,7 +1478,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/155"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/155",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 156,
@@ -1274,7 +1494,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/156"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/156",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 157,
@@ -1288,7 +1510,9 @@
         "p0",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/157"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/157",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 158,
@@ -1302,7 +1526,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/158"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/158",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 159,
@@ -1316,7 +1542,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/159"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/159",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 160,
@@ -1330,7 +1558,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/160"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/160",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 161,
@@ -1344,7 +1574,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/161"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/161",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 162,
@@ -1358,7 +1590,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/162"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/162",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 163,
@@ -1372,7 +1606,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/163"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/163",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 164,
@@ -1386,7 +1622,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/164"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/164",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 165,
@@ -1400,7 +1638,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/165"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/165",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 166,
@@ -1414,7 +1654,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/166"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/166",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 167,
@@ -1428,7 +1670,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/167"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/167",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 168,
@@ -1442,7 +1686,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/168"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/168",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 169,
@@ -1455,7 +1701,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/169"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/169",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 170,
@@ -1469,7 +1717,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/170"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/170",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 171,
@@ -1483,7 +1733,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/171"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/171",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 172,
@@ -1497,7 +1749,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/172"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/172",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 173,
@@ -1511,7 +1765,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/173"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/173",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 174,
@@ -1525,7 +1781,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/174"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/174",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 175,
@@ -1539,7 +1797,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/175"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/175",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 176,
@@ -1553,7 +1813,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/176"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/176",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 177,
@@ -1567,7 +1829,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/177"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/177",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 178,
@@ -1581,7 +1845,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/178"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/178",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 179,
@@ -1595,7 +1861,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/179"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/179",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 180,
@@ -1609,7 +1877,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/180"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/180",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 181,
@@ -1622,7 +1892,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/181"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/181",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 182,
@@ -1636,7 +1908,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/182"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/182",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 183,
@@ -1650,7 +1924,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/183"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/183",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 184,
@@ -1663,7 +1939,9 @@
         "p0",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/184"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/184",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 185,
@@ -1677,7 +1955,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/185"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/185",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 186,
@@ -1690,7 +1970,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/186"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/186",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 187,
@@ -1703,7 +1985,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/187"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/187",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 188,
@@ -1717,7 +2001,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/188"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/188",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 189,
@@ -1731,7 +2017,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/189"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/189",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 190,
@@ -1745,7 +2033,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/190"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/190",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 191,
@@ -1759,7 +2049,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/191"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/191",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 192,
@@ -1773,7 +2065,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/192"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/192",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 193,
@@ -1787,7 +2081,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/193"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/193",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 194,
@@ -1800,7 +2096,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/194"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/194",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 195,
@@ -1814,7 +2112,9 @@
         "integration",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/195"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/195",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 196,
@@ -1829,7 +2129,9 @@
         "p0",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/196"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/196",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 197,
@@ -1838,7 +2140,9 @@
       "created_at": "2026-07-11T07:30:08Z",
       "updated_at": "2026-07-11T14:46:53Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/197"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/197",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 200,
@@ -1851,7 +2155,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/200"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/200",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 201,
@@ -1864,7 +2170,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/201"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/201",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 202,
@@ -1876,7 +2184,9 @@
         "documentation",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/202"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/202",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 203,
@@ -1888,7 +2198,9 @@
         "documentation",
         "p2"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/203"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/203",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 204,
@@ -1901,7 +2213,9 @@
         "integration",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/204"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/204",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 205,
@@ -1913,7 +2227,9 @@
         "documentation",
         "p1"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/205"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/205",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 209,
@@ -1924,7 +2240,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/209"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/209",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 210,
@@ -1935,7 +2253,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/210"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/210",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 211,
@@ -1946,7 +2266,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/211"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/211",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 212,
@@ -1955,7 +2277,9 @@
       "created_at": "2026-07-12T00:19:37Z",
       "updated_at": "2026-07-17T04:35:34Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/212"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/212",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 220,
@@ -1967,7 +2291,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/220"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/220",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 221,
@@ -1979,7 +2305,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/221"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/221",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 222,
@@ -1991,7 +2319,9 @@
         "enhancement",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/222"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/222",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 223,
@@ -2002,7 +2332,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/223"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/223",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 224,
@@ -2013,7 +2345,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/224"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/224",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 225,
@@ -2024,7 +2358,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/225"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/225",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 226,
@@ -2035,7 +2371,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/226"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/226",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 227,
@@ -2044,7 +2382,9 @@
       "created_at": "2026-07-12T06:17:10Z",
       "updated_at": "2026-07-21T20:59:57Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/227"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/227",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 228,
@@ -2055,7 +2395,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/228"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/228",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 229,
@@ -2064,7 +2406,9 @@
       "created_at": "2026-07-12T06:17:11Z",
       "updated_at": "2026-07-21T20:59:52Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/229"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/229",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 230,
@@ -2073,7 +2417,9 @@
       "created_at": "2026-07-12T06:17:12Z",
       "updated_at": "2026-07-21T20:59:48Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/230"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/230",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 252,
@@ -2085,7 +2431,9 @@
         "documentation",
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/252"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/252",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 257,
@@ -2094,7 +2442,9 @@
       "created_at": "2026-07-13T01:49:31Z",
       "updated_at": "2026-07-17T04:04:57Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/257"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/257",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 258,
@@ -2103,7 +2453,9 @@
       "created_at": "2026-07-13T01:49:38Z",
       "updated_at": "2026-07-17T04:05:05Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/258"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/258",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 259,
@@ -2112,7 +2464,9 @@
       "created_at": "2026-07-13T01:49:45Z",
       "updated_at": "2026-07-17T04:05:11Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/259"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/259",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 260,
@@ -2121,7 +2475,9 @@
       "created_at": "2026-07-13T01:49:51Z",
       "updated_at": "2026-07-17T04:04:52Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/260"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/260",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 261,
@@ -2130,7 +2486,9 @@
       "created_at": "2026-07-13T01:49:57Z",
       "updated_at": "2026-07-17T04:04:43Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/261"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/261",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 266,
@@ -2139,7 +2497,9 @@
       "created_at": "2026-07-13T02:48:04Z",
       "updated_at": "2026-07-21T20:59:42Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/266"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/266",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 314,
@@ -2151,7 +2511,9 @@
         "epic",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/314"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/314",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 315,
@@ -2162,7 +2524,9 @@
       "labels": [
         "epic"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/315"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/315",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 316,
@@ -2171,7 +2535,9 @@
       "created_at": "2026-07-14T02:10:44Z",
       "updated_at": "2026-07-21T20:59:22Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/316"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/316",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 317,
@@ -2180,7 +2546,9 @@
       "created_at": "2026-07-14T02:10:46Z",
       "updated_at": "2026-07-21T20:59:28Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/317"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/317",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 318,
@@ -2189,7 +2557,9 @@
       "created_at": "2026-07-14T02:10:47Z",
       "updated_at": "2026-07-21T20:59:25Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/318"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/318",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 319,
@@ -2198,7 +2568,9 @@
       "created_at": "2026-07-14T02:10:48Z",
       "updated_at": "2026-07-21T20:59:19Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/319"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/319",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 320,
@@ -2207,7 +2579,9 @@
       "created_at": "2026-07-14T02:10:49Z",
       "updated_at": "2026-07-21T20:59:16Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/320"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/320",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 321,
@@ -2216,7 +2590,9 @@
       "created_at": "2026-07-14T02:10:50Z",
       "updated_at": "2026-07-21T20:59:06Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/321"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/321",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 322,
@@ -2225,7 +2601,9 @@
       "created_at": "2026-07-14T02:10:51Z",
       "updated_at": "2026-07-21T20:59:11Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/322"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/322",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 323,
@@ -2234,7 +2612,9 @@
       "created_at": "2026-07-14T02:10:52Z",
       "updated_at": "2026-07-21T20:59:13Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/323"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/323",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 334,
@@ -2243,7 +2623,9 @@
       "created_at": "2026-07-14T05:08:58Z",
       "updated_at": "2026-07-21T20:58:52Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/334"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/334",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 335,
@@ -2252,7 +2634,9 @@
       "created_at": "2026-07-14T05:10:18Z",
       "updated_at": "2026-07-21T20:58:54Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/335"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/335",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 336,
@@ -2261,7 +2645,9 @@
       "created_at": "2026-07-14T05:10:40Z",
       "updated_at": "2026-07-17T04:35:29Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/336"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/336",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 337,
@@ -2270,7 +2656,9 @@
       "created_at": "2026-07-14T05:11:07Z",
       "updated_at": "2026-07-21T20:58:49Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/337"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/337",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 338,
@@ -2279,7 +2667,9 @@
       "created_at": "2026-07-14T05:11:42Z",
       "updated_at": "2026-07-21T20:58:42Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/338"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/338",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 339,
@@ -2288,7 +2678,9 @@
       "created_at": "2026-07-14T05:12:08Z",
       "updated_at": "2026-07-17T20:26:09Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/339"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/339",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 340,
@@ -2297,7 +2689,9 @@
       "created_at": "2026-07-14T05:12:31Z",
       "updated_at": "2026-07-17T20:43:36Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/340"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/340",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 341,
@@ -2306,7 +2700,9 @@
       "created_at": "2026-07-14T05:12:57Z",
       "updated_at": "2026-07-21T20:58:44Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/341"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/341",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 342,
@@ -2315,7 +2711,9 @@
       "created_at": "2026-07-14T05:13:36Z",
       "updated_at": "2026-07-21T20:58:47Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/342"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/342",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 343,
@@ -2324,7 +2722,9 @@
       "created_at": "2026-07-14T05:13:59Z",
       "updated_at": "2026-07-21T20:58:39Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/343"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/343",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 344,
@@ -2333,7 +2733,9 @@
       "created_at": "2026-07-14T05:14:22Z",
       "updated_at": "2026-07-17T20:36:42Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/344"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/344",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 345,
@@ -2342,7 +2744,9 @@
       "created_at": "2026-07-14T05:14:48Z",
       "updated_at": "2026-07-17T16:44:33Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/345"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/345",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 346,
@@ -2351,7 +2755,9 @@
       "created_at": "2026-07-14T05:15:34Z",
       "updated_at": "2026-07-21T20:58:36Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/346"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/346",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 347,
@@ -2360,7 +2766,9 @@
       "created_at": "2026-07-14T05:18:41Z",
       "updated_at": "2026-07-17T13:01:11Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/347"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/347",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 348,
@@ -2369,7 +2777,9 @@
       "created_at": "2026-07-14T05:19:07Z",
       "updated_at": "2026-07-21T20:58:15Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/348"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/348",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 349,
@@ -2378,7 +2788,9 @@
       "created_at": "2026-07-14T05:19:22Z",
       "updated_at": "2026-07-21T12:26:00Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/349"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/349",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 376,
@@ -2389,7 +2801,9 @@
       "labels": [
         "bug"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/376"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/376",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 398,
@@ -2401,7 +2815,9 @@
         "integration",
         "priority:high"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/398"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/398",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 400,
@@ -2412,7 +2828,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/400"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/400",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 441,
@@ -2421,7 +2839,9 @@
       "created_at": "2026-07-17T05:30:53Z",
       "updated_at": "2026-07-21T12:26:09Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/441"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/441",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 442,
@@ -2430,7 +2850,9 @@
       "created_at": "2026-07-17T05:30:54Z",
       "updated_at": "2026-07-21T12:26:18Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/442"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/442",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 451,
@@ -2439,7 +2861,9 @@
       "created_at": "2026-07-17T06:58:33Z",
       "updated_at": "2026-07-17T20:15:34Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/451"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/451",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 458,
@@ -2448,7 +2872,9 @@
       "created_at": "2026-07-17T15:38:56Z",
       "updated_at": "2026-07-17T20:16:43Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/458"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/458",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 462,
@@ -2457,7 +2883,9 @@
       "created_at": "2026-07-17T19:28:13Z",
       "updated_at": "2026-07-19T05:09:55Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/462"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/462",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 482,
@@ -2466,7 +2894,9 @@
       "created_at": "2026-07-18T02:47:58Z",
       "updated_at": "2026-07-21T20:58:05Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/482"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/482",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 483,
@@ -2475,7 +2905,9 @@
       "created_at": "2026-07-18T03:05:47Z",
       "updated_at": "2026-07-21T12:31:36Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/483"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/483",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 484,
@@ -2484,7 +2916,9 @@
       "created_at": "2026-07-18T13:16:47Z",
       "updated_at": "2026-07-21T12:30:50Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/484"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/484",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 485,
@@ -2493,7 +2927,9 @@
       "created_at": "2026-07-18T14:17:41Z",
       "updated_at": "2026-07-18T14:25:58Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/485"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/485",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 488,
@@ -2502,7 +2938,9 @@
       "created_at": "2026-07-19T00:23:01Z",
       "updated_at": "2026-07-19T01:20:57Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/488"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/488",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 489,
@@ -2511,7 +2949,9 @@
       "created_at": "2026-07-19T00:44:22Z",
       "updated_at": "2026-07-21T20:58:22Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/489"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/489",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 493,
@@ -2520,7 +2960,9 @@
       "created_at": "2026-07-19T03:35:13Z",
       "updated_at": "2026-07-21T12:30:41Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/493"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/493",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 494,
@@ -2532,7 +2974,9 @@
         "enhancement",
         "performance"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/494"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/494",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 496,
@@ -2541,7 +2985,9 @@
       "created_at": "2026-07-20T00:10:37Z",
       "updated_at": "2026-07-20T00:16:10Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/496"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/496",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 498,
@@ -2550,7 +2996,9 @@
       "created_at": "2026-07-20T00:40:51Z",
       "updated_at": "2026-07-21T20:57:59Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/498"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/498",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 499,
@@ -2559,7 +3007,9 @@
       "created_at": "2026-07-20T00:47:43Z",
       "updated_at": "2026-07-21T20:58:12Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/499"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/499",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 500,
@@ -2568,7 +3018,9 @@
       "created_at": "2026-07-20T00:48:12Z",
       "updated_at": "2026-07-21T20:58:01Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/500"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/500",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 501,
@@ -2577,7 +3029,9 @@
       "created_at": "2026-07-20T00:50:25Z",
       "updated_at": "2026-07-20T01:25:28Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/501"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/501",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 503,
@@ -2586,7 +3040,9 @@
       "created_at": "2026-07-20T01:32:12Z",
       "updated_at": "2026-07-23T07:10:37Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/503"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/503",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 514,
@@ -2595,7 +3051,9 @@
       "created_at": "2026-07-21T02:40:12Z",
       "updated_at": "2026-07-21T04:45:29Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/514"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/514",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 517,
@@ -2604,7 +3062,9 @@
       "created_at": "2026-07-21T04:45:04Z",
       "updated_at": "2026-07-21T20:57:50Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/517"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/517",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 518,
@@ -2613,7 +3073,9 @@
       "created_at": "2026-07-21T04:45:52Z",
       "updated_at": "2026-07-21T20:57:47Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/518"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/518",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 520,
@@ -2624,7 +3086,9 @@
       "labels": [
         "enhancement"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/520"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/520",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 563,
@@ -2633,7 +3097,9 @@
       "created_at": "2026-07-21T20:43:07Z",
       "updated_at": "2026-07-23T23:30:32Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/563"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/563",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 573,
@@ -2645,7 +3111,9 @@
         "enhancement",
         "p0"
       ],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/573"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/573",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 577,
@@ -2654,7 +3122,9 @@
       "created_at": "2026-07-23T11:54:46Z",
       "updated_at": "2026-07-23T11:59:07Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/577"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/577",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 578,
@@ -2663,7 +3133,9 @@
       "created_at": "2026-07-23T11:57:21Z",
       "updated_at": "2026-07-23T23:18:36Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/578"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/578",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 579,
@@ -2672,7 +3144,9 @@
       "created_at": "2026-07-23T11:57:22Z",
       "updated_at": "2026-07-23T23:12:55Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/579"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/579",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 580,
@@ -2681,7 +3155,9 @@
       "created_at": "2026-07-23T11:57:23Z",
       "updated_at": "2026-07-23T11:57:23Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/580"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/580",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 581,
@@ -2690,7 +3166,9 @@
       "created_at": "2026-07-23T11:57:24Z",
       "updated_at": "2026-07-23T23:17:33Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/581"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/581",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 582,
@@ -2699,7 +3177,9 @@
       "created_at": "2026-07-23T11:57:24Z",
       "updated_at": "2026-07-23T23:18:36Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/582"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/582",
+      "dependencies": [],
+      "evidence_status": "unverified"
     },
     {
       "number": 583,
@@ -2708,7 +3188,9 @@
       "created_at": "2026-07-23T11:57:25Z",
       "updated_at": "2026-07-23T18:31:23Z",
       "labels": [],
-      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/583"
+      "url": "https://github.com/wesleysimplicio/simplicio-agent/issues/583",
+      "dependencies": [],
+      "evidence_status": "unverified"
     }
   ],
   "summary": {
@@ -2716,6 +3198,35 @@
     "by_state": {
       "open": 139,
       "closed": 102
-    }
+    },
+    "open_issue_count": 139
+  },
+  "audit": {
+    "status": "incomplete",
+    "required_fields": [
+      "number",
+      "title",
+      "state",
+      "created_at",
+      "updated_at",
+      "labels",
+      "url",
+      "dependencies",
+      "evidence_status"
+    ],
+    "dependency_references": {
+      "checked": true,
+      "total": 0,
+      "invalid": []
+    },
+    "evidence": {
+      "by_status": {
+        "blocked": 0,
+        "unverified": 241,
+        "verified": 0
+      },
+      "complete": false
+    },
+    "open_issue_count": 139
   }
 }
