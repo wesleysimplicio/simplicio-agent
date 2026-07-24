@@ -5,6 +5,7 @@
 ```console
 python scripts/meta_audit.py --artifact docs/audits/meta-audit-inventory.json --validate --json
 python scripts/meta_audit.py --repo wesleysimplicio/simplicio-agent --artifact docs/audits/meta-audit-inventory.json --output meta-audit.md
+python scripts/meta_audit.py --repo wesleysimplicio/simplicio-agent --json --output meta-audit.json
 ```
 
-The second command refreshes from GitHub through `gh api`; tests use saved JSON input and never access the network. Review the artifact diff and rerun the validator after every live refresh. Full issue rewrites, dependency matrices, and the remaining #563 acceptance criteria are `UNVERIFIED` in this slice.
+The refresh command reads GitHub through `gh api`; tests use saved JSON input and never access the network. The v2 artifact validates required issue fields, dependency references, per-issue evidence status, and the explicit open-issue count. Evidence defaults to `unverified`, so this artifact deliberately does not mark the complete #563 audit as complete. Review the artifact diff and rerun the validator after every live refresh; full issue rewrites and dependency matrices remain `UNVERIFIED` in this slice.
