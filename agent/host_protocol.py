@@ -103,6 +103,31 @@ _WORKSPACE_ADVISORY_CATALOG: Final[dict[str, tuple[str, str, str, str | None]]] 
 }
 
 
+class HostProtocolError(ValueError):
+    """Redacted, machine-readable rejection from the host cursor contract."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class HostInstanceMismatchError(HostProtocolError):
+    """The request belongs to an older host process and must resync."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "restart_resync",
+            "host_instance_id does not match the active host incarnation",
+        )
+
+
+class HostCursorError(HostProtocolError):
+    """The advisory cursor cannot be replayed by the active host."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__("future_cursor", message)
+
+
 def new_host_instance_id() -> str:
     """Create an opaque, bounded identity for one daemon process lifetime.
 
@@ -128,7 +153,7 @@ def require_current_host_instance(
 ) -> None:
     """Reject a request tied to another daemon process, without echoing it."""
     if _host_instance_id(expected) != current:
-        raise ValueError("host_instance_id does not match the active host incarnation")
+        raise HostInstanceMismatchError()
 
 
 def host_protocol_metadata(
@@ -202,14 +227,24 @@ class HostAdvisoryBuffer:
             # Do not leak the mutable object retained by the buffer.
             return dict(event)
 
-    def replay(self, *, after: int = 0) -> dict[str, Any]:
+    def replay(
+        self,
+        *,
+        after: int = 0,
+        host_instance_id: str | None = None,
+    ) -> dict[str, Any]:
         """Return retained events after ``after`` and an idempotent cursor."""
         if isinstance(after, bool) or not isinstance(after, int) or after < 0:
             raise ValueError("after must be a non-negative integer")
 
         with self._lock:
+            if self._host_instance_id is not None and host_instance_id is not None:
+                require_current_host_instance(
+                    host_instance_id,
+                    current=self._host_instance_id,
+                )
             if after > self._sequence:
-                raise ValueError("after exceeds the current advisory sequence")
+                raise HostCursorError("after exceeds the current advisory sequence")
             retained = list(self._events)
             first_sequence = retained[0]["sequence"] if retained else self._sequence + 1
             truncated = bool(retained) and after < first_sequence - 1

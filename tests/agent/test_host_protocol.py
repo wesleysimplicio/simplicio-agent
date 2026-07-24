@@ -10,6 +10,8 @@ from agent.host_protocol import (
     HOST_PROTOCOL_SCHEMA,
     HOST_PROTOCOL_VERSION,
     HostAdvisoryBuffer,
+    HostCursorError,
+    HostInstanceMismatchError,
     host_protocol_metadata,
     new_host_instance_id,
     require_current_host_instance,
@@ -125,6 +127,30 @@ def test_restart_requires_new_incarnation_and_explicit_cursor_zero_resync() -> N
     assert resync["host_instance_id"] == new_instance
     assert resync["next_cursor"] == 1
     assert [event["kind"] for event in resync["events"]] == ["host.ready"]
+
+
+def test_host_advisory_cursor_reports_restart_resync_and_future_cursor() -> None:
+    old_instance = new_host_instance_id()
+    new_instance = new_host_instance_id()
+    old_events = HostAdvisoryBuffer(host_instance_id=old_instance)
+    new_events = HostAdvisoryBuffer(host_instance_id=new_instance)
+    old_events.publish("host.ready")
+    new_events.publish("host.ready")
+
+    assert old_events.replay(after=0, host_instance_id=old_instance)["next_cursor"] == 1
+
+    with pytest.raises(HostInstanceMismatchError) as restart:
+        new_events.replay(after=1, host_instance_id=old_instance)
+    assert restart.value.code == "restart_resync"
+    assert old_instance not in str(restart.value)
+
+    resync = new_events.replay(after=0, host_instance_id=new_instance)
+    assert resync["host_instance_id"] == new_instance
+    assert [event["kind"] for event in resync["events"]] == ["host.ready"]
+
+    with pytest.raises(HostCursorError) as future:
+        new_events.replay(after=2, host_instance_id=new_instance)
+    assert future.value.code == "future_cursor"
 
 
 def test_advisory_buffer_replays_after_cursor_without_user_payload() -> None:
