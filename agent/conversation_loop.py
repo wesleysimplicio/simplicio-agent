@@ -38,6 +38,7 @@ from agent.iteration_budget import IterationBudget
 from agent.turn_context import build_turn_context
 from agent.turn_retry_state import TurnRetryState
 from agent.turn_engine import (
+    CognitiveContext,
     TurnContext as EngineTurnContext,
     TurnEngine,
     TurnPhase,
@@ -530,6 +531,7 @@ def _start_turn_engine(
     session_id: str,
     attempt_id: str = "0",
     agent: Any = None,
+    cognitive_context=None,
 ) -> EngineTurnContext:
     """Enter the real conversation path through the TurnEngine boundary."""
 
@@ -538,6 +540,8 @@ def _start_turn_engine(
     # request. Direct AIAgent callers retain the local boundary below.
     managed_context = getattr(agent, "_agent_session_context", None)
     if managed_context is not None:
+        if cognitive_context is not None:
+            managed_context.cognitive_context = cognitive_context
         token = _ACTIVE_TURN_ENGINE_CONTEXT.set(managed_context)
         _ACTIVE_TURN_ENGINE_TOKEN.set(token)
         return managed_context
@@ -546,6 +550,7 @@ def _start_turn_engine(
         turn_id=turn_id,
         attempt_id=attempt_id,
         session_id=session_id,
+        cognitive_context=cognitive_context or CognitiveContext(),
     )
     token = _ACTIVE_TURN_ENGINE_CONTEXT.set(context)
     _ACTIVE_TURN_ENGINE_TOKEN.set(token)
@@ -714,6 +719,7 @@ def run_conversation(
         session_id=str(getattr(agent, "session_id", "") or ""),
         attempt_id=str(getattr(agent, "_turn_attempt_id", "0") or "0"),
         agent=agent,
+        cognitive_context=_ctx.cognitive_context,
     )
 
     # Main conversation loop counters (pure locals consumed by the loop below).

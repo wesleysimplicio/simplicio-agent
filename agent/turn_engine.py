@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional
 
+from agent.mapper_adapter import ContextSnapshotHandle, CausalScope
+
 
 class TurnPhase(str, Enum):
     ACCEPTED = "accepted"
@@ -73,6 +75,41 @@ _ALLOWED: dict[TurnPhase, set[TurnPhase]] = {
 _TERMINAL = {TurnPhase.COMPLETED, TurnPhase.FAILED, TurnPhase.CANCELLED}
 
 
+@dataclass(frozen=True)
+class CognitiveContext:
+    """The causal ContextSnapshot value attached to a live turn."""
+
+    snapshot_handle: Optional[ContextSnapshotHandle] = None
+    reason_code: str = "NO_SNAPSHOT"
+
+    @property
+    def snapshot_id(self) -> Optional[str]:
+        return self.snapshot_handle.snapshot_id if self.snapshot_handle else None
+
+    @classmethod
+    def for_turn(
+        cls,
+        agent: object,
+        *,
+        session_id: str,
+        turn_id: str,
+        attempt_id: str,
+    ) -> "CognitiveContext":
+        handle = getattr(agent, "_context_snapshot_handle", None)
+        if handle is None:
+            return cls()
+        if not isinstance(handle, ContextSnapshotHandle):
+            return cls(reason_code="INVALID_SNAPSHOT_HANDLE")
+        expected_scope = CausalScope(
+            session_id=session_id or "session",
+            turn_id=turn_id,
+            attempt_id=attempt_id or "0",
+        )
+        if handle.causal_scope != expected_scope:
+            return cls(reason_code="SNAPSHOT_SCOPE_MISMATCH")
+        return cls(snapshot_handle=handle, reason_code="SNAPSHOT_PINNED")
+
+
 @dataclass
 class TurnContext:
     """Identidade e bookkeeping de um turno (correlação, tentativa, cancelamento)."""
@@ -83,6 +120,7 @@ class TurnContext:
     phase: TurnPhase = TurnPhase.ACCEPTED
     cancelled: bool = False
     history: List[TurnPhase] = field(default_factory=list)
+    cognitive_context: CognitiveContext = field(default_factory=CognitiveContext)
 
     @property
     def is_terminal(self) -> bool:
