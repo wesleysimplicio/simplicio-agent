@@ -388,6 +388,30 @@ def test_pipeline_complete_canonicalizes_split_trace_to_bounded_stage_order():
     assert outcome.evidence["trace"] == outcome.trace
 
 
+def test_pipeline_for_agent_propagates_coordinator_identity_to_receipt() -> None:
+    receipts = []
+
+    class ExternalCoordinator:
+        session_id = "sess-1"
+        coordinator_kind = "external-coordinator"
+        coordinator_id = "coord-123"
+        authority = "turn"
+        tool_invocation_receipt_writer = receipts.append
+
+    outcome = pipeline_for_agent(ExternalCoordinator()).run(
+        ToolInvocation("demo.tool", {}, task_id="task-1"),
+        lambda name, args: {"ok": True},
+    )
+
+    assert outcome.receipt is not None
+    assert outcome.receipt.coordinator_kind == "external-coordinator"
+    assert outcome.receipt.coordinator_id == "coord-123"
+    assert outcome.receipt.authority == "turn"
+    assert outcome.receipt.meta["coordinator_id"] == "coord-123"
+    assert outcome.evidence["coordinator_kind"] == "external-coordinator"
+    assert receipts == [outcome.receipt]
+
+
 def test_pipeline_for_agent_accepts_optional_tool_name_for_existing_call_sites():
     agent = type("FakeAgent", (), {})()
 

@@ -15,6 +15,11 @@ from collections.abc import Callable, Mapping, MutableMapping
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Protocol
 
+from tools.machine_contracts import (
+    DEFAULT_COORDINATOR_AUTHORITY,
+    DEFAULT_COORDINATOR_ID,
+    DEFAULT_COORDINATOR_KIND,
+)
 from tools.watcher_gate import GateResult, Verdict, watch_result_boundary, watcher_receipt
 
 
@@ -75,6 +80,9 @@ class ToolInvocationMetadata:
     tool_call_id: str = ""
     session_id: str = ""
     turn_id: str = ""
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND
+    coordinator_id: str = DEFAULT_COORDINATOR_ID
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY
     api_request_id: str = ""
     actor: str = "agent"
     executor: str = "serial"
@@ -131,6 +139,9 @@ class ToolInvocationReceipt:
     blocked_by: str = ""
     meta: Mapping[str, Any] = field(default_factory=dict)
     checkpoint_ref: str = ""
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND
+    coordinator_id: str = DEFAULT_COORDINATOR_ID
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY
 
     def to_dict(self) -> dict[str, Any]:
         """Return the redaction-safe, serializable receipt contract."""
@@ -153,6 +164,9 @@ class ToolInvocationReceipt:
             "blocked_by": self.blocked_by,
             "meta": dict(self.meta),
             "checkpoint_ref": self.checkpoint_ref,
+            "coordinator_kind": self.coordinator_kind,
+            "coordinator_id": self.coordinator_id,
+            "authority": self.authority,
         }
 
 
@@ -339,7 +353,13 @@ def _redact_external_result(value: Any, redacted_keys: frozenset[str]) -> Any:
     return value
 
 
-def _metadata_defaults(invocation: ToolInvocation) -> ToolInvocationMetadata:
+def _metadata_defaults(
+    invocation: ToolInvocation,
+    *,
+    coordinator_kind: str = DEFAULT_COORDINATOR_KIND,
+    coordinator_id: str = DEFAULT_COORDINATOR_ID,
+    authority: str = DEFAULT_COORDINATOR_AUTHORITY,
+) -> ToolInvocationMetadata:
     incoming = invocation.metadata
     args = invocation.args if isinstance(invocation.args, dict) else {}
     attempt_seed = {
@@ -366,6 +386,21 @@ def _metadata_defaults(invocation: ToolInvocation) -> ToolInvocationMetadata:
             else "pending"
         ),
         evidence_version=incoming.evidence_version or "tool-invocation/v1",
+        coordinator_kind=(
+            incoming.coordinator_kind
+            if incoming.coordinator_kind not in ("", DEFAULT_COORDINATOR_KIND)
+            else coordinator_kind
+        ),
+        coordinator_id=(
+            incoming.coordinator_id
+            if incoming.coordinator_id not in ("", DEFAULT_COORDINATOR_ID)
+            else coordinator_id
+        ),
+        authority=(
+            incoming.authority
+            if incoming.authority not in ("", DEFAULT_COORDINATOR_AUTHORITY)
+            else authority
+        ),
         extras=dict(incoming.extras or {}),
     )
 
@@ -380,6 +415,9 @@ class ToolInvocationPipeline:
         receipt_writer: ReceiptWriter | None = None,
         redacted_result_keys: frozenset[str] | None = None,
         watcher: Callable[[ToolInvocationAttempt], GateResult] | None = None,
+        coordinator_kind: str = DEFAULT_COORDINATOR_KIND,
+        coordinator_id: str = DEFAULT_COORDINATOR_ID,
+        authority: str = DEFAULT_COORDINATOR_AUTHORITY,
     ):
         self.hooks = dict(hooks or {})
         self.receipt_writer = receipt_writer
@@ -389,6 +427,9 @@ class ToolInvocationPipeline:
             else frozenset(str(key).lower() for key in redacted_result_keys)
         )
         self.watcher = watcher
+        self.coordinator_kind = coordinator_kind or DEFAULT_COORDINATOR_KIND
+        self.coordinator_id = coordinator_id or DEFAULT_COORDINATOR_ID
+        self.authority = authority or DEFAULT_COORDINATOR_AUTHORITY
         self._receipts_by_attempt: dict[str, ToolInvocationReceipt] = {}
         self._receipt_errors: dict[str, BaseException] = {}
         self._receipts_written: set[str] = set()
@@ -634,7 +675,12 @@ class ToolInvocationPipeline:
             args=dict(args),
             tool_call_id=invocation.tool_call_id,
             task_id=invocation.task_id,
-            metadata=_metadata_defaults(invocation),
+            metadata=_metadata_defaults(
+                invocation,
+                coordinator_kind=self.coordinator_kind,
+                coordinator_id=self.coordinator_id,
+                authority=self.authority,
+            ),
         )
         return ToolInvocationAttempt(
             invocation=materialized,
@@ -940,11 +986,17 @@ class ToolInvocationPipeline:
             result_hash=result_hash,
             error_type=attempt.error_type,
             blocked_by=attempt.metadata.blocked_by,
+            coordinator_kind=attempt.metadata.coordinator_kind,
+            coordinator_id=attempt.metadata.coordinator_id,
+            authority=attempt.metadata.authority,
             meta={
                 "actor": attempt.metadata.actor,
                 "executor": attempt.metadata.executor,
                 "session_id": attempt.metadata.session_id,
                 "turn_id": attempt.metadata.turn_id,
+                "coordinator_kind": attempt.metadata.coordinator_kind,
+                "coordinator_id": attempt.metadata.coordinator_id,
+                "authority": attempt.metadata.authority,
                 "api_request_id": attempt.metadata.api_request_id,
                 "requires_checkpoint": attempt.metadata.requires_checkpoint,
                 "checkpoint_ref": attempt.checkpoint_ref,
@@ -981,6 +1033,9 @@ class ToolInvocationPipeline:
             "tool": attempt.resolved_name,
             "tool_call_id": attempt.metadata.tool_call_id,
             "task_id": attempt.metadata.task_id,
+            "coordinator_kind": attempt.metadata.coordinator_kind,
+            "coordinator_id": attempt.metadata.coordinator_id,
+            "authority": attempt.metadata.authority,
             "status": attempt.status,
             "classification": attempt.classification,
             "duration_ms": attempt.metadata.duration_ms,
@@ -1012,12 +1067,18 @@ def pipeline_for_agent(
     hooks = getattr(agent, "tool_invocation_pipeline_hooks", None)
     receipt_writer = getattr(agent, "tool_invocation_receipt_writer", None)
     watcher = getattr(agent, "tool_result_watcher", None)
+    coordinator_kind = getattr(agent, "coordinator_kind", DEFAULT_COORDINATOR_KIND)
+    coordinator_id = getattr(agent, "coordinator_id", DEFAULT_COORDINATOR_ID)
+    authority = getattr(agent, "authority", DEFAULT_COORDINATOR_AUTHORITY)
     if receipt_writer is None and hasattr(agent, "session_id"):
         receipt_writer = default_tool_invocation_receipt_writer
     return ToolInvocationPipeline(
         hooks=hooks,
         receipt_writer=receipt_writer,
         watcher=watcher if callable(watcher) else None,
+        coordinator_kind=coordinator_kind,
+        coordinator_id=coordinator_id,
+        authority=authority,
     )
 
 
@@ -1044,6 +1105,9 @@ def default_tool_invocation_receipt_writer(receipt: ToolInvocationReceipt) -> An
             "tool_call_id": receipt.tool_call_id,
             "args_hash": receipt.args_hash,
             "result_hash": receipt.result_hash,
+            "coordinator_kind": receipt.coordinator_kind,
+            "coordinator_id": receipt.coordinator_id,
+            "authority": receipt.authority,
             "requires_checkpoint": receipt.meta.get("requires_checkpoint", False),
         },
     )
