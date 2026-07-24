@@ -119,6 +119,16 @@ class MapperAdapterTest(unittest.TestCase):
         self.assertEqual(expanded.value.nodes[0]["id"], "file:src/app.py")
         self.assertEqual(expanded.metrics.materialized_nodes, 1)
 
+    def test_source_handle_rejects_traversal_before_lookup(self) -> None:
+        client = MapperClient(FakeTransport(_snapshot()), validator=_validator)
+        result = client.create_or_resolve_snapshot(_request())
+
+        self.assertIsNotNone(result.value)
+        invalid = client.resolve_source_handle(result.value, {"file": "../secret.py"})
+
+        self.assertIs(invalid.status, AdapterStatus.INCOMPATIBLE_SCHEMA)
+        self.assertEqual(invalid.reason_code, "SOURCE_HANDLE_INVALID")
+
     def test_same_attempt_cannot_switch_revision_silently(self) -> None:
         transport = FakeTransport(_snapshot())
         client = MapperClient(transport, validator=_validator)
@@ -259,6 +269,8 @@ class MapperAdapterTest(unittest.TestCase):
                 "installed Mapper does not expose the packaged conformance fixture"
             )
         payload = json.loads(fixture.read_text(encoding="utf-8"))
+        if importlib.util.find_spec("simplicio_mapper.context_contract") is None:
+            self.skipTest("installed Mapper lacks the v1 conformance validator")
         from simplicio_mapper.context_contract import validate_context_payload
 
         report = validate_context_payload(payload)
