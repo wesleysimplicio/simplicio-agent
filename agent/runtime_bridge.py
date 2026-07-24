@@ -369,10 +369,19 @@ class RuntimeBridge:
         receipt: TransportReceipt,
     ) -> RuntimeBridgeReceipt:
         error = receipt.error.to_dict() if receipt.error is not None else None
+        if receipt.ok and receipt.value is None:
+            error = {
+                "schema": "simplicio-transport/error/v1",
+                "code": "missing_observable_value",
+                "message": (
+                    "Runtime reported success without an observable JSON value"
+                ),
+                "retryable": False,
+            }
         return RuntimeBridgeReceipt(
             command=command,
             arguments=arguments,
-            ok=receipt.ok,
+            ok=receipt.ok and error is None,
             value=receipt.value,
             error=error,
             transport=receipt.transport,
