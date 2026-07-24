@@ -59,6 +59,57 @@ def test_runtime_bridge_routes_cli_shaped_commands_to_runtime_exec():
     assert calls == [("simplicio_exec", {"command": "doctor", "repo": "."})]
 
 
+def test_runtime_bridge_rejects_success_without_observable_value():
+    class EmptySuccessTransport:
+        def call_tool(self, name, arguments):
+            return type(
+                "Receipt",
+                (),
+                {
+                    "ok": True,
+                    "value": None,
+                    "error": None,
+                    "transport": "cli",
+                    "fallback_reason": None,
+                    "request_id": "request-empty-success",
+                },
+            )()
+
+    receipt = RuntimeBridge(transport=EmptySuccessTransport()).invoke("doctor")
+
+    assert not receipt.ok
+    assert receipt.value is None
+    assert receipt.error == {
+        "schema": "simplicio-transport/error/v1",
+        "code": "missing_observable_value",
+        "message": "Runtime reported success without an observable JSON value",
+        "retryable": False,
+    }
+
+
+def test_runtime_bridge_preserves_observable_success_payload():
+    class ValueTransport:
+        def call_tool(self, name, arguments):
+            return type(
+                "Receipt",
+                (),
+                {
+                    "ok": True,
+                    "value": {"healthy": True},
+                    "error": None,
+                    "transport": "cli",
+                    "fallback_reason": None,
+                    "request_id": "request-value-success",
+                },
+            )()
+
+    receipt = RuntimeBridge(transport=ValueTransport()).invoke("doctor")
+
+    assert receipt.ok
+    assert receipt.value == {"healthy": True}
+    assert receipt.error is None
+
+
 def test_runtime_bridge_uses_mcp_channel_when_cli_is_unavailable():
     calls = []
 
