@@ -302,6 +302,16 @@ class NoProgressGuard:
         entry.last_failure_code = failure_code
         entry.evidence_count = evidence_count
 
+        if declared_polling or user_requested_wait or result_category in {"pending", "not_ready", "in_progress"}:
+            self._touch(entry)
+            return self._decision(
+                action=GuardAction.ALLOW,
+                reason=GuardReason.POLLING_EXCEPTION,
+                entry=entry,
+                evidence_delta=evidence_delta,
+                notice="unchanged polling result is permitted by explicit policy",
+            )
+
         if progress:
             entry.no_progress_count = 0
             entry.replan_count = 0
@@ -311,16 +321,6 @@ class NoProgressGuard:
                 reason=GuardReason.FIRST_OBSERVATION if first else GuardReason.PROGRESS_OBSERVED,
                 entry=entry,
                 evidence_delta=evidence_delta,
-            )
-
-        if declared_polling or user_requested_wait or result_category in {"pending", "not_ready", "in_progress"}:
-            self._touch(entry)
-            return self._decision(
-                action=GuardAction.ALLOW,
-                reason=GuardReason.POLLING_EXCEPTION,
-                entry=entry,
-                evidence_delta=evidence_delta,
-                notice="unchanged polling result is permitted by explicit policy",
             )
 
         entry.no_progress_count += 1
