@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from agent.conversation_compression import conversation_history_after_compression
@@ -34,6 +34,7 @@ from agent.model_metadata import (
     estimate_request_tokens_rough,
 )
 from agent.tokens.message_estimator import estimate_messages_tokens_fast as estimate_messages_tokens_rough
+from agent.turn_engine import CognitiveContext
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,9 @@ class TurnContext:
     ext_prefetch_cache: str = ""
     # Goal-scoped attention delta injected into the API user context only.
     attention_context: str = ""
+    # Mapper ContextSnapshot handle pinned to this turn, when supplied by the
+    # adapter boundary.  It remains outside the static prompt.
+    cognitive_context: CognitiveContext = field(default_factory=CognitiveContext)
 
 
 def build_turn_context(
@@ -626,6 +630,14 @@ def build_turn_context(
 
         attention_context = degraded_attention_context(effective_task_id)
 
+    cognitive_context = CognitiveContext.for_turn(
+        agent,
+        session_id=str(getattr(agent, "session_id", "") or "session"),
+        turn_id=turn_id,
+        attempt_id=str(getattr(agent, "_turn_attempt_id", "0") or "0"),
+    )
+    agent._cognitive_context = cognitive_context
+
     return TurnContext(
         user_message=user_message,
         original_user_message=original_user_message,
@@ -639,4 +651,5 @@ def build_turn_context(
         plugin_user_context=plugin_user_context,
         ext_prefetch_cache=ext_prefetch_cache,
         attention_context=attention_context,
+        cognitive_context=cognitive_context,
     )
