@@ -8,20 +8,34 @@ does not decide how to interpret the receipts; that logic lives in
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from agent.belief_state import BeliefType, Freshness
+from tools.hbi import (
+    HbpLedger,
+    ReceiptChain,
+    pack_binary,
+    parse_row,
+    read_hbi,
+    read_hbp,
+    unpack_binary,
+)
 
 
 EVENT_STORE_SCHEMA = "simplicio.operational-event-store"
 EVENT_STORE_SCHEMA_VERSION = "simplicio.operational-event-store/v1"
 EXECUTION_CONTEXT_SCHEMA = "simplicio.execution-context/v1"
 RUN_EVENT_SCHEMA = "simplicio.run-event/v1"
+EVENT_STORE_MIGRATION_SCHEMA = "simplicio.operational-event-store-migration/v1"
+DEFAULT_MIGRATION_MAX_BYTES = 16 * 1024 * 1024
 
 
 class OperationalValueStatus(str, Enum):
@@ -334,6 +348,338 @@ class OperationalEventStoreCorruptError(ValueError):
     """Raised when the receipt journal cannot be replayed safely."""
 
 
+@dataclass(frozen=True, slots=True)
+class EventStoreMigrationReport:
+    """Outcome of a legacy JSONL to local HBP/HBI migration."""
+
+    legacy_path: Path
+    target_path: Path
+    receipt_count: int = 0
+    source_digest: str | None = None
+    target_digest: str | None = None
+    migrated: bool = False
+    already_migrated: bool = False
+    rolled_back: bool = False
+    skipped_reason: str | None = None
+    errors: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+
+def _migration_paths(target_path: str | Path) -> tuple[Path, Path, Path, Path]:
+    base = Path(target_path)
+    return (
+        base.with_suffix(".hbp"),
+        base.with_suffix(".hbi"),
+        base.with_suffix(".migration"),
+        base.with_suffix(".migration.pending"),
+    )
+
+
+def _properties_text(values: Mapping[str, object]) -> str:
+    return "".join(f"{key}={value}\n" for key, value in values.items())
+
+
+def _read_properties(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        key, separator, value = line.partition("=")
+        if not separator or not key or key in values:
+            raise ValueError(f"invalid migration metadata line in {path}")
+        values[key] = value
+    return values
+
+
+def _write_metadata(path: Path, values: Mapping[str, object]) -> None:
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(_properties_text(values), encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def _target_digest(hbp_path: Path, hbi_path: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(hbp_path.read_bytes())
+    digest.update(b"\0")
+    digest.update(hbi_path.read_bytes())
+    return digest.hexdigest()
+
+
+def _load_legacy_receipts(
+    legacy_path: Path,
+    scope: OperationalScope,
+    max_bytes: int,
+) -> tuple[list[AwarenessReceipt], str]:
+    if max_bytes <= 0:
+        raise ValueError("max_bytes must be positive")
+    try:
+        size = legacy_path.stat().st_size
+        if size > max_bytes:
+            raise OperationalEventStoreCorruptError(
+                f"legacy receipt log exceeds max_bytes ({size} > {max_bytes})"
+            )
+        raw = legacy_path.read_bytes()
+    except OSError as exc:
+        raise OperationalEventStoreCorruptError(
+            f"cannot read legacy receipt log: {exc}"
+        ) from exc
+    if len(raw) > max_bytes:
+        raise OperationalEventStoreCorruptError(
+            f"legacy receipt log exceeds max_bytes ({len(raw)} > {max_bytes})"
+        )
+    source_digest = hashlib.sha256(raw).hexdigest()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise OperationalEventStoreCorruptError(
+            f"legacy receipt log is not valid UTF-8: {exc}"
+        ) from exc
+
+    receipts: list[AwarenessReceipt] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+            if not isinstance(payload, Mapping):
+                raise TypeError("receipt must be a JSON object")
+            receipt = AwarenessReceipt.from_dict(payload)
+            scope.validate_payload(receipt.payload)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise OperationalEventStoreCorruptError(
+                f"legacy receipt log line {line_no}: {exc}"
+            ) from exc
+        receipts.append(receipt)
+    return receipts, source_digest
+
+
+def _decode_migrated_receipts(
+    hbp_path: Path,
+    hbi_path: Path,
+    scope: OperationalScope,
+) -> list[AwarenessReceipt]:
+    rows = read_hbp(hbp_path)
+    pointers = read_hbi(hbi_path)
+    if len(rows) != len(pointers):
+        raise OperationalEventStoreCorruptError(
+            "HBP/HBI entry count mismatch"
+        )
+    if not ReceiptChain.verify_static(rows):
+        raise OperationalEventStoreCorruptError("HBP receipt chain is invalid")
+    offset = 0
+    for pointer, row in zip(pointers, rows):
+        row_size = len(row.encode("utf-8"))
+        if pointer.off != offset or pointer.size != row_size:
+            raise OperationalEventStoreCorruptError(
+                "HBI pointer does not match the HBP row offsets"
+            )
+        offset += row_size + 1
+    receipts: list[AwarenessReceipt] = []
+    for row_no, row in enumerate(rows, start=1):
+        tag, fields = parse_row(row)
+        if tag != "AWARENESS":
+            raise OperationalEventStoreCorruptError(
+                f"HBP row {row_no} has unexpected tag {tag!r}"
+            )
+        values = dict(fields)
+        try:
+            payload = base64.b64decode(values["payload_b64"], validate=True)
+            receipt = AwarenessReceipt.from_dict(unpack_binary(payload))
+            scope.validate_payload(receipt.payload)
+        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+            raise OperationalEventStoreCorruptError(
+                f"HBP row {row_no} cannot be decoded: {exc}"
+            ) from exc
+        if values.get("receipt_id") != receipt.receipt_id:
+            raise OperationalEventStoreCorruptError(
+                f"HBP row {row_no} receipt_id does not match payload"
+            )
+        receipts.append(receipt)
+    return receipts
+
+
+def _cleanup_migration_temporary(*paths: Path) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def migrate_legacy_event_store(
+    legacy_path: str | Path,
+    target_path: str | Path,
+    *,
+    scope: OperationalScope,
+    max_bytes: int = DEFAULT_MIGRATION_MAX_BYTES,
+) -> EventStoreMigrationReport:
+    """Atomically migrate a legacy JSONL receipt log into local HBP/HBI files.
+
+    The complete legacy file is parsed and round-tripped before publication.
+    A pending line-oriented transaction marker makes a retry clean up a
+    process interrupted between the HBP and HBI replacements.  The marker is
+    deliberately local metadata; this slice does not assert Runtime HBI v1
+    conformance.
+    """
+    legacy_path = Path(legacy_path)
+    target_path = Path(target_path)
+    hbp_path, hbi_path, marker_path, pending_path = _migration_paths(target_path)
+    temporary_base = hbp_path.with_name(f".{hbp_path.stem}.migration-tmp")
+    temporary_hbp = temporary_base.with_suffix(".hbp")
+    temporary_hbi = temporary_base.with_suffix(".hbi")
+    temporary_marker = marker_path.with_name(f".{marker_path.name}.tmp")
+    base = {"legacy_path": legacy_path, "target_path": target_path}
+
+    try:
+        receipts, source_digest = _load_legacy_receipts(
+            legacy_path, scope, max_bytes
+        )
+    except (OSError, OperationalEventStoreCorruptError, ValueError) as exc:
+        return EventStoreMigrationReport(**base, errors=(str(exc),))
+
+    _cleanup_migration_temporary(temporary_hbp, temporary_hbi, temporary_marker)
+    try:
+        if pending_path.exists():
+            pending = _read_properties(pending_path)
+            if pending.get("schema") != EVENT_STORE_MIGRATION_SCHEMA or pending.get(
+                "source_sha256"
+            ) != source_digest:
+                return EventStoreMigrationReport(
+                    **base,
+                    source_digest=source_digest,
+                    errors=("pending migration belongs to another source",),
+                )
+            _cleanup_migration_temporary(hbp_path, hbi_path, marker_path, pending_path)
+
+        if marker_path.exists():
+            metadata = _read_properties(marker_path)
+            if metadata.get("schema") != EVENT_STORE_MIGRATION_SCHEMA:
+                return EventStoreMigrationReport(
+                    **base,
+                    source_digest=source_digest,
+                    errors=("unsupported event-store migration marker",),
+                )
+            if metadata.get("source_sha256") != source_digest:
+                return EventStoreMigrationReport(
+                    **base,
+                    source_digest=source_digest,
+                    errors=("migration marker source digest does not match",),
+                )
+            if not hbp_path.exists() or not hbi_path.exists():
+                raise OperationalEventStoreCorruptError(
+                    "migration marker exists but HBP/HBI target is incomplete"
+                )
+            decoded = _decode_migrated_receipts(hbp_path, hbi_path, scope)
+            target_digest = _target_digest(hbp_path, hbi_path)
+            if metadata.get("target_sha256") != target_digest or int(
+                metadata.get("receipt_count", "-1")
+            ) != len(decoded):
+                raise OperationalEventStoreCorruptError(
+                    "migration marker does not match verified HBP/HBI target"
+                )
+            if [item.to_dict() for item in decoded] != [
+                item.to_dict() for item in receipts
+            ]:
+                raise OperationalEventStoreCorruptError(
+                    "verified target does not match the legacy source"
+                )
+            return EventStoreMigrationReport(
+                **base,
+                receipt_count=len(receipts),
+                source_digest=source_digest,
+                target_digest=target_digest,
+                already_migrated=True,
+            )
+
+        if hbp_path.exists() or hbi_path.exists():
+            return EventStoreMigrationReport(
+                **base,
+                source_digest=source_digest,
+                errors=("target exists without a matching migration marker",),
+            )
+
+        ledger = HbpLedger(temporary_base)
+        for receipt in receipts:
+            ledger.append(
+                "AWARENESS",
+                [
+                    ("receipt_id", receipt.receipt_id),
+                    (
+                        "payload_b64",
+                        base64.b64encode(pack_binary(receipt.to_dict())).decode(
+                            "ascii"
+                        ),
+                    ),
+                ],
+            )
+        ledger.flush()
+        if not ledger.verify():
+            raise OperationalEventStoreCorruptError("temporary HBP chain is invalid")
+        decoded = _decode_migrated_receipts(temporary_hbp, temporary_hbi, scope)
+        if [item.to_dict() for item in decoded] != [
+            item.to_dict() for item in receipts
+        ]:
+            raise OperationalEventStoreCorruptError(
+                "temporary HBP/HBI target does not match the legacy source"
+            )
+        target_digest = _target_digest(temporary_hbp, temporary_hbi)
+        _write_metadata(
+            pending_path,
+            {
+                "schema": EVENT_STORE_MIGRATION_SCHEMA,
+                "source_sha256": source_digest,
+                "receipt_count": len(receipts),
+                "target_sha256": target_digest,
+            },
+        )
+        os.replace(temporary_hbp, hbp_path)
+        os.replace(temporary_hbi, hbi_path)
+        _write_metadata(
+            temporary_marker,
+            {
+                "schema": EVENT_STORE_MIGRATION_SCHEMA,
+                "source_sha256": source_digest,
+                "receipt_count": len(receipts),
+                "target_sha256": target_digest,
+            },
+        )
+        os.replace(temporary_marker, marker_path)
+        pending_path.unlink(missing_ok=True)
+        return EventStoreMigrationReport(
+            **base,
+            receipt_count=len(receipts),
+            source_digest=source_digest,
+            target_digest=target_digest,
+            migrated=True,
+        )
+    except (OSError, ValueError, TypeError, OperationalEventStoreCorruptError) as exc:
+        _cleanup_migration_temporary(temporary_hbp, temporary_hbi, temporary_marker)
+        if pending_path.exists() and not marker_path.exists():
+            _cleanup_migration_temporary(hbp_path, hbi_path, pending_path)
+        return EventStoreMigrationReport(
+            **base,
+            receipt_count=len(receipts),
+            source_digest=source_digest,
+            rolled_back=True,
+            errors=(str(exc),),
+        )
+
+
+def read_migrated_event_store(
+    target_path: str | Path,
+    *,
+    scope: OperationalScope,
+) -> list[AwarenessReceipt]:
+    """Read and verify the local HBP/HBI representation of migrated receipts."""
+    hbp_path, hbi_path, _marker_path, _pending_path = _migration_paths(target_path)
+    if not hbp_path.exists() or not hbi_path.exists():
+        raise OperationalEventStoreCorruptError("migrated HBP/HBI target is missing")
+    return _decode_migrated_receipts(hbp_path, hbi_path, scope)
+
+
 class OperationalEventStore:
     """Append-only JSONL journal for awareness receipts."""
 
@@ -385,15 +731,20 @@ class OperationalEventStore:
 
 __all__ = [
     "AwarenessReceipt",
+    "DEFAULT_MIGRATION_MAX_BYTES",
     "EXECUTION_CONTEXT_SCHEMA",
     "EVENT_STORE_SCHEMA",
     "EVENT_STORE_SCHEMA_VERSION",
+    "EVENT_STORE_MIGRATION_SCHEMA",
+    "EventStoreMigrationReport",
     "ExecutionContext",
+    "migrate_legacy_event_store",
     "OperationalEventStore",
     "OperationalEventStoreCorruptError",
     "OperationalScope",
     "OperationalScopeError",
     "OperationalValueStatus",
+    "read_migrated_event_store",
     "RUN_EVENT_SCHEMA",
     "RunEvent",
 ]
