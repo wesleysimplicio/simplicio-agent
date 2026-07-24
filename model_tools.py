@@ -24,6 +24,7 @@ import os
 import json
 import re
 import asyncio
+from copy import deepcopy
 import logging
 import threading
 import time
@@ -260,6 +261,31 @@ _LEGACY_TOOLSET_MAP = {
 # daemon start/stop, env var changes, etc.) on a 30 s horizon.
 _tool_defs_cache: Dict[tuple, List[Dict[str, Any]]] = {}
 
+# Opt-in schema-tier catalogs are session-scoped.  The registry generation is
+# part of the key so MCP refreshes never reuse an expansion from an old view.
+_schema_tier_catalogs: Dict[tuple, Any] = {}
+_SCHEMA_TIER_CACHE_MAX = 32
+TOOL_VIEW_NAME = "tool.view"
+TOOL_VIEW_DEFINITION = {
+    "type": "function",
+    "function": {
+        "name": TOOL_VIEW_NAME,
+        "description": "Load the full schema for an authorized rare tool by its tool.view handle.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "handle": {
+                    "type": "string",
+                    "pattern": r"^tool\.view:.+$",
+                    "description": "Stable handle from a rare tool manifest entry.",
+                },
+            },
+            "required": ["handle"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 # Hard cap on memoized get_tool_definitions() results. A long-lived Gateway
 # process sees many distinct toolset/config fingerprints over its lifetime
 # (per-session toolset sets, config edits, kanban-task toggles); without a
@@ -274,6 +300,115 @@ def _clear_tool_defs_cache() -> None:
     schema dependencies change (e.g. discord capability cache reset,
     execute_code sandbox reconfigured)."""
     _tool_defs_cache.clear()
+    _schema_tier_catalogs.clear()
+
+
+def _schema_tier_key(
+    session_id: Optional[str],
+    task: str,
+    tool_names: List[str],
+    full_tier_limit: int,
+    max_expansions: int,
+) -> tuple:
+    return (
+        session_id or "default",
+        registry._generation,
+        task,
+        tuple(sorted(tool_names)),
+        int(full_tier_limit),
+        int(max_expansions),
+    )
+
+
+def _schema_tier_catalog(
+    tool_defs: List[Dict[str, Any]],
+    *,
+    task: str,
+    full_tier_limit: int,
+    max_expansions: int,
+    session_id: Optional[str],
+):
+    """Return the authorized, generation-bound catalog for a manifest."""
+    from agent.schema_tiering import build_schema_tier_catalog
+
+    tool_names = [
+        item.get("function", {}).get("name", "")
+        for item in tool_defs
+        if isinstance(item.get("function"), dict)
+    ]
+    key = _schema_tier_key(session_id, task, tool_names, full_tier_limit, max_expansions)
+    catalog = _schema_tier_catalogs.get(key)
+    if catalog is not None:
+        return catalog
+
+    try:
+        from toolsets import _HERMES_CORE_TOOLS
+        core_tool_names = tuple(name for name in _HERMES_CORE_TOOLS if name in tool_names)
+    except Exception:
+        core_tool_names = ()
+    builder = getattr(registry, "build_schema_tier_catalog", None)
+    if builder is not None:
+        catalog = builder(
+            task=task,
+            enabled_tool_names=tool_names,
+            core_tool_names=core_tool_names,
+            full_tier_limit=full_tier_limit,
+            max_expansions=max_expansions,
+        )
+    else:
+        catalog = build_schema_tier_catalog(
+            registry,
+            task=task,
+            enabled_tool_names=tool_names,
+            core_tool_names=core_tool_names,
+            full_tier_limit=full_tier_limit,
+            max_expansions=max_expansions,
+        )
+    if len(_schema_tier_catalogs) >= _SCHEMA_TIER_CACHE_MAX:
+        _schema_tier_catalogs.pop(next(iter(_schema_tier_catalogs)))
+    _schema_tier_catalogs[key] = catalog
+    return catalog
+
+
+def _tiered_tool_manifest(
+    tool_defs: List[Dict[str, Any]],
+    *,
+    task: str,
+    full_tier_limit: int,
+    max_expansions: int,
+    session_id: Optional[str],
+) -> List[Dict[str, Any]]:
+    catalog = _schema_tier_catalog(
+        tool_defs,
+        task=task,
+        full_tier_limit=full_tier_limit,
+        max_expansions=max_expansions,
+        session_id=session_id,
+    )
+    return list(catalog.stable_prefix()) + [deepcopy(TOOL_VIEW_DEFINITION)]
+
+
+def view_tool_schema(handle: str, session_id: Optional[str] = None) -> str:
+    """Expand an authorized manifest handle and return its receipt."""
+    import json as _json
+
+    key_prefix = session_id or "default"
+    catalogs = [
+        catalog for key, catalog in _schema_tier_catalogs.items()
+        if key[0] == key_prefix and key[1] == registry._generation
+    ]
+    if not catalogs:
+        return _json.dumps({"error": "tool.view has no active schema manifest"}, ensure_ascii=False)
+    catalog = catalogs[-1]
+    try:
+        result = catalog.view(handle)
+    except Exception as exc:
+        return _json.dumps({"error": str(exc), "error_type": "tool_view"}, ensure_ascii=False)
+    return _json.dumps(
+        {"schema": dict(result.schema), "receipt": result.receipt.as_dict()},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 def get_tool_definitions(
@@ -281,6 +416,11 @@ def get_tool_definitions(
     disabled_toolsets: Optional[List[str]] = None,
     quiet_mode: bool = False,
     skip_tool_search_assembly: bool = False,
+    schema_tiering: bool = False,
+    schema_tiering_task: str = "",
+    schema_tiering_full_tier_limit: int = 8,
+    schema_tiering_max_expansions: int = 3,
+    schema_tiering_session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Get tool definitions for model API calls with toolset-based filtering.
@@ -296,6 +436,8 @@ def get_tool_definitions(
             tool_search / tool_describe bridge handlers so they can read the
             real catalog, not the already-collapsed one. Public callers should
             leave this False.
+        schema_tiering: Opt into the deterministic rare-schema manifest.
+        schema_tiering_session_id: Session key used to route later ``tool.view`` calls.
 
     Returns:
         Filtered list of OpenAI-format tool definitions.
@@ -323,6 +465,11 @@ def get_tool_definitions(
             cfg_fp,
             bool(os.environ.get("HERMES_KANBAN_TASK")),
             bool(skip_tool_search_assembly),
+            bool(schema_tiering),
+            schema_tiering_task,
+            int(schema_tiering_full_tier_limit),
+            int(schema_tiering_max_expansions),
+            schema_tiering_session_id or "default",
         )
         cached = _tool_defs_cache.get(cache_key)
         if cached is not None:
@@ -334,8 +481,20 @@ def get_tool_definitions(
             # schemas are treated as read-only by all known callers.
             return list(cached)
 
-    result = _compute_tool_definitions(enabled_toolsets, disabled_toolsets, quiet_mode,
-                                       skip_tool_search_assembly=skip_tool_search_assembly)
+    result = _compute_tool_definitions(
+        enabled_toolsets,
+        disabled_toolsets,
+        quiet_mode,
+        skip_tool_search_assembly=skip_tool_search_assembly,
+    )
+    if schema_tiering:
+        result = _tiered_tool_manifest(
+            result,
+            task=schema_tiering_task,
+            full_tier_limit=schema_tiering_full_tier_limit,
+            max_expansions=schema_tiering_max_expansions,
+            session_id=schema_tiering_session_id,
+        )
     if quiet_mode:
         # Cache the freshly-computed list, but hand callers a shallow copy so
         # downstream mutations (e.g. run_agent appending memory/LCM tool
@@ -1067,6 +1226,18 @@ def handle_function_call(
     if not isinstance(function_args, dict):
         function_args = {}
     _tool_middleware_trace = list(tool_request_middleware_trace or [])
+
+    # ``tool.view`` is a manifest operation, not an external adapter/tool
+    # call.  Resolve it before middleware, guardrails, and Runtime adapters so
+    # a view can only use the authorized catalog captured for this session.
+    if function_name == TOOL_VIEW_NAME:
+        handle = function_args.get("handle")
+        if not isinstance(handle, str) or not handle:
+            return json.dumps({
+                "error": "tool.view requires a non-empty handle",
+                "error_type": "tool_view",
+            }, ensure_ascii=False)
+        return view_tool_schema(handle, session_id=session_id)
 
     # ── Tool Search bridge dispatch ──────────────────────────────────
     # tool_search and tool_describe are pure catalog reads — handle them
