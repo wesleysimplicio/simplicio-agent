@@ -411,11 +411,22 @@ class WorkspaceAdvisoryStore:
                 observation["host_instance_id"] = self._host_instance_id
             return observation
 
-    def replay(self, *, workspace_id: str, after: int = 0) -> dict[str, Any]:
+    def replay(
+        self,
+        *,
+        workspace_id: str,
+        after: int = 0,
+        host_instance_id: str | None = None,
+    ) -> dict[str, Any]:
         """Replay one workspace stream strictly after a validated cursor."""
         workspace_id = _workspace_id(workspace_id)
         after = _workspace_cursor(after)
         with self._lock:
+            if self._host_instance_id is not None and host_instance_id is not None:
+                require_current_host_instance(
+                    host_instance_id,
+                    current=self._host_instance_id,
+                )
             stream = self._streams.get(workspace_id)
             if stream is None:
                 if after:
