@@ -587,6 +587,16 @@ class ToolRegistry:
             result.append({"type": "function", "function": schema_with_name})
         return result
 
+    def build_schema_tier_catalog(self, **kwargs):
+        """Build a permission-filtered, generation-bound schema catalog.
+
+        Import lazily so the registry remains the dependency root for tool
+        modules while the optional manifest layer can depend on it.
+        """
+        from agent.schema_tiering import build_schema_tier_catalog
+
+        return build_schema_tier_catalog(self, **kwargs)
+
     # ------------------------------------------------------------------
     # Dispatch
     # ------------------------------------------------------------------
